@@ -35,4 +35,5 @@ with one line on when it earns its way back. Nothing on this list is a "no" — 
 | --- | --- |
 | Vercel Hobby → Pro or Hetzner+Coolify | First affiliate dollar / any commercial use, or first overage email. Runbook lives in the repo. |
 | Neon free → paid or Postgres-on-VPS | `pg_database_size()` alert at ~350MB, or compute-hour cap pain. |
+| R2 bucket + backup secrets (`R2_ENDPOINT`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_BUCKET` repo secrets) | Before M1 ships user tables — must exist by the P1.8 restore drill. Backup step in nightly-ingest.yml already no-ops until then. |
 | Redis / queues / background workers | A measured problem that cron + Postgres can't absorb. Not speculatively. |
