@@ -2,7 +2,10 @@
  * Idempotent seed: games + formats. Safe to re-run on every deploy/migrate.
  *   pnpm db:seed
  */
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
+
+// Next.js convention: .env.local overrides .env (first file in the list wins).
+loadEnv({ path: [".env.local", ".env"], quiet: true });
 
 import { sql } from "drizzle-orm";
 
