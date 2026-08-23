@@ -28,6 +28,7 @@ with one line on when it earns its way back. Nothing on this list is a "no" — 
 | Matchup guides / Meta Lens deep pages | Requires tournament corpus depth from Topdeck (M3+) plus real usage. |
 | Local playgroup spaces | Community features prove retention first. |
 | Marketplace, proxy generator, tournament organizer, AI-chat-first interface | Original doc's postpone list — reaffirmed. Proxy tools carry real IP risk (especially One Piece). |
+| Type ingest's `buildAttrs` return as `MtgAttrs` (src/lib/games/mtg/attrs.ts) so the attrs contract can't drift from what ingest writes | Next session that touches scryfall-map.ts / the ingest pipeline. |
 
 ## Deferred infrastructure
 
