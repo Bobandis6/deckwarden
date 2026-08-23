@@ -51,6 +51,7 @@ export interface ScryfallCard {
   color_identity?: string[];
   keywords?: string[];
   edhrec_rank?: number;
+  legalities?: Record<string, string>;
   prices?: Record<string, string | null>;
   image_uris?: Record<string, string>;
   card_faces?: ScryfallCardFace[];

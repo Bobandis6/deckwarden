@@ -61,6 +61,8 @@ export const sets = pgTable(
     name: text("name").notNull(),
     releasedAt: date("released_at"),
     setType: text("set_type"),
+    /** Digital-only (Arena/MTGO) sets never win default-printing selection. */
+    digital: boolean("digital").notNull().default(false),
   },
   (t) => [unique("sets_game_code").on(t.gameId, t.code)],
 );

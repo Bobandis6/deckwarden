@@ -1,0 +1,52 @@
+name: Nightly ingest
+
+on:
+  schedule:
+    # Daily, after Scryfall regenerates bulk data (observed ~09:05 UTC).
+    - cron: "37 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write # keepalive step re-enables this workflow
+
+concurrency:
+  group: nightly-ingest
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Ingest Scryfall (also the Neon keepalive — daily activity prevents idle pause)
+        run: pnpm ingest:scryfall
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Database size gauge (fails over 350MB — the alert channel)
+        run: pnpm db:size
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Back up user tables to R2 (no-op until R2 secrets + M1 tables exist)
+        run: bash scripts/backup-user-tables.sh
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+
+      - name: Workflow keepalive (GitHub disables idle scheduled workflows after 60 days)
+        if: always()
+        run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/nightly-ingest.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -16,7 +16,8 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "ingest:scryfall": "tsx scripts/ingest/scryfall.ts"
+    "ingest:scryfall": "tsx scripts/ingest/scryfall.ts",
+    "db:size": "tsx scripts/db-size.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
