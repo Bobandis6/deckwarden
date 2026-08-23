@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 
 export default function Home() {
@@ -7,9 +9,18 @@ export default function Home() {
       <p className="text-muted-foreground max-w-md text-center text-lg">
         A deck builder for Magic: The Gathering and beyond. Under construction.
       </p>
-      <Button render={<a href="https://github.com/Bobandis6/deckwarden" />}>
-        Follow the build
-      </Button>
+      <div className="flex gap-3">
+        <Button nativeButton={false} render={<Link href="/cards" />}>
+          Search cards
+        </Button>
+        <Button
+          nativeButton={false}
+          variant="outline"
+          render={<a href="https://github.com/Bobandis6/deckwarden" />}
+        >
+          Follow the build
+        </Button>
+      </div>
     </main>
   );
 }

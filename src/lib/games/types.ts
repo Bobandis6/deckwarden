@@ -223,6 +223,10 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
     costHtml(card: CardData<A>): string;
     /** 'Legendary Creature — Elf' / 'Character — Straw Hat Crew'. */
     subtitle(card: CardData<A>): string;
+    /** Rules/effect text for card pages — plain text ("" when none); faces separated by blank lines. */
+    bodyText(card: CardData<A>): string;
+    /** Small stat suffix ('4/4', loyalty, OP power), or null when not applicable. */
+    statLine?(card: CardData<A>): string | null;
     defaultGroupBy: "primaryType" | "costValue" | "tags";
     /** 'Commander' / 'Leader'. */
     leaderNoun: string;

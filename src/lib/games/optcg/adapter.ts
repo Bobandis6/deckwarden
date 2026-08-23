@@ -100,6 +100,7 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
       const traits = card.attrs.traits?.join(" / ") ?? "";
       return [cat.charAt(0).toUpperCase() + cat.slice(1), traits].filter(Boolean).join(" — ");
     },
+    bodyText: (card: OptcgCard) => card.attrs.effect_text ?? "",
     defaultGroupBy: "costValue",
     leaderNoun: "Leader",
   },

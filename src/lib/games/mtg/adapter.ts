@@ -117,6 +117,14 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
   display: {
     costHtml: (card: MtgCard) => manaCostHtml(card.attrs.mana_cost),
     subtitle: (card: MtgCard) => card.attrs.type_line.split(" // ")[0],
+    // Ingest folds faces with "\n//\n"; blank lines are the cross-game separator.
+    bodyText: (card: MtgCard) => card.attrs.oracle_text.replace(/\n\/\/\n/g, "\n\n"),
+    statLine: (card: MtgCard) => {
+      const { power, toughness, loyalty } = card.attrs;
+      if (power != null && toughness != null) return `${power}/${toughness}`;
+      if (loyalty != null) return `Loyalty ${loyalty}`;
+      return null;
+    },
     defaultGroupBy: "primaryType",
     leaderNoun: "Commander",
   },
