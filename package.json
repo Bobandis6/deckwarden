@@ -15,7 +15,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "ingest:scryfall": "tsx scripts/ingest/scryfall.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
