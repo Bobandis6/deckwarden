@@ -4,7 +4,8 @@
  * Leader-zone section (P1.3): the command zone rendered distinctly — card
  * image(s) shown prominently at the top of the deck pane in both views. All
  * naming comes off the adapter/format (ZoneDef.label, display.leaderNoun);
- * nothing game-specific here.
+ * nothing game-specific here. Shared with the P1.7 share pages: omit onRemove
+ * for the read-only rendering (no remove button, no editing hint).
  */
 import { Button } from "@/components/ui/button";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
@@ -16,7 +17,8 @@ interface LeaderZoneProps {
   items: ViewItem<EditorEntry, EditorCard>[];
   /** Worst validation severity per card id (P1.4). */
   severity: ReadonlyMap<string, "error" | "warning">;
-  onRemove: (zoneId: string, cardId: string) => void;
+  /** Absent = read-only (share pages). */
+  onRemove?: (zoneId: string, cardId: string) => void;
   onPreview: (card: EditorCard) => void;
 }
 
@@ -29,7 +31,8 @@ export function LeaderZone({ zone, items, severity, onRemove, onPreview }: Leade
       </h3>
       {items.length === 0 ? (
         <p className="text-muted-foreground mt-1.5 text-xs">
-          No {zone.label.toLowerCase()} yet — Ctrl+Enter on a search result adds one.
+          No {zone.label.toLowerCase()} yet
+          {onRemove ? " — Ctrl+Enter on a search result adds one." : "."}
         </p>
       ) : (
         <ul className="mt-2 flex flex-wrap gap-3">
@@ -64,14 +67,16 @@ export function LeaderZone({ zone, items, severity, onRemove, onPreview }: Leade
               </button>
               <span className="mt-1 flex items-center gap-1">
                 <span className="min-w-0 flex-1 truncate text-xs">{card.name}</span>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={`Remove ${card.name}`}
-                  onClick={() => onRemove(entry.zone, entry.cardId)}
-                >
-                  ×
-                </Button>
+                {onRemove && (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Remove ${card.name}`}
+                    onClick={() => onRemove(entry.zone, entry.cardId)}
+                  >
+                    ×
+                  </Button>
+                )}
               </span>
             </li>
           ))}

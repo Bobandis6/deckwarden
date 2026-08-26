@@ -1,0 +1,1 @@
+ALTER TABLE "decks" ALTER COLUMN "visibility" SET DEFAULT 'unlisted';

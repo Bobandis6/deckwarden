@@ -8,7 +8,7 @@
  */
 import Link from "next/link";
 
-import { CostPips } from "@/components/editor/cost-pips";
+import { CostPips } from "@/components/deck/cost-pips";
 import type { EditorCard } from "@/lib/decks/editor-state";
 import type { GameAdapter } from "@/lib/games/types";
 

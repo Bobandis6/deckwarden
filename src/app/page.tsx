@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { YourDecks } from "@/components/deck/your-decks";
 import { Button } from "@/components/ui/button";
 
 export default function Home() {
@@ -24,6 +25,7 @@ export default function Home() {
           Follow the build
         </Button>
       </div>
+      <YourDecks />
     </main>
   );
 }

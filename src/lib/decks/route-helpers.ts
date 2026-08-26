@@ -25,6 +25,20 @@ export async function loadDeck(id: string): Promise<DeckRow | null> {
   return deck ?? null;
 }
 
+/** Share-page lookup (P1.7): decks.public_id is the unguessable URL slug. */
+export async function loadDeckByPublicId(publicId: string): Promise<DeckRow | null> {
+  // Cheap shape check before the query — slugs are short lowercase tokens
+  // (public-id.ts); anything else can't match and skips the roundtrip.
+  if (!/^[a-z0-9_]{4,32}$/.test(publicId)) return null;
+  const db = getDb();
+  const [deck] = await db
+    .select()
+    .from(schema.decks)
+    .where(eq(schema.decks.publicId, publicId))
+    .limit(1);
+  return deck ?? null;
+}
+
 type DeckContext = { deck: DeckRow; isOwner: boolean };
 
 export async function requireReadableDeck(

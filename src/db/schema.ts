@@ -281,8 +281,12 @@ export const decks = pgTable(
     createdIp: inet("created_ip"),
     name: text("name").notNull().default("Untitled"),
     description: text("description"),
-    /** Default private until share pages exist (P1.7 revisits per Appendix A). */
-    visibility: text("visibility").$type<DeckVisibility>().notNull().default("private"),
+    /**
+     * Default unlisted (Appendix A): share links must work out of the box —
+     * unlisted = reachable only via the unguessable public_id, not browsable.
+     * (Was private until share pages existed; P1.7 flipped it as planned.)
+     */
+    visibility: text("visibility").$type<DeckVisibility>().notNull().default("unlisted"),
     /** Command-zone denorm (2 entries = partners); powers "decks for commander X". */
     leaderIds: uuid("leader_ids").array().notNull().default([]),
     /** Deck color identity = OR of the leaders' ci_mask. */

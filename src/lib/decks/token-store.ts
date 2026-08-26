@@ -12,6 +12,12 @@
  */
 const PREFIX = "deckwarden:deck-token:";
 
+/**
+ * Client-side mirror of access.ts's DECK_TOKEN_HEADER — that module is
+ * server-only (node:crypto), so client components import the name from here.
+ */
+export const DECK_TOKEN_HEADER = "x-deck-token";
+
 export function getDeckToken(deckId: string): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -28,5 +34,26 @@ export function setDeckToken(deckId: string, token: string): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Every deck this browser holds a claim token for (P1.7's "your decks" list;
+ * P2.1's claim-on-OAuth flow reads the same set). Order is storage order —
+ * callers sort by server-side metadata.
+ */
+export function listDeckTokens(): { deckId: string; token: string }[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const out: { deckId: string; token: string }[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (!key || !key.startsWith(PREFIX)) continue;
+      const token = window.localStorage.getItem(key);
+      if (token) out.push({ deckId: key.slice(PREFIX.length), token });
+    }
+    return out;
+  } catch {
+    return [];
   }
 }

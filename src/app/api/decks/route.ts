@@ -28,8 +28,9 @@ const BODY = z.object({
   format: z.string().min(1).max(40),
   name: z.string().trim().min(1).max(120).optional(),
   description: z.string().max(4000).optional(),
-  // Default private until share pages exist (P1.7).
-  visibility: z.enum(schema.DECK_VISIBILITIES).default("private"),
+  // Default unlisted (P1.7, per plan Appendix A): share links work out of the
+  // box; unlisted decks are reachable only via the unguessable public_id.
+  visibility: z.enum(schema.DECK_VISIBILITIES).default("unlisted"),
 });
 
 export async function POST(request: NextRequest) {

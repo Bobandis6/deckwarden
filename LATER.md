@@ -31,6 +31,7 @@ with one line on when it earns its way back. Nothing on this list is a "no" — 
 | Type ingest's `buildAttrs` return as `MtgAttrs` (src/lib/games/mtg/attrs.ts) so the attrs contract can't drift from what ingest writes | Next session that touches scryfall-map.ts / the ingest pipeline. |
 | Tag-editing UI in the editor (entries carry `tags text[]`; P1.3's tag grouping renders an honest "Untagged" bucket but nothing can set tags yet) | First session after P1.7 — share pages make tag groups visible to readers, which is when empty ones start to hurt. |
 | Smarter mana-source detection (P1.5's `producedMask` counts conditional producers like Command Tower as all five colors; fetches/treasure-makers not counted) plus role tagging and curve targets | User feedback that the sources table misleads, or the P1.8 polish pass — whichever first. |
+| Share page serves HTTP 200 with a denial shell for private decks (the data itself is safe — never in the HTML; a real 403 status needs Next's authInterrupts/forbidden()) | P2.6 SEO pass, or crawlers start indexing denial pages. |
 | setHint-aware import resolution + set codes in export (P1.6 resolves by name only, so two distinct cards sharing an exact printed name — Mystery Booster "Counters" — merge on import; the parser already captures `setHint`, the resolve route ignores it) | A real user hits it, or when One Piece import lands (M4) where set codes are the primary key anyway. |
 
 ## Deferred infrastructure

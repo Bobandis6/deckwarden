@@ -8,11 +8,12 @@
  * persists to localStorage as a UI preference (view-prefs.ts). Group default
  * comes from adapter.display.defaultGroupBy — nothing game-specific here.
  */
-import { AnalyticsPanel } from "@/components/editor/analytics-blocks";
-import { DeckGridView } from "@/components/editor/deck-grid-view";
-import { DeckTextView } from "@/components/editor/deck-text-view";
-import { LeaderZone } from "@/components/editor/leader-zone";
-import { ValidationPanel } from "@/components/editor/validation-panel";
+import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
+import { DeckGridView } from "@/components/deck/deck-grid-view";
+import { DeckTextView } from "@/components/deck/deck-text-view";
+import { LeaderZone } from "@/components/deck/leader-zone";
+import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
+import { ValidationPanel } from "@/components/deck/validation-panel";
 import { deckSizeCount, type EditorCard, type EditorEntry } from "@/lib/decks/editor-state";
 import { issueSeverityByCard } from "@/lib/decks/validation";
 import {
@@ -36,21 +37,6 @@ interface DeckListPaneProps {
   onRemove: (zoneId: string, cardId: string) => void;
   onPreview: (card: EditorCard) => void;
 }
-
-const VIEW_OPTIONS: { value: DeckViewMode; label: string }[] = [
-  { value: "text", label: "Text" },
-  { value: "grid", label: "Grid" },
-];
-const GROUP_OPTIONS: { value: GroupKey; label: string }[] = [
-  { value: "primaryType", label: "Type" },
-  { value: "costValue", label: "Cost" },
-  { value: "tags", label: "Tags" },
-];
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: "name", label: "Name" },
-  { value: "cost", label: "Cost" },
-  { value: "price", label: "Price" },
-];
 
 export function DeckListPane({
   adapter,
@@ -171,42 +157,6 @@ export function DeckListPane({
       ) : (
         <DeckGridView groups={groups} severity={severity} onPreview={onPreview} />
       )}
-    </div>
-  );
-}
-
-/** Compact segmented toggle: a labeled group of aria-pressed buttons. */
-function Segmented<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: { value: T; label: string }[];
-  value: T;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div role="group" aria-label={label} className="flex items-center gap-1">
-      <span className="text-muted-foreground text-xs">{label}</span>
-      <div className="border-input flex overflow-hidden rounded-md border">
-        {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={option.value === value}
-            onClick={() => onChange(option.value)}
-            className={`px-2 py-0.5 text-xs transition-colors ${
-              option.value === value
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

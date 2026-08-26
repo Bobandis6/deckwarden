@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 
-import { CostPips } from "@/components/editor/cost-pips";
+import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
 import {
   parseQuickAdd,

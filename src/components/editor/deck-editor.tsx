@@ -20,6 +20,7 @@ import { CardDetailPane } from "@/components/editor/card-detail-pane";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
 import { ExportDialog, ImportDialog } from "@/components/editor/import-export";
 import { SearchPane } from "@/components/editor/search-pane";
+import { ShareDialog, type DeckVisibility } from "@/components/editor/share-dialog";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,9 +49,11 @@ import type {
 interface DeckResponse {
   deck: {
     id: string;
+    publicId: string;
     game: GameId | null;
     format: string | null;
     name: string;
+    visibility: DeckVisibility;
     isOwner: boolean;
   };
   cards: {
@@ -76,7 +79,8 @@ export function DeckEditor({ deckId }: { deckId: string }) {
   const [entries, setEntries] = useState<EditorEntry[]>([]);
   const [cards, setCards] = useState<ReadonlyMap<string, EditorCard>>(new Map());
   const [preview, setPreview] = useState<EditorCard | null>(null);
-  const [dialog, setDialog] = useState<"import" | "export" | null>(null);
+  const [dialog, setDialog] = useState<"import" | "export" | "share" | null>(null);
+  const [share, setShare] = useState<{ publicId: string; visibility: DeckVisibility } | null>(null);
 
   // Refs mirror the state the save callback needs, so an autosave always
   // serializes the latest edits regardless of when the debounce fires.
@@ -153,6 +157,7 @@ export function DeckEditor({ deckId }: { deckId: string }) {
         setEntries(loadedEntries);
         setCards(new Map(json.cards.map((c) => [c.cardId, toEditorCard(c.card)])));
         setDeckName(json.deck.name);
+        setShare({ publicId: json.deck.publicId, visibility: json.deck.visibility });
         setLoad({ state: "ready", adapter, format });
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -256,6 +261,23 @@ export function DeckEditor({ deckId }: { deckId: string }) {
     [markDirty],
   );
 
+  // Visibility PATCHes immediately (not via autosave): it's a deliberate,
+  // rare action and the Share dialog wants the result before it re-renders.
+  const setVisibility = useCallback(
+    async (visibility: DeckVisibility) => {
+      const token = getDeckToken(deckId);
+      if (!token) throw new Error("Missing deck token");
+      const res = await fetch(`/api/decks/${deckId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", [TOKEN_HEADER]: token },
+        body: JSON.stringify({ visibility }),
+      });
+      if (!res.ok) throw new Error(`Visibility change failed (${res.status})`);
+      setShare((prev) => (prev ? { ...prev, visibility } : prev));
+    },
+    [deckId],
+  );
+
   const inDeckQty = useMemo(() => {
     const counts = new Map<string, number>();
     for (const e of entries) counts.set(e.cardId, (counts.get(e.cardId) ?? 0) + e.qty);
@@ -322,6 +344,11 @@ export function DeckEditor({ deckId }: { deckId: string }) {
         <Button variant="outline" size="xs" onClick={() => setDialog("export")}>
           Export
         </Button>
+        {share && (
+          <Button variant="outline" size="xs" onClick={() => setDialog("share")}>
+            Share
+          </Button>
+        )}
         <SaveIndicator status={autosave.status} onRetry={() => void autosave.flush()} />
       </header>
 
@@ -337,6 +364,14 @@ export function DeckEditor({ deckId }: { deckId: string }) {
       {dialog === "export" && snapshot && (
         <ExportDialog
           text={load.adapter.serializeDecklist(snapshot, cards)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === "share" && share && (
+        <ShareDialog
+          publicId={share.publicId}
+          visibility={share.visibility}
+          onSetVisibility={setVisibility}
           onClose={() => setDialog(null)}
         />
       )}

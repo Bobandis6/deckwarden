@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import type { CardWire, EditorEntry } from "@/lib/decks/editor-state";
 import {
   applyImport,
@@ -19,43 +20,6 @@ import {
   type Resolution,
 } from "@/lib/decks/import";
 import type { FormatDef, GameAdapter } from "@/lib/games/types";
-
-/** Shared modal shell: overlay + panel, Escape closes, focus trapped by inert siblings not needed at this scale. */
-function Modal({
-  label,
-  onClose,
-  children,
-}: {
-  label: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onClose();
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-        className="bg-background flex max-h-[85dvh] w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-lg border p-4 shadow-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">{label}</h2>
-          <Button variant="ghost" size="xs" onClick={onClose} aria-label={`Close ${label}`}>
-            ✕
-          </Button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 interface ImportDialogProps {
   adapter: GameAdapter;

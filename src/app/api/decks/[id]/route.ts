@@ -8,16 +8,16 @@
  *
  * Caching intent: force-dynamic + Cache-Control no-store on every response —
  * output depends on the x-deck-token header (isOwner, private reads), so
- * neither the CDN nor the browser may cache it. Public share pages get their
- * own cacheable SSR route in P1.7; this API stays private.
+ * neither the CDN nor the browser may cache it. Share pages (P1.7, /d/[publicId])
+ * render server-side off the same query via deck-cards-wire.ts; this API stays
+ * the token-authed surface.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
-import { printingImageUrl } from "@/lib/cards/images";
-import { fetchLegalityMap } from "@/lib/decks/legality";
+import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
 import { requireOwnedDeck, requireReadableDeck } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 
@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
-const { decks, deckCards: dc, cardIdentities: ci, cardPrintings: cp } = schema;
+const { decks } = schema;
 
 export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[id]">) {
   const { id } = await ctx.params;
@@ -33,86 +33,11 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   if (access instanceof NextResponse) return access;
   const { deck, isOwner } = access;
 
-  const db = getDb();
-  const rows = await db
-    .select({
-      cardId: dc.cardIdentityId,
-      zone: dc.zone,
-      qty: dc.quantity,
-      tags: dc.tags,
-      printingId: dc.printingId,
-      name: ci.name,
-      primaryType: ci.primaryType,
-      costValue: ci.costValue,
-      colorsMask: ci.colorsMask,
-      ciMask: ci.ciMask,
-      isLeaderCandidate: ci.isLeaderCandidate,
-      isPreview: ci.isPreview,
-      cheapestUsd: ci.cheapestUsd,
-      popularity: ci.popularity,
-      attrs: ci.attrs,
-      chosenImageOverride: cp.imageOverride,
-    })
-    .from(dc)
-    .innerJoin(ci, eq(ci.id, dc.cardIdentityId))
-    .leftJoin(cp, eq(cp.id, dc.printingId))
-    .where(eq(dc.deckId, deck.id))
-    .orderBy(asc(dc.zone), asc(ci.nameNorm));
-
-  // Images for chosen printings derive directly; entries on the default
-  // printing resolve it in one extra query only when needed.
-  const needDefault = rows.filter((r) => !r.printingId).length > 0;
-  const [defaults, legalityMap] = await Promise.all([
-    needDefault
-      ? db
-          .select({
-            cardIdentityId: cp.cardIdentityId,
-            id: cp.id,
-            imageOverride: cp.imageOverride,
-          })
-          .from(cp)
-          .innerJoin(dc, and(eq(dc.deckId, deck.id), eq(dc.cardIdentityId, cp.cardIdentityId)))
-          .where(eq(cp.isDefault, true))
-      : Promise.resolve([]),
-    // Exceptions-only legality for the deck's format (P1.4) — the adapter's
-    // validate consumes it client-side; absent = format default.
-    fetchLegalityMap(
-      deck.formatId,
-      rows.map((r) => r.cardId),
-    ),
-  ]);
-  const defaultByCard = new Map(defaults.map((d) => [d.cardIdentityId, d]));
-
   // `card` is CardData-shaped (incl. legality, plus image — the CardWire type
   // in src/lib/decks/editor-state.ts): the editor feeds it straight to the
   // adapter's display/validate/analyze without any game-specific reshaping.
-  const cards = rows.map((r) => {
-    const printing = r.printingId
-      ? { id: r.printingId, imageOverride: r.chosenImageOverride }
-      : (defaultByCard.get(r.cardId) ?? null);
-    return {
-      cardId: r.cardId,
-      zone: r.zone,
-      qty: r.qty,
-      tags: r.tags,
-      printingId: r.printingId,
-      card: {
-        id: r.cardId,
-        name: r.name,
-        primaryType: r.primaryType,
-        costValue: r.costValue,
-        colorsMask: r.colorsMask,
-        ciMask: r.ciMask,
-        isLeaderCandidate: r.isLeaderCandidate,
-        isPreview: r.isPreview,
-        cheapestUsd: r.cheapestUsd === null ? null : Number(r.cheapestUsd),
-        popularity: r.popularity,
-        attrs: r.attrs,
-        legality: legalityMap.get(r.cardId) ?? [],
-        image: printing ? printingImageUrl(printing, "normal") : null,
-      },
-    };
-  });
+  // Query shared with the P1.7 share page (deck-cards-wire.ts).
+  const cards = await fetchDeckCardsWire(deck);
 
   return NextResponse.json({ deck: deckMetaJson(deck, { isOwner }), cards }, { headers: NO_STORE });
 }
