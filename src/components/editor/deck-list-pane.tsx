@@ -1,19 +1,24 @@
 "use client";
 
 /**
- * Deck list pane (P1.2): entries grouped by the format's zones with quantity
- * steppers and remove buttons; the running count tracks the format's deckSize.
- * Grouping/sorting toggles and richer views are P1.3 — this is the working
- * list the quick-add flow lands into.
+ * Deck pane (P1.3): the middle pane's two toggleable renderings — grouped text
+ * view and image grid — with the leader zone shown prominently above both.
+ * Grouping/sorting are pure functions in src/lib/decks/view-model.ts (shared
+ * with P1.7's share pages); this component owns only the toggle state, which
+ * persists to localStorage as a UI preference (view-prefs.ts). Group default
+ * comes from adapter.display.defaultGroupBy — nothing game-specific here.
  */
-import { CostPips } from "@/components/editor/cost-pips";
-import { Button } from "@/components/ui/button";
+import { DeckGridView } from "@/components/editor/deck-grid-view";
+import { DeckTextView } from "@/components/editor/deck-text-view";
+import { LeaderZone } from "@/components/editor/leader-zone";
+import { deckSizeCount, type EditorCard, type EditorEntry } from "@/lib/decks/editor-state";
 import {
-  deckSizeCount,
-  zoneQty,
-  type EditorCard,
-  type EditorEntry,
-} from "@/lib/decks/editor-state";
+  groupDeckEntries,
+  splitLeaderEntries,
+  type GroupKey,
+  type SortKey,
+} from "@/lib/decks/view-model";
+import { loadViewPrefs, saveViewPrefs, type DeckViewMode } from "@/lib/decks/view-prefs";
 import type { FormatDef, GameAdapter } from "@/lib/games/types";
 import { useState } from "react";
 
@@ -27,6 +32,21 @@ interface DeckListPaneProps {
   onPreview: (card: EditorCard) => void;
 }
 
+const VIEW_OPTIONS: { value: DeckViewMode; label: string }[] = [
+  { value: "text", label: "Text" },
+  { value: "grid", label: "Grid" },
+];
+const GROUP_OPTIONS: { value: GroupKey; label: string }[] = [
+  { value: "primaryType", label: "Type" },
+  { value: "costValue", label: "Cost" },
+  { value: "tags", label: "Tags" },
+];
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: "name", label: "Name" },
+  { value: "cost", label: "Cost" },
+  { value: "price", label: "Price" },
+];
+
 export function DeckListPane({
   adapter,
   format,
@@ -36,9 +56,30 @@ export function DeckListPane({
   onRemove,
   onPreview,
 }: DeckListPaneProps) {
+  // Stored preference wins; absent fields fall back (group to the adapter's
+  // default). Read once — this pane only mounts client-side, after deck load.
+  const [stored] = useState(() => loadViewPrefs());
+  const [view, setView] = useState<DeckViewMode>(stored.view ?? "text");
+  const [groupBy, setGroupBy] = useState<GroupKey>(
+    stored.groupBy ?? adapter.display.defaultGroupBy,
+  );
+  const [sortBy, setSortBy] = useState<SortKey>(stored.sortBy ?? "name");
   const [error, setError] = useState<string | null>(null);
+
+  const persist = (next: { view?: DeckViewMode; groupBy?: GroupKey; sortBy?: SortKey }) => {
+    saveViewPrefs({ view, groupBy, sortBy, ...next });
+  };
+
   const total = deckSizeCount(entries, format);
   const sizeLabel = format.deckSize.max !== null ? `${total} / ${format.deckSize.max}` : `${total}`;
+
+  const { leader, rest } = splitLeaderEntries(entries, format);
+  const groups = groupDeckEntries(rest, cards, groupBy, sortBy);
+  const leaderZoneDef = format.zones.find((z) => z.isLeaderZone);
+  const leaderItems = leader.flatMap((entry) => {
+    const card = cards.get(entry.cardId);
+    return card ? [{ entry, card }] : [];
+  });
 
   const setQtyChecked = (zoneId: string, cardId: string, qty: number) => {
     setError(onSetQty(zoneId, cardId, qty) ?? null);
@@ -50,87 +91,103 @@ export function DeckListPane({
         <h2 className="text-sm font-semibold">Deck</h2>
         <span className="text-muted-foreground text-sm tabular-nums">{sizeLabel} cards</span>
       </div>
+
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+        <Segmented
+          label="View"
+          options={VIEW_OPTIONS}
+          value={view}
+          onChange={(v) => {
+            setView(v);
+            persist({ view: v });
+          }}
+        />
+        <Segmented
+          label="Group"
+          options={GROUP_OPTIONS}
+          value={groupBy}
+          onChange={(v) => {
+            setGroupBy(v);
+            persist({ groupBy: v });
+          }}
+        />
+        <Segmented
+          label="Sort"
+          options={SORT_OPTIONS}
+          value={sortBy}
+          onChange={(v) => {
+            setSortBy(v);
+            persist({ sortBy: v });
+          }}
+        />
+      </div>
+
       {error && (
         <p aria-live="polite" className="text-destructive mt-1 text-xs">
           {error}
         </p>
       )}
 
-      {format.zones.map((zone) => {
-        const zoneEntries = entries
-          .filter((e) => e.zone === zone.id)
-          .sort((a, b) =>
-            (cards.get(a.cardId)?.name ?? "").localeCompare(cards.get(b.cardId)?.name ?? ""),
-          );
-        return (
-          <section key={zone.id} className="mt-4">
-            <h3 className="text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase">
-              {zone.label}
-              <span className="ml-1.5 tabular-nums">{zoneQty(entries, zone.id)}</span>
-            </h3>
-            {zoneEntries.length === 0 ? (
-              <p className="text-muted-foreground mt-1.5 text-xs">
-                {zone.isLeaderZone
-                  ? `No ${zone.label.toLowerCase()} yet — Ctrl+Enter on a search result adds one.`
-                  : "No cards yet — search on the left and press Enter."}
-              </p>
-            ) : (
-              <ul className="mt-1">
-                {zoneEntries.map((entry) => {
-                  const card = cards.get(entry.cardId);
-                  if (!card) return null;
-                  return (
-                    <li
-                      key={entry.cardId}
-                      className="group/row hover:bg-muted/60 flex items-center gap-1 rounded-md px-1 py-0.5 text-sm"
-                    >
-                      <span className="flex shrink-0 items-center">
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={`One fewer ${card.name}`}
-                          onClick={() => setQtyChecked(entry.zone, entry.cardId, entry.qty - 1)}
-                        >
-                          −
-                        </Button>
-                        <span className="w-6 text-center text-xs tabular-nums">{entry.qty}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={`One more ${card.name}`}
-                          onClick={() => setQtyChecked(entry.zone, entry.cardId, entry.qty + 1)}
-                        >
-                          +
-                        </Button>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onPreview(card)}
-                        className="min-w-0 flex-1 truncate rounded px-1 text-left hover:underline"
-                      >
-                        {card.name}
-                      </button>
-                      <CostPips
-                        html={adapter.display.costHtml(card)}
-                        className="shrink-0 text-xs"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`Remove ${card.name}`}
-                        className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
-                        onClick={() => onRemove(entry.zone, entry.cardId)}
-                      >
-                        ×
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        );
-      })}
+      {leaderZoneDef && (
+        <LeaderZone
+          zone={leaderZoneDef}
+          items={leaderItems}
+          onRemove={onRemove}
+          onPreview={onPreview}
+        />
+      )}
+
+      {rest.length === 0 ? (
+        <p className="text-muted-foreground mt-4 text-xs">
+          No cards yet — search on the left and press Enter.
+        </p>
+      ) : view === "text" ? (
+        <DeckTextView
+          adapter={adapter}
+          groups={groups}
+          onSetQty={setQtyChecked}
+          onRemove={onRemove}
+          onPreview={onPreview}
+        />
+      ) : (
+        <DeckGridView groups={groups} onPreview={onPreview} />
+      )}
+    </div>
+  );
+}
+
+/** Compact segmented toggle: a labeled group of aria-pressed buttons. */
+function Segmented<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div role="group" aria-label={label} className="flex items-center gap-1">
+      <span className="text-muted-foreground text-xs">{label}</span>
+      <div className="border-input flex overflow-hidden rounded-md border">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={option.value === value}
+            onClick={() => onChange(option.value)}
+            className={`px-2 py-0.5 text-xs transition-colors ${
+              option.value === value
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
