@@ -8,6 +8,11 @@
  *
  * Caching intent: dynamic — a mutation; responses are per-caller and never
  * cacheable (Cache-Control: no-store).
+ *
+ * Anti-abuse (P1.8): strict per-IP rate limit (checked before body parsing so
+ * malformed spam consumes quota), plus a honeypot — the real client sends
+ * `website: ""`; anything non-empty is a bot auto-filling the payload and gets
+ * a fake 201 (nothing persisted) to waste its time.
  */
 import { randomUUID } from "node:crypto";
 
@@ -20,6 +25,7 @@ import { clientIp } from "@/lib/decks/access";
 import { newPublicId } from "@/lib/decks/public-id";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { getAdapter } from "@/lib/games/registry";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -31,9 +37,15 @@ const BODY = z.object({
   // Default unlisted (P1.7, per plan Appendix A): share links work out of the
   // box; unlisted decks are reachable only via the unguessable public_id.
   visibility: z.enum(schema.DECK_VISIBILITIES).default("unlisted"),
+  /** Honeypot — must be absent or empty; the real client sends "". */
+  website: z.string().max(200).optional(),
 });
 
 export async function POST(request: NextRequest) {
+  const ip = clientIp(request.headers);
+  const limited = await enforceRateLimit(RATE_LIMITS.deckCreate(ip));
+  if (limited) return limited;
+
   let json: unknown;
   try {
     json = await request.json();
@@ -47,7 +59,16 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  const { game, format, name, description, visibility } = parsed.data;
+  const { game, format, name, description, visibility, website } = parsed.data;
+
+  if (website) {
+    console.warn("deck-create honeypot tripped", { ip });
+    // Fake success: nothing persisted, the ids lead nowhere.
+    return NextResponse.json(
+      { deck: { id: randomUUID() }, claimToken: randomUUID() },
+      { status: 201, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   // The format must exist both as a seeded DB row (FK) and in the adapter.
   const formatRow = findFormat(game, format);
@@ -69,7 +90,7 @@ export async function POST(request: NextRequest) {
       formatId: formatRow.id,
       userId: null,
       claimToken,
-      createdIp: clientIp(request.headers),
+      createdIp: ip,
       ...(name ? { name } : {}),
       description: description ?? null,
       visibility,

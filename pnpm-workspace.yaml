@@ -1,4 +1,7 @@
 allowBuilds:
+  # sentry-cli only uploads source maps (not wired — no withSentryConfig); its
+  # postinstall binary download is dead weight, so leave it unbuilt.
+  "@sentry/cli": false
   esbuild: true
   sharp: false
   unrs-resolver: false

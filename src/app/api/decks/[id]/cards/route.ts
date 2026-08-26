@@ -21,9 +21,11 @@ import { getDb, schema } from "@/db";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
 import { cardListIssues, leaderDenorm, type DeckCardInput } from "@/lib/decks/cards";
 import { fetchLegalityMap } from "@/lib/decks/legality";
+import { clientIp } from "@/lib/decks/access";
 import { requireOwnedDeck } from "@/lib/decks/route-helpers";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import type { CardData } from "@/lib/games/types";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +50,10 @@ const BODY = z.object({
 
 export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/cards">) {
   const { id } = await ctx.params;
+  // Rate limit precedes auth; per-deck cap is generous — the autosave PUTs at
+  // most ~1/s debounced, far under it (P1.8 gate: never throttle the editor).
+  const limited = await enforceRateLimit(RATE_LIMITS.deckCardsPut(clientIp(request.headers), id));
+  if (limited) return limited;
   const access = await requireOwnedDeck(request.headers, id);
   if (access instanceof NextResponse) return access;
   const { deck } = access;

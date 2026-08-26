@@ -33,10 +33,13 @@ const getDeck = cache(loadDeckByPublicId);
 export async function generateMetadata({ params }: PageProps<"/d/[publicId]">): Promise<Metadata> {
   const { publicId } = await params;
   const deck = await getDeck(publicId);
-  if (!deck || deck.visibility === "private") return { title: "Deck · Deckwarden" };
+  if (!deck || deck.visibility === "private") return { title: "Deck" };
+  const description = deck.description ?? "A deck shared on Deckwarden.";
   return {
-    title: `${deck.name} · Deckwarden`,
-    description: deck.description ?? `A deck shared on Deckwarden.`,
+    title: deck.name,
+    description,
+    // OG basics only — generated share images are P2.6, not built here.
+    openGraph: { title: deck.name, description, type: "website" },
   };
 }
 

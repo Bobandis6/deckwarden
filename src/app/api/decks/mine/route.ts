@@ -15,8 +15,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
-import { isDeckOwner } from "@/lib/decks/access";
+import { clientIp, isDeckOwner } from "@/lib/decks/access";
 import { deckMetaJson } from "@/lib/decks/serialize";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,9 @@ const BODY = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const limited = await enforceRateLimit(RATE_LIMITS.decksMine(clientIp(request.headers)));
+  if (limited) return limited;
+
   let json: unknown;
   try {
     json = await request.json();

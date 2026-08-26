@@ -8,7 +8,7 @@ import type { Metadata } from "next";
 import { CardSearch } from "@/components/cards/card-search";
 
 export const metadata: Metadata = {
-  title: "Card search · Deckwarden",
+  title: "Card search",
   description: "Search Magic: The Gathering cards by name, text, type, cost, and color.",
 };
 

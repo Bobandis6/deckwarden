@@ -318,8 +318,11 @@ export function DeckEditor({ deckId }: { deckId: string }) {
   }
 
   return (
-    <div className="flex h-dvh flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+    // Mobile (<lg): panes stack and the page scrolls; the header wraps to two
+    // rows (name input drops to its own line). Desktop keeps the app-like
+    // fixed-viewport three-pane grid.
+    <div className="flex min-h-dvh flex-col lg:h-dvh">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b px-4 py-2 lg:h-14 lg:flex-nowrap lg:py-0">
         <Link
           href="/"
           className="text-muted-foreground shrink-0 text-sm hover:underline"
@@ -336,20 +339,22 @@ export function DeckEditor({ deckId }: { deckId: string }) {
           }}
           aria-label="Deck name"
           maxLength={120}
-          className="focus-visible:ring-ring/50 min-w-0 flex-1 rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2"
+          className="focus-visible:ring-ring/50 order-last min-w-0 basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 lg:order-none lg:flex-1 lg:basis-auto"
         />
-        <Button variant="outline" size="xs" onClick={() => setDialog("import")}>
-          Import
-        </Button>
-        <Button variant="outline" size="xs" onClick={() => setDialog("export")}>
-          Export
-        </Button>
-        {share && (
-          <Button variant="outline" size="xs" onClick={() => setDialog("share")}>
-            Share
+        <div className="ml-auto flex items-center gap-3 lg:ml-0">
+          <Button variant="outline" size="xs" onClick={() => setDialog("import")}>
+            Import
           </Button>
-        )}
-        <SaveIndicator status={autosave.status} onRetry={() => void autosave.flush()} />
+          <Button variant="outline" size="xs" onClick={() => setDialog("export")}>
+            Export
+          </Button>
+          {share && (
+            <Button variant="outline" size="xs" onClick={() => setDialog("share")}>
+              Share
+            </Button>
+          )}
+          <SaveIndicator status={autosave.status} onRetry={() => void autosave.flush()} />
+        </div>
       </header>
 
       {dialog === "import" && (

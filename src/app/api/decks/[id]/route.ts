@@ -18,8 +18,10 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
+import { clientIp } from "@/lib/decks/access";
 import { requireOwnedDeck, requireReadableDeck } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +55,10 @@ const PATCH_BODY = z
 
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/[id]">) {
   const { id } = await ctx.params;
+  // Rate limit precedes auth so unauthenticated hammering is bounded too;
+  // per-deck generosity covers the name autosave (~1/s debounced).
+  const limited = await enforceRateLimit(RATE_LIMITS.deckMetaWrite(clientIp(request.headers), id));
+  if (limited) return limited;
   const access = await requireOwnedDeck(request.headers, id);
   if (access instanceof NextResponse) return access;
 
@@ -85,6 +91,8 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/
 
 export async function DELETE(request: NextRequest, ctx: RouteContext<"/api/decks/[id]">) {
   const { id } = await ctx.params;
+  const limited = await enforceRateLimit(RATE_LIMITS.deckMetaWrite(clientIp(request.headers), id));
+  if (limited) return limited;
   const access = await requireOwnedDeck(request.headers, id);
   if (access instanceof NextResponse) return access;
 

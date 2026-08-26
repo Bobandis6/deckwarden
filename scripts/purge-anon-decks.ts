@@ -20,7 +20,7 @@ loadEnv({ path: [".env.local", ".env"], quiet: true });
 import { inArray, sql } from "drizzle-orm";
 
 import { createDb } from "../src/db";
-import { decks, deckCards } from "../src/db/schema";
+import { decks, deckCards, rateLimitCounters } from "../src/db/schema";
 
 const EMPTY_AFTER = "30 days";
 const UNTOUCHED_AFTER = "12 months";
@@ -76,6 +76,14 @@ async function main() {
     } else if (candidates.length > 0) {
       console.log("dry run — nothing deleted. Set PURGE_APPLY=true to delete.");
     }
+
+    // Rate-limit counter sweep (P1.8): windows are ≤1 day, so anything older
+    // than 2 days is dead weight. Always applied — counters are not user data.
+    const sweep = await db
+      .delete(rateLimitCounters)
+      .where(sql`${rateLimitCounters.windowStart} < now() - interval '2 days'`)
+      .returning({ key: rateLimitCounters.key });
+    console.log(`rate-limit sweep: ${sweep.length} stale counter row(s) deleted.`);
   } finally {
     await client.end();
   }

@@ -13,7 +13,7 @@ import { DeckEditor } from "@/components/editor/deck-editor";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Deck editor · Deckwarden",
+  title: "Deck editor",
 };
 
 export default async function DeckEditPage({ params }: PageProps<"/decks/[id]/edit">) {

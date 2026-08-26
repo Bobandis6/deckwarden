@@ -77,7 +77,7 @@ async function loadCard(id: string) {
 export async function generateMetadata({ params }: PageProps<"/cards/[id]">): Promise<Metadata> {
   const { id } = await params;
   const data = await loadCard(id);
-  return { title: data ? `${data.identity.name} · Deckwarden` : "Card not found" };
+  return { title: data ? data.identity.name : "Card not found" };
 }
 
 export default async function CardPage({ params }: PageProps<"/cards/[id]">) {

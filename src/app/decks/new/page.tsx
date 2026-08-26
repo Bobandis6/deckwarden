@@ -27,7 +27,8 @@ export default function NewDeckPage() {
       const res = await fetch("/api/decks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ game: "mtg", format: "commander" }),
+        // `website` is the create route's honeypot — always sent empty.
+        body: JSON.stringify({ game: "mtg", format: "commander", website: "" }),
       });
       if (!res.ok) throw new Error(`Deck creation failed (${res.status})`);
       const json: { deck: { id: string }; claimToken: string } = await res.json();

@@ -1,0 +1,85 @@
+/**
+ * /legal — attribution, fan-content disclaimers, and terms-lite (P1.8 gate).
+ *
+ * Caching intent: fully static (no dynamic APIs, no data fetching).
+ */
+import type { Metadata } from "next";
+import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Legal & attribution",
+  description: "Attribution, fan-content disclaimers, and terms for Deckwarden.",
+};
+
+export default function LegalPage() {
+  return (
+    <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-12">
+      <h1 className="text-3xl font-bold tracking-tight">Legal &amp; attribution</h1>
+
+      <section className="mt-8 space-y-3">
+        <h2 className="text-xl font-semibold">Unofficial fan content</h2>
+        <p>
+          Deckwarden is unofficial Fan Content permitted under the{" "}
+          <a
+            href="https://company.wizards.com/en/legal/fancontentpolicy"
+            className="underline"
+            rel="noreferrer"
+            target="_blank"
+          >
+            Wizards of the Coast Fan Content Policy
+          </a>
+          . It is not approved or endorsed by Wizards of the Coast. Portions of the materials used
+          are property of Wizards of the Coast. © Wizards of the Coast LLC. Magic: The Gathering and
+          its logos are trademarks of Wizards of the Coast LLC.
+        </p>
+      </section>
+
+      <section className="mt-8 space-y-3">
+        <h2 className="text-xl font-semibold">Card data &amp; images</h2>
+        <p>
+          Card data, card images, and prices are provided courtesy of{" "}
+          <a href="https://scryfall.com" className="underline" rel="noreferrer" target="_blank">
+            Scryfall
+          </a>
+          . Scryfall is not affiliated with Deckwarden and does not endorse it. Card data and prices
+          on Deckwarden are — and will always remain — free to view without an account or payment.
+          Prices are daily estimates, not offers to buy or sell.
+        </p>
+      </section>
+
+      <section className="mt-8 space-y-3">
+        <h2 className="text-xl font-semibold">Terms of use</h2>
+        <p>
+          Deckwarden is a free hobby project provided as-is, without warranty of any kind. Don’t
+          abuse the service (automated spam, scraping at hostile volume, or attempts to access other
+          people’s private decks). Anonymous decks that stay empty for 30 days, or untouched for 12
+          months, may be deleted. We may remove content or block abusive traffic to keep the site
+          healthy.
+        </p>
+        <p>
+          How your data is handled is described on the{" "}
+          <Link href="/privacy" className="underline">
+            privacy page
+          </Link>
+          .
+        </p>
+      </section>
+
+      <section className="mt-8 space-y-3">
+        <h2 className="text-xl font-semibold">Contact</h2>
+        <p>
+          Questions, takedown requests, or bug reports:{" "}
+          <a
+            href="https://github.com/Bobandis6/deckwarden/issues"
+            className="underline"
+            rel="noreferrer"
+            target="_blank"
+          >
+            open a GitHub issue
+          </a>
+          .
+        </p>
+      </section>
+    </main>
+  );
+}

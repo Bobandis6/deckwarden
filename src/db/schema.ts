@@ -351,6 +351,27 @@ export const deckVersions = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Rate limiting (P1.8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fixed-window counters for anon-write rate limits (P1.8). Postgres-backed by
+ * portability rule: per-instance memory dies on serverless and Redis stays in
+ * LATER.md until a measured problem. One upsert per limited request; stale
+ * windows are swept by the nightly purge script.
+ */
+export const rateLimitCounters = pgTable(
+  "rate_limit_counters",
+  {
+    /** e.g. 'deck-create:ip:1.2.3.4' — route scope + principal. */
+    key: text("key").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.windowStart] })],
+);
+
+// ---------------------------------------------------------------------------
 // Ingest bookkeeping
 // ---------------------------------------------------------------------------
 

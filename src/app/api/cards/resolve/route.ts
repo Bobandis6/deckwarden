@@ -22,8 +22,10 @@ import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
 import { printingImageUrl } from "@/lib/cards/images";
 import { normalizeCardName } from "@/lib/cards/normalize";
+import { clientIp } from "@/lib/decks/access";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import type { LegalityEntry } from "@/lib/games/types";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +88,9 @@ function better(a: WireRow, b: WireRow): WireRow {
 }
 
 export async function POST(request: NextRequest) {
+  const limited = await enforceRateLimit(RATE_LIMITS.cardResolve(clientIp(request.headers)));
+  if (limited) return limited;
+
   let json: unknown;
   try {
     json = await request.json();
