@@ -43,8 +43,9 @@ jobs:
           PURGE_APPLY: ${{ vars.PURGE_ANON_DECKS_APPLY }}
 
       # Runner default pg_dump is v16 and refuses Neon's v17 server. The pgdg apt
-      # repo isn't configured on ubuntu-latest, so add it first; Debian's
-      # pg_wrapper then makes the newest installed client the default `pg_dump`.
+      # repo isn't configured on ubuntu-latest, so add it first. The runner also
+      # has a local Postgres 16 cluster, which makes Debian's pg_wrapper resolve
+      # `pg_dump` to 16 even with 17 installed — put 17's real binaries on PATH.
       - name: Install Postgres 17 client for pg_dump
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -52,6 +53,7 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
       - name: Back up user tables to R2 (no-op until R2 secrets are configured)
         run: bash scripts/backup-user-tables.sh
