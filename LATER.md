@@ -29,6 +29,7 @@ with one line on when it earns its way back. Nothing on this list is a "no" — 
 | Local playgroup spaces | Community features prove retention first. |
 | Marketplace, proxy generator, tournament organizer, AI-chat-first interface | Original doc's postpone list — reaffirmed. Proxy tools carry real IP risk (especially One Piece). |
 | Type ingest's `buildAttrs` return as `MtgAttrs` (src/lib/games/mtg/attrs.ts) so the attrs contract can't drift from what ingest writes | Next session that touches scryfall-map.ts / the ingest pipeline. |
+| Tag-editing UI in the editor (entries carry `tags text[]`; P1.3's tag grouping renders an honest "Untagged" bucket but nothing can set tags yet) | First session after P1.7 — share pages make tag groups visible to readers, which is when empty ones start to hurt. |
 
 ## Deferred infrastructure
 
