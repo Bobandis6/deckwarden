@@ -12,15 +12,19 @@
 import type { CardData, FormatDef } from "@/lib/games/types";
 
 /** Wire shape both /api/cards/search and GET /api/decks/[id] return per card:
- *  CardData minus legality (P1.4 adds it), plus the display image URL. */
-export type CardWire = Omit<CardData, "legality"> & { image: string | null };
+ *  full CardData (incl. legality exceptions, P1.4) plus the display image URL.
+ *  Search results only carry real legality when the query included `format`. */
+export type CardWire = Omit<CardData, "legality"> & {
+  image: string | null;
+  legality?: CardData["legality"];
+};
 
 /** What the editor holds per card — CardWire hydrated to a full CardData so
  *  adapter display/validate/analyze calls need no further shaping. */
 export type EditorCard = CardData & { image: string | null };
 
 export function toEditorCard(wire: CardWire): EditorCard {
-  return { ...wire, legality: [] };
+  return { ...wire, legality: wire.legality ?? [] };
 }
 
 export interface EditorEntry {

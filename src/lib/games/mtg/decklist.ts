@@ -88,7 +88,10 @@ const ZONE_ORDER = ["commander", "main"];
 /** Headers chosen so parseMtgDecklist maps them back to the same zone ids. */
 const ZONE_HEADERS: Record<string, string> = { commander: "Commander", main: "Deck" };
 
-export function serializeMtgDecklist(deck: DeckSnapshot, cards: Map<string, MtgCard>): string {
+export function serializeMtgDecklist(
+  deck: DeckSnapshot,
+  cards: ReadonlyMap<string, MtgCard>,
+): string {
   const zoneIds = [
     ...ZONE_ORDER.filter((z) => deck.zones[z]),
     ...Object.keys(deck.zones).filter((z) => !ZONE_ORDER.includes(z)),

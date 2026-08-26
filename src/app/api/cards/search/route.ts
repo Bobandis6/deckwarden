@@ -15,8 +15,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
-import { GAME_ID } from "@/db/seed-data";
+import { findFormat, GAME_ID } from "@/db/seed-data";
 import { printingImageUrl } from "@/lib/cards/images";
+import { fetchLegalityMap } from "@/lib/decks/legality";
 import { getAdapter } from "@/lib/games/registry";
 import { translateSearch } from "@/lib/search/translate";
 
@@ -26,6 +27,8 @@ const { cardIdentities: ci, cardPrintings: cp } = schema;
 
 const QUERY = z.object({
   game: z.enum(["mtg", "optcg"]).default("mtg"),
+  /** When present, results carry legality exceptions for this format (P1.4). */
+  format: z.string().max(40).optional(),
   sort: z.enum(["relevance", "name", "mv", "price", "pop"]).optional(),
   dir: z.enum(["asc", "desc"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -41,7 +44,12 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
-  const { game, sort, dir, limit, offset } = parsed.data;
+  const { game, format, sort, dir, limit, offset } = parsed.data;
+
+  const seededFormat = format ? findFormat(game, format) : undefined;
+  if (format && !seededFormat) {
+    return NextResponse.json({ error: `Unknown format "${format}" for ${game}` }, { status: 400 });
+  }
 
   const adapter = getAdapter(game);
   const { conditions, rank, warnings } = translateSearch(adapter.searchFields, params);
@@ -86,10 +94,17 @@ export async function GET(request: NextRequest) {
     .offset(offset);
 
   const total = rows[0]?.total ?? 0;
+  const legalityMap = seededFormat
+    ? await fetchLegalityMap(
+        seededFormat.id,
+        rows.map((r) => r.id),
+      )
+    : new Map();
   const results = rows.map(
     ({ total: _total, printingId, imageOverride, cheapestUsd, ...card }) => ({
       ...card,
       cheapestUsd: cheapestUsd === null ? null : Number(cheapestUsd),
+      legality: legalityMap.get(card.id) ?? [],
       image: printingId ? printingImageUrl({ id: printingId, imageOverride }, "normal") : null,
     }),
   );

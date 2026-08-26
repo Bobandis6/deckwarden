@@ -11,10 +11,12 @@ import type { DeckGroup } from "@/lib/decks/view-model";
 
 interface DeckGridViewProps {
   groups: DeckGroup<EditorEntry, EditorCard>[];
+  /** Worst validation severity per card id (P1.4) — drives the card rings. */
+  severity: ReadonlyMap<string, "error" | "warning">;
   onPreview: (card: EditorCard) => void;
 }
 
-export function DeckGridView({ groups, onPreview }: DeckGridViewProps) {
+export function DeckGridView({ groups, severity, onPreview }: DeckGridViewProps) {
   return (
     <>
       {groups.map((group) => (
@@ -30,7 +32,13 @@ export function DeckGridView({ groups, onPreview }: DeckGridViewProps) {
                   type="button"
                   onClick={() => onPreview(card)}
                   aria-label={`Show ${card.name}`}
-                  className="focus-visible:ring-ring/50 block w-full rounded-[4.75%/3.5%] outline-none focus-visible:ring-3"
+                  className={`focus-visible:ring-ring/50 block w-full rounded-[4.75%/3.5%] outline-none focus-visible:ring-3 ${
+                    severity.get(card.id) === "error"
+                      ? "ring-destructive ring-2"
+                      : severity.get(card.id) === "warning"
+                        ? "ring-2 ring-amber-500"
+                        : ""
+                  }`}
                 >
                   {card.image ? (
                     // eslint-disable-next-line @next/next/no-img-element

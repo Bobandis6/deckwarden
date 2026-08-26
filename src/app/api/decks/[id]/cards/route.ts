@@ -20,8 +20,11 @@ import { z } from "zod";
 import { getDb, schema } from "@/db";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
 import { cardListIssues, leaderDenorm, type DeckCardInput } from "@/lib/decks/cards";
+import { fetchLegalityMap } from "@/lib/decks/legality";
 import { requireOwnedDeck } from "@/lib/decks/route-helpers";
+import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
+import type { CardData } from "@/lib/games/types";
 
 export const dynamic = "force-dynamic";
 
@@ -66,9 +69,10 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
 
   // Resolve the deck's format to the adapter's FormatDef (core ↔ interface only).
   const game = gameCodeById(deck.gameId);
+  const adapter = game ? getAdapter(game) : undefined;
   const formatCode = findFormatById(deck.formatId)?.code;
-  const formatDef = game ? getAdapter(game).formats.find((f) => f.code === formatCode) : undefined;
-  if (!formatDef) {
+  const formatDef = adapter?.formats.find((f) => f.code === formatCode);
+  if (!adapter || !formatDef) {
     return NextResponse.json(
       { error: "Deck has an unknown game/format" },
       { status: 500, headers: NO_STORE },
@@ -86,11 +90,24 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   const db = getDb();
 
   // Every card must exist in this deck's game (soft-removed cards stay valid —
-  // decks may reference them; legality is the adapter's business in P1.4).
+  // decks may reference them). Full CardData is selected so the adapter's
+  // validate re-runs server-side on the same shapes the client saw (P1.4).
   const cardIds = [...new Set(entries.map((e) => e.cardId))];
   const cardRows = cardIds.length
     ? await db
-        .select({ id: ci.id, ciMask: ci.ciMask })
+        .select({
+          id: ci.id,
+          name: ci.name,
+          primaryType: ci.primaryType,
+          costValue: ci.costValue,
+          colorsMask: ci.colorsMask,
+          ciMask: ci.ciMask,
+          isLeaderCandidate: ci.isLeaderCandidate,
+          isPreview: ci.isPreview,
+          cheapestUsd: ci.cheapestUsd,
+          popularity: ci.popularity,
+          attrs: ci.attrs,
+        })
         .from(ci)
         .where(and(inArray(ci.id, cardIds), eq(ci.gameId, deck.gameId)))
     : [];
@@ -123,6 +140,31 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
     }
   }
 
+  // Authoritative revalidation (P1.4): same pure adapter code the editor runs
+  // live. Issues are reported, never a rejection — in-progress decks are
+  // legitimately incomplete, and the client already showed the same list.
+  const legalityMap = await fetchLegalityMap(deck.formatId, cardIds);
+  const cardData = new Map<string, CardData>(
+    cardRows.map((r) => [
+      r.id,
+      {
+        id: r.id,
+        name: r.name,
+        primaryType: r.primaryType,
+        costValue: r.costValue,
+        colorsMask: r.colorsMask,
+        ciMask: r.ciMask,
+        isLeaderCandidate: r.isLeaderCandidate,
+        isPreview: r.isPreview,
+        cheapestUsd: r.cheapestUsd === null ? null : Number(r.cheapestUsd),
+        popularity: r.popularity,
+        attrs: r.attrs as Record<string, unknown>,
+        legality: legalityMap.get(r.id) ?? [],
+      },
+    ]),
+  );
+  const validation = adapter.validate(toDeckSnapshot(adapter.id, formatDef, entries), cardData);
+
   const { leaderIds, ciMask } = leaderDenorm(entries, formatDef, ciMaskByCard);
   const updatedAt = new Date();
 
@@ -144,7 +186,7 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   });
 
   return NextResponse.json(
-    { count: entries.length, leaderIds, ciMask, updatedAt },
+    { count: entries.length, leaderIds, ciMask, updatedAt, validation },
     { headers: NO_STORE },
   );
 }

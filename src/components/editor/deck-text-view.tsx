@@ -15,6 +15,8 @@ import type { GameAdapter } from "@/lib/games/types";
 interface DeckTextViewProps {
   adapter: GameAdapter;
   groups: DeckGroup<EditorEntry, EditorCard>[];
+  /** Worst validation severity per card id (P1.4) — drives the inline dots. */
+  severity: ReadonlyMap<string, "error" | "warning">;
   onSetQty: (zoneId: string, cardId: string, qty: number) => void;
   onRemove: (zoneId: string, cardId: string) => void;
   onPreview: (card: EditorCard) => void;
@@ -23,6 +25,7 @@ interface DeckTextViewProps {
 export function DeckTextView({
   adapter,
   groups,
+  severity,
   onSetQty,
   onRemove,
   onPreview,
@@ -63,9 +66,17 @@ export function DeckTextView({
                 <button
                   type="button"
                   onClick={() => onPreview(card)}
-                  className="min-w-0 flex-1 truncate rounded px-1 text-left hover:underline"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 text-left hover:underline"
                 >
-                  {card.name}
+                  {severity.has(card.id) && (
+                    <span
+                      aria-label={severity.get(card.id) === "error" ? "Has a problem" : "Warning"}
+                      className={`size-1.5 shrink-0 rounded-full ${
+                        severity.get(card.id) === "error" ? "bg-destructive" : "bg-amber-500"
+                      }`}
+                    />
+                  )}
+                  <span className="truncate">{card.name}</span>
                 </button>
                 <CostPips html={adapter.display.costHtml(card)} className="shrink-0 text-xs" />
                 <Button

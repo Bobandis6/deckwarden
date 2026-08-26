@@ -11,7 +11,9 @@
 import { DeckGridView } from "@/components/editor/deck-grid-view";
 import { DeckTextView } from "@/components/editor/deck-text-view";
 import { LeaderZone } from "@/components/editor/leader-zone";
+import { ValidationPanel } from "@/components/editor/validation-panel";
 import { deckSizeCount, type EditorCard, type EditorEntry } from "@/lib/decks/editor-state";
+import { issueSeverityByCard } from "@/lib/decks/validation";
 import {
   groupDeckEntries,
   splitLeaderEntries,
@@ -19,7 +21,7 @@ import {
   type SortKey,
 } from "@/lib/decks/view-model";
 import { loadViewPrefs, saveViewPrefs, type DeckViewMode } from "@/lib/decks/view-prefs";
-import type { FormatDef, GameAdapter } from "@/lib/games/types";
+import type { FormatDef, GameAdapter, ValidationIssue } from "@/lib/games/types";
 import { useState } from "react";
 
 interface DeckListPaneProps {
@@ -27,6 +29,7 @@ interface DeckListPaneProps {
   format: FormatDef;
   entries: EditorEntry[];
   cards: ReadonlyMap<string, EditorCard>;
+  issues: ValidationIssue[];
   onSetQty: (zoneId: string, cardId: string, qty: number) => string | undefined;
   onRemove: (zoneId: string, cardId: string) => void;
   onPreview: (card: EditorCard) => void;
@@ -52,6 +55,7 @@ export function DeckListPane({
   format,
   entries,
   cards,
+  issues,
   onSetQty,
   onRemove,
   onPreview,
@@ -75,6 +79,7 @@ export function DeckListPane({
 
   const { leader, rest } = splitLeaderEntries(entries, format);
   const groups = groupDeckEntries(rest, cards, groupBy, sortBy);
+  const severity = issueSeverityByCard(issues);
   const leaderZoneDef = format.zones.find((z) => z.isLeaderZone);
   const leaderItems = leader.flatMap((entry) => {
     const card = cards.get(entry.cardId);
@@ -128,10 +133,18 @@ export function DeckListPane({
         </p>
       )}
 
+      <ValidationPanel
+        formatLabel={format.label}
+        issues={issues}
+        cards={cards}
+        onPreview={onPreview}
+      />
+
       {leaderZoneDef && (
         <LeaderZone
           zone={leaderZoneDef}
           items={leaderItems}
+          severity={severity}
           onRemove={onRemove}
           onPreview={onPreview}
         />
@@ -145,12 +158,13 @@ export function DeckListPane({
         <DeckTextView
           adapter={adapter}
           groups={groups}
+          severity={severity}
           onSetQty={setQtyChecked}
           onRemove={onRemove}
           onPreview={onPreview}
         />
       ) : (
-        <DeckGridView groups={groups} onPreview={onPreview} />
+        <DeckGridView groups={groups} severity={severity} onPreview={onPreview} />
       )}
     </div>
   );

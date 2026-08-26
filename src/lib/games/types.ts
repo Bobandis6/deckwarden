@@ -209,8 +209,8 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
   searchFields: SearchFieldDef[];
 
   // PURE — no IO. Same code runs client-side (live editor) and server-side (on save).
-  validate(deck: DeckSnapshot, cards: Map<string, CardData<A>>): ValidationIssue[];
-  analyze(deck: DeckSnapshot, cards: Map<string, CardData<A>>): AnalyticsBlock[];
+  validate(deck: DeckSnapshot, cards: ReadonlyMap<string, CardData<A>>): ValidationIssue[];
+  analyze(deck: DeckSnapshot, cards: ReadonlyMap<string, CardData<A>>): AnalyticsBlock[];
 
   /**
    * Tokenize only — name → id resolution is CORE (name_norm exact, then trgm
@@ -221,7 +221,7 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
     lines: { rawName: string; qty: number; zoneHint?: string; setHint?: string }[];
     warnings: string[];
   };
-  serializeDecklist(deck: DeckSnapshot, cards: Map<string, CardData<A>>): string;
+  serializeDecklist(deck: DeckSnapshot, cards: ReadonlyMap<string, CardData<A>>): string;
 
   display: {
     /** Mana pips / DON!! cost / IKZ — an HTML string, rendered by the core. */

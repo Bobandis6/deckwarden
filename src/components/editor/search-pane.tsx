@@ -62,6 +62,9 @@ export function SearchPane({ adapter, format, inDeckQty, onAdd, onPreview }: Sea
       try {
         const params = new URLSearchParams({
           game: adapter.id,
+          // Results carry this format's legality exceptions, so a banned card
+          // added from search is flagged by live validation immediately (P1.4).
+          format: format.code,
           name: query,
           limit: String(RESULT_LIMIT),
         });
@@ -82,7 +85,7 @@ export function SearchPane({ adapter, format, inDeckQty, onAdd, onPreview }: Sea
       clearTimeout(t);
       controller.abort();
     };
-  }, [query, adapter.id]);
+  }, [query, adapter.id, format.code]);
 
   // `/` focuses the search box from anywhere outside a text field.
   useEffect(() => {

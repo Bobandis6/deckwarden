@@ -17,6 +17,7 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { printingImageUrl } from "@/lib/cards/images";
+import { fetchLegalityMap } from "@/lib/decks/legality";
 import { requireOwnedDeck, requireReadableDeck } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 
@@ -61,16 +62,28 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   // Images for chosen printings derive directly; entries on the default
   // printing resolve it in one extra query only when needed.
   const needDefault = rows.filter((r) => !r.printingId).length > 0;
-  const defaults = needDefault
-    ? await db
-        .select({ cardIdentityId: cp.cardIdentityId, id: cp.id, imageOverride: cp.imageOverride })
-        .from(cp)
-        .innerJoin(dc, and(eq(dc.deckId, deck.id), eq(dc.cardIdentityId, cp.cardIdentityId)))
-        .where(eq(cp.isDefault, true))
-    : [];
+  const [defaults, legalityMap] = await Promise.all([
+    needDefault
+      ? db
+          .select({
+            cardIdentityId: cp.cardIdentityId,
+            id: cp.id,
+            imageOverride: cp.imageOverride,
+          })
+          .from(cp)
+          .innerJoin(dc, and(eq(dc.deckId, deck.id), eq(dc.cardIdentityId, cp.cardIdentityId)))
+          .where(eq(cp.isDefault, true))
+      : Promise.resolve([]),
+    // Exceptions-only legality for the deck's format (P1.4) — the adapter's
+    // validate consumes it client-side; absent = format default.
+    fetchLegalityMap(
+      deck.formatId,
+      rows.map((r) => r.cardId),
+    ),
+  ]);
   const defaultByCard = new Map(defaults.map((d) => [d.cardIdentityId, d]));
 
-  // `card` is CardData-shaped (minus legality, plus image — the CardWire type
+  // `card` is CardData-shaped (incl. legality, plus image — the CardWire type
   // in src/lib/decks/editor-state.ts): the editor feeds it straight to the
   // adapter's display/validate/analyze without any game-specific reshaping.
   const cards = rows.map((r) => {
@@ -95,6 +108,7 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
         cheapestUsd: r.cheapestUsd === null ? null : Number(r.cheapestUsd),
         popularity: r.popularity,
         attrs: r.attrs,
+        legality: legalityMap.get(r.cardId) ?? [],
         image: printing ? printingImageUrl(printing, "normal") : null,
       },
     };

@@ -21,7 +21,10 @@ function isLand(card: MtgCard): boolean {
   return card.primaryType === "Land";
 }
 
-export function analyzeMtg(deck: DeckSnapshot, cards: Map<string, MtgCard>): AnalyticsBlock[] {
+export function analyzeMtg(
+  deck: DeckSnapshot,
+  cards: ReadonlyMap<string, MtgCard>,
+): AnalyticsBlock[] {
   // Commander analytics cover the whole 100 (command zone included).
   const entries = Object.values(deck.zones)
     .flat()

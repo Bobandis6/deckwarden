@@ -33,8 +33,9 @@ import {
   type EditResult,
 } from "@/lib/decks/editor-state";
 import { getDeckToken } from "@/lib/decks/token-store";
+import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
-import type { FormatDef, GameAdapter, GameId } from "@/lib/games/types";
+import type { FormatDef, GameAdapter, GameId, ValidationIssue } from "@/lib/games/types";
 
 interface DeckResponse {
   deck: {
@@ -235,6 +236,13 @@ export function DeckEditor({ deckId }: { deckId: string }) {
     return counts;
   }, [entries]);
 
+  // Live validation (P1.4): the adapter's pure validate on every edit — the
+  // same code the PUT route re-runs server-side on save.
+  const issues = useMemo<ValidationIssue[]>(() => {
+    if (load.state !== "ready") return [];
+    return load.adapter.validate(toDeckSnapshot(load.adapter.id, load.format, entries), cards);
+  }, [load, entries, cards]);
+
   if (load.state !== "ready") {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
@@ -298,6 +306,7 @@ export function DeckEditor({ deckId }: { deckId: string }) {
             format={load.format}
             entries={entries}
             cards={cards}
+            issues={issues}
             onSetQty={handleSetQty}
             onRemove={handleRemove}
             onPreview={setPreview}

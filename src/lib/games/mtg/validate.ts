@@ -95,7 +95,10 @@ function legalityIssue(card: MtgCard): { code: string; severity: "error" | "warn
   return null;
 }
 
-export function validateMtg(deck: DeckSnapshot, cards: Map<string, MtgCard>): ValidationIssue[] {
+export function validateMtg(
+  deck: DeckSnapshot,
+  cards: ReadonlyMap<string, MtgCard>,
+): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const format = mtgFormat(deck.formatCode);
   if (!format) {
