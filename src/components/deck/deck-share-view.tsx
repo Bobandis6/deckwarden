@@ -157,7 +157,15 @@ export function DeckShareView({ deck, cards }: { deck: ShareDeckMeta; cards: Sha
         <h1 className="text-2xl font-bold tracking-tight break-words">{deck.name}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           {format.label} · <span className="tabular-nums">{sizeLabel}</span> cards · Updated{" "}
-          {updated.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+          {/* timeZone pinned: this SSRs on the server (UTC) and hydrates in the
+              viewer's zone — an unpinned date string mismatches and throws
+              React #418. UTC-dated "Updated" is fine for a share page. */}
+          {updated.toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            timeZone: "UTC",
+          })}
         </p>
         {deck.description && <p className="mt-2 text-sm whitespace-pre-wrap">{deck.description}</p>}
         <div className="mt-3 flex flex-wrap items-center gap-2">
