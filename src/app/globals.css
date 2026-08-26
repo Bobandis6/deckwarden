@@ -128,3 +128,40 @@
     @apply font-sans;
   }
 }
+
+/* Cost pips — adapters' display.costHtml emits <span class="pip pip-w">W</span>
+   etc. (symbol lowercased, '/' folded: {W/U} → pip-wu). Unmatched symbols
+   (hybrids, phyrexian, X) fall back to the generic chip; refinement is P1.8. */
+@layer components {
+  .pip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35em;
+    height: 1.35em;
+    border-radius: 9999px;
+    margin-right: 0.1em;
+    font-size: 0.72em;
+    font-weight: 700;
+    line-height: 1;
+    vertical-align: -0.1em;
+    background: #cac5c0;
+    color: #1f1f1f;
+    box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.2);
+  }
+  .pip-w {
+    background: #f8f6d8;
+  }
+  .pip-u {
+    background: #c1d7e9;
+  }
+  .pip-b {
+    background: #b3a9a3;
+  }
+  .pip-r {
+    background: #e9977e;
+  }
+  .pip-g {
+    background: #a3c095;
+  }
+}

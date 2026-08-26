@@ -69,9 +69,11 @@ export async function GET(request: NextRequest) {
       ciMask: ci.ciMask,
       cheapestUsd: ci.cheapestUsd,
       popularity: ci.popularity,
+      isLeaderCandidate: ci.isLeaderCandidate,
       isPreview: ci.isPreview,
-      manaCost: sql<string | null>`${ci.attrs}->>'mana_cost'`,
-      typeLine: sql<string | null>`${ci.attrs}->>'type_line'`,
+      // Full attrs so results are CardData-shaped (CardWire): the editor hands
+      // them to adapter display (pips, subtitle) — and P1.4 validate — as-is.
+      attrs: ci.attrs,
       printingId: cp.id,
       imageOverride: cp.imageOverride,
       total: sql<number>`count(*) over()::int`,

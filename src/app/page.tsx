@@ -10,7 +10,10 @@ export default function Home() {
         A deck builder for Magic: The Gathering and beyond. Under construction.
       </p>
       <div className="flex gap-3">
-        <Button nativeButton={false} render={<Link href="/cards" />}>
+        <Button nativeButton={false} render={<Link href="/decks/new" />}>
+          Build a deck
+        </Button>
+        <Button nativeButton={false} variant="outline" render={<Link href="/cards" />}>
           Search cards
         </Button>
         <Button

@@ -43,8 +43,12 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
       name: ci.name,
       primaryType: ci.primaryType,
       costValue: ci.costValue,
+      colorsMask: ci.colorsMask,
       ciMask: ci.ciMask,
+      isLeaderCandidate: ci.isLeaderCandidate,
+      isPreview: ci.isPreview,
       cheapestUsd: ci.cheapestUsd,
+      popularity: ci.popularity,
       attrs: ci.attrs,
       chosenImageOverride: cp.imageOverride,
     })
@@ -66,8 +70,10 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
     : [];
   const defaultByCard = new Map(defaults.map((d) => [d.cardIdentityId, d]));
 
+  // `card` is CardData-shaped (minus legality, plus image — the CardWire type
+  // in src/lib/decks/editor-state.ts): the editor feeds it straight to the
+  // adapter's display/validate/analyze without any game-specific reshaping.
   const cards = rows.map((r) => {
-    const attrs = r.attrs as Record<string, unknown>;
     const printing = r.printingId
       ? { id: r.printingId, imageOverride: r.chosenImageOverride }
       : (defaultByCard.get(r.cardId) ?? null);
@@ -78,13 +84,17 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
       tags: r.tags,
       printingId: r.printingId,
       card: {
+        id: r.cardId,
         name: r.name,
         primaryType: r.primaryType,
         costValue: r.costValue,
+        colorsMask: r.colorsMask,
         ciMask: r.ciMask,
+        isLeaderCandidate: r.isLeaderCandidate,
+        isPreview: r.isPreview,
         cheapestUsd: r.cheapestUsd === null ? null : Number(r.cheapestUsd),
-        manaCost: typeof attrs["mana_cost"] === "string" ? attrs["mana_cost"] : null,
-        typeLine: typeof attrs["type_line"] === "string" ? attrs["type_line"] : null,
+        popularity: r.popularity,
+        attrs: r.attrs,
         image: printing ? printingImageUrl(printing, "normal") : null,
       },
     };

@@ -19,7 +19,6 @@ const COLOR_LETTERS = ["W", "U", "B", "R", "G", "C"] as const;
 interface SearchResult {
   id: string;
   name: string;
-  typeLine: string | null;
   image: string | null;
 }
 
