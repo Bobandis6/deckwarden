@@ -32,6 +32,11 @@ export interface ZoneDef {
    * copy-exemption logic decides (e.g. MTG basics / "any number" cards).
    */
   defaultCopyLimit: number | null;
+  /**
+   * The command zone (MTG 'commander', OP 'leader'). Cards here feed the
+   * decks.leader_ids / ci_mask denorms — the core's only zone-role knowledge.
+   */
+  isLeaderZone?: boolean;
 }
 
 export interface FormatDef {

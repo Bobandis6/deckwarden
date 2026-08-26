@@ -26,7 +26,15 @@ const STANDARD: FormatDef = {
   code: "standard",
   label: "Standard",
   zones: [
-    { id: "leader", label: "Leader", min: 1, max: 1, countsTowardSize: false, defaultCopyLimit: 1 },
+    {
+      id: "leader",
+      label: "Leader",
+      min: 1,
+      max: 1,
+      countsTowardSize: false,
+      defaultCopyLimit: 1,
+      isLeaderZone: true,
+    },
     { id: "main", label: "Deck", min: 50, max: 50, countsTowardSize: true, defaultCopyLimit: 4 },
   ],
   deckSize: { min: 50, max: 50 },

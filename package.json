@@ -17,6 +17,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio",
     "ingest:scryfall": "tsx scripts/ingest/scryfall.ts",
+    "decks:purge": "tsx scripts/purge-anon-decks.ts",
+    "smoke:decks": "tsx scripts/deck-api-smoke.ts",
     "search:canned": "tsx scripts/canned-searches.ts",
     "db:size": "tsx scripts/db-size.ts"
   },

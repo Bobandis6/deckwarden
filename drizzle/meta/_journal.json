@@ -15,6 +15,13 @@
       "when": 1787516209502,
       "tag": "0001_sets_digital",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787704381993,
+      "tag": "0002_decks_v1",
+      "breakpoints": true
     }
   ]
 }

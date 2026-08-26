@@ -36,6 +36,12 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      - name: Purge stale anonymous decks (dry-run until the PURGE_ANON_DECKS_APPLY repo variable is "true")
+        run: pnpm decks:purge
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PURGE_APPLY: ${{ vars.PURGE_ANON_DECKS_APPLY }}
+
       - name: Back up user tables to R2 (no-op until R2 secrets + M1 tables exist)
         run: bash scripts/backup-user-tables.sh
         env:

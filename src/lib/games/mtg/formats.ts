@@ -19,6 +19,7 @@ export const COMMANDER: FormatDef = {
       max: 2,
       countsTowardSize: true,
       defaultCopyLimit: 1,
+      isLeaderZone: true,
     },
     {
       id: "main",

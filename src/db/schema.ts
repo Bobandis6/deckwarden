@@ -11,7 +11,10 @@
  *   4. Dated legality, exceptions only: formats carry a default; `legalities` holds
  *      validity intervals (`effective_to IS NULL` = in force).
  *
- * User/deck tables arrive in M1 (P1.x); they are intentionally absent from v1.
+ * Deck tables (P1.1, §4 "Decks"): live relational `deck_cards` for the current
+ * list + frozen JSONB snapshots in `deck_versions` (provisioned now, used M3).
+ * Guest decks are server-side anonymous rows: user_id NULL + claim_token
+ * (returned exactly once at create), created_ip for spam control.
  */
 import { sql, type SQL } from "drizzle-orm";
 import {
@@ -21,16 +24,19 @@ import {
   customType,
   date,
   index,
+  inet,
   integer,
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   smallint,
   text,
   timestamp,
   unique,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 /** Postgres `tsvector`; Drizzle has no built-in, so a custom type is declared. */
@@ -240,6 +246,104 @@ export const legalities = pgTable(
       .on(t.formatId, t.cardIdentityId)
       .where(sql`${t.effectiveTo} is null and ${t.condition} is null`),
   ],
+);
+
+// ---------------------------------------------------------------------------
+// Decks (P1.1)
+// ---------------------------------------------------------------------------
+
+export const DECK_VISIBILITIES = ["public", "unlisted", "private"] as const;
+export type DeckVisibility = (typeof DECK_VISIBILITIES)[number];
+
+/**
+ * One row per deck. `user_id` is a bare uuid until Better Auth lands (P2.1)
+ * and its users table exists to reference; NULL = anonymous (guest-built).
+ * `claim_token` authenticates guest writes and is NULLed on claim (P2.1).
+ */
+export const decks = pgTable(
+  "decks",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    /** Short slug for share URLs (P1.7); generated app-side at create. */
+    publicId: text("public_id").notNull().unique(),
+    gameId: smallint("game_id")
+      .notNull()
+      .references(() => games.id),
+    formatId: smallint("format_id")
+      .notNull()
+      .references(() => formats.id),
+    userId: uuid("user_id"),
+    /** Held in the guest's localStorage; returned ONCE at create, never queryable again. */
+    claimToken: uuid("claim_token"),
+    /** Anon spam control (rate limits + purge policy). */
+    createdIp: inet("created_ip"),
+    name: text("name").notNull().default("Untitled"),
+    description: text("description"),
+    /** Default private until share pages exist (P1.7 revisits per Appendix A). */
+    visibility: text("visibility").$type<DeckVisibility>().notNull().default("private"),
+    /** Command-zone denorm (2 entries = partners); powers "decks for commander X". */
+    leaderIds: uuid("leader_ids").array().notNull().default([]),
+    /** Deck color identity = OR of the leaders' ci_mask. */
+    ciMask: smallint("ci_mask").notNull().default(0),
+    forkedFromDeckId: uuid("forked_from_deck_id").references((): AnyPgColumn => decks.id),
+    currentVersion: integer("current_version").notNull().default(0),
+    likesCount: integer("likes_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("decks_visibility_check", sql`${t.visibility} in ('public','unlisted','private')`),
+    index("decks_hub").using("gin", t.leaderIds),
+    index("decks_browse").on(t.gameId, t.formatId, t.visibility, t.updatedAt.desc()),
+    index("decks_owner").on(t.userId, t.updatedAt.desc()),
+  ],
+);
+
+/**
+ * The live card list — the only shape relational queries ever need
+ * ("public decks containing X", hub aggregation). History lives in
+ * deck_versions as JSONB and never needs joins.
+ */
+export const deckCards = pgTable(
+  "deck_cards",
+  {
+    deckId: uuid("deck_id")
+      .notNull()
+      .references(() => decks.id, { onDelete: "cascade" }),
+    /** Adapter-defined ZoneDef id ('commander','main' / 'leader','main'); validated at the API. */
+    zone: text("zone").notNull(),
+    cardIdentityId: uuid("card_identity_id")
+      .notNull()
+      .references(() => cardIdentities.id),
+    quantity: smallint("quantity").notNull().default(1),
+    /** Chosen alt-art; NULL = the identity's default printing. */
+    printingId: uuid("printing_id").references(() => cardPrintings.id),
+    /** User categories {'Ramp','Draw'} — free text, adapter-agnostic. */
+    tags: text("tags").array().notNull().default([]),
+  },
+  (t) => [
+    primaryKey({ columns: [t.deckId, t.zone, t.cardIdentityId] }),
+    index("dc_by_card").on(t.cardIdentityId),
+  ],
+);
+
+/** Frozen snapshots for history/versioning (M3 feature; provisioned now, no migration later). */
+export const deckVersions = pgTable(
+  "deck_versions",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    deckId: uuid("deck_id")
+      .notNull()
+      .references(() => decks.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    note: text("note"),
+    /** Frozen [{cardId, zone, qty, tags, printingId}]. */
+    cards: jsonb("cards").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("deck_versions_deck_version").on(t.deckId, t.version)],
 );
 
 // ---------------------------------------------------------------------------

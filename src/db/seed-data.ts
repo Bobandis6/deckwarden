@@ -35,3 +35,18 @@ export const FORMATS: ReadonlyArray<{
     defaultLegality: "legal",
   },
 ];
+
+export type SeededFormat = (typeof FORMATS)[number];
+
+/** Resolve a seeded format row from API-facing codes; undefined = not a playable pair yet. */
+export function findFormat(game: GameCode, formatCode: string): SeededFormat | undefined {
+  return FORMATS.find((f) => f.gameId === GAME_ID[game] && f.code === formatCode);
+}
+
+export function findFormatById(formatId: number): SeededFormat | undefined {
+  return FORMATS.find((f) => f.id === formatId);
+}
+
+export function gameCodeById(gameId: number): GameCode | undefined {
+  return (Object.keys(GAME_ID) as GameCode[]).find((code) => GAME_ID[code] === gameId);
+}
