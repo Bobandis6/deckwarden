@@ -1,0 +1,90 @@
+name: Restore drill
+
+# P1.8's "restore tested once" — repeatable on demand. Downloads the LATEST
+# user-table dump + identity map from R2 and restores into a throwaway
+# Postgres 17, proving the backup artifacts alone can bring decks back.
+#
+# Expected noise: the dump carries FK constraints to card/reference tables
+# that a scratch DB doesn't have (games, formats, card_identities,
+# card_printings) — those ALTERs fail by design and are allowlisted; data
+# still loads. Real-disaster order is: new DB → migrate → re-ingest →
+# restore user tables → remap deck identity refs via the identity map
+# (external_key = scryfall oracle_id survives a rebuild; identity uuids don't).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      scratch:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: drill
+          POSTGRES_DB: drill
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SCRATCH_URL: postgresql://postgres:drill@localhost:5432/drill
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    steps:
+      # Same version dance as the nightly backup: runner default psql is 16.
+      - name: Install Postgres 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail -sS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Download latest dump + identity map from R2
+        run: |
+          set -euo pipefail
+          LATEST=$(aws s3 ls "s3://${{ secrets.R2_BUCKET }}/pg/" --endpoint-url "${{ secrets.R2_ENDPOINT }}" \
+            | awk '{print $4}' | grep '^deckwarden-user-tables-' | sort | tail -1)
+          [ -n "$LATEST" ] || { echo "no dump found in bucket"; exit 1; }
+          STAMP=${LATEST#deckwarden-user-tables-}; STAMP=${STAMP%.sql.gz}
+          MAP="deckwarden-identity-map-$STAMP.csv.gz"
+          echo "restoring $LATEST (+ $MAP)"
+          aws s3 cp "s3://${{ secrets.R2_BUCKET }}/pg/$LATEST" dump.sql.gz --endpoint-url "${{ secrets.R2_ENDPOINT }}"
+          aws s3 cp "s3://${{ secrets.R2_BUCKET }}/pg/$MAP" map.csv.gz --endpoint-url "${{ secrets.R2_ENDPOINT }}"
+
+      - name: Restore dump into scratch Postgres
+        run: |
+          set -euo pipefail
+          gunzip -c dump.sql.gz | psql "$SCRATCH_URL" -v ON_ERROR_STOP=0 2>restore-err.log || true
+          # Only FKs to tables that live outside the backup may fail.
+          if grep '^ERROR' restore-err.log | grep -Ev 'relation "(games|formats|card_identities|card_printings|users)" does not exist'; then
+            echo "unexpected restore errors above"; exit 1
+          fi
+          echo "expected (allowlisted) errors:"; grep -c '^ERROR' restore-err.log || true
+
+      - name: Verify restored data + identity-map coverage
+        run: |
+          set -euo pipefail
+          psql "$SCRATCH_URL" -c "CREATE TABLE identity_map (id uuid PRIMARY KEY, game_id smallint, external_key text)"
+          gunzip -c map.csv.gz | psql "$SCRATCH_URL" -c "\copy identity_map FROM STDIN WITH (FORMAT csv, HEADER)"
+          DECKS=$(psql "$SCRATCH_URL" -Atc "SELECT count(*) FROM decks")
+          CARDS=$(psql "$SCRATCH_URL" -Atc "SELECT count(*) FROM deck_cards")
+          MAPPED=$(psql "$SCRATCH_URL" -Atc "SELECT count(*) FROM identity_map")
+          DANGLING=$(psql "$SCRATCH_URL" -Atc "
+            SELECT (SELECT count(*) FROM deck_cards dc LEFT JOIN identity_map m ON m.id = dc.card_identity_id WHERE m.id IS NULL)
+                 + (SELECT count(*) FROM (SELECT unnest(leader_ids) AS lid FROM decks) l LEFT JOIN identity_map m ON m.id = l.lid WHERE m.id IS NULL)")
+          echo "restored: $DECKS deck(s), $CARDS deck_cards row(s); identity map: $MAPPED ids; dangling refs: $DANGLING"
+          psql "$SCRATCH_URL" -c "SELECT d.name, d.visibility, count(dc.card_identity_id) AS cards FROM decks d LEFT JOIN deck_cards dc ON dc.deck_id = d.id GROUP BY d.id ORDER BY d.created_at"
+          [ "$DECKS" -ge 1 ] || { echo "FAIL: no decks restored"; exit 1; }
+          [ "$CARDS" -ge 1 ] || { echo "FAIL: no deck_cards restored"; exit 1; }
+          [ "$DANGLING" = "0" ] || { echo "FAIL: deck rows reference ids missing from the identity map"; exit 1; }
+          echo "restore drill PASSED"

@@ -31,3 +31,14 @@ pg_dump "$DIRECT_URL" --no-owner --no-privileges "${ARGS[@]}" | gzip >"$FILE"
 AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
   aws s3 cp "$FILE" "s3://$R2_BUCKET/pg/$FILE" --endpoint-url "$R2_ENDPOINT"
 echo "backed up: $EXISTING → s3://$R2_BUCKET/pg/$FILE"
+
+# Identity map: card_identities.id is gen_random_uuid(), so a from-scratch
+# rebuild (migrate + re-ingest) mints NEW identity ids — restored deck rows
+# would dangle without this id → (game_id, external_key) remap key. Printings
+# need no map (their id IS the scryfall card id); games/formats ids are fixed
+# by seed. The restore-drill workflow verifies the map covers every deck ref.
+MAP="deckwarden-identity-map-$STAMP.csv.gz"
+psql "$DIRECT_URL" -c "COPY (SELECT id, game_id, external_key FROM card_identities) TO STDOUT WITH (FORMAT csv, HEADER)" | gzip >"$MAP"
+AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+  aws s3 cp "$MAP" "s3://$R2_BUCKET/pg/$MAP" --endpoint-url "$R2_ENDPOINT"
+echo "identity map → s3://$R2_BUCKET/pg/$MAP"
