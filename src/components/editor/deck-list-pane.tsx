@@ -8,6 +8,7 @@
  * persists to localStorage as a UI preference (view-prefs.ts). Group default
  * comes from adapter.display.defaultGroupBy — nothing game-specific here.
  */
+import { AnalyticsPanel } from "@/components/editor/analytics-blocks";
 import { DeckGridView } from "@/components/editor/deck-grid-view";
 import { DeckTextView } from "@/components/editor/deck-text-view";
 import { LeaderZone } from "@/components/editor/leader-zone";
@@ -21,7 +22,7 @@ import {
   type SortKey,
 } from "@/lib/decks/view-model";
 import { loadViewPrefs, saveViewPrefs, type DeckViewMode } from "@/lib/decks/view-prefs";
-import type { FormatDef, GameAdapter, ValidationIssue } from "@/lib/games/types";
+import type { AnalyticsBlock, FormatDef, GameAdapter, ValidationIssue } from "@/lib/games/types";
 import { useState } from "react";
 
 interface DeckListPaneProps {
@@ -30,6 +31,7 @@ interface DeckListPaneProps {
   entries: EditorEntry[];
   cards: ReadonlyMap<string, EditorCard>;
   issues: ValidationIssue[];
+  analytics: AnalyticsBlock[];
   onSetQty: (zoneId: string, cardId: string, qty: number) => string | undefined;
   onRemove: (zoneId: string, cardId: string) => void;
   onPreview: (card: EditorCard) => void;
@@ -56,6 +58,7 @@ export function DeckListPane({
   entries,
   cards,
   issues,
+  analytics,
   onSetQty,
   onRemove,
   onPreview,
@@ -139,6 +142,8 @@ export function DeckListPane({
         cards={cards}
         onPreview={onPreview}
       />
+
+      <AnalyticsPanel blocks={analytics} />
 
       {leaderZoneDef && (
         <LeaderZone

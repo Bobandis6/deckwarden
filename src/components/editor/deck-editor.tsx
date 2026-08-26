@@ -35,7 +35,13 @@ import {
 import { getDeckToken } from "@/lib/decks/token-store";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
-import type { FormatDef, GameAdapter, GameId, ValidationIssue } from "@/lib/games/types";
+import type {
+  AnalyticsBlock,
+  FormatDef,
+  GameAdapter,
+  GameId,
+  ValidationIssue,
+} from "@/lib/games/types";
 
 interface DeckResponse {
   deck: {
@@ -236,12 +242,21 @@ export function DeckEditor({ deckId }: { deckId: string }) {
     return counts;
   }, [entries]);
 
-  // Live validation (P1.4): the adapter's pure validate on every edit — the
-  // same code the PUT route re-runs server-side on save.
-  const issues = useMemo<ValidationIssue[]>(() => {
-    if (load.state !== "ready") return [];
-    return load.adapter.validate(toDeckSnapshot(load.adapter.id, load.format, entries), cards);
-  }, [load, entries, cards]);
+  // Live validation (P1.4) and analytics (P1.5): the adapter's pure functions
+  // on every edit, over one shared snapshot. validate is the same code the PUT
+  // route re-runs server-side on save; analyze feeds the middle pane's blocks.
+  const snapshot = useMemo(
+    () => (load.state === "ready" ? toDeckSnapshot(load.adapter.id, load.format, entries) : null),
+    [load, entries],
+  );
+  const issues = useMemo<ValidationIssue[]>(
+    () => (load.state === "ready" && snapshot ? load.adapter.validate(snapshot, cards) : []),
+    [load, snapshot, cards],
+  );
+  const analytics = useMemo<AnalyticsBlock[]>(
+    () => (load.state === "ready" && snapshot ? load.adapter.analyze(snapshot, cards) : []),
+    [load, snapshot, cards],
+  );
 
   if (load.state !== "ready") {
     return (
@@ -307,6 +322,7 @@ export function DeckEditor({ deckId }: { deckId: string }) {
             entries={entries}
             cards={cards}
             issues={issues}
+            analytics={analytics}
             onSetQty={handleSetQty}
             onRemove={handleRemove}
             onPreview={setPreview}

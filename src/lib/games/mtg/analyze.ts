@@ -21,6 +21,22 @@ function isLand(card: MtgCard): boolean {
   return card.primaryType === "Land";
 }
 
+/**
+ * Bitmask of colors this card's rules text can produce, from "Add …" clauses
+ * (WUBRGC; "any color"/"any combination" counts as all five). Heuristic v1:
+ * conditional producers (Command Tower's "…in your commander's color identity")
+ * count for every color — refinement is LATER territory.
+ */
+export function producedMask(card: MtgCard): number {
+  const bits: Record<string, number> = { W: 1, U: 2, B: 4, R: 8, G: 16, C: 32 };
+  let mask = 0;
+  for (const clause of card.attrs.oracle_text.matchAll(/\bAdd\b([^.\n]*)/g)) {
+    if (/any (?:one )?color|any combination/i.test(clause[1])) mask |= 31;
+    for (const sym of clause[1].matchAll(/\{([WUBRGC])\}/g)) mask |= bits[sym[1]];
+  }
+  return mask;
+}
+
 export function analyzeMtg(
   deck: DeckSnapshot,
   cards: ReadonlyMap<string, MtgCard>,
@@ -40,12 +56,21 @@ export function analyzeMtg(
   let pricedQty = 0;
   const typeQty = new Map<string, number>();
   const colorQty = new Map<string, number>();
+  // label → [land qty, other qty] of cards producing that color.
+  const sourceQty = new Map<string, [number, number]>();
 
   for (const { qty, card } of entries) {
     typeQty.set(card.primaryType ?? "Other", (typeQty.get(card.primaryType ?? "Other") ?? 0) + qty);
     if (card.cheapestUsd != null) {
       priceSum += card.cheapestUsd * qty;
       pricedQty += qty;
+    }
+    const produced = producedMask(card);
+    for (const { bit, label } of COLOR_SLICES) {
+      if (!(produced & bit)) continue;
+      const row = sourceQty.get(label) ?? [0, 0];
+      row[isLand(card) ? 0 : 1] += qty;
+      sourceQty.set(label, row);
     }
     if (isLand(card)) {
       landQty += qty;
@@ -85,6 +110,16 @@ export function analyzeMtg(
         value: colorQty.get(c.label)!,
         colorVar: c.colorVar,
       })),
+    },
+    {
+      kind: "table",
+      id: "mana-sources",
+      title: "Mana sources",
+      columns: ["Color", "Lands", "Other"],
+      rows: COLOR_SLICES.filter((c) => sourceQty.has(c.label)).map((c) => {
+        const [lands, other] = sourceQty.get(c.label)!;
+        return [c.label, lands, other];
+      }),
     },
     {
       kind: "stat",

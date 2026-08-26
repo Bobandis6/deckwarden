@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { analyzeMtg } from "./analyze";
 import {
   atraxa,
+  card,
   cardMap,
   commanderDeck,
   entry,
@@ -48,6 +49,42 @@ describe("analyzeMtg", () => {
     const types = block(blocks, "types");
     if (types.kind !== "breakdown") throw new Error("wrong kind");
     expect(types.slices[0]).toEqual({ label: "Land", value: 30 });
+  });
+
+  it("tallies mana sources by color, lands split from other producers", () => {
+    const sources = block(blocks, "mana-sources");
+    if (sources.kind !== "table") throw new Error("wrong kind");
+    expect(sources.columns).toEqual(["Color", "Lands", "Other"]);
+    // 30 Islands add {U}; Sol Ring adds {C}{C}; Atraxa and Bolt produce nothing.
+    expect(sources.rows).toEqual([
+      ["Blue", 30, 0],
+      ["Colorless", 0, 1],
+    ]);
+  });
+
+  it("counts any-color producers as a source of all five colors", () => {
+    const birds = card({
+      name: "Birds of Paradise",
+      costValue: 1,
+      colorsMask: 16,
+      ciMask: 16,
+      attrs: {
+        type_line: "Creature — Bird",
+        oracle_text: "Flying\n{T}: Add one mana of any color.",
+        mana_cost: "{G}",
+      },
+    });
+    const d = commanderDeck([atraxa], [entry(birds), entry(island, 2)]);
+    const sources = block(analyzeMtg(d, cardMap([atraxa, birds, island])), "mana-sources");
+    if (sources.kind !== "table") throw new Error("wrong kind");
+    // Birds is an "Other" source of WUBRG; the 2 Islands are Blue lands.
+    expect(sources.rows).toEqual([
+      ["White", 0, 1],
+      ["Blue", 2, 1],
+      ["Black", 0, 1],
+      ["Red", 0, 1],
+      ["Green", 0, 1],
+    ]);
   });
 
   it("sums cheapest-printing prices", () => {

@@ -129,6 +129,18 @@
   }
 }
 
+/* Mana colors — one source for cost pips and analytics blocks. Adapters emit
+   these names as data (AnalyticsBlock colorVar); the generic renderer just
+   var()s whatever it's handed. Same values in both themes on purpose. */
+:root {
+  --mana-w: #f8f6d8;
+  --mana-u: #c1d7e9;
+  --mana-b: #b3a9a3;
+  --mana-r: #e9977e;
+  --mana-g: #a3c095;
+  --mana-c: #cac5c0;
+}
+
 /* Cost pips — adapters' display.costHtml emits <span class="pip pip-w">W</span>
    etc. (symbol lowercased, '/' folded: {W/U} → pip-wu). Unmatched symbols
    (hybrids, phyrexian, X) fall back to the generic chip; refinement is P1.8. */
@@ -145,23 +157,23 @@
     font-weight: 700;
     line-height: 1;
     vertical-align: -0.1em;
-    background: #cac5c0;
+    background: var(--mana-c);
     color: #1f1f1f;
     box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.2);
   }
   .pip-w {
-    background: #f8f6d8;
+    background: var(--mana-w);
   }
   .pip-u {
-    background: #c1d7e9;
+    background: var(--mana-u);
   }
   .pip-b {
-    background: #b3a9a3;
+    background: var(--mana-b);
   }
   .pip-r {
-    background: #e9977e;
+    background: var(--mana-r);
   }
   .pip-g {
-    background: #a3c095;
+    background: var(--mana-g);
   }
 }
