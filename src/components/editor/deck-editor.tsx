@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CardDetailPane } from "@/components/editor/card-detail-pane";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
+import { ExportDialog, ImportDialog } from "@/components/editor/import-export";
 import { SearchPane } from "@/components/editor/search-pane";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import {
   type EditorEntry,
   type EditResult,
 } from "@/lib/decks/editor-state";
+import type { ImportOutcome } from "@/lib/decks/import";
 import { getDeckToken } from "@/lib/decks/token-store";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
@@ -74,6 +76,7 @@ export function DeckEditor({ deckId }: { deckId: string }) {
   const [entries, setEntries] = useState<EditorEntry[]>([]);
   const [cards, setCards] = useState<ReadonlyMap<string, EditorCard>>(new Map());
   const [preview, setPreview] = useState<EditorCard | null>(null);
+  const [dialog, setDialog] = useState<"import" | "export" | null>(null);
 
   // Refs mirror the state the save callback needs, so an autosave always
   // serializes the latest edits regardless of when the debounce fires.
@@ -236,6 +239,23 @@ export function DeckEditor({ deckId }: { deckId: string }) {
     [applyEdit],
   );
 
+  // Import applies as one whole-list swap: the pure applyImport already
+  // merged/spilled per format rules, so the result is save-ready as-is.
+  const handleImport = useCallback(
+    (outcome: ImportOutcome) => {
+      setCards((prev) => {
+        const next = new Map(prev);
+        for (const card of outcome.cards)
+          if (!next.has(card.id)) next.set(card.id, toEditorCard(card));
+        return next;
+      });
+      entriesRef.current = outcome.entries;
+      setEntries(outcome.entries);
+      markDirty();
+    },
+    [markDirty],
+  );
+
   const inDeckQty = useMemo(() => {
     const counts = new Map<string, number>();
     for (const e of entries) counts.set(e.cardId, (counts.get(e.cardId) ?? 0) + e.qty);
@@ -296,8 +316,30 @@ export function DeckEditor({ deckId }: { deckId: string }) {
           maxLength={120}
           className="focus-visible:ring-ring/50 min-w-0 flex-1 rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2"
         />
+        <Button variant="outline" size="xs" onClick={() => setDialog("import")}>
+          Import
+        </Button>
+        <Button variant="outline" size="xs" onClick={() => setDialog("export")}>
+          Export
+        </Button>
         <SaveIndicator status={autosave.status} onRetry={() => void autosave.flush()} />
       </header>
+
+      {dialog === "import" && (
+        <ImportDialog
+          adapter={load.adapter}
+          format={load.format}
+          entries={entries}
+          onApply={handleImport}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === "export" && snapshot && (
+        <ExportDialog
+          text={load.adapter.serializeDecklist(snapshot, cards)}
+          onClose={() => setDialog(null)}
+        />
+      )}
 
       <div className="min-h-0 flex-1 gap-0 lg:grid lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)_minmax(16rem,22rem)]">
         <section

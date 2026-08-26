@@ -3,7 +3,8 @@
  * resolution is core's job (name_norm exact, then trgm fuzzy), via the one
  * shared normalizer. Accepts the common paste shapes: MTGO ("1 Sol Ring"),
  * Arena/Moxfield ("1 Sol Ring (C21) 263 *F*"), bare names, "1x" quantities,
- * section headers ("Commander:", "Deck", "Sideboard"), *CMDR* markers.
+ * section headers ("Commander:", "Deck", "Sideboard"), *CMDR* markers,
+ * Archidekt "[Category]"/"^Flag^" annotations, Deckstats "# !Commander".
  */
 import type { CardData, DeckSnapshot } from "../types";
 import type { MtgAttrs } from "./attrs";
@@ -56,8 +57,12 @@ export function parseMtgDecklist(text: string): { lines: ParsedLine[]; warnings:
       zoneHint = "commander";
       rest = rest.replace(/\*CMDR\*/gi, " ");
     }
+    // Deckstats marks commanders as a trailing "# !Commander" comment.
+    if (/#\s*!?commander\b/i.test(rest)) zoneHint = "commander";
     rest = rest.replace(/\*[A-Za-z]+\*/g, " "); // *F* foil etc.
-    rest = rest.replace(/#[\w-]+/g, " "); // #tags
+    rest = rest.replace(/\[[^\]]*\]/g, " "); // Archidekt "[Ramp]" categories
+    rest = rest.replace(/\^[^^]*\^/g, " "); // Archidekt "^Have,#aabbcc^" flags
+    rest = rest.replace(/#.*$/, " "); // "# !Commander", #tags, trailing comments
 
     // Trailing "(SET) 123" / "(SET)" — set + collector-number hints.
     let setHint: string | undefined;

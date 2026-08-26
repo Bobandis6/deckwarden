@@ -53,6 +53,145 @@ describe("parseMtgDecklist", () => {
     const { lines } = parseMtgDecklist("1 Fable of the Mirror-Breaker // Reflection of Kiki-Jiki");
     expect(lines[0].rawName).toBe("Fable of the Mirror-Breaker // Reflection of Kiki-Jiki");
   });
+
+  it("strips Archidekt category/flag annotations", () => {
+    const { lines, warnings } = parseMtgDecklist(
+      "1x Sol Ring (c21) 263 [Ramp]\n1x Arcane Signet (afc) 95 *F* [Ramp,Artifact]\n1x Command Tower (afc) 175 ^Have,#7fdb8a^",
+    );
+    expect(warnings).toEqual([]);
+    expect(lines).toEqual([
+      { rawName: "Sol Ring", qty: 1, setHint: "c21" },
+      { rawName: "Arcane Signet", qty: 1, setHint: "afc" },
+      { rawName: "Command Tower", qty: 1, setHint: "afc" },
+    ]);
+  });
+
+  it("reads Deckstats '# !Commander' markers as commander zone hints", () => {
+    const { lines } = parseMtgDecklist("1 Atraxa, Praetors' Voice # !Commander\n1 Sol Ring #ramp");
+    expect(lines).toEqual([
+      { rawName: "Atraxa, Praetors' Voice", qty: 1, zoneHint: "commander" },
+      { rawName: "Sol Ring", qty: 1 },
+    ]);
+  });
+});
+
+/**
+ * Real-shaped pastes from the sites the plan row names (Moxfield, Arena, MTGO,
+ * Archidekt, TappedOut, Deckstats, MTGGoldfish, EDHREC, Scryfall deck text,
+ * plain lists). Each must tokenize with zero warnings and the expected
+ * commander split — the paste→resolve→deck round-trip's client half.
+ */
+describe("parseMtgDecklist against real paste shapes", () => {
+  const PASTES: {
+    site: string;
+    text: string;
+    cardLines: number;
+    commanders: string[];
+  }[] = [
+    {
+      site: "Moxfield text export",
+      text: [
+        "1 Atraxa, Praetors' Voice (2X2) 190 *F*",
+        "1 Arcane Signet (AFC) 95",
+        "1 Beast Within (PIP) 96",
+        "10 Forest (SLD) 106",
+        "",
+        "SIDEBOARD:",
+        "1 Swords to Plowshares (STA) 10",
+      ].join("\n"),
+      cardLines: 5,
+      commanders: [],
+    },
+    {
+      site: "Moxfield with CMDR marker",
+      text: "1 Kenrith, the Returned King (ELD) 303 *CMDR*\n1 Sol Ring (C21) 263",
+      cardLines: 2,
+      commanders: ["Kenrith, the Returned King"],
+    },
+    {
+      site: "Arena export",
+      text: [
+        "Commander",
+        "1 Atraxa, Praetors' Voice (OC21) 115",
+        "",
+        "Deck",
+        "1 Sol Ring (SLD) 439",
+        "99 Island (ANA) 57",
+      ].join("\n"),
+      cardLines: 3,
+      commanders: ["Atraxa, Praetors' Voice"],
+    },
+    {
+      site: "MTGO .txt",
+      text: "1 Sol Ring\n1 Arcane Signet\n35 Island",
+      cardLines: 3,
+      commanders: [],
+    },
+    {
+      site: "Archidekt export",
+      text: [
+        "1x Atraxa, Praetors' Voice (2x2) 190 [Commander{top}]",
+        "1x Sol Ring (c21) 263 [Ramp]",
+        "1x Cultivate (c21) 178 ^Have^ [Ramp]",
+      ].join("\n"),
+      cardLines: 3,
+      commanders: [],
+    },
+    {
+      site: "TappedOut",
+      text: "1x Atraxa, Praetors' Voice *CMDR*\n1x Sol Ring\n1x Cultivate",
+      cardLines: 3,
+      commanders: ["Atraxa, Praetors' Voice"],
+    },
+    {
+      site: "Deckstats export",
+      text: [
+        "//Main",
+        "1 Atraxa, Praetors' Voice # !Commander",
+        "1 Sol Ring",
+        "1 Cultivate #ramp",
+      ].join("\n"),
+      cardLines: 3,
+      commanders: ["Atraxa, Praetors' Voice"],
+    },
+    {
+      site: "MTGGoldfish",
+      text: [
+        "Commander",
+        "1 Atraxa, Praetors' Voice",
+        "",
+        "Deck",
+        "1 Sol Ring",
+        "1 Swords to Plowshares",
+      ].join("\n"),
+      cardLines: 3,
+      commanders: ["Atraxa, Praetors' Voice"],
+    },
+    {
+      site: "EDHREC-ish plain list with DFCs",
+      text: "1 Fable of the Mirror-Breaker // Reflection of Kiki-Jiki\n1 Malakir Rebirth // Malakir Mire\n1 Sol Ring",
+      cardLines: 3,
+      commanders: [],
+    },
+    {
+      site: "bare names, no quantities",
+      text: "Sol Ring\nArcane Signet\nCommand Tower",
+      cardLines: 3,
+      commanders: [],
+    },
+  ];
+
+  for (const paste of PASTES) {
+    it(`tokenizes: ${paste.site}`, () => {
+      const { lines, warnings } = parseMtgDecklist(paste.text);
+      expect(warnings).toEqual([]);
+      expect(lines).toHaveLength(paste.cardLines);
+      expect(lines.filter((l) => l.zoneHint === "commander").map((l) => l.rawName)).toEqual(
+        paste.commanders,
+      );
+      for (const line of lines) expect(line.qty).toBeGreaterThanOrEqual(1);
+    });
+  }
 });
 
 describe("serializeMtgDecklist", () => {
