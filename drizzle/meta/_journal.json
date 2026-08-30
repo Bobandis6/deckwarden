@@ -36,6 +36,13 @@
       "when": 1787722632798,
       "tag": "0004_rate_limit_counters",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788067698936,
+      "tag": "0005_auth_tables",
+      "breakpoints": true
     }
   ]
 }

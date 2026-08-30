@@ -1,19 +1,25 @@
 /**
- * POST /api/decks/claim — claim anonymous decks into an account (P1.7).
+ * POST /api/decks/claim — claim anonymous decks into an account (P1.7
+ * plumbing, live since P2.1).
  *
- * Plumbing only until Better Auth lands (P2.1): the route shape and the
- * claim logic (src/lib/decks/claim.ts — attach user_id, NULL claim_token)
- * exist now, but the whole route is gated off behind DECKWARDEN_ENABLE_CLAIM
- * and 404s until then, and without a session there is no user to claim for,
- * so a flagged-on call still stops at 401. P2.1 replaces getSessionUserId
- * with the Better Auth session lookup and flips the flag.
+ * The signed-in caller sends every {id, token} pair from its localStorage
+ * token store; claim logic (src/lib/decks/claim.ts) attaches user_id and
+ * NULLs claim_token for each deck whose token still verifies, and everything
+ * else is silently skipped. The client then discards the claimed tokens —
+ * ownership is the session from here on, never the token again.
+ *
+ * Rate limited per IP: the body can probe up to 100 deck ids per call, and
+ * nothing about claiming is high-frequency.
  *
  * Caching intent: dynamic — a mutation; never cacheable.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
+import { getSessionUserId } from "@/lib/auth";
+import { clientIp } from "@/lib/decks/access";
 import { claimDecks } from "@/lib/decks/claim";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -26,18 +32,9 @@ const BODY = z.object({
     .max(100),
 });
 
-/** Better Auth session lookup lands here in P2.1. */
-async function getSessionUserId(_request: NextRequest): Promise<string | null> {
-  return null;
-}
-
 export async function POST(request: NextRequest) {
-  if (process.env.DECKWARDEN_ENABLE_CLAIM !== "1") {
-    return NextResponse.json(
-      { error: "Claiming isn't available yet" },
-      { status: 404, headers: NO_STORE },
-    );
-  }
+  const limited = await enforceRateLimit(RATE_LIMITS.deckClaim(clientIp(request.headers)));
+  if (limited) return limited;
 
   let json: unknown;
   try {
@@ -53,7 +50,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const userId = await getSessionUserId(request);
+  const userId = await getSessionUserId(request.headers);
   if (!userId) {
     return NextResponse.json(
       { error: "Sign in to claim decks" },

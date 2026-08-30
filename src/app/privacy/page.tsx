@@ -1,7 +1,9 @@
 /**
- * /privacy — what Deckwarden actually holds, stated plainly (P1.8 gate).
- * v1 truth: no accounts, no cookies, no analytics; anon decks + created_ip +
- * localStorage edit keys + optional Sentry error reports.
+ * /privacy — what Deckwarden actually holds, stated plainly (P1.8 gate;
+ * accounts section added with Better Auth in P2.1). Truth: optional
+ * Discord/Google accounts (name, email, avatar URL stored) + a session
+ * cookie only when signed in; anon decks + created_ip + localStorage edit
+ * keys + optional Sentry error reports. Still no ads, no analytics.
  *
  * Caching intent: fully static (no dynamic APIs, no data fetching).
  */
@@ -18,9 +20,34 @@ export default function PrivacyPage() {
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-12">
       <h1 className="text-3xl font-bold tracking-tight">Privacy</h1>
       <p className="text-muted-foreground mt-2">
-        Deckwarden currently has no accounts, no cookies, no ads, and no analytics. This page lists
-        everything it does store.
+        Deckwarden has optional sign-in, no ads, and no analytics. Cookies exist only to keep you
+        signed in — nothing tracks you. This page lists everything it does store.
       </p>
+
+      <section className="mt-8 space-y-3">
+        <h2 className="text-xl font-semibold">Accounts (optional)</h2>
+        <p>
+          You never need an account to build, share, or browse — signing in just keeps your decks
+          across browsers. Sign-in is via Discord or Google only; there are no passwords here. From
+          the provider we store your display name, email address, and avatar URL, used solely to
+          show you your account and tie your decks to it — never for marketing, and never shared.
+        </p>
+        <p>
+          While signed in, a session cookie keeps you signed in; it is strictly functional and is
+          the only cookie this site sets. Decks built on a browser before signing in are attached to
+          your account when you sign in on that browser; their localStorage edit keys are retired in
+          the process. To delete your account and its data,{" "}
+          <a
+            href="https://github.com/Bobandis6/deckwarden/issues"
+            className="underline"
+            rel="noreferrer"
+            target="_blank"
+          >
+            open a GitHub issue
+          </a>{" "}
+          — removal is manual for now, but it is honored.
+        </p>
+      </section>
 
       <section className="mt-8 space-y-3">
         <h2 className="text-xl font-semibold">Decks you build</h2>
@@ -28,7 +55,7 @@ export default function PrivacyPage() {
           Decks are stored on our servers: the card list, deck name, description, and visibility
           (public, unlisted, or private). Anyone you give a share link can view a public or unlisted
           deck — that’s the point of the link. Private decks are viewable only from the browser that
-          created them.
+          created them or by the signed-in account that owns them.
         </p>
         <p>
           The edit key for each deck lives in your browser’s localStorage (not a cookie — it is

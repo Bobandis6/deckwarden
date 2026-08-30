@@ -17,6 +17,9 @@ export default function Home() {
         <Button nativeButton={false} variant="outline" render={<Link href="/cards" />}>
           Search cards
         </Button>
+        <Button nativeButton={false} variant="outline" render={<Link href="/account" />}>
+          Account
+        </Button>
         <Button
           nativeButton={false}
           variant="outline"

@@ -1,12 +1,16 @@
 /**
- * Deck ownership + read access (P1.1).
+ * Deck ownership + read access (P1.1; session-aware since P2.1).
  *
- * Guest decks authenticate writes with the claim_token issued once at create,
- * sent back as an `x-deck-token` header. Session users arrive with Better Auth
- * (P2.1) — until then a deck with user_id set has no way to prove ownership
- * over the API, which is correct: no such decks can exist yet.
+ * Two proofs of ownership, mutually exclusive by construction: guest decks
+ * (user_id NULL) authenticate writes with the claim_token issued once at
+ * create, sent back as an `x-deck-token` header; claimed/account decks
+ * (user_id set, claim_token NULLed) authenticate with the Better Auth session
+ * — the token path is dead for them forever, so a leaked old token proves
+ * nothing after claim.
  *
- * claim_token is never serialized back out; only the create response carries it.
+ * These functions stay pure: routes resolve the session user id (route-
+ * helpers.ts / lib/auth.ts) and pass it in. claim_token is never serialized
+ * back out; only the create response carries it.
  */
 import { timingSafeEqual } from "node:crypto";
 
@@ -29,14 +33,22 @@ function tokenEquals(a: string, b: string): boolean {
   return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
 }
 
-export function isDeckOwner(deck: DeckAccessRow, token: string | null): boolean {
-  if (deck.userId !== null) return false; // session auth lands P2.1
+export function isDeckOwner(
+  deck: DeckAccessRow,
+  token: string | null,
+  sessionUserId: string | null = null,
+): boolean {
+  if (deck.userId !== null) return sessionUserId !== null && deck.userId === sessionUserId;
   return deck.claimToken !== null && token !== null && tokenEquals(deck.claimToken, token);
 }
 
 /** Reads: owner always; everyone else only when the deck isn't private. */
-export function canReadDeck(deck: DeckAccessRow, token: string | null): boolean {
-  return deck.visibility !== "private" || isDeckOwner(deck, token);
+export function canReadDeck(
+  deck: DeckAccessRow,
+  token: string | null,
+  sessionUserId: string | null = null,
+): boolean {
+  return deck.visibility !== "private" || isDeckOwner(deck, token, sessionUserId);
 }
 
 /** Best-effort client IP for decks.created_ip (anon spam control / purge policy). */

@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * /decks/new (P1.2): create a server-side anonymous deck and land in the
- * editor. POST /api/decks returns the claim token exactly once — it goes into
- * localStorage keyed by deck id (token-store.ts) before the redirect; the deck
- * itself lives server-side (build plan §4).
+ * /decks/new (P1.2): create a server-side deck and land in the editor.
+ * Anonymous creates return the claim token exactly once — it goes into
+ * localStorage keyed by deck id (token-store.ts) before the redirect; the
+ * deck itself lives server-side (build plan §4). Signed-in creates (P2.1)
+ * return claimToken null — the deck is account-owned from birth and the
+ * session cookie is the ownership proof, so nothing is stored here.
  *
  * Caching intent: static client shell; the create call is a client-side
  * mutation on mount.
@@ -31,8 +33,8 @@ export default function NewDeckPage() {
         body: JSON.stringify({ game: "mtg", format: "commander", website: "" }),
       });
       if (!res.ok) throw new Error(`Deck creation failed (${res.status})`);
-      const json: { deck: { id: string }; claimToken: string } = await res.json();
-      if (!setDeckToken(json.deck.id, json.claimToken)) {
+      const json: { deck: { id: string }; claimToken: string | null } = await res.json();
+      if (json.claimToken && !setDeckToken(json.deck.id, json.claimToken)) {
         throw new Error(
           "Couldn't store this deck's edit key — enable browser storage and try again.",
         );

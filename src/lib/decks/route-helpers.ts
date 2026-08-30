@@ -1,10 +1,11 @@
 /**
- * The claim-token auth middleware for deck routes (P1.1): load the deck row,
- * read `x-deck-token`, and gate the handler. Handlers get back either the
- * context they need or a ready-made error response.
+ * The auth middleware for deck routes (P1.1): load the deck row, resolve both
+ * ownership proofs — the `x-deck-token` header (guest decks) and the Better
+ * Auth session (claimed decks, P2.1) — and gate the handler. Handlers get
+ * back either the context they need or a ready-made error response.
  *
  * Status contract (locked by the smoke tests): unknown/invalid id → 404;
- * wrong or missing token on a write (or a private read) → 403. Private decks
+ * no valid proof on a write (or a private read) → 403. Private decks
  * still 404-vs-403 distinguishably — acceptable for now: public_ids are
  * unguessable and P1.7 revisits read semantics with share pages.
  */
@@ -13,6 +14,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
+import { getSessionUserId } from "@/lib/auth";
 import { canReadDeck, deckTokenFrom, isDeckOwner } from "@/lib/decks/access";
 import type { DeckRow } from "@/lib/decks/serialize";
 
@@ -48,10 +50,11 @@ export async function requireReadableDeck(
   const deck = await loadDeck(id);
   if (!deck) return NextResponse.json({ error: "Deck not found" }, { status: 404 });
   const token = deckTokenFrom(headers);
-  if (!canReadDeck(deck, token)) {
+  const userId = await getSessionUserId(headers);
+  if (!canReadDeck(deck, token, userId)) {
     return NextResponse.json({ error: "This deck is private" }, { status: 403 });
   }
-  return { deck, isOwner: isDeckOwner(deck, token) };
+  return { deck, isOwner: isDeckOwner(deck, token, userId) };
 }
 
 export async function requireOwnedDeck(
@@ -60,8 +63,8 @@ export async function requireOwnedDeck(
 ): Promise<DeckContext | NextResponse> {
   const deck = await loadDeck(id);
   if (!deck) return NextResponse.json({ error: "Deck not found" }, { status: 404 });
-  if (!isDeckOwner(deck, deckTokenFrom(headers))) {
-    return NextResponse.json({ error: "Missing or invalid deck token" }, { status: 403 });
+  if (!isDeckOwner(deck, deckTokenFrom(headers), await getSessionUserId(headers))) {
+    return NextResponse.json({ error: "You don't have edit access to this deck" }, { status: 403 });
   }
   return { deck, isOwner: true };
 }

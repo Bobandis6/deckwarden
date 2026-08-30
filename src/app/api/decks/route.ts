@@ -1,10 +1,12 @@
 /**
- * POST /api/decks — create a deck (P1.1).
+ * POST /api/decks — create a deck (P1.1; session-aware since P2.1).
  *
  * Guest building is server-side anonymous decks (§4): user_id NULL, a
  * claim_token minted here and returned EXACTLY ONCE (top-level in this
- * response, held in the visitor's localStorage, redeemed at first OAuth in
- * P2.1), created_ip recorded for the anon spam/purge policy.
+ * response, held in the visitor's localStorage, redeemed at first OAuth),
+ * created_ip recorded for the anon spam/purge policy. Signed-in creates skip
+ * the token entirely — user_id is set at birth and claimToken comes back
+ * null; the session is the ownership proof.
  *
  * Caching intent: dynamic — a mutation; responses are per-caller and never
  * cacheable (Cache-Control: no-store).
@@ -21,6 +23,7 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
+import { getSessionUserId } from "@/lib/auth";
 import { clientIp } from "@/lib/decks/access";
 import { newPublicId } from "@/lib/decks/public-id";
 import { deckMetaJson } from "@/lib/decks/serialize";
@@ -80,7 +83,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const claimToken = randomUUID();
+  const userId = await getSessionUserId(request.headers);
+  const claimToken = userId ? null : randomUUID();
   const db = getDb();
   const [deck] = await db
     .insert(schema.decks)
@@ -88,7 +92,7 @@ export async function POST(request: NextRequest) {
       publicId: newPublicId(),
       gameId: GAME_ID[game],
       formatId: formatRow.id,
-      userId: null,
+      userId,
       claimToken,
       createdIp: ip,
       ...(name ? { name } : {}),

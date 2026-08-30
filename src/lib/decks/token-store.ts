@@ -37,6 +37,16 @@ export function setDeckToken(deckId: string, token: string): boolean {
   }
 }
 
+/** Discard a token, e.g. after a claim NULLs it server-side (P2.1). */
+export function removeDeckToken(deckId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(PREFIX + deckId);
+  } catch {
+    // Nothing to do — a stale key just gets dropped by /api/decks/mine.
+  }
+}
+
 /**
  * Every deck this browser holds a claim token for (P1.7's "your decks" list;
  * P2.1's claim-on-OAuth flow reads the same set). Order is storage order —

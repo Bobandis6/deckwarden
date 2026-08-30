@@ -63,6 +63,10 @@ export const RATE_LIMITS = {
   decksMine: (ip: string | null): RateLimit[] => [
     { key: `decks-mine:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },
   ],
+  /** POST /api/decks/claim — once per sign-in, but each call can probe 100 ids. */
+  deckClaim: (ip: string | null): RateLimit[] => [
+    { key: `deck-claim:ip:${ip ?? "unknown"}`, max: 10, windowSeconds: 60 },
+  ],
 };
 
 const { rateLimitCounters } = schema;

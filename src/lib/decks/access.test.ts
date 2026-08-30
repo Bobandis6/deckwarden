@@ -25,8 +25,21 @@ describe("isDeckOwner", () => {
     expect(isDeckOwner(anonDeck({ claimToken: null }), TOKEN)).toBe(false);
   });
 
-  it("never grants token ownership of a user-owned deck (session auth is P2.1)", () => {
+  it("never grants token ownership of a user-owned deck (session only, P2.1)", () => {
     expect(isDeckOwner(anonDeck({ userId: "some-user" }), TOKEN)).toBe(false);
+    // Even a stale-but-correct token proves nothing after claim.
+    expect(isDeckOwner(anonDeck({ userId: "some-user" }), TOKEN, "other-user")).toBe(false);
+  });
+
+  it("grants session ownership of a claimed deck to its user only", () => {
+    const claimed = anonDeck({ userId: "user-1", claimToken: null });
+    expect(isDeckOwner(claimed, null, "user-1")).toBe(true);
+    expect(isDeckOwner(claimed, null, "user-2")).toBe(false);
+    expect(isDeckOwner(claimed, null, null)).toBe(false);
+  });
+
+  it("never grants session ownership of an anonymous deck", () => {
+    expect(isDeckOwner(anonDeck(), null, "user-1")).toBe(false);
   });
 });
 
@@ -40,6 +53,13 @@ describe("canReadDeck", () => {
   it("unlisted and public: readable without a token", () => {
     expect(canReadDeck(anonDeck({ visibility: "unlisted" }), null)).toBe(true);
     expect(canReadDeck(anonDeck({ visibility: "public" }), null)).toBe(true);
+  });
+
+  it("private claimed deck: session owner only", () => {
+    const claimed = anonDeck({ userId: "user-1", claimToken: null });
+    expect(canReadDeck(claimed, null, "user-1")).toBe(true);
+    expect(canReadDeck(claimed, null, "user-2")).toBe(false);
+    expect(canReadDeck(claimed, null, null)).toBe(false);
   });
 });
 

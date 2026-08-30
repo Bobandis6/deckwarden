@@ -2,11 +2,11 @@
 
 /**
  * Client gate for private decks on the share page (P1.7). The server never
- * embeds a private deck's data in HTML — ownership proof (the claim token)
- * lives only in the browser's localStorage, so this component fetches the
- * token-authed GET /api/decks/[id] and either renders the full share view
- * (owner's browser) or the denial message (everyone else). The API is the
- * security boundary; this is just presentation.
+ * embeds a private deck's data in HTML — ownership proof (the claim token in
+ * localStorage, or since P2.1 the session cookie that rides along) reaches
+ * only the authed GET /api/decks/[id]; this component fetches it and either
+ * renders the full share view (owner) or the denial message (everyone else).
+ * The API is the security boundary; this is just presentation.
  */
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -62,7 +62,8 @@ export function PrivateShareGate({ deckId }: { deckId: string }) {
       ) : (
         <>
           <p className="max-w-md text-center">
-            This deck is private. Only the browser that built it can view it.
+            This deck is private. Only the browser that built it — or the signed-in account that
+            owns it — can view it.
           </p>
           <Button nativeButton={false} variant="outline" render={<Link href="/" />}>
             Back to Deckwarden

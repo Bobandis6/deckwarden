@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { getDeckToken, listDeckTokens, setDeckToken } from "./token-store";
+import { getDeckToken, listDeckTokens, removeDeckToken, setDeckToken } from "./token-store";
 
 describe("token-store", () => {
   beforeEach(() => {
@@ -31,5 +31,14 @@ describe("token-store", () => {
 
   it("lists empty when nothing is stored", () => {
     expect(listDeckTokens()).toEqual([]);
+  });
+
+  it("removes a token (post-claim, P2.1) and leaves the rest", () => {
+    setDeckToken("deck-a", "tok-a");
+    setDeckToken("deck-b", "tok-b");
+    removeDeckToken("deck-a");
+    removeDeckToken("deck-never-stored");
+    expect(getDeckToken("deck-a")).toBeNull();
+    expect(listDeckTokens()).toEqual([{ deckId: "deck-b", token: "tok-b" }]);
   });
 });

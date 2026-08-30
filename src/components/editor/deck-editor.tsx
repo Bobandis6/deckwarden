@@ -6,7 +6,9 @@
  * The in-memory list is the single source of truth: every edit applies
  * optimistically via the pure helpers in src/lib/decks/editor-state.ts, then a
  * debounced (~1s) autosave PUTs the full list (the P1.1 route built for exactly
- * this) with the claim token from localStorage. Reload hydrates from GET
+ * this). Ownership proof is the claim token from localStorage when this
+ * browser holds one, else the Better Auth session cookie (claimed/account
+ * decks, P2.1) that rides along automatically. Reload hydrates from GET
  * /api/decks/[id]; pagehide/unmount flush with keepalive fetch so no edit is
  * lost mid-navigation.
  *
@@ -73,6 +75,12 @@ type LoadState =
 
 const TOKEN_HEADER = "x-deck-token";
 
+/** Write headers: token when this browser holds one, else the session cookie authenticates. */
+function writeHeaders(deckId: string): Record<string, string> {
+  const token = getDeckToken(deckId);
+  return { "Content-Type": "application/json", ...(token ? { [TOKEN_HEADER]: token } : {}) };
+}
+
 export function DeckEditor({ deckId }: { deckId: string }) {
   const [load, setLoad] = useState<LoadState>({ state: "loading" });
   const [deckName, setDeckName] = useState("");
@@ -89,13 +97,12 @@ export function DeckEditor({ deckId }: { deckId: string }) {
   const lastSavedRef = useRef({ cards: "", name: "" });
 
   const save = useCallback(async () => {
-    const token = getDeckToken(deckId);
-    if (!token) throw new Error("Missing deck token");
+    const headers = writeHeaders(deckId);
     const cardsBody = JSON.stringify({ cards: toSavePayload(entriesRef.current) });
     if (cardsBody !== lastSavedRef.current.cards) {
       const res = await fetch(`/api/decks/${deckId}/cards`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", [TOKEN_HEADER]: token },
+        headers,
         body: cardsBody,
       });
       if (!res.ok) throw new Error(`Card save failed (${res.status})`);
@@ -105,7 +112,7 @@ export function DeckEditor({ deckId }: { deckId: string }) {
     if (name && name !== lastSavedRef.current.name) {
       const res = await fetch(`/api/decks/${deckId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", [TOKEN_HEADER]: token },
+        headers,
         body: JSON.stringify({ name }),
       });
       if (!res.ok) throw new Error(`Name save failed (${res.status})`);
@@ -134,7 +141,8 @@ export function DeckEditor({ deckId }: { deckId: string }) {
         if (!json.deck.isOwner) {
           throw new Error(
             "You don't have edit access to this deck on this browser. " +
-              "The edit key lives where the deck was created.",
+              "The edit key lives where the deck was created — and if you've " +
+              "claimed it into an account, sign in from the Account page first.",
           );
         }
         const adapter = json.deck.game ? getAdapter(json.deck.game) : null;
@@ -173,9 +181,7 @@ export function DeckEditor({ deckId }: { deckId: string }) {
   useEffect(() => {
     const flushKeepalive = () => {
       if (!isDirty()) return;
-      const token = getDeckToken(deckId);
-      if (!token) return;
-      const headers = { "Content-Type": "application/json", [TOKEN_HEADER]: token };
+      const headers = writeHeaders(deckId);
       const cardsBody = JSON.stringify({ cards: toSavePayload(entriesRef.current) });
       if (cardsBody !== lastSavedRef.current.cards) {
         lastSavedRef.current.cards = cardsBody;
@@ -265,11 +271,9 @@ export function DeckEditor({ deckId }: { deckId: string }) {
   // rare action and the Share dialog wants the result before it re-renders.
   const setVisibility = useCallback(
     async (visibility: DeckVisibility) => {
-      const token = getDeckToken(deckId);
-      if (!token) throw new Error("Missing deck token");
       const res = await fetch(`/api/decks/${deckId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", [TOKEN_HEADER]: token },
+        headers: writeHeaders(deckId),
         body: JSON.stringify({ visibility }),
       });
       if (!res.ok) throw new Error(`Visibility change failed (${res.status})`);

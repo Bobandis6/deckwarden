@@ -33,6 +33,8 @@ with one line on when it earns its way back. Nothing on this list is a "no" — 
 | Smarter mana-source detection (P1.5's `producedMask` counts conditional producers like Command Tower as all five colors; fetches/treasure-makers not counted) plus role tagging and curve targets | User feedback that the sources table misleads, or the first M2 analytics-adjacent session (was "P1.8 polish pass" — the gate checklist consumed P1.8). |
 | Share page serves HTTP 200 with a denial shell for private decks (the data itself is safe — never in the HTML; a real 403 status needs Next's authInterrupts/forbidden()) | P2.6 SEO pass, or crawlers start indexing denial pages. |
 | setHint-aware import resolution + set codes in export (P1.6 resolves by name only, so two distinct cards sharing an exact printed name — Mystery Booster "Counters" — merge on import; the parser already captures `setHint`, the resolve route ignores it) | A real user hits it, or when One Piece import lands (M4) where set codes are the primary key anyway. |
+| Better Auth's built-in endpoint rate limiting (P2.1 ships without it: its default limiter is per-instance memory — dead on serverless — and the database backend means another table + a write per auth request) | OAuth endpoint abuse observed, or the P2.8 beta hardening pass. |
+| Account deletion self-serve (P2.1 privacy page routes removal requests through GitHub issues; Better Auth's deleteUser flow + decks handling — orphan vs delete — needs a decision) | First real removal request, or P2.8 beta hardening. |
 
 ## Deferred infrastructure
 

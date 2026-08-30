@@ -249,6 +249,87 @@ export const legalities = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Auth (P2.1) — Better Auth owns these tables
+// ---------------------------------------------------------------------------
+//
+// Column set mirrors better-auth 1.7.2's canonical schema (core/src/db/
+// get-tables.ts) exactly — the adapter looks fields up by TS property name, so
+// property names are better-auth's field names while DB names follow house
+// snake_case. Ids are uuid (generateId: "uuid" in src/lib/auth.ts) so
+// decks.user_id can be a real FK. OAuth-only (Discord + Google): no email
+// stack, and accounts.password stays NULL forever — kept because better-auth's
+// column set isn't ours to prune.
+
+/** One row per person. `email` comes from the OAuth provider (stored — privacy page says so). */
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text("image"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id").primaryKey(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (t) => [index("sessions_user").on(t.userId)],
+);
+
+/** One row per linked OAuth identity; `issuer` is better-auth's provider namespace key. */
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: uuid("id").primaryKey(),
+    issuer: text("issuer").notNull(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("accounts_issuer_account").on(t.issuer, t.accountId),
+    index("accounts_user").on(t.userId),
+  ],
+);
+
+/** Short-lived OAuth state/nonce storage; better-auth expires rows itself. */
+export const verifications = pgTable(
+  "verifications",
+  {
+    id: uuid("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("verifications_identifier").on(t.identifier)],
+);
+
+// ---------------------------------------------------------------------------
 // Decks (P1.1)
 // ---------------------------------------------------------------------------
 
@@ -256,9 +337,9 @@ export const DECK_VISIBILITIES = ["public", "unlisted", "private"] as const;
 export type DeckVisibility = (typeof DECK_VISIBILITIES)[number];
 
 /**
- * One row per deck. `user_id` is a bare uuid until Better Auth lands (P2.1)
- * and its users table exists to reference; NULL = anonymous (guest-built).
- * `claim_token` authenticates guest writes and is NULLed on claim (P2.1).
+ * One row per deck. `user_id` references Better Auth's users table (P2.1);
+ * NULL = anonymous (guest-built). `claim_token` authenticates guest writes
+ * and is NULLed on claim.
  */
 export const decks = pgTable(
   "decks",
@@ -274,7 +355,7 @@ export const decks = pgTable(
     formatId: smallint("format_id")
       .notNull()
       .references(() => formats.id),
-    userId: uuid("user_id"),
+    userId: uuid("user_id").references(() => users.id),
     /** Held in the guest's localStorage; returned ONCE at create, never queryable again. */
     claimToken: uuid("claim_token"),
     /** Anon spam control (rate limits + purge policy). */
