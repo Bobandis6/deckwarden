@@ -17,15 +17,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import { ComboList } from "@/components/combos/combo-list";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
 import { StaplesTable } from "@/components/hub/staples-table";
 import { printingImageUrl } from "@/lib/cards/images";
+import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
+import { updatedLabel } from "@/lib/decks/display";
 import { ciPipsHtml } from "@/lib/games/colors";
 import { getAdapter } from "@/lib/games/registry";
 import type { CardData } from "@/lib/games/types";
 import { staplesCurveBlock } from "@/lib/hub/curve";
 import {
   loadDefaultPrinting,
+  loadHubDecks,
   loadLeaderBySlug,
   loadLeaderStatus,
   loadStaples,
@@ -50,10 +54,13 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
   const leader = await getLeader(slug);
   if (!leader) notFound();
 
-  const [printing, status, staples] = await Promise.all([
+  const [printing, status, staples, combosData, hubDecks] = await Promise.all([
     loadDefaultPrinting(leader.id),
     loadLeaderStatus(leader.id),
     loadStaples(leader),
+    // Only combos a deck with THIS commander could actually run (CI fit).
+    loadCombosForCard(leader.id, { fitCiMask: leader.ciMask }),
+    loadHubDecks(leader.id),
   ]);
 
   const adapter = getAdapter("mtg");
@@ -177,13 +184,73 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
         </section>
       )}
 
+      {/* Cold-start rule: both shelves render only with real rows — never padding. */}
+      {combosData.total > 0 && (
+        <section aria-label="Combos" className="mt-10">
+          <h2 className="text-lg font-semibold">Combos with {leader.name}</h2>
+          <p className="text-muted-foreground mt-0.5 text-xs">
+            {combosData.total > COMBOS_SHOWN
+              ? `The ${combosData.combos.length} most-played of ${combosData.total} combos`
+              : `${combosData.total === 1 ? "One combo" : `${combosData.total} combos`}`}{" "}
+            using this commander that fit its color identity, from Commander Spellbook.
+          </p>
+          <ComboList combos={combosData.combos} anchorCardId={leader.id} />
+        </section>
+      )}
+
+      {hubDecks.length > 0 && (
+        <section aria-label="Decks with this commander" className="mt-10 max-w-2xl">
+          <h2 className="text-lg font-semibold">Decks with this commander</h2>
+          <p className="text-muted-foreground mt-0.5 text-xs">
+            Public Deckwarden decks running {leader.name}.
+          </p>
+          <ul className="mt-2 divide-y rounded-lg border">
+            {hubDecks.map((deck) => (
+              <li key={deck.publicId}>
+                <Link
+                  href={`/d/${deck.publicId}`}
+                  className="flex items-center justify-between gap-3 px-3 py-2 hover:underline"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{deck.name}</span>
+                    <span className="text-muted-foreground block text-xs">
+                      Updated {updatedLabel(deck.updatedAt)}
+                    </span>
+                  </span>
+                  {deck.likesCount > 0 && (
+                    <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                      ♥ {deck.likesCount}
+                    </span>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <p className="text-muted-foreground mt-12 text-xs">
         Card data and images courtesy of{" "}
         <a href="https://scryfall.com" className="underline" rel="noreferrer" target="_blank">
           Scryfall
         </a>
-        ; play-rate ranking from EDHREC data included in Scryfall bulk. Deckwarden is unofficial Fan
-        Content and is not endorsed by Wizards of the Coast.
+        ; play-rate ranking from EDHREC data included in Scryfall bulk.
+        {combosData.total > 0 && (
+          <>
+            {" "}
+            Combo data courtesy of{" "}
+            <a
+              href="https://commanderspellbook.com"
+              className="underline"
+              rel="noreferrer"
+              target="_blank"
+            >
+              Commander Spellbook
+            </a>
+            .
+          </>
+        )}{" "}
+        Deckwarden is unofficial Fan Content and is not endorsed by Wizards of the Coast.
       </p>
     </main>
   );

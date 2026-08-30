@@ -543,6 +543,53 @@ export const deckVersions = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Combos (P2.5) — Commander Spellbook
+// ---------------------------------------------------------------------------
+
+/**
+ * One row per Commander Spellbook *variant* (a concrete card set that
+ * combos; MIT-licensed bulk export, re-ingested nightly). Lean by design
+ * (Neon budget): pieces + produced-result names + popularity only — no
+ * steps/prerequisites prose and no raw API JSON; pages link to the
+ * Spellbook combo page for the walkthrough. Pure derived card data that
+ * nothing else references, so the ingest sweep hard-DELETEs stale rows
+ * instead of soft-deleting.
+ */
+export const combos = pgTable("combos", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  /** Spellbook variant id, e.g. '513-5034--46' (its card ids + template ids). */
+  externalKey: text("external_key").notNull().unique(),
+  /** Card pieces (= combo_pieces rows). Template requirements are on top. */
+  pieceCount: smallint("piece_count").notNull(),
+  /** Variant color identity (house bitmask; colorless = 0, never the C bit). */
+  ciMask: smallint("ci_mask").notNull().default(0),
+  /** Produced effect names; Spellbook's internal utility-tier features dropped. */
+  results: text("results").array().notNull().default([]),
+  /** Generic non-card requirements by name ('Permanent Castable for {C}'). */
+  templates: text("templates").array().notNull().default([]),
+  /** Spellbook popularity (EDHREC deck count). Display order: DESC NULLS LAST. */
+  popularity: integer("popularity"),
+});
+
+/** The pieces of a combo. "Combos using card X" starts at combo_pieces_by_card. */
+export const comboPieces = pgTable(
+  "combo_pieces",
+  {
+    comboId: bigint("combo_id", { mode: "number" })
+      .notNull()
+      .references(() => combos.id, { onDelete: "cascade" }),
+    cardIdentityId: uuid("card_identity_id")
+      .notNull()
+      .references(() => cardIdentities.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.comboId, t.cardIdentityId] }),
+    /** Card pages, hub shelves, and M3's Combo Radar all enter through this. */
+    index("combo_pieces_by_card").on(t.cardIdentityId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Rate limiting (P1.8)
 // ---------------------------------------------------------------------------
 

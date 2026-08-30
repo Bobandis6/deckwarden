@@ -12,6 +12,8 @@ import { createHash } from "node:crypto";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { GAME_ID } from "@/db/seed-data";
 
+import type { MtgAttrs } from "./attrs";
+
 // --- Scryfall input (minimal shape we consume) ------------------------------
 
 export interface ScryfallCardFace {
@@ -183,9 +185,10 @@ export interface PrintingRow {
   content_hash: string;
 }
 
-function buildAttrs(card: ScryfallCard): Record<string, unknown> {
+/** Typed as MtgAttrs (LATER row, fired by P2.5) so the attrs contract can't drift from ingest. */
+function buildAttrs(card: ScryfallCard): MtgAttrs {
   const faces = card.card_faces;
-  const attrs: Record<string, unknown> = {
+  const attrs: MtgAttrs = {
     type_line: foldFaces(card, "type_line", " // "),
     oracle_text: foldFaces(card, "oracle_text", "\n//\n"),
   };

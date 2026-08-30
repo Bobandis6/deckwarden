@@ -10,12 +10,12 @@
  * lands (Forest is not advice), preview/removed cards, and anything with a
  * current unconditional banned/not_legal row for the leader format.
  */
-import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
 
-const { cardIdentities, cardPrintings, legalities } = schema;
+const { cardIdentities, cardPrintings, decks, legalities } = schema;
 
 export type LeaderRow = typeof schema.cardIdentities.$inferSelect;
 
@@ -108,6 +108,42 @@ export async function loadStaples(leader: { id: string; ciMask: number }): Promi
     )
     .orderBy(asc(cardIdentities.popularity))
     .limit(STAPLES_LIMIT);
+}
+
+export interface HubDeckRow {
+  publicId: string;
+  name: string;
+  likesCount: number;
+  updatedAt: Date;
+}
+
+export const HUB_DECKS_LIMIT = 10;
+
+/**
+ * "Decks with this commander" (P2.5 — the shelf P2.4 deliberately deferred).
+ * Public decks whose command zone contains this leader, most-liked first,
+ * recency as the tiebreak. Cold-start rule: callers render the shelf only
+ * when this returns rows — an empty shelf is padding, not honesty. Community
+ * data, but still zero per-viewer state, so hub ISR is untouched.
+ */
+export async function loadHubDecks(leaderId: string): Promise<HubDeckRow[]> {
+  return getDb()
+    .select({
+      publicId: decks.publicId,
+      name: decks.name,
+      likesCount: decks.likesCount,
+      updatedAt: decks.updatedAt,
+    })
+    .from(decks)
+    .where(
+      and(
+        eq(decks.visibility, "public"),
+        // The decks_hub GIN index serves @> containment.
+        sql`${decks.leaderIds} @> ARRAY[${leaderId}]::uuid[]`,
+      ),
+    )
+    .orderBy(desc(decks.likesCount), desc(decks.updatedAt))
+    .limit(HUB_DECKS_LIMIT);
 }
 
 export interface LeaderIndexRow {

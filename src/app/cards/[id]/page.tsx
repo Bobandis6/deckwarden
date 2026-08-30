@@ -13,9 +13,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ComboList } from "@/components/combos/combo-list";
 import { getDb, schema } from "@/db";
 import { GAMES } from "@/db/seed-data";
 import { printingImageUrl } from "@/lib/cards/images";
+import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
 import { getAdapter } from "@/lib/games/registry";
 import type { CardData } from "@/lib/games/types";
 
@@ -85,6 +87,9 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
   const data = await loadCard(id);
   if (!data) notFound();
   const { identity, printings, formatRows, legalityRows } = data;
+  // Separate from loadCard so generateMetadata never pays for it. Section is
+  // hidden outright at zero (cold-start rule) — most cards combo with nothing.
+  const combosData = await loadCombosForCard(identity.id);
 
   const gameCode = GAMES.find((g) => g.id === identity.gameId)?.code ?? "mtg";
   const adapter = getAdapter(gameCode);
@@ -211,6 +216,19 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
               </tbody>
             </table>
           </div>
+
+          {combosData.total > 0 && (
+            <section aria-label="Combos" className="mt-8">
+              <h2 className="text-lg font-semibold">Combos using this card</h2>
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                {combosData.total > COMBOS_SHOWN
+                  ? `The ${combosData.combos.length} most-played of ${combosData.total} combos`
+                  : `${combosData.total === 1 ? "One combo" : `${combosData.total} combos`}`}{" "}
+                featuring this card, from Commander Spellbook.
+              </p>
+              <ComboList combos={combosData.combos} anchorCardId={identity.id} />
+            </section>
+          )}
         </div>
       </div>
 
@@ -219,7 +237,23 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
         <a href="https://scryfall.com" className="underline" rel="noreferrer" target="_blank">
           Scryfall
         </a>
-        . Deckwarden is unofficial Fan Content and is not endorsed by Wizards of the Coast.
+        .
+        {combosData.total > 0 && (
+          <>
+            {" "}
+            Combo data courtesy of{" "}
+            <a
+              href="https://commanderspellbook.com"
+              className="underline"
+              rel="noreferrer"
+              target="_blank"
+            >
+              Commander Spellbook
+            </a>
+            .
+          </>
+        )}{" "}
+        Deckwarden is unofficial Fan Content and is not endorsed by Wizards of the Coast.
       </p>
     </main>
   );
