@@ -77,7 +77,8 @@ async function main() {
   const token = createdJson?.claimToken;
   const deckId = createdJson?.deck?.id;
   check("create returns claimToken", typeof token === "string" && token!.length > 0);
-  check("create defaults to private", createdJson?.deck?.visibility === "private");
+  // P1.7 flipped the create default private → unlisted (share links work out of the box).
+  check("create defaults to unlisted", createdJson?.deck?.visibility === "unlisted");
   if (!deckId || !token) throw new Error("create failed; aborting");
 
   try {
@@ -85,7 +86,8 @@ async function main() {
     const badCreate = await api("POST", "/api/decks", { body: { game: "mtg", format: "modern" } });
     check("create with unseeded format → 400", badCreate.status === 400);
 
-    // Ownership on reads (private deck)
+    // Ownership on reads: flip private first (creates default to unlisted since P1.7)
+    await api("PATCH", `/api/decks/${deckId}`, { token, body: { visibility: "private" } });
     check(
       "read private, no token → 403",
       (await api("GET", `/api/decks/${deckId}`)).status === 403,
