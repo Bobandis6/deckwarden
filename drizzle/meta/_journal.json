@@ -43,6 +43,13 @@
       "when": 1788067698936,
       "tag": "0005_auth_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788072516539,
+      "tag": "0006_auth_id_defaults",
+      "breakpoints": true
     }
   ]
 }

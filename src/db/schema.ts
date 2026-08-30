@@ -255,14 +255,17 @@ export const legalities = pgTable(
 // Column set mirrors better-auth 1.7.2's canonical schema (core/src/db/
 // get-tables.ts) exactly — the adapter looks fields up by TS property name, so
 // property names are better-auth's field names while DB names follow house
-// snake_case. Ids are uuid (generateId: "uuid" in src/lib/auth.ts) so
-// decks.user_id can be a real FK. OAuth-only (Discord + Google): no email
+// snake_case. Ids are uuid so decks.user_id can be a real FK; in generateId:
+// "uuid" mode (src/lib/auth.ts) better-auth omits ids on insert and relies on
+// these gen_random_uuid() defaults. OAuth-only (Discord + Google): no email
 // stack, and accounts.password stays NULL forever — kept because better-auth's
 // column set isn't ours to prune.
 
 /** One row per person. `email` comes from the OAuth provider (stored — privacy page says so). */
 export const users = pgTable("users", {
-  id: uuid("id").primaryKey(),
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
@@ -274,7 +277,9 @@ export const users = pgTable("users", {
 export const sessions = pgTable(
   "sessions",
   {
-    id: uuid("id").primaryKey(),
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     token: text("token").notNull().unique(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -292,7 +297,9 @@ export const sessions = pgTable(
 export const accounts = pgTable(
   "accounts",
   {
-    id: uuid("id").primaryKey(),
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
     issuer: text("issuer").notNull(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
@@ -319,7 +326,9 @@ export const accounts = pgTable(
 export const verifications = pgTable(
   "verifications",
   {
-    id: uuid("id").primaryKey(),
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
     identifier: text("identifier").notNull(),
     value: text("value").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

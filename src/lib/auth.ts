@@ -5,9 +5,11 @@
  * adapter (schema.ts "Auth" section), so the claim flow can share the
  * database and a pg_dump/restore carries auth with it (portability rules).
  *
- * Ids are uuids (generateId: "uuid") because decks.user_id is a uuid FK.
- * Env is read via requireEnv so a misconfigured deploy fails at build with
- * the variable's name instead of a 500 at first sign-in.
+ * Ids are uuids (generateId: "uuid") because decks.user_id is a uuid FK —
+ * in that mode the pg adapter omits ids on insert and the tables' DB-side
+ * gen_random_uuid() defaults fill them. Env is read via requireEnv so a
+ * misconfigured deploy fails at build with the variable's name instead of a
+ * 500 at first sign-in.
  */
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
