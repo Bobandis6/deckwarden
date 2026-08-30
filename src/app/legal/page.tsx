@@ -9,6 +9,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Legal & attribution",
   description: "Attribution, fan-content disclaimers, and terms for Deckwarden.",
+  alternates: { canonical: "/legal" },
 };
 
 export default function LegalPage() {

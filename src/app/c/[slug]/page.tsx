@@ -35,6 +35,7 @@ import {
   loadStaples,
   STAPLES_LIMIT,
 } from "@/lib/hub/queries";
+import { breadcrumbJsonLd, JsonLd } from "@/lib/seo/jsonld";
 
 export const revalidate = 3600;
 
@@ -45,8 +46,14 @@ export async function generateMetadata({ params }: PageProps<"/c/[slug]">): Prom
   const leader = await getLeader(slug);
   if (!leader) return { title: "Commander" };
   const title = `${leader.name} — Commander hub`;
-  const description = `Staples, curve, and budget picks for ${leader.name} Commander decks.`;
-  return { title, description, openGraph: { title, description, type: "website" } };
+  const description = `Staples, curve, budget picks, and combos for ${leader.name} Commander decks.`;
+  return {
+    title,
+    description,
+    alternates: { canonical: `/c/${slug}` },
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary_large_image" },
+  };
 }
 
 export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]">) {
@@ -82,6 +89,12 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Commanders", path: "/commanders" },
+          { name: leader.name, path: `/c/${slug}` },
+        ])}
+      />
       <Link href="/commanders" className="text-muted-foreground text-sm hover:underline">
         ← Commanders
       </Link>

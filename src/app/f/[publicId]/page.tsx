@@ -33,15 +33,21 @@ export const dynamic = "force-dynamic";
 
 const getFolder = cache(loadFolderByPublicId);
 
+// Indexing policy (P2.6): same contract as /d — public indexable, unlisted
+// noindex-but-unfurlable, private noindexed shell. See the deck page note.
 export async function generateMetadata({ params }: PageProps<"/f/[publicId]">): Promise<Metadata> {
   const { publicId } = await params;
   const folder = await getFolder(publicId);
-  if (!folder || folder.visibility === "private") return { title: "Folder" };
+  if (!folder || folder.visibility === "private") {
+    return { title: "Folder", robots: { index: false } };
+  }
   const description = folder.description ?? "A deck folder shared on Deckwarden.";
   return {
     title: folder.name,
     description,
+    alternates: { canonical: `/f/${publicId}` },
     openGraph: { title: folder.name, description, type: "website" },
+    ...(folder.visibility === "public" ? {} : { robots: { index: false } }),
   };
 }
 

@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Deck editor",
+  // Belt-and-suspenders with robots.txt's /decks/ disallow (P2.6).
+  robots: { index: false },
 };
 
 export default async function DeckEditPage({ params }: PageProps<"/decks/[id]/edit">) {

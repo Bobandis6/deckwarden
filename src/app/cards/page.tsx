@@ -10,6 +10,8 @@ import { CardSearch } from "@/components/cards/card-search";
 export const metadata: Metadata = {
   title: "Card search",
   description: "Search Magic: The Gathering cards by name, text, type, cost, and color.",
+  // ?q= variants canonicalize to the bare search page (P2.6).
+  alternates: { canonical: "/cards" },
 };
 
 export default function CardsPage() {

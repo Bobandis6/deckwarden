@@ -12,6 +12,7 @@ import { asc, desc, eq, isNull, and } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache as reactCache } from "react";
 
 import { ComboList } from "@/components/combos/combo-list";
 import { getDb, schema } from "@/db";
@@ -20,6 +21,7 @@ import { printingImageUrl } from "@/lib/cards/images";
 import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
 import { getAdapter } from "@/lib/games/registry";
 import type { CardData } from "@/lib/games/types";
+import { breadcrumbJsonLd, JsonLd } from "@/lib/seo/jsonld";
 
 export const revalidate = 3600;
 
@@ -76,15 +78,28 @@ async function loadCard(id: string) {
   return { identity, printings, formatRows, legalityRows };
 }
 
+// One DB lookup shared by generateMetadata and the page render (P2.6).
+const getCard = reactCache(loadCard);
+
 export async function generateMetadata({ params }: PageProps<"/cards/[id]">): Promise<Metadata> {
   const { id } = await params;
-  const data = await loadCard(id);
-  return { title: data ? data.identity.name : "Card not found" };
+  const data = await getCard(id);
+  if (!data) return { title: "Card not found" };
+  const attrs = data.identity.attrs as { type_line?: string };
+  const typeLine = attrs.type_line ?? data.identity.primaryType;
+  const description = `${typeLine ? `${typeLine}. ` : ""}Printings, current prices, format legality, and Commander combos for ${data.identity.name}.`;
+  return {
+    title: data.identity.name,
+    description,
+    alternates: { canonical: `/cards/${id}` },
+    openGraph: { title: data.identity.name, description, type: "website" },
+    twitter: { card: "summary_large_image" },
+  };
 }
 
 export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
   const { id } = await params;
-  const data = await loadCard(id);
+  const data = await getCard(id);
   if (!data) notFound();
   const { identity, printings, formatRows, legalityRows } = data;
   // Separate from loadCard so generateMetadata never pays for it. Section is
@@ -114,6 +129,12 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Cards", path: "/cards" },
+          { name: identity.name, path: `/cards/${identity.id}` },
+        ])}
+      />
       <Link href="/cards" className="text-muted-foreground text-sm hover:underline">
         ← Card search
       </Link>

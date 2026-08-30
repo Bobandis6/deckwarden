@@ -22,6 +22,9 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Commanders",
   description: "Browse Commander leaders by color identity and popularity.",
+  // Filter/page variants (?colors=, ?page=) canonicalize to the bare index —
+  // hubs are the real landing pages; faceted lists shouldn't split them (P2.6).
+  alternates: { canonical: "/commanders" },
 };
 
 const COLOR_LABEL: Record<string, string> = {

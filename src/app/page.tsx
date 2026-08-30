@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { RecentPublicDecks } from "@/components/deck/recent-public-decks";
 import { YourDecks } from "@/components/deck/your-decks";
 import { Button } from "@/components/ui/button";
+import { JsonLd, websiteJsonLd } from "@/lib/seo/jsonld";
 
 /**
  * Caching intent: force-dynamic since the rail landed (P2.3) — same
@@ -13,9 +15,14 @@ import { Button } from "@/components/ui/button";
  */
 export const dynamic = "force-dynamic";
 
+// Canonical guards against query-string variants; title/description inherit
+// from the root layout (P2.6).
+export const metadata: Metadata = { alternates: { canonical: "/" } };
+
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-8">
+      <JsonLd data={websiteJsonLd()} />
       <h1 className="text-5xl font-bold tracking-tight">Deckwarden</h1>
       <p className="text-muted-foreground max-w-md text-center text-lg">
         A deck builder for Magic: The Gathering and beyond. Under construction.

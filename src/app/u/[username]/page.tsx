@@ -50,7 +50,13 @@ export async function generateMetadata({ params }: PageProps<"/u/[username]">): 
   if (!user) return { title: "Profile" };
   const title = `${user.name} (@${user.username})`;
   const description = `${user.name}'s public decks on Deckwarden.`;
-  return { title, description, openGraph: { title, description, type: "profile" } };
+  return {
+    title,
+    description,
+    // user.username is the stored lowercase form — canonicalizes any cased URL.
+    alternates: { canonical: `/u/${user.username}` },
+    openGraph: { title, description, type: "profile" },
+  };
 }
 
 export default async function ProfilePage({ params }: PageProps<"/u/[username]">) {

@@ -29,22 +29,36 @@ import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
 import { viewerEngagement } from "@/lib/decks/engagement";
 import { loadDeckByPublicId } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
+import { deckJsonLd, JsonLd } from "@/lib/seo/jsonld";
 
 export const dynamic = "force-dynamic";
 
 // One DB lookup shared by generateMetadata and the page render.
 const getDeck = cache(loadDeckByPublicId);
 
+/**
+ * Indexing policy (P2.6): only PUBLIC decks are indexable. Unlisted decks
+ * keep full metadata + OG image — the Discord unfurl is the share loop —
+ * but carry noindex: they're reachable-by-link by design, and letting a
+ * crawler that finds a posted link index the page would quietly promote
+ * "unguessable URL" to "listed in Google". Private decks expose no data
+ * and are noindexed too (the denial shell is not content).
+ */
 export async function generateMetadata({ params }: PageProps<"/d/[publicId]">): Promise<Metadata> {
   const { publicId } = await params;
   const deck = await getDeck(publicId);
-  if (!deck || deck.visibility === "private") return { title: "Deck" };
+  if (!deck || deck.visibility === "private") {
+    return { title: "Deck", robots: { index: false } };
+  }
   const description = deck.description ?? "A deck shared on Deckwarden.";
   return {
     title: deck.name,
     description,
-    // OG basics only — generated share images are P2.6, not built here.
+    alternates: { canonical: `/d/${publicId}` },
+    // The opengraph-image file convention attaches the generated image.
     openGraph: { title: deck.name, description, type: "website" },
+    twitter: { card: "summary_large_image" },
+    ...(deck.visibility === "public" ? {} : { robots: { index: false } }),
   };
 }
 
@@ -76,11 +90,27 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
     sessionUserId ? viewerEngagement(deck.id, sessionUserId) : Promise.resolve(null),
   ]);
   return (
-    <DeckShareView
-      deck={deckMetaJson(deck, { isOwner: false })}
-      cards={cards}
-      author={author}
-      viewer={viewer}
-    />
+    <>
+      {/* Structured data only where it can be indexed (public decks). */}
+      {deck.visibility === "public" && (
+        <JsonLd
+          data={deckJsonLd({
+            name: deck.name,
+            description: deck.description,
+            publicId: deck.publicId,
+            createdAt: deck.createdAt,
+            updatedAt: deck.updatedAt,
+            authorName: author?.name ?? null,
+            authorPath: author?.username ? `/u/${author.username}` : null,
+          })}
+        />
+      )}
+      <DeckShareView
+        deck={deckMetaJson(deck, { isOwner: false })}
+        cards={cards}
+        author={author}
+        viewer={viewer}
+      />
+    </>
   );
 }

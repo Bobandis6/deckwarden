@@ -31,6 +31,8 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Account",
   description: "Sign in to keep your decks across browsers.",
+  // Belt-and-suspenders with robots.txt's /account disallow (P2.6).
+  robots: { index: false },
 };
 
 type DeckRow = typeof schema.decks.$inferSelect;

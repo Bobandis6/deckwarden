@@ -13,6 +13,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Privacy",
   description: "What Deckwarden stores, and what it deliberately doesn't.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

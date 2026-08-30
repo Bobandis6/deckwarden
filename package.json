@@ -24,6 +24,7 @@
     "smoke:engagement": "tsx scripts/engagement-smoke.ts",
     "smoke:hubs": "tsx scripts/hubs-smoke.ts",
     "smoke:combos": "tsx scripts/combos-smoke.ts",
+    "smoke:seo": "tsx scripts/seo-smoke.ts",
     "search:canned": "tsx scripts/canned-searches.ts",
     "db:size": "tsx scripts/db-size.ts"
   },
