@@ -20,6 +20,7 @@
     "decks:purge": "tsx scripts/purge-anon-decks.ts",
     "smoke:decks": "tsx scripts/deck-api-smoke.ts",
     "smoke:profile": "tsx scripts/profile-folders-smoke.ts",
+    "smoke:engagement": "tsx scripts/engagement-smoke.ts",
     "search:canned": "tsx scripts/canned-searches.ts",
     "db:size": "tsx scripts/db-size.ts"
   },

@@ -9,7 +9,7 @@
  * Avatar uses a plain <img> per house image rules (no Vercel optimization
  * quota on externally hosted avatars).
  */
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -17,6 +17,7 @@ import Link from "next/link";
 import { ClaimDecks } from "@/components/auth/claim-decks";
 import { SignInButtons } from "@/components/auth/sign-in-buttons";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { RemoveBookmarkButton } from "@/components/deck/engagement-buttons";
 import { DeckFolderSelect, type FolderOption } from "@/components/folders/deck-folder-select";
 import { FolderControls } from "@/components/folders/folder-controls";
 import { NewFolderForm } from "@/components/folders/new-folder-form";
@@ -85,7 +86,7 @@ export default async function AccountPage() {
   }
 
   const db = getDb();
-  const [decks, linked, [profile], folders] = await Promise.all([
+  const [decks, linked, [profile], folders, bookmarks] = await Promise.all([
     db
       .select()
       .from(schema.decks)
@@ -108,6 +109,31 @@ export default async function AccountPage() {
       .from(schema.deckFolders)
       .where(eq(schema.deckFolders.userId, session.user.id))
       .orderBy(asc(sql`lower(${schema.deckFolders.name})`)),
+    // Bookmarks (P2.3): saved decks, newest save first. A bookmarked deck
+    // that has since gone private is hidden (unless it's the viewer's own) —
+    // the row stays in the table and reappears if the owner reopens it.
+    db
+      .select({
+        deckId: schema.decks.id,
+        publicId: schema.decks.publicId,
+        name: schema.decks.name,
+        gameId: schema.decks.gameId,
+        formatId: schema.decks.formatId,
+        updatedAt: schema.decks.updatedAt,
+        authorName: schema.users.name,
+        authorUsername: schema.users.username,
+      })
+      .from(schema.deckBookmarks)
+      .innerJoin(schema.decks, eq(schema.deckBookmarks.deckId, schema.decks.id))
+      .leftJoin(schema.users, eq(schema.decks.userId, schema.users.id))
+      .where(
+        and(
+          eq(schema.deckBookmarks.userId, session.user.id),
+          or(ne(schema.decks.visibility, "private"), eq(schema.decks.userId, session.user.id)),
+        ),
+      )
+      .orderBy(desc(schema.deckBookmarks.createdAt))
+      .limit(100),
   ]);
   const providers = [...new Set(linked.map((a) => a.providerId))]
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
@@ -235,6 +261,33 @@ export default async function AccountPage() {
             </ul>
           )}
         </div>
+      </section>
+
+      <section aria-label="Bookmarks" className="mt-8 space-y-3">
+        <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          Bookmarks
+        </h2>
+        {bookmarks.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No bookmarks yet — the Bookmark button on any shared deck saves it here.
+          </p>
+        ) : (
+          <ul className="divide-y rounded-lg border">
+            {bookmarks.map((b) => (
+              <li key={b.deckId} className="flex items-center gap-3 px-3 py-2">
+                <Link href={`/d/${b.publicId}`} className="min-w-0 flex-1 hover:underline">
+                  <span className="block truncate text-sm font-medium">{b.name}</span>
+                  <span className="text-muted-foreground block text-xs">
+                    {formatLabel(b.gameId, b.formatId)}
+                    {b.authorUsername ? ` · by ${b.authorName}` : ""} · Updated{" "}
+                    {updatedLabel(b.updatedAt)}
+                  </span>
+                </Link>
+                <RemoveBookmarkButton deckId={b.deckId} deckName={b.name} />
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </main>
   );

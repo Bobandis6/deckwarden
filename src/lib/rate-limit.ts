@@ -84,6 +84,16 @@ export const RATE_LIMITS = {
     { key: `folder-meta:folder:${folderId}`, max: 60, windowSeconds: 60 },
     { key: `folder-meta:ip:${ip ?? "unknown"}`, max: 180, windowSeconds: 60 },
   ],
+  /**
+   * PUT/DELETE /api/decks/[id]/(like|bookmark) — session-only click toggles
+   * (P2.3), so the principal is the user id. Generous per-minute (UI is
+   * optimistic; a flappy click burst is legit) with an hourly lid so a
+   * scripted session can't inflate counts by sheer volume.
+   */
+  deckEngagement: (userId: string): RateLimit[] => [
+    { key: `engage:user:${userId}`, max: 30, windowSeconds: 60 },
+    { key: `engage:user-hour:${userId}`, max: 300, windowSeconds: 3600 },
+  ],
 };
 
 const { rateLimitCounters } = schema;

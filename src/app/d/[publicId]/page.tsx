@@ -17,13 +17,16 @@
  */
 import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import { DeckShareView } from "@/components/deck/deck-share-view";
 import { PrivateShareGate } from "@/components/deck/private-share-gate";
 import { getDb, schema } from "@/db";
+import { getSessionUserId } from "@/lib/auth";
 import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
+import { viewerEngagement } from "@/lib/decks/engagement";
 import { loadDeckByPublicId } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 
@@ -57,7 +60,8 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
   // Byline (P2.2): attribution only through a chosen username — picking one
   // is the opt-in that makes name/profile public, so accounts without one
   // stay anonymous here.
-  const [cards, author] = await Promise.all([
+  const sessionUserId = await getSessionUserId(await headers());
+  const [cards, author, viewer] = await Promise.all([
     fetchDeckCardsWire(deck),
     deck.userId
       ? getDb()
@@ -67,8 +71,16 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
           .limit(1)
           .then(([u]) => (u?.username ? { name: u.name, username: u.username } : null))
       : Promise.resolve(null),
+    // Like/bookmark state (P2.3) — signed-in viewers only; null renders the
+    // sign-in affordances with the public count.
+    sessionUserId ? viewerEngagement(deck.id, sessionUserId) : Promise.resolve(null),
   ]);
   return (
-    <DeckShareView deck={deckMetaJson(deck, { isOwner: false })} cards={cards} author={author} />
+    <DeckShareView
+      deck={deckMetaJson(deck, { isOwner: false })}
+      cards={cards}
+      author={author}
+      viewer={viewer}
+    />
   );
 }

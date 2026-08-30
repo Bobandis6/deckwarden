@@ -441,6 +441,10 @@ export const decks = pgTable(
     index("decks_browse").on(t.gameId, t.formatId, t.visibility, t.updatedAt.desc()),
     index("decks_owner").on(t.userId, t.updatedAt.desc()),
     index("decks_folder").on(t.folderId, t.updatedAt.desc()),
+    /** Home "recent public decks" rail (P2.3): cross-game, so decks_browse's game-first prefix can't serve it. */
+    index("decks_recent_public")
+      .on(t.updatedAt.desc())
+      .where(sql`${t.visibility} = 'public'`),
   ],
 );
 
@@ -469,6 +473,55 @@ export const deckCards = pgTable(
   (t) => [
     primaryKey({ columns: [t.deckId, t.zone, t.cardIdentityId] }),
     index("dc_by_card").on(t.cardIdentityId),
+  ],
+);
+
+/**
+ * Likes (P2.3) — the public "n people liked this" signal. Session-only (a
+ * like is an account action; guests see counts but can't vote). PK makes the
+ * toggle idempotent; decks.likes_count (provisioned P1.1) is the read-side
+ * denorm and is adjusted in the same transaction as every insert/delete
+ * (src/lib/decks/engagement.ts). Liking never touches decks.updated_at —
+ * other people's clicks must not bump a deck up "recently updated" rails.
+ */
+export const deckLikes = pgTable(
+  "deck_likes",
+  {
+    deckId: uuid("deck_id")
+      .notNull()
+      .references(() => decks.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.deckId, t.userId] }),
+    /** "decks I liked" listings + the user-delete cascade path. */
+    index("deck_likes_user").on(t.userId, t.createdAt.desc()),
+  ],
+);
+
+/**
+ * Bookmarks (P2.3) — private "find this again" saves, surfaced only on the
+ * owner's /account. No count denorm on purpose: nobody but the bookmarker
+ * ever sees them, so there is nothing to display publicly.
+ */
+export const deckBookmarks = pgTable(
+  "deck_bookmarks",
+  {
+    deckId: uuid("deck_id")
+      .notNull()
+      .references(() => decks.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.deckId, t.userId] }),
+    /** The /account "Bookmarks" list reads newest-first by owner. */
+    index("deck_bookmarks_user").on(t.userId, t.createdAt.desc()),
   ],
 );
 

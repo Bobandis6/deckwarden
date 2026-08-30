@@ -18,6 +18,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
 import { DeckGridView } from "@/components/deck/deck-grid-view";
 import { DeckTextView } from "@/components/deck/deck-text-view";
+import { EngagementButtons, type EngagementViewer } from "@/components/deck/engagement-buttons";
 import { LeaderZone } from "@/components/deck/leader-zone";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
@@ -50,6 +51,7 @@ export interface ShareDeckMeta {
   name: string;
   description: string | null;
   visibility: "public" | "unlisted" | "private";
+  likesCount: number;
   updatedAt: string | Date;
 }
 
@@ -74,10 +76,13 @@ export function DeckShareView({
   deck,
   cards,
   author = null,
+  viewer = null,
 }: {
   deck: ShareDeckMeta;
   cards: ShareDeckCard[];
   author?: ShareDeckAuthor | null;
+  /** Signed-in viewer's like/bookmark state (P2.3); null = signed out. */
+  viewer?: EngagementViewer | null;
 }) {
   const router = useRouter();
 
@@ -192,6 +197,7 @@ export function DeckShareView({
         </p>
         {deck.description && <p className="mt-2 text-sm whitespace-pre-wrap">{deck.description}</p>}
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          <EngagementButtons deckId={deck.id} likesCount={deck.likesCount} viewer={viewer} />
           <Button variant="outline" size="sm" onClick={copyDecklist}>
             {copied ? "Copied ✓" : "Copy decklist"}
           </Button>

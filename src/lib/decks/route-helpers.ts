@@ -71,6 +71,29 @@ export async function requireOwnedDeck(
 }
 
 /**
+ * Engagement gate (P2.3): likes/bookmarks are session actions on any deck
+ * the viewer can read. 401 signed out — that's the UI's "sign in to like"
+ * path — then the usual 404/403 read contract. The guest token still counts
+ * toward readability, so a signed-in holder of an unclaimed private deck's
+ * token can engage with it.
+ */
+export async function requireEngageableDeck(
+  headers: Headers,
+  id: string,
+): Promise<{ deck: DeckRow; userId: string } | NextResponse> {
+  const userId = await getSessionUserId(headers);
+  if (!userId) {
+    return NextResponse.json({ error: "Sign in to do that" }, { status: 401 });
+  }
+  const deck = await loadDeck(id);
+  if (!deck) return NextResponse.json({ error: "Deck not found" }, { status: 404 });
+  if (!canReadDeck(deck, deckTokenFrom(headers), userId)) {
+    return NextResponse.json({ error: "This deck is private" }, { status: 403 });
+  }
+  return { deck, userId };
+}
+
+/**
  * Folder twin of requireOwnedDeck (P2.2); session is the only proof. Same
  * status contract: unknown/invalid id → 404, not owner → 403.
  */
