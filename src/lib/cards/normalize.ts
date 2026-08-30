@@ -24,3 +24,20 @@ export function normalizeCardName(name: string): string {
       .trim()
   );
 }
+
+/**
+ * URL slug for hub pages (P2.4), from the FRONT face name only ("Esika, God
+ * of the Tree // The Prismatic Bridge" → "esika-god-of-the-tree"). Built on
+ * the normalizer above so slug and search agree on deaccenting. Written once
+ * by the ingest post-pass and never rewritten — hub URLs must stay stable —
+ * so changes here affect only leaders slugged after the change. "" when
+ * nothing survives (caller keeps slug NULL).
+ */
+export function cardSlug(name: string): string {
+  return normalizeCardName(name.split(" // ")[0])
+    .replace(/'/g, "") // apostrophes vanish: praetors' → praetors, not praetors-
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/, "");
+}

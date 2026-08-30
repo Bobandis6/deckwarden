@@ -129,6 +129,27 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
     leaderNoun: "Commander",
   },
 
+  /**
+   * Hub role template (P2.4): the widely-taught Commander skeleton. Counts
+   * sum to 99 (commander is the 100th). Editorial by design — the honest
+   * zero-corpus signal is "here's the shape people teach", not fake stats.
+   */
+  hub: {
+    templateTitle: "A typical Commander deck",
+    roles: [
+      { label: "Lands", count: 37, hint: "36–38 for most decks; fewer with cheap curves" },
+      { label: "Ramp", count: 10, hint: "mana rocks, dorks, land ramp — mostly 2–3 mana" },
+      { label: "Card draw", count: 10, hint: "repeatable engines beat one-shot cantrips" },
+      {
+        label: "Targeted removal",
+        count: 6,
+        hint: "answers for creatures AND artifacts/enchantments",
+      },
+      { label: "Board wipes", count: 3, hint: "sweepers reset boards you've lost" },
+      { label: "Synergy & win conditions", count: 33, hint: "the deck's actual plan" },
+    ],
+  },
+
   // combos (Spellbook) lands in M2; tournaments (Topdeck) in M3.
   capabilities: {},
 };

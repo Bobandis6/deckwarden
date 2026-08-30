@@ -27,6 +27,7 @@ import { createGunzip } from "node:zlib";
 import postgres from "postgres";
 
 import { GAME_ID } from "../../src/db/seed-data";
+import { assignLeaderSlugs } from "./assign-leader-slugs";
 import {
   mapIdentity,
   mapPrinting,
@@ -145,6 +146,7 @@ interface Stats {
     defaults_cleared: number;
     defaults_set: number;
     cheapest_updated: number;
+    leader_slugs_assigned: number;
     images_checked: number;
     image_overrides: number;
   };
@@ -195,6 +197,7 @@ async function main() {
         defaults_cleared: 0,
         defaults_set: 0,
         cheapest_updated: 0,
+        leader_slugs_assigned: 0,
         images_checked: 0,
         image_overrides: 0,
       },
@@ -374,6 +377,9 @@ async function main() {
       ) c
       WHERE ci.id = c.card_identity_id AND ci.cheapest_usd IS DISTINCT FROM c.min_usd`;
     stats.post_pass.cheapest_updated = cheap.count;
+
+    // Hub slugs (P2.4): append-only — new leader candidates get /c/[slug] URLs.
+    stats.post_pass.leader_slugs_assigned = await assignLeaderSlugs(sql);
 
     // Legality differ: exceptions-only dated rows. Sources publish only CURRENT state,
     // so history = diff at ingest: close the old row, insert the new one. Preview cards

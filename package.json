@@ -21,6 +21,7 @@
     "smoke:decks": "tsx scripts/deck-api-smoke.ts",
     "smoke:profile": "tsx scripts/profile-folders-smoke.ts",
     "smoke:engagement": "tsx scripts/engagement-smoke.ts",
+    "smoke:hubs": "tsx scripts/hubs-smoke.ts",
     "search:canned": "tsx scripts/canned-searches.ts",
     "db:size": "tsx scripts/db-size.ts"
   },

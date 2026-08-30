@@ -237,6 +237,18 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
     leaderNoun: string;
   };
 
+  /**
+   * Leader-hub template (P2.4): editorial starting-point role counts for the
+   * game's leader format, rendered on /c/[slug] hub pages and labeled as a
+   * template — advice computed/curated from card knowledge, never faked
+   * community stats (cold-start rule). Absent = hubs show card data only.
+   */
+  hub?: {
+    /** Which format the template describes, e.g. "A typical Commander deck". */
+    templateTitle: string;
+    roles: { label: string; count: number; hint?: string }[];
+  };
+
   capabilities: {
     /** MTG M2: Commander Spellbook. The one intentionally non-pure surface (IO behind core). */
     combos?: { findForDeck(cardIds: string[], ciMask: number): Promise<ComboHit[]> };

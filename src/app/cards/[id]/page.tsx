@@ -153,6 +153,13 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
           <div className="mt-4 whitespace-pre-wrap text-[0.95rem] leading-relaxed">
             {adapter.display.bodyText(card)}
           </div>
+          {identity.isLeaderCandidate && identity.slug && (
+            <p className="mt-3">
+              <Link href={`/c/${identity.slug}`} className="text-sm underline">
+                {adapter.display.leaderNoun} hub: staples, curve & budget picks →
+              </Link>
+            </p>
+          )}
 
           <h2 className="mt-8 text-lg font-semibold">Legality</h2>
           <ul className="mt-2 flex flex-wrap gap-2">
