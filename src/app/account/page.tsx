@@ -1,13 +1,15 @@
 /**
- * /account (P2.1): sign-in, the signed-in account view, and the deck-claim
- * landing spot. OAuth callbackURL points here; ClaimDecks then redeems this
- * browser's tokens and refreshes the server-rendered deck list.
+ * /account (P2.1; profile + folders since P2.2): sign-in, the signed-in
+ * account view, the deck-claim landing spot, and the deck-organization hub —
+ * username picker, folder create/manage, decks grouped by folder. OAuth
+ * callbackURL points here; ClaimDecks then redeems this browser's tokens and
+ * refreshes the server-rendered deck list.
  *
  * Caching intent: force-dynamic — everything on the page is session-shaped.
  * Avatar uses a plain <img> per house image rules (no Vercel optimization
  * quota on externally hosted avatars).
  */
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -15,10 +17,13 @@ import Link from "next/link";
 import { ClaimDecks } from "@/components/auth/claim-decks";
 import { SignInButtons } from "@/components/auth/sign-in-buttons";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { DeckFolderSelect, type FolderOption } from "@/components/folders/deck-folder-select";
+import { FolderControls } from "@/components/folders/folder-controls";
+import { NewFolderForm } from "@/components/folders/new-folder-form";
+import { UsernameForm } from "@/components/profile/username-form";
 import { getDb, schema } from "@/db";
-import { findFormatById, gameCodeById } from "@/db/seed-data";
 import { auth } from "@/lib/auth";
-import { getAdapter } from "@/lib/games/registry";
+import { formatLabel, updatedLabel } from "@/lib/decks/display";
 
 export const dynamic = "force-dynamic";
 
@@ -27,16 +32,37 @@ export const metadata: Metadata = {
   description: "Sign in to keep your decks across browsers.",
 };
 
-function formatLabel(gameId: number, formatId: number): string {
-  const game = gameCodeById(gameId);
-  const code = findFormatById(formatId)?.code;
-  if ((game !== "mtg" && game !== "optcg") || !code) return code ?? "";
-  return getAdapter(game).formats.find((f) => f.code === code)?.label ?? code;
-}
+type DeckRow = typeof schema.decks.$inferSelect;
 
-/** UTC-pinned like the share page (commit 4c90f67) — server tz must not leak in. */
-function updatedLabel(date: Date): string {
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+/** One deck row, shared by the folder sections and the unfiled bucket. */
+function DeckItem({ deck, folders }: { deck: DeckRow; folders: FolderOption[] }) {
+  return (
+    <li className="flex items-center gap-3 px-3 py-2">
+      <Link
+        href={`/decks/${deck.id}/edit`}
+        className="min-w-0 flex-1 hover:underline"
+        title={`Edit ${deck.name}`}
+      >
+        <span className="block truncate text-sm font-medium">{deck.name}</span>
+        <span className="text-muted-foreground block text-xs">
+          {formatLabel(deck.gameId, deck.formatId)} · {deck.visibility} · Updated{" "}
+          {updatedLabel(deck.updatedAt)}
+        </span>
+      </Link>
+      <DeckFolderSelect
+        deckId={deck.id}
+        deckName={deck.name}
+        currentFolderId={deck.folderId}
+        folders={folders}
+      />
+      <Link
+        href={`/d/${deck.publicId}`}
+        className="text-muted-foreground shrink-0 text-xs hover:underline"
+      >
+        Share page
+      </Link>
+    </li>
+  );
 }
 
 export default async function AccountPage() {
@@ -59,7 +85,7 @@ export default async function AccountPage() {
   }
 
   const db = getDb();
-  const [decks, linked] = await Promise.all([
+  const [decks, linked, [profile], folders] = await Promise.all([
     db
       .select()
       .from(schema.decks)
@@ -70,10 +96,31 @@ export default async function AccountPage() {
       .select({ providerId: schema.accounts.providerId })
       .from(schema.accounts)
       .where(eq(schema.accounts.userId, session.user.id)),
+    // The session's user object is better-auth's shape — username is our
+    // column, so it's read from the row.
+    db
+      .select({ username: schema.users.username })
+      .from(schema.users)
+      .where(eq(schema.users.id, session.user.id))
+      .limit(1),
+    db
+      .select()
+      .from(schema.deckFolders)
+      .where(eq(schema.deckFolders.userId, session.user.id))
+      .orderBy(asc(sql`lower(${schema.deckFolders.name})`)),
   ]);
   const providers = [...new Set(linked.map((a) => a.providerId))]
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join(", ");
+
+  const folderOptions: FolderOption[] = folders.map((f) => ({ id: f.id, name: f.name }));
+  const decksByFolder = new Map<string | null, DeckRow[]>();
+  for (const deck of decks) {
+    const list = decksByFolder.get(deck.folderId) ?? [];
+    list.push(deck);
+    decksByFolder.set(deck.folderId, list);
+  }
+  const unfiled = decksByFolder.get(null) ?? [];
 
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-12">
@@ -112,44 +159,82 @@ export default async function AccountPage() {
         </div>
       </section>
 
-      <section aria-label="Your decks" className="mt-8 space-y-3">
-        <ClaimDecks />
-        <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-          Your decks
-        </h2>
-        {decks.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            No decks in this account yet —{" "}
-            <Link href="/decks/new" className="underline">
-              build one
+      <section aria-label="Public profile" className="mt-6 space-y-2 rounded-lg border p-3">
+        <UsernameForm current={profile?.username ?? null} />
+        {profile?.username && (
+          <p className="text-muted-foreground text-xs">
+            <Link href={`/u/${profile.username}`} className="underline">
+              View your public profile →
             </Link>
-            .
           </p>
-        ) : (
-          <ul className="divide-y rounded-lg border">
-            {decks.map((deck) => (
-              <li key={deck.id} className="flex items-center gap-3 px-3 py-2">
-                <Link
-                  href={`/decks/${deck.id}/edit`}
-                  className="min-w-0 flex-1 hover:underline"
-                  title={`Edit ${deck.name}`}
-                >
-                  <span className="block truncate text-sm font-medium">{deck.name}</span>
-                  <span className="text-muted-foreground block text-xs">
-                    {formatLabel(deck.gameId, deck.formatId)} · {deck.visibility} · Updated{" "}
-                    {updatedLabel(deck.updatedAt)}
-                  </span>
-                </Link>
-                <Link
-                  href={`/d/${deck.publicId}`}
-                  className="text-muted-foreground shrink-0 text-xs hover:underline"
-                >
-                  Share page
-                </Link>
-              </li>
-            ))}
-          </ul>
         )}
+      </section>
+
+      <section aria-label="Your decks" className="mt-8 space-y-4">
+        <ClaimDecks />
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+            Your decks
+          </h2>
+          <NewFolderForm />
+        </div>
+
+        {folders.map((folder) => {
+          const inFolder = decksByFolder.get(folder.id) ?? [];
+          return (
+            <div key={folder.id} className="space-y-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="min-w-0 text-sm font-semibold">
+                  <Link href={`/f/${folder.publicId}`} className="hover:underline">
+                    📁 {folder.name}
+                  </Link>{" "}
+                  <span className="text-muted-foreground text-xs font-normal tabular-nums">
+                    {inFolder.length === 1 ? "1 deck" : `${inFolder.length} decks`}
+                  </span>
+                </p>
+                <FolderControls
+                  folderId={folder.id}
+                  name={folder.name}
+                  visibility={folder.visibility}
+                />
+              </div>
+              {inFolder.length === 0 ? (
+                <p className="text-muted-foreground rounded-lg border border-dashed px-3 py-2 text-xs">
+                  Empty — file a deck into it with the folder picker on any deck row.
+                </p>
+              ) : (
+                <ul className="divide-y rounded-lg border">
+                  {inFolder.map((deck) => (
+                    <DeckItem key={deck.id} deck={deck} folders={folderOptions} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="space-y-1.5">
+          {folders.length > 0 && (
+            <p className="text-muted-foreground text-sm font-semibold">Unfiled</p>
+          )}
+          {unfiled.length === 0 && folders.length > 0 ? (
+            <p className="text-muted-foreground text-xs">Every deck is in a folder.</p>
+          ) : unfiled.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No decks in this account yet —{" "}
+              <Link href="/decks/new" className="underline">
+                build one
+              </Link>
+              .
+            </p>
+          ) : (
+            <ul className="divide-y rounded-lg border">
+              {unfiled.map((deck) => (
+                <DeckItem key={deck.id} deck={deck} folders={folderOptions} />
+              ))}
+            </ul>
+          )}
+        </div>
       </section>
     </main>
   );

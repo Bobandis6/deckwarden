@@ -16,6 +16,7 @@ import { z } from "zod";
 import { getDb, schema } from "@/db";
 import { getSessionUserId } from "@/lib/auth";
 import { canReadDeck, deckTokenFrom, isDeckOwner } from "@/lib/decks/access";
+import { isFolderOwner, loadFolder, type FolderRow } from "@/lib/decks/folders";
 import type { DeckRow } from "@/lib/decks/serialize";
 
 const UUID = z.uuid();
@@ -67,4 +68,20 @@ export async function requireOwnedDeck(
     return NextResponse.json({ error: "You don't have edit access to this deck" }, { status: 403 });
   }
   return { deck, isOwner: true };
+}
+
+/**
+ * Folder twin of requireOwnedDeck (P2.2); session is the only proof. Same
+ * status contract: unknown/invalid id → 404, not owner → 403.
+ */
+export async function requireOwnedFolder(
+  headers: Headers,
+  id: string,
+): Promise<{ folder: FolderRow } | NextResponse> {
+  const folder = await loadFolder(id);
+  if (!folder) return NextResponse.json({ error: "Folder not found" }, { status: 404 });
+  if (!isFolderOwner(folder, await getSessionUserId(headers))) {
+    return NextResponse.json({ error: "This folder isn't yours" }, { status: 403 });
+  }
+  return { folder };
 }

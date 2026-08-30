@@ -62,9 +62,23 @@ export interface ShareDeckCard {
   card: CardWire;
 }
 
+/** Byline (P2.2) — present only when the owner opted into a public username. */
+export interface ShareDeckAuthor {
+  name: string;
+  username: string;
+}
+
 const noopSubscribe = () => () => {};
 
-export function DeckShareView({ deck, cards }: { deck: ShareDeckMeta; cards: ShareDeckCard[] }) {
+export function DeckShareView({
+  deck,
+  cards,
+  author = null,
+}: {
+  deck: ShareDeckMeta;
+  cards: ShareDeckCard[];
+  author?: ShareDeckAuthor | null;
+}) {
   const router = useRouter();
 
   // localStorage is client-only: null during SSR, the token after hydration.
@@ -156,6 +170,15 @@ export function DeckShareView({ deck, cards }: { deck: ShareDeckMeta; cards: Sha
       <header className="mt-2">
         <h1 className="text-2xl font-bold tracking-tight break-words">{deck.name}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
+          {author && (
+            <>
+              by{" "}
+              <Link href={`/u/${author.username}`} className="text-foreground hover:underline">
+                {author.name}
+              </Link>{" "}
+              ·{" "}
+            </>
+          )}
           {format.label} · <span className="tabular-nums">{sizeLabel}</span> cards · Updated{" "}
           {/* timeZone pinned: this SSRs on the server (UTC) and hydrates in the
               viewer's zone — an unpinned date string mismatches and throws

@@ -34,9 +34,10 @@ export function windowStartFor(nowMs: number, windowSeconds: number): Date {
 }
 
 /**
- * Every anon-write policy in one place. `ip` may be null (no forwarding
- * header, e.g. local dev) — those callers share one bucket, which only ever
- * matters off Vercel.
+ * Every write policy in one place — anon routes keyed by IP, session-only
+ * routes (P2.2) by user id. `ip` may be null (no forwarding header, e.g.
+ * local dev) — those callers share one bucket, which only ever matters off
+ * Vercel.
  */
 export const RATE_LIMITS = {
   /** POST /api/decks — the strict one: creates mint rows a purge has to clean. */
@@ -66,6 +67,22 @@ export const RATE_LIMITS = {
   /** POST /api/decks/claim — once per sign-in, but each call can probe 100 ids. */
   deckClaim: (ip: string | null): RateLimit[] => [
     { key: `deck-claim:ip:${ip ?? "unknown"}`, max: 10, windowSeconds: 60 },
+  ],
+  /**
+   * PATCH /api/profile — session-only route, so the principal is the user id.
+   * Tight: changing a username releases the old one; cycling squats names.
+   */
+  profileWrite: (userId: string): RateLimit[] => [
+    { key: `profile:user:${userId}`, max: 10, windowSeconds: 3600 },
+  ],
+  /** POST /api/folders — session-only; FOLDER_LIMITS.perUser is the real cap. */
+  folderCreate: (userId: string): RateLimit[] => [
+    { key: `folder-create:user:${userId}`, max: 30, windowSeconds: 3600 },
+  ],
+  /** PATCH/DELETE /api/folders/[id] — checked before auth, so keyed like deckMetaWrite. */
+  folderMetaWrite: (ip: string | null, folderId: string): RateLimit[] => [
+    { key: `folder-meta:folder:${folderId}`, max: 60, windowSeconds: 60 },
+    { key: `folder-meta:ip:${ip ?? "unknown"}`, max: 180, windowSeconds: 60 },
   ],
 };
 

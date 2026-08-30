@@ -14,7 +14,7 @@ fi
 # pg_dump wants a real session — use the direct (non -pooler) host.
 DIRECT_URL="${DATABASE_URL/-pooler./.}"
 
-USER_TABLES="users decks deck_cards deck_versions deck_likes deck_bookmarks collections"
+USER_TABLES="users decks deck_folders deck_cards deck_versions deck_likes deck_bookmarks collections"
 EXISTING=$(psql "$DIRECT_URL" -Atc \
   "SELECT string_agg(tablename, ' ') FROM pg_tables WHERE schemaname='public'
    AND tablename = ANY(string_to_array('$USER_TABLES', ' '))")

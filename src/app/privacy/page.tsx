@@ -33,6 +33,12 @@ export default function PrivacyPage() {
           show you your account and tie your decks to it — never for marketing, and never shared.
         </p>
         <p>
+          Choosing a username is optional and is the one thing that makes any of that public: it
+          publishes a profile page at /u/&lt;username&gt; showing your display name, avatar, and
+          your public decks and folders. Never your email. Skip the username and nothing about your
+          account is browsable.
+        </p>
+        <p>
           While signed in, a session cookie keeps you signed in; it is strictly functional and is
           the only cookie this site sets. Decks built on a browser before signing in are attached to
           your account when you sign in on that browser; their localStorage edit keys are retired in

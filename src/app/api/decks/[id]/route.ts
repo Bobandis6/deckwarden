@@ -3,7 +3,7 @@
  *
  * GET    — meta + current card list (joined card basics so P1.2's editor needs
  *          no N+1). Owner always; non-owners only when visibility != private.
- * PATCH  — meta only (name / description / visibility). Owner only.
+ * PATCH  — meta only (name / description / visibility / folder). Owner only.
  * DELETE — hard delete; deck_cards + deck_versions cascade. Owner only.
  *
  * Caching intent: force-dynamic + Cache-Control no-store on every response —
@@ -19,6 +19,7 @@ import { z } from "zod";
 import { getDb, schema } from "@/db";
 import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
 import { clientIp } from "@/lib/decks/access";
+import { loadFolder } from "@/lib/decks/folders";
 import { requireOwnedDeck, requireReadableDeck } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
@@ -49,6 +50,8 @@ const PATCH_BODY = z
     name: z.string().trim().min(1).max(120),
     description: z.string().max(4000).nullable(),
     visibility: z.enum(schema.DECK_VISIBILITIES),
+    /** P2.2: move into a folder (must be the same user's) or null to unfile. */
+    folderId: z.uuid().nullable(),
   })
   .partial()
   .refine((b) => Object.keys(b).length > 0, { message: "No fields to update" });
@@ -74,6 +77,22 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/
       { error: "Invalid body", issues: parsed.error.issues },
       { status: 400, headers: NO_STORE },
     );
+  }
+
+  // Folder assignment is account-only and same-owner-only: a guest deck has
+  // no folders to belong to, and filing into a stranger's folder would leak
+  // your deck onto their shared folder page.
+  if (parsed.data.folderId != null) {
+    if (access.deck.userId === null) {
+      return NextResponse.json(
+        { error: "Sign in to organize decks into folders" },
+        { status: 400, headers: NO_STORE },
+      );
+    }
+    const folder = await loadFolder(parsed.data.folderId);
+    if (!folder || folder.userId !== access.deck.userId) {
+      return NextResponse.json({ error: "Folder not found" }, { status: 400, headers: NO_STORE });
+    }
   }
 
   const db = getDb();

@@ -19,6 +19,9 @@ export function deckMetaJson(deck: DeckRow, opts: { isOwner: boolean }) {
     name: deck.name,
     description: deck.description,
     visibility: deck.visibility,
+    // Owner-only: folder membership is the owner's organization. Non-owners
+    // see folder contents solely through a folder page the owner shared.
+    folderId: opts.isOwner ? deck.folderId : null,
     leaderIds: deck.leaderIds,
     ciMask: deck.ciMask,
     currentVersion: deck.currentVersion,

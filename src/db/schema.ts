@@ -270,6 +270,13 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  /**
+   * Profile slug for /u/[username] (P2.2). Ours, not better-auth's (no
+   * username plugin — OAuth-only login): nullable until chosen, stored
+   * lowercase-only (username.ts validates), so plain UNIQUE is case-safe.
+   * Choosing one is the opt-in that makes name/avatar publicly browsable.
+   */
+  username: text("username").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -346,6 +353,41 @@ export const DECK_VISIBILITIES = ["public", "unlisted", "private"] as const;
 export type DeckVisibility = (typeof DECK_VISIBILITIES)[number];
 
 /**
+ * Deck folders (P2.2) — the shareable-folder-URL feature (§7: a known
+ * Moxfield gap, "one table + one page"). Account-only: guests organize
+ * nothing (their local list is proof-of-token, not storage). A deck lives in
+ * at most one folder (decks.folder_id below) — directory semantics, which is
+ * what "organize my decks" means and keeps this to one table. Same
+ * visibility triad as decks; public folders appear on the owner's profile,
+ * unlisted ones only via /f/[publicId]. Game-agnostic on purpose (a folder
+ * may mix MTG and, come M4, One Piece decks).
+ */
+export const deckFolders = pgTable(
+  "deck_folders",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    /** Slug for /f/[publicId] share URLs; same generator as decks.public_id. */
+    publicId: text("public_id").notNull().unique(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    visibility: text("visibility").$type<DeckVisibility>().notNull().default("unlisted"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("deck_folders_visibility_check", sql`${t.visibility} in ('public','unlisted','private')`),
+    index("deck_folders_owner").on(t.userId),
+    /** Case-insensitive per-user name uniqueness — duplicate folders are only ever confusion. */
+    uniqueIndex("deck_folders_owner_name").on(t.userId, sql`lower(${t.name})`),
+  ],
+);
+
+/**
  * One row per deck. `user_id` references Better Auth's users table (P2.1);
  * NULL = anonymous (guest-built). `claim_token` authenticates guest writes
  * and is NULLed on claim.
@@ -381,6 +423,12 @@ export const decks = pgTable(
     leaderIds: uuid("leader_ids").array().notNull().default([]),
     /** Deck color identity = OR of the leaders' ci_mask. */
     ciMask: smallint("ci_mask").notNull().default(0),
+    /**
+     * At most one folder per deck (P2.2); NULL = unfiled. SET NULL on folder
+     * delete — deleting a folder must never delete decks. Assignment is
+     * account-only: the API rejects folder_id on guest decks (user_id NULL).
+     */
+    folderId: uuid("folder_id").references(() => deckFolders.id, { onDelete: "set null" }),
     forkedFromDeckId: uuid("forked_from_deck_id").references((): AnyPgColumn => decks.id),
     currentVersion: integer("current_version").notNull().default(0),
     likesCount: integer("likes_count").notNull().default(0),
@@ -392,6 +440,7 @@ export const decks = pgTable(
     index("decks_hub").using("gin", t.leaderIds),
     index("decks_browse").on(t.gameId, t.formatId, t.visibility, t.updatedAt.desc()),
     index("decks_owner").on(t.userId, t.updatedAt.desc()),
+    index("decks_folder").on(t.folderId, t.updatedAt.desc()),
   ],
 );
 
