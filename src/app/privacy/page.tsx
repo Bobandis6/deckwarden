@@ -1,7 +1,8 @@
 /**
  * /privacy — what Deckwarden actually holds, stated plainly (P1.8 gate;
  * accounts section added with Better Auth in P2.1; deletion self-serve since
- * P2.8, with GitHub issues kept as the can't-sign-in fallback). Truth: optional
+ * P2.8, with contact@deckwarden.gg as the private can't-sign-in fallback —
+ * privacy requests must never require a public GitHub post). Truth: optional
  * Discord/Google accounts (name, email, avatar URL stored) + a session
  * cookie only when signed in; anon decks + created_ip + localStorage edit
  * keys + optional Sentry error reports. Still no ads, no analytics.
@@ -49,16 +50,11 @@ export default function PrivacyPage() {
             account page
           </Link>{" "}
           — it permanently and immediately removes your account and everything in it: decks,
-          folders, likes, and bookmarks. If you can no longer sign in,{" "}
-          <a
-            href="https://github.com/Bobandis6/deckwarden/issues"
-            className="underline"
-            rel="noreferrer"
-            target="_blank"
-          >
-            open a GitHub issue
+          folders, likes, and bookmarks. If you can no longer sign in, email{" "}
+          <a href="mailto:contact@deckwarden.gg" className="underline">
+            contact@deckwarden.gg
           </a>{" "}
-          instead and removal is handled manually.
+          instead and removal is handled manually — privately, not through a public issue tracker.
         </p>
       </section>
 
@@ -122,15 +118,20 @@ export default function PrivacyPage() {
       <section className="mt-8 space-y-3">
         <h2 className="text-xl font-semibold">Questions or removal requests</h2>
         <p>
+          Email{" "}
+          <a href="mailto:contact@deckwarden.gg" className="underline">
+            contact@deckwarden.gg
+          </a>{" "}
+          for anything private, or{" "}
           <a
             href="https://github.com/Bobandis6/deckwarden/issues"
             className="underline"
             rel="noreferrer"
             target="_blank"
           >
-            Open a GitHub issue
+            open a GitHub issue
           </a>{" "}
-          and we’ll sort it out. Attribution and terms live on the{" "}
+          for bugs — either way we’ll sort it out. Attribution and terms live on the{" "}
           <Link href="/legal" className="underline">
             legal page
           </Link>

@@ -69,14 +69,18 @@ export default function LegalPage() {
       <section className="mt-8 space-y-3">
         <h2 className="text-xl font-semibold">Contact</h2>
         <p>
-          Questions, takedown requests, or bug reports:{" "}
+          Questions and takedown requests:{" "}
+          <a href="mailto:contact@deckwarden.gg" className="underline">
+            contact@deckwarden.gg
+          </a>{" "}
+          — takedowns are honored immediately. Bug reports are best as a{" "}
           <a
             href="https://github.com/Bobandis6/deckwarden/issues"
             className="underline"
             rel="noreferrer"
             target="_blank"
           >
-            open a GitHub issue
+            GitHub issue
           </a>
           .
         </p>

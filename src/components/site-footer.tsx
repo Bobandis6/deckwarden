@@ -23,12 +23,10 @@ export function SiteFooter() {
         <Link href="/privacy" className="hover:text-foreground underline">
           Privacy
         </Link>
-        <a
-          href="https://github.com/Bobandis6/deckwarden/issues"
-          className="hover:text-foreground underline"
-          rel="noreferrer"
-          target="_blank"
-        >
+        {/* Email, not GitHub issues (P2.8 follow-up): no account needed, and
+            privacy/takedown requests shouldn't be public posts. Bug reports
+            still have the GitHub link next door. */}
+        <a href="mailto:contact@deckwarden.gg" className="hover:text-foreground underline">
           Contact
         </a>
         <a
