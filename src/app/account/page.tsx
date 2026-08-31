@@ -15,6 +15,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 
 import { ClaimDecks } from "@/components/auth/claim-decks";
+import { DeleteAccount } from "@/components/auth/delete-account";
 import { SignInButtons } from "@/components/auth/sign-in-buttons";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { RemoveBookmarkButton } from "@/components/deck/engagement-buttons";
@@ -290,6 +291,19 @@ export default async function AccountPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      {/* Self-serve deletion (P2.8) — the privacy page points here now. */}
+      <section
+        aria-label="Danger zone"
+        className="border-destructive/40 mt-10 rounded-lg border p-3"
+      >
+        <h2 className="text-destructive text-xs font-medium tracking-wide uppercase">
+          Danger zone
+        </h2>
+        <div className="mt-2">
+          <DeleteAccount />
+        </div>
       </section>
     </main>
   );

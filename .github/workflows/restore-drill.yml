@@ -60,6 +60,15 @@ jobs:
           echo "restoring $LATEST (+ $MAP)"
           aws s3 cp "s3://${{ secrets.R2_BUCKET }}/pg/$LATEST" dump.sql.gz --endpoint-url "${{ secrets.R2_ENDPOINT }}"
           aws s3 cp "s3://${{ secrets.R2_BUCKET }}/pg/$MAP" map.csv.gz --endpoint-url "${{ secrets.R2_ENDPOINT }}"
+          # Account links (P2.8): same-stamp CSV of accounts' identity columns.
+          # Missing only when the newest backup predates P2.8 — tolerate that
+          # one gap so the drill stays runnable, but say so loudly.
+          LINKS="deckwarden-account-links-$STAMP.csv.gz"
+          if aws s3 cp "s3://${{ secrets.R2_BUCKET }}/pg/$LINKS" links.csv.gz --endpoint-url "${{ secrets.R2_ENDPOINT }}"; then
+            echo "got $LINKS"
+          else
+            echo "::warning::no account-links CSV for stamp $STAMP (backup predates P2.8?)"
+          fi
 
       - name: Restore dump into scratch Postgres
         run: |
@@ -88,3 +97,22 @@ jobs:
           [ "$CARDS" -ge 1 ] || { echo "FAIL: no deck_cards restored"; exit 1; }
           [ "$DANGLING" = "0" ] || { echo "FAIL: deck rows reference ids missing from the identity map"; exit 1; }
           echo "restore drill PASSED"
+
+      - name: Verify account-links CSV loads and covers restored users
+        run: |
+          set -euo pipefail
+          if [ ! -f links.csv.gz ]; then
+            echo "skipped — no account-links CSV in this backup stamp (see warning above)"
+            exit 0
+          fi
+          psql "$SCRATCH_URL" -c "CREATE TABLE account_links (issuer text, account_id text, provider_id text, user_id uuid)"
+          gunzip -c links.csv.gz | psql "$SCRATCH_URL" -c "\copy account_links FROM STDIN WITH (FORMAT csv, HEADER)"
+          LINKS_N=$(psql "$SCRATCH_URL" -Atc "SELECT count(*) FROM account_links")
+          # Every restored user must have at least one OAuth link, or a real
+          # restore locks them out (OAuth-only site — no password fallback).
+          UNLINKED=$(psql "$SCRATCH_URL" -Atc "
+            SELECT count(*) FROM users u WHERE NOT EXISTS (
+              SELECT 1 FROM account_links l WHERE l.user_id = u.id)")
+          echo "account links: $LINKS_N row(s); restored users without a link: $UNLINKED"
+          [ "$UNLINKED" = "0" ] || { echo "FAIL: restored users would be locked out (no OAuth link)"; exit 1; }
+          echo "account-links check PASSED"

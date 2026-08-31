@@ -16,6 +16,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 
 import { getDb, schema } from "@/db";
+import { betterAuthRateLimitStorage } from "@/lib/rate-limit";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -63,6 +64,15 @@ export const auth = betterAuth({
     // for up to 5 minutes (Neon compute is a budget); sign-out revocation lag
     // is capped at the same 5 minutes.
     cookieCache: { enabled: true, maxAge: 300 },
+  },
+  rateLimit: {
+    // Better-auth only enables this in production by default — forced on so
+    // dev and previews exercise the same 429 paths. Rules stay stock (per
+    // ip+path: 100/10s globally, 3/10s on /sign-in/*); the storage is the
+    // house Postgres counters (rate-limit.ts) so limits actually hold across
+    // serverless instances.
+    enabled: true,
+    customStorage: betterAuthRateLimitStorage,
   },
   advanced: { database: { generateId: "uuid" } },
   telemetry: { enabled: false },

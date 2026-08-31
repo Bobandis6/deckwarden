@@ -1,6 +1,7 @@
 /**
  * /privacy — what Deckwarden actually holds, stated plainly (P1.8 gate;
- * accounts section added with Better Auth in P2.1). Truth: optional
+ * accounts section added with Better Auth in P2.1; deletion self-serve since
+ * P2.8, with GitHub issues kept as the can't-sign-in fallback). Truth: optional
  * Discord/Google accounts (name, email, avatar URL stored) + a session
  * cookie only when signed in; anon decks + created_ip + localStorage edit
  * keys + optional Sentry error reports. Still no ads, no analytics.
@@ -43,7 +44,12 @@ export default function PrivacyPage() {
           While signed in, a session cookie keeps you signed in; it is strictly functional and is
           the only cookie this site sets. Decks built on a browser before signing in are attached to
           your account when you sign in on that browser; their localStorage edit keys are retired in
-          the process. To delete your account and its data,{" "}
+          the process. You can delete your account yourself from the{" "}
+          <Link href="/account" className="underline">
+            account page
+          </Link>{" "}
+          — it permanently and immediately removes your account and everything in it: decks,
+          folders, likes, and bookmarks. If you can no longer sign in,{" "}
           <a
             href="https://github.com/Bobandis6/deckwarden/issues"
             className="underline"
@@ -52,7 +58,7 @@ export default function PrivacyPage() {
           >
             open a GitHub issue
           </a>{" "}
-          — removal is manual for now, but it is honored.
+          instead and removal is handled manually.
         </p>
       </section>
 

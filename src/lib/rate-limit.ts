@@ -94,11 +94,18 @@ export const RATE_LIMITS = {
     { key: `engage:user:${userId}`, max: 30, windowSeconds: 60 },
     { key: `engage:user-hour:${userId}`, max: 300, windowSeconds: 3600 },
   ],
+  /** DELETE /api/account — a legit user needs this once, ever. */
+  accountDelete: (userId: string): RateLimit[] => [
+    { key: `account-delete:user:${userId}`, max: 3, windowSeconds: 3600 },
+  ],
 };
 
 const { rateLimitCounters } = schema;
 
-async function take(limit: RateLimit): Promise<{ ok: boolean; retryAfterSeconds: number }> {
+/** One atomic check-and-increment against a counter; throws on DB failure. */
+export async function consumeRateLimit(
+  limit: RateLimit,
+): Promise<{ ok: boolean; retryAfterSeconds: number }> {
   const windowStart = windowStartFor(Date.now(), limit.windowSeconds);
   const db = getDb();
   const [row] = await db
@@ -122,7 +129,7 @@ export async function enforceRateLimit(limits: RateLimit[]): Promise<NextRespons
   try {
     let blocked: number | null = null;
     for (const limit of limits) {
-      const result = await take(limit);
+      const result = await consumeRateLimit(limit);
       if (!result.ok) blocked = Math.max(blocked ?? 0, result.retryAfterSeconds);
     }
     if (blocked !== null) {
@@ -139,3 +146,41 @@ export async function enforceRateLimit(limits: RateLimit[]): Promise<NextRespons
   }
   return null;
 }
+
+/**
+ * Better Auth rate-limit backend (P2.8, fired LATER row): plugs the same
+ * counters table into better-auth's limiter via its `customStorage` hook, so
+ * /api/auth/* gets a serverless-correct limiter without a second table or a
+ * second write pattern (better-auth's default store is per-instance memory —
+ * a placebo on serverless; its "database" backend would mean another table).
+ *
+ * Better-auth's keys are already ip+path; the "auth:" prefix just namespaces
+ * them among ours in the shared table, and the nightly purge sweeps them
+ * with everything else. Its `window` is seconds, like windowSeconds.
+ *
+ * Cost note: only real HTTP requests to /api/auth/* pass through better-auth's
+ * router (where the limiter runs) — server-side auth.api.getSession calls on
+ * SSR renders never do — so this is one upsert per client auth call, not per
+ * page view. Fail-open like enforceRateLimit: sign-in must never die on a
+ * limiter error.
+ */
+export const betterAuthRateLimitStorage = {
+  async consume(
+    key: string,
+    rule: { window: number; max: number },
+  ): Promise<{ allowed: boolean; retryAfter: number | null }> {
+    try {
+      const result = await consumeRateLimit({
+        key: `auth:${key}`,
+        max: rule.max,
+        windowSeconds: rule.window,
+      });
+      return result.ok
+        ? { allowed: true, retryAfter: null }
+        : { allowed: false, retryAfter: result.retryAfterSeconds };
+    } catch (err) {
+      console.error("auth rate limit check failed open:", err);
+      return { allowed: true, retryAfter: null };
+    }
+  },
+};

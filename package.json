@@ -22,6 +22,7 @@
     "smoke:decks": "tsx scripts/deck-api-smoke.ts",
     "smoke:profile": "tsx scripts/profile-folders-smoke.ts",
     "smoke:engagement": "tsx scripts/engagement-smoke.ts",
+    "smoke:account": "tsx scripts/account-delete-smoke.ts",
     "smoke:hubs": "tsx scripts/hubs-smoke.ts",
     "smoke:combos": "tsx scripts/combos-smoke.ts",
     "smoke:seo": "tsx scripts/seo-smoke.ts",

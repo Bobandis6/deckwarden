@@ -42,3 +42,20 @@ psql "$DIRECT_URL" -c "COPY (SELECT id, game_id, external_key FROM card_identiti
 AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
   aws s3 cp "$MAP" "s3://$R2_BUCKET/pg/$MAP" --endpoint-url "$R2_ENDPOINT"
 echo "identity map → s3://$R2_BUCKET/pg/$MAP"
+
+# Account links (P2.8, fired LATER row): the OAuth identity columns only, the
+# same COPY-a-subset move as the identity map. Restoring `users` without these
+# would leave sign-in to better-auth's email-based re-linking — or lock people
+# out. Deliberately NOT a pg_dump of `accounts`: that would put OAuth
+# access/refresh tokens at rest in R2. Restore = insert rows with fresh ids;
+# tokens refresh on next sign-in. (Sessions stay excluded — people sign in
+# again; `verifications` is short-lived OAuth state, worthless in a restore.)
+if [ "$(psql "$DIRECT_URL" -Atc "SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='accounts'")" = "1" ]; then
+  LINKS="deckwarden-account-links-$STAMP.csv.gz"
+  psql "$DIRECT_URL" -c "COPY (SELECT issuer, account_id, provider_id, user_id FROM accounts) TO STDOUT WITH (FORMAT csv, HEADER)" | gzip >"$LINKS"
+  AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+    aws s3 cp "$LINKS" "s3://$R2_BUCKET/pg/$LINKS" --endpoint-url "$R2_ENDPOINT"
+  echo "account links → s3://$R2_BUCKET/pg/$LINKS"
+else
+  echo "accounts table absent (pre-P2.1 schema) — skipping account-links CSV."
+fi
