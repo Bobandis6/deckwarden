@@ -40,7 +40,7 @@ import {
   type EditResult,
 } from "@/lib/decks/editor-state";
 import type { ImportOutcome } from "@/lib/decks/import";
-import { getDeckToken, removeDeckToken } from "@/lib/decks/token-store";
+import { getDeckToken, removeDeckToken, setDeckToken } from "@/lib/decks/token-store";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
 import type {
@@ -101,9 +101,29 @@ function metaPatchBody(meta: { name: string; description: string; notes: string 
   });
 }
 
-export function DeckEditor({ deckId }: { deckId: string }) {
+export function DeckEditor({
+  deckId: initialDeckId,
+  draftGame,
+  draftFormat,
+}: {
+  /** null = draft mode (/decks/new): no server deck exists until the first real edit. */
+  deckId: string | null;
+  /** Draft mode only: what the lazily-created deck will be. */
+  draftGame?: GameId;
+  draftFormat?: string;
+}) {
   const router = useRouter();
-  const [load, setLoad] = useState<LoadState>({ state: "loading" });
+  // Draft mode is ready (or misconfigured) synchronously — only a real deck
+  // id has anything to load.
+  const [load, setLoad] = useState<LoadState>(() => {
+    if (initialDeckId !== null) return { state: "loading" };
+    const adapter = draftGame ? getAdapter(draftGame) : null;
+    const format = adapter?.formats.find((f) => f.code === draftFormat);
+    if (!adapter || !format) {
+      return { state: "error", message: "This editor link is missing its game or format." };
+    }
+    return { state: "ready", adapter, format };
+  });
   const [deckName, setDeckName] = useState("");
   const [details, setDetails] = useState<DeckDetails>({ description: "", notes: "" });
   const [entries, setEntries] = useState<EditorEntry[]>([]);
@@ -113,12 +133,67 @@ export function DeckEditor({ deckId }: { deckId: string }) {
   const [share, setShare] = useState<{ publicId: string; visibility: DeckVisibility } | null>(null);
 
   // Refs mirror the state the save callback needs, so an autosave always
-  // serializes the latest edits regardless of when the debounce fires.
+  // serializes the latest edits regardless of when the debounce fires. The
+  // initial baselines are exactly what a fresh server deck would save, which
+  // is what draft mode needs; server hydration overwrites them before any
+  // save can fire.
   const entriesRef = useRef<EditorEntry[]>([]);
   const metaRef = useRef({ name: "", description: "", notes: "" });
-  const lastSavedRef = useRef({ cards: "", meta: "" });
+  const lastSavedRef = useRef({
+    cards: JSON.stringify({ cards: toSavePayload([]) }),
+    meta: metaPatchBody({ name: "", description: "", notes: "" }),
+  });
+
+  // The live deck id: the prop for existing decks, set by ensureDeck once a
+  // draft's first save creates the row. A ref because save/keepalive closures
+  // must see the fresh id without re-subscribing.
+  const deckIdRef = useRef<string | null>(initialDeckId);
+  const createChainRef = useRef<Promise<string> | null>(null);
+
+  /**
+   * Draft mode's whole point (P2.8 follow-up): the deck row is created by the
+   * FIRST flush that has something to say — a card added or a name typed —
+   * never by merely opening /decks/new. Click around and leave, and nothing
+   * lands on your account. Single-flight so a debounce/flush race can't mint
+   * two decks; a failed create clears the chain so autosave's retry re-runs
+   * it instead of wedging.
+   */
+  const ensureDeck = useCallback(async (): Promise<string> => {
+    if (deckIdRef.current) return deckIdRef.current;
+    createChainRef.current ??= (async () => {
+      const res = await fetch("/api/decks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // `website` is the create route's honeypot — always sent empty.
+        body: JSON.stringify({ game: draftGame, format: draftFormat, website: "" }),
+      });
+      if (!res.ok) throw new Error(`Deck creation failed (${res.status})`);
+      const json: {
+        deck: { id: string; publicId: string; visibility: DeckVisibility };
+        claimToken: string | null;
+      } = await res.json();
+      // Adopt the deck before the token check: if storage is broken the row
+      // exists either way, and retrying must not mint duplicates.
+      deckIdRef.current = json.deck.id;
+      setShare({ publicId: json.deck.publicId, visibility: json.deck.visibility });
+      // Same editor, real URL from here on — reloads and back/forward land on
+      // /decks/[id]/edit; no remount, no lost pane state.
+      window.history.replaceState(null, "", `/decks/${json.deck.id}/edit`);
+      if (json.claimToken && !setDeckToken(json.deck.id, json.claimToken)) {
+        throw new Error(
+          "Couldn't store this deck's edit key — enable browser storage and try again.",
+        );
+      }
+      return json.deck.id;
+    })().catch((err: unknown) => {
+      if (!deckIdRef.current) createChainRef.current = null;
+      throw err;
+    });
+    return createChainRef.current;
+  }, [draftGame, draftFormat]);
 
   const save = useCallback(async () => {
+    const deckId = await ensureDeck();
     const headers = writeHeaders(deckId);
     const cardsBody = JSON.stringify({ cards: toSavePayload(entriesRef.current) });
     if (cardsBody !== lastSavedRef.current.cards) {
@@ -140,13 +215,16 @@ export function DeckEditor({ deckId }: { deckId: string }) {
       if (!res.ok) throw new Error(`Save failed (${res.status})`);
       lastSavedRef.current.meta = metaBody;
     }
-  }, [deckId]);
+  }, [ensureDeck]);
 
   const autosave = useAutosave(save);
   const { markDirty, isDirty } = autosave;
 
-  // Hydrate from the server once (GET joins card data — no N+1).
+  // Hydrate from the server once (GET joins card data — no N+1). Draft mode
+  // has no server row yet — its ready state and baselines were set at init.
   useEffect(() => {
+    if (initialDeckId === null) return;
+    const deckId = initialDeckId;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -200,14 +278,18 @@ export function DeckEditor({ deckId }: { deckId: string }) {
       }
     })();
     return () => controller.abort();
-  }, [deckId]);
+  }, [initialDeckId]);
 
   // Flush pending edits when the tab closes (pagehide) or the component
   // unmounts on client-side navigation. keepalive lets the request outlive
-  // the page; the await-less send is the best a closing tab allows.
+  // the page; the await-less send is the best a closing tab allows. A draft
+  // whose deck doesn't exist yet has nothing persisted to protect — leaving
+  // inside the first debounce window drops that sliver of input rather than
+  // minting the empty deck this feature exists to prevent.
   useEffect(() => {
     const flushKeepalive = () => {
-      if (!isDirty()) return;
+      const deckId = deckIdRef.current;
+      if (!deckId || !isDirty()) return;
       const headers = writeHeaders(deckId);
       const cardsBody = JSON.stringify({ cards: toSavePayload(entriesRef.current) });
       if (cardsBody !== lastSavedRef.current.cards) {
@@ -235,7 +317,7 @@ export function DeckEditor({ deckId }: { deckId: string }) {
       window.removeEventListener("pagehide", flushKeepalive);
       flushKeepalive();
     };
-  }, [deckId, isDirty]);
+  }, [isDirty]);
 
   /** Apply a pure edit result; returns the error (if any) for pane-local display. */
   const applyEdit = useCallback(
@@ -296,18 +378,19 @@ export function DeckEditor({ deckId }: { deckId: string }) {
 
   // Visibility PATCHes immediately (not via autosave): it's a deliberate,
   // rare action and the Share dialog wants the result before it re-renders.
-  const setVisibility = useCallback(
-    async (visibility: DeckVisibility) => {
-      const res = await fetch(`/api/decks/${deckId}`, {
-        method: "PATCH",
-        headers: writeHeaders(deckId),
-        body: JSON.stringify({ visibility }),
-      });
-      if (!res.ok) throw new Error(`Visibility change failed (${res.status})`);
-      setShare((prev) => (prev ? { ...prev, visibility } : prev));
-    },
-    [deckId],
-  );
+  // Unreachable in a pre-create draft (the Share button needs `share`, which
+  // ensureDeck sets) — the guard is belt-and-suspenders.
+  const setVisibility = useCallback(async (visibility: DeckVisibility) => {
+    const deckId = deckIdRef.current;
+    if (!deckId) return;
+    const res = await fetch(`/api/decks/${deckId}`, {
+      method: "PATCH",
+      headers: writeHeaders(deckId),
+      body: JSON.stringify({ visibility }),
+    });
+    if (!res.ok) throw new Error(`Visibility change failed (${res.status})`);
+    setShare((prev) => (prev ? { ...prev, visibility } : prev));
+  }, []);
 
   const handleDetailsChange = useCallback(
     (next: DeckDetails) => {
@@ -321,8 +404,14 @@ export function DeckEditor({ deckId }: { deckId: string }) {
   // Deck deletion (P2.8 follow-up): the dialog owns the confirm; this owns
   // the call and the exit. Guest decks (this browser holds a token) land on
   // home, account decks on /account. A debounced autosave may still fire
-  // against the dead id during navigation — a harmless 404.
+  // against the dead id during navigation — a harmless 404. Deleting a draft
+  // whose deck was never created is just leaving.
   const handleDeleteDeck = useCallback(async (): Promise<string | null> => {
+    const deckId = deckIdRef.current;
+    if (!deckId) {
+      router.replace("/");
+      return null;
+    }
     const token = getDeckToken(deckId);
     try {
       const res = await fetch(`/api/decks/${deckId}`, {
@@ -337,7 +426,7 @@ export function DeckEditor({ deckId }: { deckId: string }) {
     router.replace(token !== null ? "/" : "/account");
     router.refresh();
     return null;
-  }, [deckId, router]);
+  }, [router]);
 
   const inDeckQty = useMemo(() => {
     const counts = new Map<string, number>();
@@ -416,6 +505,7 @@ export function DeckEditor({ deckId }: { deckId: string }) {
             markDirty();
           }}
           aria-label="Deck name"
+          placeholder="Untitled — click to name your deck"
           maxLength={120}
           className="focus-visible:ring-ring/50 order-last min-w-0 basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 lg:order-none lg:flex-1 lg:basis-auto"
         />
