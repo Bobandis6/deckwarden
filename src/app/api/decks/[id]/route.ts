@@ -49,6 +49,8 @@ const PATCH_BODY = z
   .object({
     name: z.string().trim().min(1).max(120),
     description: z.string().max(4000).nullable(),
+    /** P2.7: long-form primer, share-page-only render (never in OG/JSON-LD). */
+    notes: z.string().max(20000).nullable(),
     visibility: z.enum(schema.DECK_VISIBILITIES),
     /** P2.2: move into a folder (must be the same user's) or null to unfile. */
     folderId: z.uuid().nullable(),

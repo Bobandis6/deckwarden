@@ -12,6 +12,7 @@ import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
 import { DeckGridView } from "@/components/deck/deck-grid-view";
 import { DeckTextView } from "@/components/deck/deck-text-view";
 import { LeaderZone } from "@/components/deck/leader-zone";
+import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { deckSizeCount, type EditorCard, type EditorEntry } from "@/lib/decks/editor-state";
@@ -157,6 +158,10 @@ export function DeckListPane({
       ) : (
         <DeckGridView groups={groups} severity={severity} onPreview={onPreview} />
       )}
+
+      {/* P2.7: same widget as the share page — pure client state, below the
+          list so drawing a hand never shoves the deck out of view. */}
+      <SampleHand entries={entries} cards={cards} format={format} onPreview={onPreview} />
     </div>
   );
 }

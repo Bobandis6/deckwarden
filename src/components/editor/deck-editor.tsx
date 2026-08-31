@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CardDetailPane } from "@/components/editor/card-detail-pane";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
+import { DetailsDialog, type DeckDetails } from "@/components/editor/details-dialog";
 import { ExportDialog, ImportDialog } from "@/components/editor/import-export";
 import { SearchPane } from "@/components/editor/search-pane";
 import { ShareDialog, type DeckVisibility } from "@/components/editor/share-dialog";
@@ -29,6 +30,7 @@ import {
   addCard,
   removeCard,
   setQty,
+  setTags,
   toEditorCard,
   toSavePayload,
   type CardWire,
@@ -55,6 +57,8 @@ interface DeckResponse {
     game: GameId | null;
     format: string | null;
     name: string;
+    description: string | null;
+    notes: string | null;
     visibility: DeckVisibility;
     isOwner: boolean;
   };
@@ -81,20 +85,36 @@ function writeHeaders(deckId: string): Record<string, string> {
   return { "Content-Type": "application/json", ...(token ? { [TOKEN_HEADER]: token } : {}) };
 }
 
+/**
+ * One PATCH body for every autosaved meta field (name + P2.7's details).
+ * Deterministic serialization doubles as the dirty check; an empty name is
+ * omitted (the route requires min 1 — the old name simply stands), empty
+ * description/notes save as null.
+ */
+function metaPatchBody(meta: { name: string; description: string; notes: string }): string {
+  const name = meta.name.trim();
+  return JSON.stringify({
+    ...(name ? { name } : {}),
+    description: meta.description.trim() ? meta.description : null,
+    notes: meta.notes.trim() ? meta.notes : null,
+  });
+}
+
 export function DeckEditor({ deckId }: { deckId: string }) {
   const [load, setLoad] = useState<LoadState>({ state: "loading" });
   const [deckName, setDeckName] = useState("");
+  const [details, setDetails] = useState<DeckDetails>({ description: "", notes: "" });
   const [entries, setEntries] = useState<EditorEntry[]>([]);
   const [cards, setCards] = useState<ReadonlyMap<string, EditorCard>>(new Map());
   const [preview, setPreview] = useState<EditorCard | null>(null);
-  const [dialog, setDialog] = useState<"import" | "export" | "share" | null>(null);
+  const [dialog, setDialog] = useState<"import" | "export" | "share" | "details" | null>(null);
   const [share, setShare] = useState<{ publicId: string; visibility: DeckVisibility } | null>(null);
 
   // Refs mirror the state the save callback needs, so an autosave always
   // serializes the latest edits regardless of when the debounce fires.
   const entriesRef = useRef<EditorEntry[]>([]);
-  const nameRef = useRef("");
-  const lastSavedRef = useRef({ cards: "", name: "" });
+  const metaRef = useRef({ name: "", description: "", notes: "" });
+  const lastSavedRef = useRef({ cards: "", meta: "" });
 
   const save = useCallback(async () => {
     const headers = writeHeaders(deckId);
@@ -108,15 +128,15 @@ export function DeckEditor({ deckId }: { deckId: string }) {
       if (!res.ok) throw new Error(`Card save failed (${res.status})`);
       lastSavedRef.current.cards = cardsBody;
     }
-    const name = nameRef.current.trim();
-    if (name && name !== lastSavedRef.current.name) {
+    const metaBody = metaPatchBody(metaRef.current);
+    if (metaBody !== lastSavedRef.current.meta) {
       const res = await fetch(`/api/decks/${deckId}`, {
         method: "PATCH",
         headers,
-        body: JSON.stringify({ name }),
+        body: metaBody,
       });
-      if (!res.ok) throw new Error(`Name save failed (${res.status})`);
-      lastSavedRef.current.name = name;
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      lastSavedRef.current.meta = metaBody;
     }
   }, [deckId]);
 
@@ -157,14 +177,19 @@ export function DeckEditor({ deckId }: { deckId: string }) {
           ...(c.printingId ? { printingId: c.printingId } : {}),
         }));
         entriesRef.current = loadedEntries;
-        nameRef.current = json.deck.name;
+        metaRef.current = {
+          name: json.deck.name,
+          description: json.deck.description ?? "",
+          notes: json.deck.notes ?? "",
+        };
         lastSavedRef.current = {
           cards: JSON.stringify({ cards: toSavePayload(loadedEntries) }),
-          name: json.deck.name,
+          meta: metaPatchBody(metaRef.current),
         };
         setEntries(loadedEntries);
         setCards(new Map(json.cards.map((c) => [c.cardId, toEditorCard(c.card)])));
         setDeckName(json.deck.name);
+        setDetails({ description: json.deck.description ?? "", notes: json.deck.notes ?? "" });
         setShare({ publicId: json.deck.publicId, visibility: json.deck.visibility });
         setLoad({ state: "ready", adapter, format });
       } catch (err) {
@@ -192,13 +217,13 @@ export function DeckEditor({ deckId }: { deckId: string }) {
           keepalive: true,
         });
       }
-      const name = nameRef.current.trim();
-      if (name && name !== lastSavedRef.current.name) {
-        lastSavedRef.current.name = name;
+      const metaBody = metaPatchBody(metaRef.current);
+      if (metaBody !== lastSavedRef.current.meta) {
+        lastSavedRef.current.meta = metaBody;
         void fetch(`/api/decks/${deckId}`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify({ name }),
+          body: metaBody,
           keepalive: true,
         });
       }
@@ -282,11 +307,37 @@ export function DeckEditor({ deckId }: { deckId: string }) {
     [deckId],
   );
 
+  const handleDetailsChange = useCallback(
+    (next: DeckDetails) => {
+      setDetails(next);
+      metaRef.current = { ...metaRef.current, ...next };
+      markDirty();
+    },
+    [markDirty],
+  );
+
   const inDeckQty = useMemo(() => {
     const counts = new Map<string, number>();
     for (const e of entries) counts.set(e.cardId, (counts.get(e.cardId) ?? 0) + e.qty);
     return counts;
   }, [entries]);
+
+  // Tag editing (P2.7): the detail pane edits the previewed card's entry.
+  // Prefer a non-leader entry — tags group the main list — but the leader
+  // entry is still taggable when it's all there is.
+  const tagging = useMemo(() => {
+    if (!preview || !format) return null;
+    const leaderZones = new Set(format.zones.filter((z) => z.isLeaderZone).map((z) => z.id));
+    const entry =
+      entries.find((e) => e.cardId === preview.id && !leaderZones.has(e.zone)) ??
+      entries.find((e) => e.cardId === preview.id);
+    if (!entry) return null;
+    return {
+      tags: entry.tags,
+      onSetTags: (tags: string[]) =>
+        applyEdit({ entries: setTags(entriesRef.current, entry.zone, entry.cardId, tags) }),
+    };
+  }, [preview, format, entries, applyEdit]);
 
   // Live validation (P1.4) and analytics (P1.5): the adapter's pure functions
   // on every edit, over one shared snapshot. validate is the same code the PUT
@@ -338,7 +389,7 @@ export function DeckEditor({ deckId }: { deckId: string }) {
           value={deckName}
           onChange={(e) => {
             setDeckName(e.target.value);
-            nameRef.current = e.target.value;
+            metaRef.current = { ...metaRef.current, name: e.target.value };
             markDirty();
           }}
           aria-label="Deck name"
@@ -346,6 +397,9 @@ export function DeckEditor({ deckId }: { deckId: string }) {
           className="focus-visible:ring-ring/50 order-last min-w-0 basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 lg:order-none lg:flex-1 lg:basis-auto"
         />
         <div className="ml-auto flex items-center gap-3 lg:ml-0">
+          <Button variant="outline" size="xs" onClick={() => setDialog("details")}>
+            Details
+          </Button>
           <Button variant="outline" size="xs" onClick={() => setDialog("import")}>
             Import
           </Button>
@@ -361,6 +415,13 @@ export function DeckEditor({ deckId }: { deckId: string }) {
         </div>
       </header>
 
+      {dialog === "details" && (
+        <DetailsDialog
+          details={details}
+          onChange={handleDetailsChange}
+          onClose={() => setDialog(null)}
+        />
+      )}
       {dialog === "import" && (
         <ImportDialog
           adapter={load.adapter}
@@ -415,7 +476,7 @@ export function DeckEditor({ deckId }: { deckId: string }) {
           />
         </section>
         <section aria-label="Card detail" className="min-h-0 lg:overflow-y-auto lg:border-l">
-          <CardDetailPane adapter={load.adapter} card={preview} />
+          <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
         </section>
       </div>
     </div>

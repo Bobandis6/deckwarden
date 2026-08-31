@@ -124,8 +124,27 @@ async function main() {
     });
     check("PATCH owner → 200", patched.status === 200, patched.json);
     check("claim token never re-exposed (PATCH)", !patched.text.includes(token));
+
+    // Notes round-trip (P2.7): long-form field, separate from description
+    const notes = "Mulligan aggressively for ramp.\n\nLine two of the primer.";
+    const notesPatch = await api("PATCH", `/api/decks/${deckId}`, { token, body: { notes } });
+    check(
+      "PATCH notes → 200 and echoed",
+      notesPatch.status === 200 &&
+        (notesPatch.json as { deck?: { notes?: string } })?.deck?.notes === notes,
+      notesPatch.json,
+    );
+    check(
+      "PATCH over-cap notes → 400",
+      (await api("PATCH", `/api/decks/${deckId}`, { token, body: { notes: "x".repeat(20001) } }))
+        .status === 400,
+    );
     const publicRead = await api("GET", `/api/decks/${deckId}`);
     check("unlisted readable without token → 200", publicRead.status === 200);
+    check(
+      "notes round-trip on GET",
+      (publicRead.json as { deck?: { notes?: string } })?.deck?.notes === notes,
+    );
     check(
       "non-owner read has isOwner: false",
       (publicRead.json as { deck?: { isOwner?: boolean } })?.deck?.isOwner === false,

@@ -414,6 +414,13 @@ export const decks = pgTable(
     name: text("name").notNull().default("Untitled"),
     description: text("description"),
     /**
+     * Long-form primer (P2.7), deliberately separate from `description`:
+     * description is the short blurb that feeds og:description + JSON-LD
+     * (P2.6) and must stay unfurl-sized; notes hold the how-to-pilot essay
+     * and render only on the share page. Length capped in zod, not here.
+     */
+    notes: text("notes"),
+    /**
      * Default unlisted (Appendix A): share links must work out of the box —
      * unlisted = reachable only via the unguessable public_id, not browsable.
      * (Was private until share pages existed; P1.7 flipped it as planned.)

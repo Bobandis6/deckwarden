@@ -5,9 +5,12 @@ import {
   addCard,
   deckSizeCount,
   MAX_QTY,
+  MAX_TAGS,
+  normalizeTags,
   parseQuickAdd,
   removeCard,
   setQty,
+  setTags,
   toSavePayload,
   zoneQty,
   type EditorEntry,
@@ -135,5 +138,27 @@ describe("counts and payload", () => {
       { cardId: "b", zone: "main", qty: 1, tags: [], printingId: "p1" },
     ]);
     expect("printingId" in toSavePayload(start)[0]).toBe(false);
+  });
+});
+
+describe("tags", () => {
+  it("normalizeTags trims, drops empties, and dedupes case-insensitively", () => {
+    expect(normalizeTags([" Ramp ", "ramp", "", "  ", "Draw"])).toEqual(["Ramp", "Draw"]);
+  });
+
+  it("normalizeTags enforces the PUT route's bounds", () => {
+    const long = "x".repeat(60);
+    expect(normalizeTags([long])[0]).toHaveLength(40);
+    const many = Array.from({ length: 30 }, (_, i) => `t${i}`);
+    expect(normalizeTags(many)).toHaveLength(MAX_TAGS);
+  });
+
+  it("setTags replaces exactly the addressed entry's tags", () => {
+    const start = [entry({ cardId: "a" }), entry({ cardId: "b", tags: ["keep"] })];
+    const next = setTags(start, "main", "a", ["Ramp", "ramp "]);
+    expect(next.find((e) => e.cardId === "a")?.tags).toEqual(["Ramp"]);
+    expect(next.find((e) => e.cardId === "b")?.tags).toEqual(["keep"]);
+    // unknown entry → structural no-op
+    expect(setTags(start, "commander", "a", ["x"])).toEqual(start);
   });
 });

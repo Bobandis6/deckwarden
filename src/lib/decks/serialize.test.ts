@@ -12,6 +12,7 @@ const row: DeckRow = {
   createdIp: null,
   name: "Test Deck",
   description: null,
+  notes: null,
   visibility: "public",
   leaderIds: [],
   ciMask: 0,

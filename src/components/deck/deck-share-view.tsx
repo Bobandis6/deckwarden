@@ -20,6 +20,7 @@ import { DeckGridView } from "@/components/deck/deck-grid-view";
 import { DeckTextView } from "@/components/deck/deck-text-view";
 import { EngagementButtons, type EngagementViewer } from "@/components/deck/engagement-buttons";
 import { LeaderZone } from "@/components/deck/leader-zone";
+import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ export interface ShareDeckMeta {
   format: string | null;
   name: string;
   description: string | null;
+  notes: string | null;
   visibility: "public" | "unlisted" | "private";
   likesCount: number;
   updatedAt: string | Date;
@@ -243,6 +245,19 @@ export function DeckShareView({
       ) : (
         <DeckGridView groups={groups} severity={severity} onPreview={onPreview} />
       )}
+
+      {deck.notes && (
+        <section className="mt-6">
+          <h2 className="text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase">
+            Notes
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap">
+            {deck.notes}
+          </p>
+        </section>
+      )}
+
+      <SampleHand entries={entries} cards={cardMap} format={format} onPreview={onPreview} />
 
       {analytics.length > 0 && (
         <section className="mt-6">

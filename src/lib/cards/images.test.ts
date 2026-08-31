@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { printingImageUrl, scryfallImageUrl } from "./images";
+import { printingImageUrl, scryfallImageUrl, toSmallImage } from "./images";
 
 const ID = "e3285e6b-3e79-4d7c-bf96-d920f973b122";
 
@@ -28,5 +28,19 @@ describe("printingImageUrl", () => {
     expect(printingImageUrl({ id: ID, imageOverride: override }, "normal", "back")).toBe(
       scryfallImageUrl(ID, "normal", "back"),
     );
+  });
+});
+
+describe("toSmallImage", () => {
+  it("rewrites a derived normal URL to the small rendition", () => {
+    expect(toSmallImage(scryfallImageUrl(ID))).toBe(scryfallImageUrl(ID, "small"));
+  });
+
+  it("passes override and foreign URLs through untouched", () => {
+    const override = "https://example.com/normal/hosted.jpg";
+    expect(toSmallImage(override)).toBe(override);
+    // "normal" appearing later in the path must not be rewritten
+    const tricky = `https://cards.scryfall.io/png/front/e/3/normal.png`;
+    expect(toSmallImage(tricky)).toBe(tricky);
   });
 });

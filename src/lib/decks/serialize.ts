@@ -18,6 +18,7 @@ export function deckMetaJson(deck: DeckRow, opts: { isOwner: boolean }) {
     format: findFormatById(deck.formatId)?.code ?? null,
     name: deck.name,
     description: deck.description,
+    notes: deck.notes,
     visibility: deck.visibility,
     // Owner-only: folder membership is the owner's organization. Non-owners
     // see folder contents solely through a folder page the owner shared.

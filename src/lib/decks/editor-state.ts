@@ -128,6 +128,41 @@ export function setQty(
   return { entries: entries.map((e) => (e === entry ? { ...e, qty: next } : e)) };
 }
 
+/** Match the PUT route's per-entry tag bounds. */
+export const MAX_TAGS = 20;
+export const MAX_TAG_LENGTH = 40;
+
+/**
+ * Clean a tag list to what the PUT route accepts: trimmed, non-empty, ≤40
+ * chars, ≤20 tags — deduped case-insensitively (first spelling wins) since
+ * duplicate tags only ever render as duplicate groups.
+ */
+export function normalizeTags(tags: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of tags) {
+    const tag = raw.trim().slice(0, MAX_TAG_LENGTH);
+    const key = tag.toLowerCase();
+    if (!tag || seen.has(key)) continue;
+    seen.add(key);
+    out.push(tag);
+    if (out.length >= MAX_TAGS) break;
+  }
+  return out;
+}
+
+/** Replace one entry's tags (P2.7 tag editor); unknown (zone, card) is a no-op. */
+export function setTags(
+  entries: readonly EditorEntry[],
+  zoneId: string,
+  cardId: string,
+  tags: readonly string[],
+): EditorEntry[] {
+  return entries.map((e) =>
+    e.zone === zoneId && e.cardId === cardId ? { ...e, tags: normalizeTags(tags) } : e,
+  );
+}
+
 /** The PUT /api/decks/[id]/cards body ({ cards: [...] } around this). */
 export function toSavePayload(
   entries: readonly EditorEntry[],
