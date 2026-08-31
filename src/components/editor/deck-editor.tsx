@@ -16,6 +16,7 @@
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CardDetailPane } from "@/components/editor/card-detail-pane";
@@ -39,7 +40,7 @@ import {
   type EditResult,
 } from "@/lib/decks/editor-state";
 import type { ImportOutcome } from "@/lib/decks/import";
-import { getDeckToken } from "@/lib/decks/token-store";
+import { getDeckToken, removeDeckToken } from "@/lib/decks/token-store";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
 import type {
@@ -101,6 +102,7 @@ function metaPatchBody(meta: { name: string; description: string; notes: string 
 }
 
 export function DeckEditor({ deckId }: { deckId: string }) {
+  const router = useRouter();
   const [load, setLoad] = useState<LoadState>({ state: "loading" });
   const [deckName, setDeckName] = useState("");
   const [details, setDetails] = useState<DeckDetails>({ description: "", notes: "" });
@@ -316,6 +318,27 @@ export function DeckEditor({ deckId }: { deckId: string }) {
     [markDirty],
   );
 
+  // Deck deletion (P2.8 follow-up): the dialog owns the confirm; this owns
+  // the call and the exit. Guest decks (this browser holds a token) land on
+  // home, account decks on /account. A debounced autosave may still fire
+  // against the dead id during navigation — a harmless 404.
+  const handleDeleteDeck = useCallback(async (): Promise<string | null> => {
+    const token = getDeckToken(deckId);
+    try {
+      const res = await fetch(`/api/decks/${deckId}`, {
+        method: "DELETE",
+        headers: token ? { [TOKEN_HEADER]: token } : {},
+      });
+      if (!res.ok && res.status !== 204) return `Couldn't delete the deck (${res.status}).`;
+    } catch {
+      return "Couldn't delete — check your connection and try again.";
+    }
+    removeDeckToken(deckId);
+    router.replace(token !== null ? "/" : "/account");
+    router.refresh();
+    return null;
+  }, [deckId, router]);
+
   const inDeckQty = useMemo(() => {
     const counts = new Map<string, number>();
     for (const e of entries) counts.set(e.cardId, (counts.get(e.cardId) ?? 0) + e.qty);
@@ -418,7 +441,9 @@ export function DeckEditor({ deckId }: { deckId: string }) {
       {dialog === "details" && (
         <DetailsDialog
           details={details}
+          deckName={deckName}
           onChange={handleDetailsChange}
+          onDelete={handleDeleteDeck}
           onClose={() => setDialog(null)}
         />
       )}
