@@ -12,6 +12,10 @@
  * names its deck partners (Basalt Monolith → Rings of Brighthearth) · budget
  * and limit params · tiny-deck curve evidence degrades to low confidence ·
  * no-store caching. Cleans up its deck even on failure.
+ *
+ * Also covers the Combo Radar route (P3.3) on the same fixture deck:
+ * Basalt Monolith alone → the Rings combo in oneAway with the add target
+ * named; Rings added → the pair in inDeck with no missing pieces.
  */
 export {}; // import-free file: stay a module so `main` doesn't collide with other scripts
 
@@ -76,6 +80,24 @@ interface Rec {
   score: number;
   confidence: string;
   evidence: Evidence[];
+}
+interface ComboPieceWire {
+  id: string;
+  name: string;
+}
+interface DeckCombo {
+  id: number;
+  externalKey: string;
+  results: string[];
+  templates: string[];
+  popularity: number | null;
+  inDeckPieces: ComboPieceWire[];
+  missingPieces: ComboPieceWire[];
+}
+interface RadarBody {
+  inDeck?: DeckCombo[];
+  oneAway?: DeckCombo[];
+  truncated?: boolean;
 }
 
 const SOURCES = new Set(["edhrec_rank", "spellbook", "curve-template"]);
@@ -185,6 +207,73 @@ async function main() {
     check(
       "invalid budget → 400",
       (await api("GET", `/api/decks/${deckId}/recommendations?budget=-3`)).status === 400,
+    );
+
+    // --- Combo Radar (P3.3): the same fixture, the other question ------------
+    // Basalt Monolith in deck, Rings of Brighthearth not → the pair must
+    // show up one card away with the add target and the deck partner named.
+    const radar1 = await api("GET", `/api/decks/${deckId}/combos`);
+    check("GET combos → 200", radar1.status === 200, radar1.json);
+    check("combos response is no-store", radar1.headers.get("cache-control") === "no-store");
+    const r1 = radar1.json as RadarBody;
+    check(
+      "radar wire shape (inDeck / oneAway / truncated)",
+      Array.isArray(r1.inDeck) && Array.isArray(r1.oneAway) && typeof r1.truncated === "boolean",
+    );
+    const oneAway = r1.oneAway ?? [];
+    check(
+      "one-away rows: exactly one missing piece, an external key, honest popularity",
+      oneAway.length > 0 &&
+        oneAway.every(
+          (c) =>
+            c.missingPieces.length === 1 &&
+            c.externalKey.length > 0 &&
+            (c.popularity === null || typeof c.popularity === "number"),
+        ),
+    );
+    const ringsCombo = oneAway.find((c) => c.missingPieces[0]?.name === "Rings of Brighthearth");
+    check(
+      "Basalt Monolith → Rings combo one away, partner named among in-deck pieces",
+      ringsCombo !== undefined && ringsCombo.inDeckPieces.some((p) => p.id === monolith.id),
+      oneAway.slice(0, 3).map((c) => c.missingPieces[0]?.name),
+    );
+
+    // Add the missing piece (the panel's add path lands on this same PUT) →
+    // the pair must move to inDeck as a complete, named combo.
+    const ringsCard = await findCard("rings of brighthearth");
+    const put2 = await api("PUT", `/api/decks/${deckId}/cards`, {
+      token,
+      body: {
+        cards: [
+          { cardId: commander.id, zone: "commander", qty: 1, tags: [] },
+          { cardId: monolith.id, zone: "main", qty: 1, tags: [] },
+          { cardId: counterspell.id, zone: "main", qty: 1, tags: [] },
+          { cardId: ringsCard.id, zone: "main", qty: 1, tags: [] },
+        ],
+      },
+    });
+    check("PUT adds Rings of Brighthearth", put2.status === 200, put2.json);
+
+    const radar2 = await api("GET", `/api/decks/${deckId}/combos`);
+    const r2 = radar2.json as RadarBody;
+    const pair = (r2.inDeck ?? []).find(
+      (c) =>
+        c.missingPieces.length === 0 &&
+        [monolith.id, ringsCard.id].every((id) => c.inDeckPieces.some((p) => p.id === id)),
+    );
+    check(
+      "both pieces in deck → complete combo named in inDeck",
+      radar2.status === 200 && pair !== undefined,
+      (r2.inDeck ?? []).slice(0, 3).map((c) => c.inDeckPieces.map((p) => p.name)),
+    );
+    check("the complete pair states its results", pair !== undefined && pair.results.length > 0);
+    check(
+      "the pair no longer sits in oneAway",
+      pair !== undefined && !(r2.oneAway ?? []).some((c) => c.id === pair.id),
+    );
+    check(
+      "radar 404s on an unknown deck",
+      (await api("GET", "/api/decks/00000000-0000-4000-8000-000000000000/combos")).status === 404,
     );
   } finally {
     const del = await api("DELETE", `/api/decks/${deckId}`, { token });

@@ -198,16 +198,21 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       )}
 
       {/* Cold-start rule: both shelves render only with real rows — never padding. */}
-      {combosData.total > 0 && (
+      {adapter.capabilities.combos && combosData.total > 0 && (
         <section aria-label="Combos" className="mt-10">
           <h2 className="text-lg font-semibold">Combos with {leader.name}</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             {combosData.total > COMBOS_SHOWN
               ? `The ${combosData.combos.length} most-played of ${combosData.total} combos`
               : `${combosData.total === 1 ? "One combo" : `${combosData.total} combos`}`}{" "}
-            using this commander that fit its color identity, from Commander Spellbook.
+            using this commander that fit its color identity, from{" "}
+            {adapter.capabilities.combos.sourceLabel}.
           </p>
-          <ComboList combos={combosData.combos} anchorCardId={leader.id} />
+          <ComboList
+            combos={combosData.combos}
+            combosMeta={adapter.capabilities.combos}
+            anchorCardId={leader.id}
+          />
         </section>
       )}
 

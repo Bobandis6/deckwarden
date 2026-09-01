@@ -256,15 +256,6 @@ export interface RecommendMeta {
 // Optional capabilities (game-exclusive services — absent = feature hidden)
 // ---------------------------------------------------------------------------
 
-export interface ComboHit {
-  id: string;
-  /** Deck cards participating in the combo. */
-  cardIds: string[];
-  /** Empty = complete in deck; one entry = "one card away". */
-  missingCardIds: string[];
-  description: string;
-}
-
 // ---------------------------------------------------------------------------
 // The adapter
 // ---------------------------------------------------------------------------
@@ -323,8 +314,24 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
   recommend?: RecommendMeta;
 
   capabilities: {
-    /** MTG M2: Commander Spellbook. The one intentionally non-pure surface (IO behind core). */
-    combos?: { findForDeck(cardIds: string[], ciMask: number): Promise<ComboHit[]> };
+    /**
+     * Combo data exists for this game (MTG: Commander Spellbook, P2.5).
+     * Declarative only — the tables are game-agnostic (combo_pieces →
+     * card_identities) and ALL detection IO is core (src/lib/combos/), the
+     * searchFields/RecommendMeta seam: adapters declare, core translates.
+     * (P3.3 replaced an unimplemented `findForDeck` IO stub with this.)
+     * What lives here is only what core can't know: attribution and the
+     * per-combo walkthrough deep link — step-by-step lines are deliberately
+     * not stored (lean rows), the link IS the credit.
+     */
+    combos?: {
+      /** Display name for credit lines, e.g. "Commander Spellbook". */
+      sourceLabel: string;
+      /** The data source's home page (credit link). */
+      sourceHref: string;
+      /** Deep link to one combo's external walkthrough page. */
+      externalUrl(externalKey: string): string;
+    };
     /** MTG M3: Topdeck.gg. */
     tournaments?: boolean;
   };

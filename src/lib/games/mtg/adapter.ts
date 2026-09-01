@@ -155,6 +155,15 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
   // template above, phrased in ./recommend.ts; the engine is core.
   recommend: mtgRecommend,
 
-  // combos (Spellbook) lands in M2; tournaments (Topdeck) in M3.
-  capabilities: {},
+  capabilities: {
+    // Combo data: Commander Spellbook (P2.5 ingest; P3.3 Radar). Detection IO
+    // is core (src/lib/combos/) — this is attribution + the walkthrough link,
+    // matching the recommend.sources credit. tournaments (Topdeck) is P3.5.
+    combos: {
+      sourceLabel: "Commander Spellbook",
+      sourceHref: "https://commanderspellbook.com",
+      externalUrl: (externalKey) =>
+        `https://commanderspellbook.com/combo/${encodeURIComponent(externalKey)}/`,
+    },
+  },
 };

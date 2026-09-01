@@ -17,20 +17,23 @@
  * the engine's input) AND the (card, zone, qty) key changed. Tag and meta
  * edits never refetch; the budget toggle and Refresh do.
  *
- * Adds ride the editor's normal path: resolve the full card once (the
- * resolver returns CardWire + this format's legality, so an illegal add is
- * flagged by live validation immediately), then onAdd → addCard → autosave.
- * Game knowledge (leader noun, source labels/links) comes off the adapter.
+ * Adds ride the editor's normal path via the shared useResolvedAdd hook
+ * (resolve once with the id guard, then onAdd → addCard → autosave); the
+ * refetch-key/leader-gate helpers live in decks/panel-view.ts — both shared
+ * with the Combo Radar (P3.3). Game knowledge (leader noun, source
+ * labels/links) comes off the adapter.
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/deck/segmented";
-import { toEditorCard, type CardWire, type EditorCard } from "@/lib/decks/editor-state";
+import { useResolvedAdd } from "@/components/editor/use-resolved-add";
+import type { EditorCard } from "@/lib/decks/editor-state";
+import { deckStateKey, hasLeader } from "@/lib/decks/panel-view";
 import { getDeckToken } from "@/lib/decks/token-store";
 import type { Confidence, Recommendation } from "@/lib/recommend/types";
-import { hasLeader, orderEvidence, recsFetchKey } from "@/lib/recommend/view";
+import { orderEvidence } from "@/lib/recommend/view";
 import type { FormatDef, GameAdapter } from "@/lib/games/types";
 
 /** Matches the hub staples table's tiers — one budget vocabulary site-wide. */
@@ -71,15 +74,13 @@ export function RecommendationsPanel({
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const [pendingAdd, setPendingAdd] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
   // Force-refetch counter (Refresh button / error retry) — part of the key.
   const [nonce, setNonce] = useState(0);
   const lastKeyRef = useRef<string | null>(null);
-  const resolveCacheRef = useRef(new Map<string, EditorCard>());
+  const { pendingAdd, notice, add } = useResolvedAdd(adapter, format, onAdd);
 
   const leader = hasLeader(entries, format);
-  const fetchKey = `${recsFetchKey(entries)}§b:${budget}§n:${nonce}`;
+  const fetchKey = `${deckStateKey(entries)}§b:${budget}§n:${nonce}`;
 
   useEffect(() => {
     if (!active || !leader || !deckId || saveStatus !== "saved") return;
@@ -119,41 +120,6 @@ export function RecommendationsPanel({
       if (!next.delete(cardId)) next.add(cardId);
       return next;
     });
-  };
-
-  /** Hydrate the slim payload to a full editor card, then add via the editor. */
-  const addRecommendation = async (rec: Recommendation) => {
-    setPendingAdd(rec.cardId);
-    setNotice(null);
-    try {
-      let card = resolveCacheRef.current.get(rec.cardId);
-      if (!card) {
-        const res = await fetch("/api/cards/resolve", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ game: adapter.id, format: format.code, names: [rec.name] }),
-        });
-        if (!res.ok) throw new Error(`Couldn't load ${rec.name} (${res.status}).`);
-        const json: { results: { match: CardWire | null }[] } = await res.json();
-        const match = json.results[0]?.match;
-        // The name came from our own card table, so an id mismatch means we'd
-        // be adding a different card than recommended — fail instead.
-        if (!match || match.id !== rec.cardId) {
-          throw new Error(`Couldn't load ${rec.name} — try adding it from search.`);
-        }
-        card = toEditorCard(match);
-        resolveCacheRef.current.set(rec.cardId, card);
-      }
-      const error = onAdd(card);
-      setNotice(error ? { text: error, tone: "err" } : { text: `Added ${rec.name}`, tone: "ok" });
-    } catch (err) {
-      setNotice({
-        text: err instanceof Error ? err.message : "Add failed — check your connection.",
-        tone: "err",
-      });
-    } finally {
-      setPendingAdd(null);
-    }
   };
 
   if (!leader) {
@@ -220,7 +186,7 @@ export function RecommendationsPanel({
               expanded={expanded.has(rec.cardId)}
               pending={pendingAdd === rec.cardId}
               onToggle={() => toggleExpanded(rec.cardId)}
-              onAdd={() => void addRecommendation(rec)}
+              onAdd={() => void add({ cardId: rec.cardId, name: rec.name })}
             />
           ))}
         </ul>

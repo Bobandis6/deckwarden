@@ -1,8 +1,9 @@
 /**
  * Recommendation data access (P3.1) — the engine's ONE batched IO layer
  * (hub/queries.ts style): a handful of set-based queries, no N+1, reading
- * only existing tables (card_identities popularity/prices, legalities,
- * combos) — no migration. Game specifics arrive as parameters (numeric
+ * only existing tables (card_identities popularity/prices, legalities, and
+ * combos via the shared detection layer in combos/queries.ts) — no
+ * migration. Game specifics arrive as parameters (numeric
  * game/format ids off the deck row, the adapter's declarative exclude
  * rules); nothing here imports a game module.
  *
@@ -13,10 +14,11 @@
 import { and, asc, eq, inArray, notInArray, sql, type SQL } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
+import { loadCombosNearDeck } from "@/lib/combos/queries";
 import type { RecommendMeta } from "@/lib/games/types";
 import type { CandidateCard, CandidateCombo } from "./types";
 
-const { cardIdentities, combos, comboPieces, deckCards, legalities } = schema;
+const { cardIdentities, deckCards, legalities } = schema;
 
 export interface CandidateFilter {
   gameId: number;
@@ -117,83 +119,28 @@ export async function loadCandidateRows(
 }
 
 /**
- * Most combos considered per request. Popularity-ordered, so what a cap ever
- * drops is the unranked/least-played tail — combo-dense decks lose the least
- * meaningful lines first, never silently the best ones.
- */
-export const COMBO_SCAN_LIMIT = 200;
-
-/**
  * Cards that would complete the CARD requirements of a combo with the deck:
  * combos color-fit to the deck where exactly one card piece is missing (the
- * candidate). Template requirements are disclosed in evidence, not resolved
- * — findForDeck template semantics stay with P3.3 (LATER.md).
+ * candidate), pivoted candidate-first for the ranker. Template requirements
+ * are disclosed in evidence, not resolved (P3.3: deckComboStatus is the one
+ * classifier — a template combo is never "complete" on cards alone).
  *
- * Entry is through combo_pieces_by_card on the deck's cards (the P2.5 index
- * contract) — never a full combos scan.
+ * The detection SQL is THE shared layer (combos/queries.ts, P3.3) — the
+ * Combo Radar runs the same query with `includeComplete: true`; this stays a
+ * pure pivot so the two surfaces can never drift apart.
  */
 export async function loadComboSignals(
   deckCardIds: readonly string[],
   deckCiMask: number,
 ): Promise<Map<string, CandidateCombo[]>> {
   const byCandidate = new Map<string, CandidateCombo[]>();
-  if (deckCardIds.length === 0) return byCandidate;
-  const db = getDb();
-  const deckIds = [...deckCardIds];
-
-  const oneAway = db
-    .select({ comboId: comboPieces.comboId })
-    .from(comboPieces)
-    .innerJoin(combos, eq(combos.id, comboPieces.comboId))
-    .where(inArray(comboPieces.cardIdentityId, deckIds))
-    .groupBy(comboPieces.comboId, combos.pieceCount)
-    .having(sql`count(*) = ${combos.pieceCount} - 1`);
-
-  const comboRows = await db
-    .select({
-      id: combos.id,
-      results: combos.results,
-      templates: combos.templates,
-      popularity: combos.popularity,
-    })
-    .from(combos)
-    .where(and(inArray(combos.id, oneAway), sql`(${combos.ciMask} & ~${deckCiMask}::int) = 0`))
-    .orderBy(sql`${combos.popularity} DESC NULLS LAST`, asc(combos.id))
-    .limit(COMBO_SCAN_LIMIT);
-  if (comboRows.length === 0) return byCandidate;
-
-  const pieceRows = await db
-    .select({
-      comboId: comboPieces.comboId,
-      cardId: cardIdentities.id,
-      name: cardIdentities.name,
-    })
-    .from(comboPieces)
-    .innerJoin(cardIdentities, eq(cardIdentities.id, comboPieces.cardIdentityId))
-    .where(
-      inArray(
-        comboPieces.comboId,
-        comboRows.map((c) => c.id),
-      ),
-    )
-    .orderBy(asc(cardIdentities.name));
-
-  const piecesByCombo = new Map<number, { cardId: string; name: string }[]>();
-  for (const row of pieceRows) {
-    const list = piecesByCombo.get(row.comboId) ?? [];
-    list.push({ cardId: row.cardId, name: row.name });
-    piecesByCombo.set(row.comboId, list);
-  }
-
-  const inDeck = new Set(deckIds);
-  for (const combo of comboRows) {
-    const pieces = piecesByCombo.get(combo.id) ?? [];
-    const missing = pieces.filter((p) => !inDeck.has(p.cardId));
-    if (missing.length !== 1) continue; // defensive: the SQL already guarantees this
-    const candidateId = missing[0].cardId;
+  const found = await loadCombosNearDeck(deckCardIds, deckCiMask, { includeComplete: false });
+  for (const combo of found.combos) {
+    if (combo.missingPieces.length !== 1) continue; // one-away mode guarantees this
+    const candidateId = combo.missingPieces[0].id;
     const list = byCandidate.get(candidateId) ?? [];
     list.push({
-      withPieces: pieces.filter((p) => inDeck.has(p.cardId)),
+      withPieces: combo.inDeckPieces.map((p) => ({ cardId: p.id, name: p.name })),
       results: combo.results,
       templates: combo.templates,
       popularity: combo.popularity,

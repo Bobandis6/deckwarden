@@ -1,19 +1,24 @@
 /**
  * Combo rows for card pages and commander hubs (P2.5). Pure server render
  * of ComboView data — zero client state, so host pages stay ISR-cacheable.
- * Each row deep-links to its Commander Spellbook page: that's both the
+ * Each row deep-links to its external walkthrough page (P3.3: built by the
+ * adapter's combos capability, no hardcoded source here): that's both the
  * attribution and the step-by-step walkthrough we deliberately don't store
  * (lean rows — the Neon budget).
  */
 import Link from "next/link";
 
 import type { ComboView } from "@/lib/combos/queries";
+import type { GameAdapter } from "@/lib/games/types";
 
 export function ComboList({
   combos,
+  combosMeta,
   anchorCardId,
 }: {
   combos: ComboView[];
+  /** The game's combo-source declaration (attribution + deep-link builder). */
+  combosMeta: NonNullable<GameAdapter["capabilities"]["combos"]>;
   /** The page's own card: rendered as plain text instead of a self-link. */
   anchorCardId?: string;
 }) {
@@ -46,12 +51,12 @@ export function ComboList({
           )}
           <p className="mt-1 text-xs">
             <a
-              href={`https://commanderspellbook.com/combo/${encodeURIComponent(combo.externalKey)}/`}
+              href={combosMeta.externalUrl(combo.externalKey)}
               className="text-muted-foreground underline"
               rel="noreferrer"
               target="_blank"
             >
-              How it works on Commander Spellbook ↗
+              How it works on {combosMeta.sourceLabel} ↗
             </a>
           </p>
         </li>

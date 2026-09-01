@@ -74,6 +74,15 @@ export const RATE_LIMITS = {
   recommendations: (ip: string | null): RateLimit[] => [
     { key: `recommend:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },
   ],
+  /**
+   * GET /api/decks/[id]/combos — the Combo Radar read (P3.3). Cheaper than
+   * recommendations (~4 queries vs ~6, no ranking pass) but publicly
+   * reachable the same way and fetched under the same once-per-settled-save
+   * panel policy — so the same 30/min stance, its own bucket.
+   */
+  deckCombos: (ip: string | null): RateLimit[] => [
+    { key: `deck-combos:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },
+  ],
   /** POST /api/decks/claim — once per sign-in, but each call can probe 100 ids. */
   deckClaim: (ip: string | null): RateLimit[] => [
     { key: `deck-claim:ip:${ip ?? "unknown"}`, max: 10, windowSeconds: 60 },

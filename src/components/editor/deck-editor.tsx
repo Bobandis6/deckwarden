@@ -2,10 +2,11 @@
 
 /**
  * The deck editor (P1.2): three panes — card search | deck list | card detail.
- * P3.2 makes the right pane tabbed (Card | Suggestions) for games whose
- * adapter declares recommendation signals; explicit card interactions
- * anywhere (search preview, deck-row click) flip back to the Card tab, while
- * adds from the Suggestions panel stay put and update the preview silently.
+ * P3.2 makes the right pane tabbed (Card | Suggestions | Combos, P3.3) —
+ * each panel tab only for games whose adapter declares its signals
+ * (recommend / capabilities.combos); explicit card interactions anywhere
+ * (search preview, deck-row click) flip back to the Card tab, while adds
+ * from the panels stay put and update the preview silently.
  *
  * The in-memory list is the single source of truth: every edit applies
  * optimistically via the pure helpers in src/lib/decks/editor-state.ts, then a
@@ -24,6 +25,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CardDetailPane } from "@/components/editor/card-detail-pane";
+import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
 import { DetailsDialog, type DeckDetails } from "@/components/editor/details-dialog";
 import { ExportDialog, ImportDialog } from "@/components/editor/import-export";
@@ -136,9 +138,9 @@ export function DeckEditor({
   const [preview, setPreview] = useState<EditorCard | null>(null);
   const [dialog, setDialog] = useState<"import" | "export" | "share" | "details" | null>(null);
   const [share, setShare] = useState<{ publicId: string; visibility: DeckVisibility } | null>(null);
-  // Right pane tab (P3.2). liveDeckId mirrors deckIdRef as STATE so the
-  // Suggestions panel re-renders when draft mode's first save mints the row.
-  const [rightTab, setRightTab] = useState<"card" | "suggest">("card");
+  // Right pane tab (P3.2/P3.3). liveDeckId mirrors deckIdRef as STATE so the
+  // panels re-render when draft mode's first save mints the row.
+  const [rightTab, setRightTab] = useState<"card" | "suggest" | "combos">("card");
   const [liveDeckId, setLiveDeckId] = useState<string | null>(initialDeckId);
 
   // Refs mirror the state the save callback needs, so an autosave always
@@ -361,9 +363,10 @@ export function DeckEditor({
     [format, applyEdit, showCard],
   );
 
-  // Adds from the Suggestions panel (P3.2): same edit path as handleAdd, but
-  // the preview updates without stealing the tab — the user is mid-scan.
-  const handleAddSuggestion = useCallback(
+  // Adds from the right-pane panels (Suggestions P3.2, Combo Radar P3.3):
+  // same edit path as handleAdd, but the preview updates without stealing
+  // the tab — the user is mid-scan.
+  const handlePanelAdd = useCallback(
     (card: EditorCard): string | undefined => {
       if (!format) return "Deck not loaded yet";
       const mainZone = format.zones.find((z) => !z.isLeaderZone);
@@ -625,33 +628,56 @@ export function DeckEditor({
           aria-label="Card detail and suggestions"
           className="min-h-0 lg:overflow-y-auto lg:border-l"
         >
-          {load.adapter.recommend ? (
+          {load.adapter.recommend || load.adapter.capabilities.combos ? (
             <>
               <div role="tablist" aria-label="Right pane view" className="flex gap-1 border-b p-2">
                 <RightTab active={rightTab === "card"} onClick={() => setRightTab("card")}>
                   Card
                 </RightTab>
-                <RightTab active={rightTab === "suggest"} onClick={() => setRightTab("suggest")}>
-                  Suggestions
-                </RightTab>
+                {load.adapter.recommend && (
+                  <RightTab active={rightTab === "suggest"} onClick={() => setRightTab("suggest")}>
+                    Suggestions
+                  </RightTab>
+                )}
+                {load.adapter.capabilities.combos && (
+                  <RightTab active={rightTab === "combos"} onClick={() => setRightTab("combos")}>
+                    Combos
+                  </RightTab>
+                )}
               </div>
               <div role="tabpanel" hidden={rightTab !== "card"}>
                 <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
               </div>
-              {/* Mounted while hidden so results survive tab flips; `active`
-                  keeps the hidden panel from fetching. */}
-              <div role="tabpanel" hidden={rightTab !== "suggest"}>
-                <RecommendationsPanel
-                  adapter={load.adapter}
-                  format={load.format}
-                  deckId={liveDeckId}
-                  entries={entries}
-                  inDeckQty={inDeckQty}
-                  saveStatus={autosave.status}
-                  active={rightTab === "suggest"}
-                  onAdd={handleAddSuggestion}
-                />
-              </div>
+              {/* Panels stay mounted while hidden so results survive tab
+                  flips; `active` keeps a hidden panel from fetching. */}
+              {load.adapter.recommend && (
+                <div role="tabpanel" hidden={rightTab !== "suggest"}>
+                  <RecommendationsPanel
+                    adapter={load.adapter}
+                    format={load.format}
+                    deckId={liveDeckId}
+                    entries={entries}
+                    inDeckQty={inDeckQty}
+                    saveStatus={autosave.status}
+                    active={rightTab === "suggest"}
+                    onAdd={handlePanelAdd}
+                  />
+                </div>
+              )}
+              {load.adapter.capabilities.combos && (
+                <div role="tabpanel" hidden={rightTab !== "combos"}>
+                  <ComboRadarPanel
+                    adapter={load.adapter}
+                    format={load.format}
+                    deckId={liveDeckId}
+                    entries={entries}
+                    inDeckQty={inDeckQty}
+                    saveStatus={autosave.status}
+                    active={rightTab === "combos"}
+                    onAdd={handlePanelAdd}
+                  />
+                </div>
+              )}
             </>
           ) : (
             <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />

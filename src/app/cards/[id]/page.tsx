@@ -238,16 +238,20 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
             </table>
           </div>
 
-          {combosData.total > 0 && (
+          {adapter.capabilities.combos && combosData.total > 0 && (
             <section aria-label="Combos" className="mt-8">
               <h2 className="text-lg font-semibold">Combos using this card</h2>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 {combosData.total > COMBOS_SHOWN
                   ? `The ${combosData.combos.length} most-played of ${combosData.total} combos`
                   : `${combosData.total === 1 ? "One combo" : `${combosData.total} combos`}`}{" "}
-                featuring this card, from Commander Spellbook.
+                featuring this card, from {adapter.capabilities.combos.sourceLabel}.
               </p>
-              <ComboList combos={combosData.combos} anchorCardId={identity.id} />
+              <ComboList
+                combos={combosData.combos}
+                combosMeta={adapter.capabilities.combos}
+                anchorCardId={identity.id}
+              />
             </section>
           )}
         </div>
