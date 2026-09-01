@@ -25,6 +25,7 @@
     "smoke:account": "tsx scripts/account-delete-smoke.ts",
     "smoke:hubs": "tsx scripts/hubs-smoke.ts",
     "smoke:combos": "tsx scripts/combos-smoke.ts",
+    "smoke:recommend": "tsx scripts/recommend-smoke.ts",
     "smoke:seo": "tsx scripts/seo-smoke.ts",
     "search:canned": "tsx scripts/canned-searches.ts",
     "db:size": "tsx scripts/db-size.ts"

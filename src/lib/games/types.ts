@@ -186,6 +186,65 @@ export type SearchFieldDef =
   | { key: string; label: string; kind: "colorset"; target: FieldTarget };
 
 // ---------------------------------------------------------------------------
+// Recommendation signal metadata (P3.1)
+// ---------------------------------------------------------------------------
+//
+// The scoring/evidence MACHINE is core (src/lib/recommend/) and shared across
+// games — "explainable suggestions" is the platform identity, not a game
+// feature. What lives here is only what the core cannot know: what the
+// generic `popularity` column MEANS for this game, the editorial target
+// curve and which cards count toward it, combo-source naming, and the
+// evidence sentences in the game's own English. Everything is pure data +
+// pure builders (no IO, no SQL) — the searchFields philosophy: adapters
+// declare, core translates.
+
+/** The card fields curve bucketing reads — a structural subset of CardData. */
+export type CurveCardInput = Pick<CardData, "primaryType" | "costValue">;
+
+export interface RecommendMeta {
+  /**
+   * What CardData.popularity is for this game (MTG: edhrec_rank). Absent =
+   * the game has no popularity signal yet — the engine then simply emits no
+   * popularity evidence (cold-start rule: a missing signal is missing, never
+   * faked with a neutral score).
+   */
+  popularity?: {
+    /** Real data-source name, shown in evidence payloads (e.g. "edhrec_rank"). */
+    source: string;
+    evidence(rank: number): { why: string; howOften: string };
+  };
+  /**
+   * Editorial target curve — the recommend-side face of the hub template
+   * (adapter.hub): bucket counts for a COMPLETE deck's curve slots, using the
+   * analytics histogram convention (index = cost, last bucket = "N+"). For
+   * MTG these sum with the hub roles' land count to the deck size.
+   */
+  curve?: {
+    source: string;
+    buckets: readonly number[];
+    /** Which bucket a card fills; null = outside curve logic (lands, no cost). */
+    bucketOf(card: CurveCardInput): number | null;
+    evidence(i: { bucketLabel: string; current: number; target: number }): { why: string };
+  };
+  /** Combo participation (MTG: Commander Spellbook). Absent = no combo signal. */
+  combos?: {
+    source: string;
+    evidence(i: {
+      withNames: string[];
+      results: string[];
+      templates: string[];
+      popularity: number | null;
+    }): { why: string; howOften: string | null };
+  };
+  /**
+   * Cards that are never advice (MTG: basic lands — "Forest is not advice").
+   * Declarative single-segment attrs paths the core translates to SQL
+   * (`attrs->>key NOT LIKE pattern`), so adapters stay SQL-free.
+   */
+  exclude?: readonly { jsonbPath: [string]; likePattern: string }[];
+}
+
+// ---------------------------------------------------------------------------
 // Optional capabilities (game-exclusive services — absent = feature hidden)
 // ---------------------------------------------------------------------------
 
@@ -248,6 +307,12 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
     templateTitle: string;
     roles: { label: string; count: number; hint?: string }[];
   };
+
+  /**
+   * Recommendation signal metadata (P3.1). Absent = no recommendations for
+   * this game. Pure data + pure builders; the engine is src/lib/recommend/.
+   */
+  recommend?: RecommendMeta;
 
   capabilities: {
     /** MTG M2: Commander Spellbook. The one intentionally non-pure surface (IO behind core). */

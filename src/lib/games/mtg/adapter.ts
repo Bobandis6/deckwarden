@@ -7,6 +7,7 @@ import type { MtgAttrs } from "./attrs";
 import { analyzeMtg } from "./analyze";
 import { parseMtgDecklist, serializeMtgDecklist } from "./decklist";
 import { MTG_FORMATS } from "./formats";
+import { mtgRecommend } from "./recommend";
 import { validateMtg } from "./validate";
 
 type MtgCard = CardData<MtgAttrs>;
@@ -149,6 +150,10 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
       { label: "Synergy & win conditions", count: 33, hint: "the deck's actual plan" },
     ],
   },
+
+  // Recommendation signals (P3.1): edhrec_rank + Spellbook + the curve
+  // template above, phrased in ./recommend.ts; the engine is core.
+  recommend: mtgRecommend,
 
   // combos (Spellbook) lands in M2; tournaments (Topdeck) in M3.
   capabilities: {},
