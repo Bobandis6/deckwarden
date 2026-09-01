@@ -18,6 +18,7 @@
     "db:studio": "drizzle-kit studio",
     "ingest:scryfall": "tsx scripts/ingest/scryfall.ts",
     "ingest:spellbook": "tsx scripts/ingest/spellbook.ts",
+    "ingest:topdeck": "tsx scripts/ingest/topdeck.ts",
     "decks:purge": "tsx scripts/purge-anon-decks.ts",
     "smoke:decks": "tsx scripts/deck-api-smoke.ts",
     "smoke:profile": "tsx scripts/profile-folders-smoke.ts",

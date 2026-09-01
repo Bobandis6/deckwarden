@@ -44,3 +44,6 @@ next-env.d.ts
 # claude code session files (commit settings.json if it appears)
 .claude/*
 !.claude/settings.json
+
+# raw Topdeck API responses (ingest writes, workflow archives to R2)
+.topdeck-raw/

@@ -26,6 +26,7 @@ import { updatedLabel } from "@/lib/decks/display";
 import { ciPipsHtml } from "@/lib/games/colors";
 import { getAdapter } from "@/lib/games/registry";
 import type { CardData } from "@/lib/games/types";
+import { MIN_EVENT_PLAYERS, TOP_PLACEMENT } from "@/lib/games/mtg/topdeck-map";
 import { staplesCurveBlock } from "@/lib/hub/curve";
 import {
   loadDefaultPrinting,
@@ -36,6 +37,27 @@ import {
   STAPLES_LIMIT,
 } from "@/lib/hub/queries";
 import { breadcrumbJsonLd, JsonLd } from "@/lib/seo/jsonld";
+import { loadTopFinishes, TOP_FINISHES_SHOWN } from "@/lib/tournaments/queries";
+
+/** 1 → "1st", 12 → "12th" — placements only ever hit 1..16. */
+function ordinal(n: number): string {
+  const rem10 = n % 10;
+  const rem100 = n % 100;
+  if (rem10 === 1 && rem100 !== 11) return `${n}st`;
+  if (rem10 === 2 && rem100 !== 12) return `${n}nd`;
+  if (rem10 === 3 && rem100 !== 13) return `${n}rd`;
+  return `${n}th`;
+}
+
+/** "2026-08-30" → "Aug 30, 2026", pinned to UTC so the date column never shifts a day. */
+function eventDateLabel(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
 
 export const revalidate = 3600;
 
@@ -61,16 +83,18 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
   const leader = await getLeader(slug);
   if (!leader) notFound();
 
-  const [printing, status, staples, combosData, hubDecks] = await Promise.all([
+  const [printing, status, staples, combosData, hubDecks, topFinishes] = await Promise.all([
     loadDefaultPrinting(leader.id),
     loadLeaderStatus(leader.id),
     loadStaples(leader),
     // Only combos a deck with THIS commander could actually run (CI fit).
     loadCombosForCard(leader.id, { fitCiMask: leader.ciMask }),
     loadHubDecks(leader.id),
+    loadTopFinishes(leader.id),
   ]);
 
   const adapter = getAdapter("mtg");
+  const tournamentsMeta = adapter.capabilities.tournaments;
   const card: CardData = {
     id: leader.id,
     name: leader.name,
@@ -216,6 +240,78 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
         </section>
       )}
 
+      {tournamentsMeta && topFinishes.total > 0 && (
+        <section aria-label="Top finishes" className="mt-10 max-w-2xl">
+          <h2 className="text-lg font-semibold">Top finishes</h2>
+          <p className="text-muted-foreground mt-0.5 text-xs">
+            {topFinishes.total > TOP_FINISHES_SHOWN
+              ? `The ${TOP_FINISHES_SHOWN} most recent of ${topFinishes.total} finishes`
+              : topFinishes.total === 1
+                ? "One finish"
+                : `${topFinishes.total} finishes`}{" "}
+            placing top {TOP_PLACEMENT} at {MIN_EVENT_PLAYERS}+ player events with this commander.
+            Results from{" "}
+            <a
+              href={tournamentsMeta.sourceHref}
+              className="underline"
+              rel="noreferrer"
+              target="_blank"
+            >
+              {tournamentsMeta.sourceLabel}
+            </a>
+            .
+          </p>
+          <ul className="mt-2 divide-y rounded-lg border">
+            {topFinishes.finishes.map((finish) => {
+              const partners = finish.leaderNames.filter((name) => name !== leader.name);
+              const record =
+                finish.wins !== null && finish.losses !== null
+                  ? `${finish.wins}–${finish.losses}–${finish.draws ?? 0}`
+                  : null;
+              return (
+                <li
+                  key={`${finish.externalKey}-${finish.placement}`}
+                  className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 py-2"
+                >
+                  <span className="min-w-0">
+                    <span className="text-sm">
+                      <span className="font-semibold tabular-nums">
+                        {ordinal(finish.placement)}
+                      </span>{" "}
+                      <span className="text-muted-foreground">of {finish.playerCount}</span> —{" "}
+                      <a
+                        href={tournamentsMeta.eventUrl(finish.externalKey)}
+                        className="font-medium underline-offset-2 hover:underline"
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {finish.eventName} ↗
+                      </a>
+                    </span>
+                    <span className="text-muted-foreground block text-xs">
+                      {eventDateLabel(finish.startDate)}
+                      {record && <span title="wins–losses–draws"> · {record}</span>}
+                      {partners.length > 0 && <> · with {partners.join(" and ")}</>}
+                      {finish.playerName && <> · by {finish.playerName}</>}
+                    </span>
+                  </span>
+                  {finish.decklistUrl && (
+                    <a
+                      href={finish.decklistUrl}
+                      className="shrink-0 text-xs underline"
+                      rel="noreferrer nofollow"
+                      target="_blank"
+                    >
+                      Decklist ↗
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {hubDecks.length > 0 && (
         <section aria-label="Decks with this commander" className="mt-10 max-w-2xl">
           <h2 className="text-lg font-semibold">Decks with this commander</h2>
@@ -264,6 +360,21 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
               target="_blank"
             >
               Commander Spellbook
+            </a>
+            .
+          </>
+        )}
+        {tournamentsMeta && topFinishes.total > 0 && (
+          <>
+            {" "}
+            Tournament results courtesy of{" "}
+            <a
+              href={tournamentsMeta.sourceHref}
+              className="underline"
+              rel="noreferrer"
+              target="_blank"
+            >
+              {tournamentsMeta.sourceLabel}
             </a>
             .
           </>

@@ -116,6 +116,33 @@ async function main() {
     check("unknown slug → 404", (await page("/c/zz-no-such-commander-zz")).status === 404);
     check("malformed slug → 404", (await page("/c/Not%20A%20Slug!")).status === 404);
 
+    // ---- Top finishes shelf (P3.5) ----------------------------------------
+    // Honest in both states: with tournament rows, the busiest leader's hub
+    // must render the shelf + the required Topdeck credit; with none (key not
+    // yet minted), the shelf must be ABSENT (never an empty shell).
+    const [finisher] = await sql`
+      SELECT ci.name, ci.slug, count(*)::int AS finishes
+      FROM tournament_standings ts
+      JOIN tournaments t ON t.id = ts.tournament_id AND t.game_id = 1
+      JOIN card_identities ci ON ci.id = ANY(ts.leader_ids)
+      WHERE ci.slug IS NOT NULL
+      GROUP BY ci.name, ci.slug ORDER BY count(*) DESC LIMIT 1`;
+    if (finisher) {
+      const finisherHub = await page(`/c/${finisher.slug as string}`);
+      check(
+        `top finishes shelf renders for "${finisher.name as string}" (${finisher.finishes} finishes)`,
+        finisherHub.status === 200 && finisherHub.text.includes("Top finishes"),
+      );
+      check(
+        "top finishes shelf carries the Topdeck.gg credit + event link",
+        finisherHub.text.includes("Topdeck.gg") &&
+          finisherHub.text.includes("https://topdeck.gg/event/"),
+      );
+    } else {
+      console.log("  (no tournament rows yet — dormant; asserting the shelf stays hidden)");
+      check("no tournament rows → no Top finishes shelf", !hub.text.includes("Top finishes"));
+    }
+
     // ---- slug hygiene (DB-level) -----------------------------------------
     const dupes = await sql`
       SELECT slug FROM card_identities WHERE game_id = 1 AND slug IS NOT NULL

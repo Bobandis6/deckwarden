@@ -36,6 +36,22 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      # Skips loudly while the TOPDECK_API_KEY secret is unset (dormant deploy);
+      # with the key, any error is a hard fail like the sibling steps.
+      - name: Ingest Topdeck tournament results (after the card jobs — commanders resolve via name_norm)
+        run: pnpm ingest:topdeck
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TOPDECK_API_KEY: ${{ secrets.TOPDECK_API_KEY }}
+
+      - name: Archive raw Topdeck responses to R2 (no-op when dormant)
+        run: bash scripts/archive-topdeck-raw.sh
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+
       - name: Database size gauge (fails over 350MB — the alert channel)
         run: pnpm db:size
         env:

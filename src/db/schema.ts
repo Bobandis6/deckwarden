@@ -597,6 +597,91 @@ export const comboPieces = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Tournaments (P3.5) — Topdeck.gg
+// ---------------------------------------------------------------------------
+
+/**
+ * One row per kept tournament (P3.5, plan §5 "Topdeck.gg"). Game-agnostic on
+ * purpose — M4's Limitless line wants exactly this shape — so `source` scopes
+ * `external_key` ('topdeck' + TID today; 'limitless' later) and every row
+ * carries game_id/format_id like everything else. The event deep link is
+ * derived from (source, external_key) by the adapter capability
+ * (`capabilities.tournaments.eventUrl`), never stored.
+ *
+ * Kept bounds (disclosed on the shelf): events with ≥ 16 players, standings
+ * to placement ≤ 16 ("top-16 lists" — the plan's own top-X phrase, at
+ * EDHTop16's conventional X). Neon math at those bounds: a tournament row is
+ * ~120B + indexes (~300B all-in); a standings row ~130B + GIN/btree (~250B
+ * all-in). Even at 200 kept events/week × 16 standings for a 180-day
+ * backfill (≈5.2k events, 83k standings) that is ~1.6MB + ~21MB against the
+ * 350MB alert line (203.9MB measured 2026-08-31) — and real EDH volume at
+ * the ≥16-player floor is expected well under that.
+ */
+export const tournaments = pgTable(
+  "tournaments",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    gameId: smallint("game_id")
+      .notNull()
+      .references(() => games.id),
+    formatId: smallint("format_id")
+      .notNull()
+      .references(() => formats.id),
+    /** Data source: 'topdeck' (M4: 'limitless'). */
+    source: text("source").notNull(),
+    /** Source's own event id (topdeck TID) — dedupe key + deep-link handle. */
+    externalKey: text("external_key").notNull(),
+    name: text("name").notNull(),
+    /** Event date (source-reported start, UTC). Windowing uses ingest_runs, not this. */
+    startDate: date("start_date").notNull(),
+    playerCount: smallint("player_count").notNull(),
+    /** Source-reported top cut size, when stated. */
+    topCut: smallint("top_cut"),
+  },
+  (t) => [
+    unique("tournaments_source_key").on(t.source, t.externalKey),
+    /** Hub shelves and any future "recent events" rail read newest-first per game. */
+    index("tournaments_game_date").on(t.gameId, t.startDate.desc()),
+  ],
+);
+
+/**
+ * One row per kept standing (placement ≤ 16). `leader_ids` mirrors the
+ * decks.leader_ids precedent — a uuid[] of card_identities ids (2 entries =
+ * partners) under a GIN index, so "top finishes for commander X" is the same
+ * `@>` containment query hubs already run against decks_hub. Names resolve
+ * at ingest via normalizeCardName against name_norm EXACTLY (never trgm — a
+ * fuzzy wrong-card match would poison every shelf silently); unresolved
+ * standings are skipped with a counted reason, spellbook-style. Card-level
+ * lists are deliberately NOT stored (lean rows): `decklist_url` links out
+ * when the source carries one.
+ */
+export const tournamentStandings = pgTable(
+  "tournament_standings",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    tournamentId: integer("tournament_id")
+      .notNull()
+      .references(() => tournaments.id, { onDelete: "cascade" }),
+    /** 1-based final placement — the merge key within an event. */
+    placement: smallint("placement").notNull(),
+    /** Public standings name as the source published it; display-only. */
+    playerName: text("player_name"),
+    /** Resolved commander identity ids (1–2, sorted for deterministic rows). */
+    leaderIds: uuid("leader_ids").array().notNull(),
+    /** External decklist link when the source carries a URL (Moxfield etc.); never fetched. */
+    decklistUrl: text("decklist_url"),
+    wins: smallint("wins"),
+    draws: smallint("draws"),
+    losses: smallint("losses"),
+  },
+  (t) => [
+    unique("tournament_standings_event_place").on(t.tournamentId, t.placement),
+    index("ts_by_leader").using("gin", t.leaderIds),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Rate limiting (P1.8)
 // ---------------------------------------------------------------------------
 

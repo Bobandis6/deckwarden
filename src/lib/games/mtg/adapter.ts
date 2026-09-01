@@ -158,12 +158,21 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
   capabilities: {
     // Combo data: Commander Spellbook (P2.5 ingest; P3.3 Radar). Detection IO
     // is core (src/lib/combos/) — this is attribution + the walkthrough link,
-    // matching the recommend.sources credit. tournaments (Topdeck) is P3.5.
+    // matching the recommend.sources credit.
     combos: {
       sourceLabel: "Commander Spellbook",
       sourceHref: "https://commanderspellbook.com",
       externalUrl: (externalKey) =>
         `https://commanderspellbook.com/combo/${encodeURIComponent(externalKey)}/`,
+    },
+    // Tournament results: Topdeck.gg (P3.5 ingest). Query IO is core
+    // (src/lib/tournaments/); the visible credit + event link are the API's
+    // hard attribution requirement, rendered wherever the data appears.
+    tournaments: {
+      sourceLabel: "Topdeck.gg",
+      sourceHref: "https://topdeck.gg",
+      // /event/{TID} verified against a live raw-TID event page 2026-09-01.
+      eventUrl: (externalKey) => `https://topdeck.gg/event/${encodeURIComponent(externalKey)}`,
     },
   },
 };

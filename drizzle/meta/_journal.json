@@ -78,6 +78,13 @@
       "when": 1788141413670,
       "tag": "0010_swift_harrier",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788243919891,
+      "tag": "0011_charming_jackpot",
+      "breakpoints": true
     }
   ]
 }

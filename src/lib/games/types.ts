@@ -396,7 +396,22 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
       /** Deep link to one combo's external walkthrough page. */
       externalUrl(externalKey: string): string;
     };
-    /** MTG M3: Topdeck.gg. */
-    tournaments?: boolean;
+    /**
+     * Tournament results exist for this game (MTG: Topdeck.gg, P3.5; M4:
+     * Limitless). Declarative like `combos`: the tables are game-agnostic
+     * (tournaments/tournament_standings → card_identities) and all query IO
+     * is core (src/lib/tournaments/) — what lives here is only what core
+     * can't know: the REQUIRED visible credit (the plan's risk table makes
+     * "Topdeck.gg credit + link wherever tournament data appears" a hard
+     * attribution rule) and the event deep link derived from external_key.
+     */
+    tournaments?: {
+      /** Display name for credit lines, e.g. "Topdeck.gg". */
+      sourceLabel: string;
+      /** The data source's home page (credit link). */
+      sourceHref: string;
+      /** Deep link to one event's page on the source. */
+      eventUrl(externalKey: string): string;
+    };
   };
 }
