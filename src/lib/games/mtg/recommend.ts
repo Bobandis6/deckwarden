@@ -74,6 +74,15 @@ export const mtgRecommend: RecommendMeta = {
     },
   },
 
+  // Evidence-source display names + credit links (P3.2 panel). Spellbook's
+  // link matches the card/hub-page attribution; the curve template gets no
+  // link — it's Deckwarden editorial, not an external dataset.
+  sources: {
+    edhrec_rank: { label: "EDHREC", href: "https://edhrec.com" },
+    spellbook: { label: "Commander Spellbook", href: "https://commanderspellbook.com" },
+    "curve-template": { label: "Curve template" },
+  },
+
   // Basic lands are never advice (hub staples precedent).
   exclude: [{ jsonbPath: ["type_line"], likePattern: "%Basic%" }],
 };

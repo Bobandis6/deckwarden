@@ -2,6 +2,10 @@
 
 /**
  * The deck editor (P1.2): three panes — card search | deck list | card detail.
+ * P3.2 makes the right pane tabbed (Card | Suggestions) for games whose
+ * adapter declares recommendation signals; explicit card interactions
+ * anywhere (search preview, deck-row click) flip back to the Card tab, while
+ * adds from the Suggestions panel stay put and update the preview silently.
  *
  * The in-memory list is the single source of truth: every edit applies
  * optimistically via the pure helpers in src/lib/decks/editor-state.ts, then a
@@ -23,6 +27,7 @@ import { CardDetailPane } from "@/components/editor/card-detail-pane";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
 import { DetailsDialog, type DeckDetails } from "@/components/editor/details-dialog";
 import { ExportDialog, ImportDialog } from "@/components/editor/import-export";
+import { RecommendationsPanel } from "@/components/editor/recommendations-panel";
 import { SearchPane } from "@/components/editor/search-pane";
 import { ShareDialog, type DeckVisibility } from "@/components/editor/share-dialog";
 import { useAutosave } from "@/components/editor/use-autosave";
@@ -131,6 +136,10 @@ export function DeckEditor({
   const [preview, setPreview] = useState<EditorCard | null>(null);
   const [dialog, setDialog] = useState<"import" | "export" | "share" | "details" | null>(null);
   const [share, setShare] = useState<{ publicId: string; visibility: DeckVisibility } | null>(null);
+  // Right pane tab (P3.2). liveDeckId mirrors deckIdRef as STATE so the
+  // Suggestions panel re-renders when draft mode's first save mints the row.
+  const [rightTab, setRightTab] = useState<"card" | "suggest">("card");
+  const [liveDeckId, setLiveDeckId] = useState<string | null>(initialDeckId);
 
   // Refs mirror the state the save callback needs, so an autosave always
   // serializes the latest edits regardless of when the debounce fires. The
@@ -175,6 +184,7 @@ export function DeckEditor({
       // Adopt the deck before the token check: if storage is broken the row
       // exists either way, and retrying must not mint duplicates.
       deckIdRef.current = json.deck.id;
+      setLiveDeckId(json.deck.id);
       setShare({ publicId: json.deck.publicId, visibility: json.deck.visibility });
       // Same editor, real URL from here on — reloads and back/forward land on
       // /decks/[id]/edit; no remount, no lost pane state.
@@ -334,12 +344,33 @@ export function DeckEditor({
 
   const format = load.state === "ready" ? load.format : null;
 
+  // Explicit card interactions (search preview/add, deck-row clicks) show the
+  // card — including flipping the right pane back to the Card tab (P3.2).
+  const showCard = useCallback((card: EditorCard) => {
+    setPreview(card);
+    setRightTab("card");
+  }, []);
+
   const handleAdd = useCallback(
     (card: EditorCard, zoneId: string, qty: number): string | undefined => {
       if (!format) return "Deck not loaded yet";
       setCards((prev) => (prev.has(card.id) ? prev : new Map(prev).set(card.id, card)));
-      setPreview(card);
+      showCard(card);
       return applyEdit(addCard(entriesRef.current, format, zoneId, card.id, qty));
+    },
+    [format, applyEdit, showCard],
+  );
+
+  // Adds from the Suggestions panel (P3.2): same edit path as handleAdd, but
+  // the preview updates without stealing the tab — the user is mid-scan.
+  const handleAddSuggestion = useCallback(
+    (card: EditorCard): string | undefined => {
+      if (!format) return "Deck not loaded yet";
+      const mainZone = format.zones.find((z) => !z.isLeaderZone);
+      if (!mainZone) return "This format has no main zone";
+      setCards((prev) => (prev.has(card.id) ? prev : new Map(prev).set(card.id, card)));
+      setPreview(card);
+      return applyEdit(addCard(entriesRef.current, format, mainZone.id, card.id, 1));
     },
     [format, applyEdit],
   );
@@ -571,7 +602,7 @@ export function DeckEditor({
             format={load.format}
             inDeckQty={inDeckQty}
             onAdd={handleAdd}
-            onPreview={setPreview}
+            onPreview={showCard}
           />
         </section>
         <section
@@ -587,14 +618,73 @@ export function DeckEditor({
             analytics={analytics}
             onSetQty={handleSetQty}
             onRemove={handleRemove}
-            onPreview={setPreview}
+            onPreview={showCard}
           />
         </section>
-        <section aria-label="Card detail" className="min-h-0 lg:overflow-y-auto lg:border-l">
-          <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
+        <section
+          aria-label="Card detail and suggestions"
+          className="min-h-0 lg:overflow-y-auto lg:border-l"
+        >
+          {load.adapter.recommend ? (
+            <>
+              <div role="tablist" aria-label="Right pane view" className="flex gap-1 border-b p-2">
+                <RightTab active={rightTab === "card"} onClick={() => setRightTab("card")}>
+                  Card
+                </RightTab>
+                <RightTab active={rightTab === "suggest"} onClick={() => setRightTab("suggest")}>
+                  Suggestions
+                </RightTab>
+              </div>
+              <div role="tabpanel" hidden={rightTab !== "card"}>
+                <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
+              </div>
+              {/* Mounted while hidden so results survive tab flips; `active`
+                  keeps the hidden panel from fetching. */}
+              <div role="tabpanel" hidden={rightTab !== "suggest"}>
+                <RecommendationsPanel
+                  adapter={load.adapter}
+                  format={load.format}
+                  deckId={liveDeckId}
+                  entries={entries}
+                  inDeckQty={inDeckQty}
+                  saveStatus={autosave.status}
+                  active={rightTab === "suggest"}
+                  onAdd={handleAddSuggestion}
+                />
+              </div>
+            </>
+          ) : (
+            <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
+          )}
         </section>
       </div>
     </div>
+  );
+}
+
+function RightTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+        active
+          ? "bg-accent text-accent-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 

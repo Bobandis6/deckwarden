@@ -1,9 +1,10 @@
 /**
  * /api/decks/[id]/recommendations — the recommendation engine, end-to-end
- * (P3.1). DARK: no UI calls this yet — P3.2's builder panel is the consumer;
- * it exists so the engine is provable against real data (smoke:recommend)
- * and so P3.2 starts from a working API. Read access mirrors the deck GET
- * (owner always; non-owners unless private).
+ * (P3.1). Consumed by the builder's Suggestions panel (P3.2), which fetches
+ * once per settled autosave burst; smoke:recommend proves the evidence
+ * contract against live data. Read access mirrors the deck GET (owner
+ * always; non-owners unless private). Rate-limited per IP (P3.2): the
+ * costliest read in the app, reachable on any public deck.
  *
  * Caching intent: force-dynamic + no-store — output depends on the deck's
  * current cards (mid-edit) and on who is asking (x-deck-token / session for
@@ -13,7 +14,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { MAX_LIMIT, recommendForDeck } from "@/lib/recommend/engine";
+import { clientIp } from "@/lib/decks/access";
 import { requireReadableDeck } from "@/lib/decks/route-helpers";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +32,9 @@ export async function GET(
   request: NextRequest,
   ctx: RouteContext<"/api/decks/[id]/recommendations">,
 ) {
+  const limited = await enforceRateLimit(RATE_LIMITS.recommendations(clientIp(request.headers)));
+  if (limited) return limited;
+
   const { id } = await ctx.params;
   const access = await requireReadableDeck(request.headers, id);
   if (access instanceof NextResponse) return access;

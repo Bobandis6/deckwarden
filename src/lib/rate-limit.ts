@@ -64,6 +64,16 @@ export const RATE_LIMITS = {
   decksMine: (ip: string | null): RateLimit[] => [
     { key: `decks-mine:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },
   ],
+  /**
+   * GET /api/decks/[id]/recommendations — the one rate-limited READ (P3.2
+   * call): ~4 batched queries + ranking make it the most compute-expensive
+   * request on the Neon budget, and public decks expose it to anyone. The
+   * panel fetches once per settled autosave burst, so 30/min is unreachable
+   * in honest use while still cutting scripted hammering off.
+   */
+  recommendations: (ip: string | null): RateLimit[] => [
+    { key: `recommend:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },
+  ],
   /** POST /api/decks/claim — once per sign-in, but each call can probe 100 ids. */
   deckClaim: (ip: string | null): RateLimit[] => [
     { key: `deck-claim:ip:${ip ?? "unknown"}`, max: 10, windowSeconds: 60 },

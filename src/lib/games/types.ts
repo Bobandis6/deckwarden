@@ -237,6 +237,14 @@ export interface RecommendMeta {
     }): { why: string; howOften: string | null };
   };
   /**
+   * Display metadata for evidence sources, keyed by the source slugs above
+   * (P3.2's panel): human name + optional credit link, so attribution is a
+   * game declaration, not a core-side lookup table. Purely presentational —
+   * payloads keep carrying the raw slug, and a slug without an entry renders
+   * as-is (honest, just unpolished).
+   */
+  sources?: Readonly<Record<string, { label: string; href?: string }>>;
+  /**
    * Cards that are never advice (MTG: basic lands — "Forest is not advice").
    * Declarative single-segment attrs paths the core translates to SQL
    * (`attrs->>key NOT LIKE pattern`), so adapters stay SQL-free.
