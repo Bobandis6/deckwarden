@@ -29,14 +29,24 @@ export function mtgCurveBucketOf(card: CurveCardInput): number | null {
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
+/**
+ * The popularity tier boundaries — ONE vocabulary for both directions
+ * (P3.1 add evidence, P3.4 cut evidence): "staple" through STAPLE_RANK,
+ * "widely played" through WIDELY_PLAYED_RANK, scoped wording beyond. The
+ * Cut Coach flips which side of the tradeoff each tier argues, never the
+ * boundaries or the words.
+ */
+export const STAPLE_RANK = 2000;
+export const WIDELY_PLAYED_RANK = 10000;
+
 export const mtgRecommend: RecommendMeta = {
   popularity: {
     source: "edhrec_rank",
     evidence(rank) {
       const why =
-        rank <= 2000
+        rank <= STAPLE_RANK
           ? "A Commander staple by EDHREC play data"
-          : rank <= 10000
+          : rank <= WIDELY_PLAYED_RANK
             ? "Widely played in Commander decks"
             : "Sees Commander play";
       return { why, howOften: `EDHREC rank #${fmt(rank)}` };
@@ -74,13 +84,86 @@ export const mtgRecommend: RecommendMeta = {
     },
   },
 
+  /**
+   * Cut Coach phrasing (P3.4): every sentence states the TRADEOFF — what
+   * cutting costs (or doesn't cost) the deck — over the same data the add
+   * direction uses. Tier words and boundaries are shared with `popularity`
+   * above; the curve/role targets are the one editorial skeleton
+   * (MTG_CURVE_TEMPLATE / hub.roles); combo warnings fire only for combos
+   * that are truly complete (deckComboStatus — template combos never were).
+   */
+  cuts: {
+    popularity: {
+      evidence(rank) {
+        const howOften = `EDHREC rank #${fmt(rank)}`;
+        if (rank <= STAPLE_RANK) {
+          return {
+            why: "A Commander staple by EDHREC play data — cutting it gives up a proven card",
+            howOften,
+            side: "keep",
+          };
+        }
+        if (rank <= WIDELY_PLAYED_RANK) {
+          return {
+            why: "Widely played in Commander decks — it usually earns its slot",
+            howOften,
+            side: "keep",
+          };
+        }
+        return {
+          why: "Outside the widely-played tier of Commander cards",
+          howOften,
+          side: "cut",
+        };
+      },
+    },
+    curve: {
+      evidence({ bucketLabel, current, target }) {
+        return {
+          why: `${current} nonland cards at mana value ${bucketLabel} vs the template's ~${target} — this bucket has slack`,
+        };
+      },
+    },
+    roles: {
+      source: "role-template",
+      evidence({ role, tagged, target }) {
+        return {
+          why: `${tagged} of your cards are tagged ${role}; the template suggests ~${target}`,
+        };
+      },
+    },
+    combos: {
+      evidence({ withNames, results, popularity }) {
+        const partners = withNames.join(" + ");
+        const payoff = results.length
+          ? ` (${results.slice(0, 2).join(", ")}${results.length > 2 ? ", …" : ""})`
+          : "";
+        return {
+          why: `Part of ${partners}${payoff} — cutting it breaks the combo`,
+          howOften:
+            popularity !== null ? `In ${fmt(popularity)} decks on Commander Spellbook` : null,
+        };
+      },
+    },
+    price: {
+      source: "price",
+      minUsd: 10,
+      evidence({ usd }) {
+        return { why: `Costs $${usd} while sitting outside the widely-played tier` };
+      },
+    },
+  },
+
   // Evidence-source display names + credit links (P3.2 panel). Spellbook's
   // link matches the card/hub-page attribution; the curve template gets no
-  // link — it's Deckwarden editorial, not an external dataset.
+  // link — it's Deckwarden editorial, not an external dataset (the role
+  // template and card prices likewise).
   sources: {
     edhrec_rank: { label: "EDHREC", href: "https://edhrec.com" },
     spellbook: { label: "Commander Spellbook", href: "https://commanderspellbook.com" },
     "curve-template": { label: "Curve template" },
+    "role-template": { label: "Role template" },
+    price: { label: "Card price" },
   },
 
   // Basic lands are never advice (hub staples precedent).

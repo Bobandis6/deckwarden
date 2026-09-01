@@ -195,8 +195,9 @@ export function RecommendationsPanel({
   );
 }
 
-/** Confidence exactly as the engine reports it — text, not just color. */
-function ConfidenceChip({ level }: { level: Confidence }) {
+/** Confidence exactly as the engine reports it — text, not just color.
+ *  Exported for the Cut Coach panel (P3.4) — one confidence rendering. */
+export function ConfidenceChip({ level }: { level: Confidence }) {
   const tone =
     level === "high"
       ? "border-emerald-600/40 text-emerald-600 dark:text-emerald-400"
@@ -208,8 +209,9 @@ function ConfidenceChip({ level }: { level: Confidence }) {
   );
 }
 
-/** Adapter-declared display name for a source slug; the raw slug otherwise. */
-function sourceMeta(adapter: GameAdapter, source: string): { label: string; href?: string } {
+/** Adapter-declared display name for a source slug; the raw slug otherwise.
+ *  Exported for the Cut Coach panel (P3.4) — one attribution lookup. */
+export function sourceMeta(adapter: GameAdapter, source: string): { label: string; href?: string } {
   return adapter.recommend?.sources?.[source] ?? { label: source };
 }
 

@@ -45,7 +45,8 @@ export const COMBO_EVIDENCE_CAP = 3;
 
 const CONFIDENCE_ORDER: Record<Confidence, number> = { low: 0, medium: 1, high: 2 };
 
-function maxConfidence(entries: readonly RecommendationEvidence[]): Confidence {
+/** Max over evidence entries' confidence (shared with cuts.ts). */
+export function maxConfidence(entries: readonly RecommendationEvidence[]): Confidence {
   let best: Confidence = "low";
   for (const e of entries) {
     if (CONFIDENCE_ORDER[e.confidence] > CONFIDENCE_ORDER[best]) best = e.confidence;

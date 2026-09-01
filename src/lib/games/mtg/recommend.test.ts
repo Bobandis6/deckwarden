@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { mtgAdapter } from "./adapter";
-import { MTG_CURVE_TEMPLATE, mtgCurveBucketOf, mtgRecommend } from "./recommend";
+import {
+  MTG_CURVE_TEMPLATE,
+  mtgCurveBucketOf,
+  mtgRecommend,
+  STAPLE_RANK,
+  WIDELY_PLAYED_RANK,
+} from "./recommend";
 
 describe("curve template ↔ hub template coherence", () => {
   it("curve buckets + hub lands = the hub template's 99 role slots", () => {
@@ -75,5 +81,69 @@ describe("evidence phrasing (sources named, honesty scoped)", () => {
 
   it("declares basic lands as never-advise", () => {
     expect(mtgRecommend.exclude).toEqual([{ jsonbPath: ["type_line"], likePattern: "%Basic%" }]);
+  });
+});
+
+describe("cut phrasing (P3.4 — the tradeoff in the deck's own terms)", () => {
+  const cuts = mtgRecommend.cuts!;
+
+  it("shares the popularity tier boundaries with the add direction, flipping the side", () => {
+    // Same scoped words at the same ranks: a staple stays a staple in both
+    // directions; only which side of the tradeoff it argues changes.
+    const staple = cuts.popularity!.evidence(STAPLE_RANK);
+    expect(staple.side).toBe("keep");
+    expect(staple.why).toContain("staple");
+    expect(staple.howOften).toBe(`EDHREC rank #${STAPLE_RANK.toLocaleString("en-US")}`);
+
+    const widely = cuts.popularity!.evidence(WIDELY_PLAYED_RANK);
+    expect(widely.side).toBe("keep");
+    expect(widely.why).toContain("Widely played");
+
+    const deep = cuts.popularity!.evidence(WIDELY_PLAYED_RANK + 1);
+    expect(deep.side).toBe("cut");
+    expect(deep.why).not.toContain("staple");
+    expect(deep.why).toContain("widely-played tier");
+  });
+
+  it("phrases curve slack with the template's real counts", () => {
+    const { why } = cuts.curve!.evidence({ bucketLabel: "3", current: 18, target: 13 });
+    expect(why).toContain("18 nonland cards at mana value 3");
+    expect(why).toContain("~13");
+  });
+
+  it("phrases role overload as tagged counts vs the template", () => {
+    expect(cuts.roles?.source).toBe("role-template");
+    const { why } = cuts.roles!.evidence({ role: "Ramp", tagged: 13, target: 10 });
+    expect(why).toBe("13 of your cards are tagged Ramp; the template suggests ~10");
+  });
+
+  it("says a cut breaks the combo, naming the partners and the play count", () => {
+    const { why, howOften } = cuts.combos!.evidence({
+      withNames: ["Basalt Monolith", "Rings of Brighthearth"],
+      results: ["Infinite colorless mana"],
+      popularity: 6412,
+    });
+    expect(why).toContain("Part of Basalt Monolith + Rings of Brighthearth");
+    expect(why).toContain("cutting it breaks the combo");
+    expect(why).toContain("Infinite colorless mana");
+    expect(howOften).toBe("In 6,412 decks on Commander Spellbook");
+    expect(
+      cuts.combos!.evidence({ withNames: ["A"], results: [], popularity: null }).howOften,
+    ).toBeNull();
+  });
+
+  it("prices against the play-data tier it compounds, above a real floor", () => {
+    expect(cuts.price?.minUsd).toBe(10);
+    const { why } = cuts.price!.evidence({ usd: "42.50" });
+    expect(why).toContain("$42.50");
+    expect(why).toContain("widely-played tier");
+  });
+
+  it("declares display metadata for every cut evidence source", () => {
+    // Curve/popularity/combo reuse the sibling slugs; roles and price add
+    // their own — all must render with a human label in the panel.
+    for (const slug of ["edhrec_rank", "curve-template", "spellbook", "role-template", "price"]) {
+      expect(mtgRecommend.sources?.[slug]?.label).toBeTruthy();
+    }
   });
 });

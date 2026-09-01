@@ -37,6 +37,8 @@ interface DeckListPaneProps {
   onSetQty: (zoneId: string, cardId: string, qty: number) => string | undefined;
   onRemove: (zoneId: string, cardId: string) => void;
   onPreview: (card: EditorCard) => void;
+  /** Opens the Cut Coach tab (P3.4); absent when the game declares no cuts. */
+  onOpenCuts?: (() => void) | undefined;
 }
 
 export function DeckListPane({
@@ -49,6 +51,7 @@ export function DeckListPane({
   onSetQty,
   onRemove,
   onPreview,
+  onOpenCuts,
 }: DeckListPaneProps) {
   // Stored preference wins; absent fields fall back (group to the adapter's
   // default). Read once — this pane only mounts client-side, after deck load.
@@ -84,7 +87,20 @@ export function DeckListPane({
     <div className="p-3">
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-semibold">Deck</h2>
-        <span className="text-muted-foreground text-sm tabular-nums">{sizeLabel} cards</span>
+        <span className="flex items-baseline gap-2">
+          {/* The over-limit pain point (the DECK_SIZE error's always-visible
+              face) links straight to the Cut Coach (P3.4). */}
+          {onOpenCuts && format.deckSize.max !== null && total > format.deckSize.max && (
+            <button
+              type="button"
+              onClick={onOpenCuts}
+              className="text-destructive cursor-pointer text-xs font-medium hover:underline"
+            >
+              Over by {total - format.deckSize.max} — rank cuts
+            </button>
+          )}
+          <span className="text-muted-foreground text-sm tabular-nums">{sizeLabel} cards</span>
+        </span>
       </div>
 
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">

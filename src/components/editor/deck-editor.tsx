@@ -26,6 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CardDetailPane } from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
+import { CutCoachPanel } from "@/components/editor/cut-coach-panel";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
 import { DetailsDialog, type DeckDetails } from "@/components/editor/details-dialog";
 import { ExportDialog, ImportDialog } from "@/components/editor/import-export";
@@ -138,10 +139,11 @@ export function DeckEditor({
   const [preview, setPreview] = useState<EditorCard | null>(null);
   const [dialog, setDialog] = useState<"import" | "export" | "share" | "details" | null>(null);
   const [share, setShare] = useState<{ publicId: string; visibility: DeckVisibility } | null>(null);
-  // Right pane tab (P3.2/P3.3). liveDeckId mirrors deckIdRef as STATE so the
-  // panels re-render when draft mode's first save mints the row.
-  const [rightTab, setRightTab] = useState<"card" | "suggest" | "combos">("card");
+  // Right pane tab (P3.2/P3.3/P3.4). liveDeckId mirrors deckIdRef as STATE so
+  // the panels re-render when draft mode's first save mints the row.
+  const [rightTab, setRightTab] = useState<"card" | "suggest" | "combos" | "cuts">("card");
   const [liveDeckId, setLiveDeckId] = useState<string | null>(initialDeckId);
+  const rightPaneRef = useRef<HTMLElement | null>(null);
 
   // Refs mirror the state the save callback needs, so an autosave always
   // serializes the latest edits regardless of when the debounce fires. The
@@ -386,6 +388,13 @@ export function DeckEditor({
     [format, applyEdit],
   );
 
+  // The deck-list header's over-limit CTA (P3.4): flip to the Cut Coach tab
+  // and, on stacked mobile, bring the right pane into view.
+  const openCuts = useCallback(() => {
+    setRightTab("cuts");
+    rightPaneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   const handleRemove = useCallback(
     (zoneId: string, cardId: string) => {
       applyEdit({ entries: removeCard(entriesRef.current, zoneId, cardId) });
@@ -622,9 +631,11 @@ export function DeckEditor({
             onSetQty={handleSetQty}
             onRemove={handleRemove}
             onPreview={showCard}
+            onOpenCuts={load.adapter.recommend?.cuts ? openCuts : undefined}
           />
         </section>
         <section
+          ref={rightPaneRef}
           aria-label="Card detail and suggestions"
           className="min-h-0 lg:overflow-y-auto lg:border-l"
         >
@@ -642,6 +653,13 @@ export function DeckEditor({
                 {load.adapter.capabilities.combos && (
                   <RightTab active={rightTab === "combos"} onClick={() => setRightTab("combos")}>
                     Combos
+                  </RightTab>
+                )}
+                {/* Always-on when declared (P3.4): no layout shift at the
+                    limit — the under-limit state says nothing needs cutting. */}
+                {load.adapter.recommend?.cuts && (
+                  <RightTab active={rightTab === "cuts"} onClick={() => setRightTab("cuts")}>
+                    Cuts
                   </RightTab>
                 )}
               </div>
@@ -675,6 +693,20 @@ export function DeckEditor({
                     saveStatus={autosave.status}
                     active={rightTab === "combos"}
                     onAdd={handlePanelAdd}
+                  />
+                </div>
+              )}
+              {load.adapter.recommend?.cuts && (
+                <div role="tabpanel" hidden={rightTab !== "cuts"}>
+                  <CutCoachPanel
+                    adapter={load.adapter}
+                    format={load.format}
+                    deckId={liveDeckId}
+                    entries={entries}
+                    cards={cards}
+                    saveStatus={autosave.status}
+                    active={rightTab === "cuts"}
+                    onSetQty={handleSetQty}
                   />
                 </div>
               )}

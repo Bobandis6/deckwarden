@@ -201,6 +201,62 @@ export type SearchFieldDef =
 /** The card fields curve bucketing reads — a structural subset of CardData. */
 export type CurveCardInput = Pick<CardData, "primaryType" | "costValue">;
 
+/** Which side of a cut tradeoff an evidence line argues (P3.4 Cut Coach). */
+export type CutSide = "cut" | "keep";
+
+/**
+ * Cut Coach phrasing (P3.4) — the cut-direction face of RecommendMeta. Each
+ * block phrases a signal whose DATA the sibling declarations already carry:
+ * `popularity`/`curve`/`combos` reuse those blocks' sources and predicates
+ * (declare cuts.popularity only alongside popularity, etc.); `roles` reads
+ * the hub template (adapter.hub.roles) against user tags. The machine is
+ * core (src/lib/recommend/cuts.ts): weights, evidence assembly, confidence,
+ * and ordering are shared across games — only the sentences live here.
+ */
+export interface CutsMeta {
+  /**
+   * Tradeoff phrasing per popularity tier, over the sibling `popularity`
+   * source. `side` is the adapter's tier call: "keep" where the data says
+   * the card earns its slot (cutting costs the deck something), "cut"
+   * beyond. The machine's price signal keys off this side.
+   */
+  popularity?: {
+    evidence(rank: number): { why: string; howOften: string; side: CutSide };
+  };
+  /** Bucket-overload phrasing over the sibling `curve` template (buckets/bucketOf reused). */
+  curve?: {
+    evidence(i: { bucketLabel: string; current: number; target: number }): { why: string };
+  };
+  /**
+   * Role-overload phrasing vs the hub template. Counts cover ONLY cards the
+   * user tagged with a role label (case-insensitive exact match) — roles are
+   * never inferred from card text, and untagged cards get no role evidence.
+   */
+  roles?: {
+    /** Evidence-source slug (editorial, like the curve template). */
+    source: string;
+    evidence(i: { role: string; tagged: number; target: number }): { why: string };
+  };
+  /** "Cutting breaks it" phrasing over the sibling `combos` source (complete combos only). */
+  combos?: {
+    evidence(i: { withNames: string[]; results: string[]; popularity: number | null }): {
+      why: string;
+      howOften: string | null;
+    };
+  };
+  /**
+   * Price-vs-contribution phrasing. The machine fires it only when the
+   * card's popularity evidence came back side "cut" (measured weak play)
+   * AND cheapestUsd ≥ minUsd — a price with nothing to weigh it against is
+   * a fact, not a tradeoff (cold-start rule).
+   */
+  price?: {
+    source: string;
+    minUsd: number;
+    evidence(i: { usd: string }): { why: string };
+  };
+}
+
 export interface RecommendMeta {
   /**
    * What CardData.popularity is for this game (MTG: edhrec_rank). Absent =
@@ -244,6 +300,14 @@ export interface RecommendMeta {
    * as-is (honest, just unpolished).
    */
   sources?: Readonly<Record<string, { label: string; href?: string }>>;
+  /**
+   * Cut Coach phrasing (P3.4). Absent = no Cut Coach for this game. Sits
+   * inside RecommendMeta (not beside it) because every block scopes to a
+   * sibling declaration here — same sources, same tier boundaries, same
+   * curve predicate — and the sources display map above covers both
+   * directions.
+   */
+  cuts?: CutsMeta;
   /**
    * Cards that are never advice (MTG: basic lands — "Forest is not advice").
    * Declarative single-segment attrs paths the core translates to SQL
