@@ -80,7 +80,19 @@ export interface StandingRow {
   losses: number | null;
 }
 
-export type TournamentSkip = "malformed" | "too_small" | "no_usable_standings";
+export type TournamentSkip = "malformed" | "outside_window" | "too_small" | "no_usable_standings";
+
+/**
+ * Start-date bounds for a run's fetch window (unix seconds, inclusive). The
+ * probe (2026-09-01) proved the API can return events OUTSIDE the requested
+ * range — including a future-dated test event that a start_date-DESC shelf
+ * would pin to the top forever — so the mapper re-checks what the filter
+ * promised instead of trusting it.
+ */
+export interface WindowBounds {
+  minStartSeconds: number;
+  maxStartSeconds: number;
+}
 export type StandingSkip =
   | "beyond_top_placement"
   | "no_deck_data"
@@ -175,11 +187,13 @@ function textOrNull(v: unknown, maxLen: number): string | null {
 
 /**
  * Map one bulk-response tournament. `resolveName` looks a NORMALIZED name up
- * in card_identities.name_norm (exact — the IO script passes a Map lookup).
+ * in card_identities.name_norm (exact — the IO script passes a Map lookup);
+ * `window` re-checks the fetch window's own promise (see WindowBounds).
  */
 export function mapTournament(
   t: TopdeckTournament,
   resolveName: (nameNorm: string) => string | undefined,
+  window?: WindowBounds,
 ): TournamentMapResult {
   const externalKey = textOrNull(t.TID, 200);
   const name = textOrNull(t.tournamentName, 300);
@@ -188,6 +202,9 @@ export function mapTournament(
       ? t.startDate
       : null;
   if (!externalKey || !name || startSeconds === null) return { ok: false, skip: "malformed" };
+  if (window && (startSeconds < window.minStartSeconds || startSeconds > window.maxStartSeconds)) {
+    return { ok: false, skip: "outside_window" };
+  }
 
   const rawStandings: TopdeckStanding[] = Array.isArray(t.standings)
     ? (t.standings as TopdeckStanding[])

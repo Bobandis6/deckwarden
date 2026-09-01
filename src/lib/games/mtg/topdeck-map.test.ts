@@ -258,6 +258,18 @@ describe("mapTournament", () => {
     });
   });
 
+  it("re-checks the fetch window — the API returned a future-dated test event in probing", () => {
+    const window = { minStartSeconds: 1756512000 - 86400, maxStartSeconds: 1756512000 + 86400 };
+    const inWindow = mapTournament(tournament(), resolve, window);
+    expect(inWindow.ok).toBe(true);
+    expect(
+      mapTournament(tournament({ startDate: 1756512000 + 400 * 86400 }), resolve, window),
+    ).toEqual({ ok: false, skip: "outside_window" });
+    expect(
+      mapTournament(tournament({ startDate: 1756512000 - 400 * 86400 }), resolve, window),
+    ).toEqual({ ok: false, skip: "outside_window" });
+  });
+
   it("measures embedded-list coverage without storing lists (LATER rows' gate)", () => {
     expect(hasCardList(standing({ deckObj: { Commanders: {}, Mainboard: mainboard(95) } }))).toBe(
       true,

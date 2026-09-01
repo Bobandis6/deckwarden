@@ -55,8 +55,12 @@ const USER_AGENT = "Deckwarden/1.0 (https://deckwarden.gg)";
 const BACKFILL_DAYS = 180;
 /** Nightly overlap re-fetched because results settle after events end. */
 const TRAILING_REFETCH_DAYS = 14;
-/** Per-request date span — window pagination that no server paging scheme can break. */
-const CHUNK_DAYS = 30;
+/**
+ * Per-request date span — window pagination that no server paging scheme can
+ * break. Sized from the live probe (2026-09-01): 7 days of ≥16-player EDH
+ * with embedded deckObjs weighed ~20MB, so 10 days keeps responses ~30MB.
+ */
+const CHUNK_DAYS = 10;
 const REQUEST_GAP_MS = 1100;
 const MAX_ATTEMPTS = 4;
 const RAW_DIR = ".topdeck-raw";
@@ -252,7 +256,12 @@ async function main() {
         if (tid) seenTids.add(tid);
 
         stats.tournaments_seen++;
-        const mapped = mapTournament(t, (norm) => byNameNorm.get(norm));
+        // A day of slack each side; anything further out (probe found a
+        // future-dated test event) is the API ignoring its own filter.
+        const mapped = mapTournament(t, (norm) => byNameNorm.get(norm), {
+          minStartSeconds: windowStartS - DAY_S,
+          maxStartSeconds: endS + DAY_S,
+        });
         if (!mapped.ok) {
           stats.tournament_skips[mapped.skip] = (stats.tournament_skips[mapped.skip] ?? 0) + 1;
           continue;
