@@ -63,6 +63,8 @@ const TRAILING_REFETCH_DAYS = 14;
 const CHUNK_DAYS = 10;
 const REQUEST_GAP_MS = 1100;
 const MAX_ATTEMPTS = 4;
+/** 5xx / network retry backoff: 15s, 30s, 45s — well inside the job timeout. */
+const TRANSIENT_BACKOFF_MS = 15_000;
 const RAW_DIR = ".topdeck-raw";
 /** Session-wide lock id shared by all Deckwarden ingest jobs (see scryfall.ts). */
 const INGEST_LOCK_KEY = 7234015309;
@@ -97,7 +99,12 @@ interface Stats {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** POST one date chunk; retries 429s per Retry-After, hard-fails anything else. */
+/**
+ * POST one date chunk. Retries 429s per Retry-After and transient failures
+ * (5xx, network errors) with backoff — the first unattended night
+ * (2026-09-01) died on a single upstream 500 that returned 200 seconds later
+ * — and hard-fails 4xx (a contract problem retrying can't fix).
+ */
 async function fetchChunk(
   apiKey: string,
   startS: number,
@@ -116,21 +123,40 @@ async function fetchChunk(
   });
   for (let attempt = 1; ; attempt++) {
     stats.requests++;
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: apiKey,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "User-Agent": USER_AGENT,
-      },
-      body,
-    });
+    let res: Response;
+    try {
+      res = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: apiKey,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "User-Agent": USER_AGENT,
+        },
+        body,
+      });
+    } catch (err) {
+      if (attempt >= MAX_ATTEMPTS) throw err;
+      const waitMs = TRANSIENT_BACKOFF_MS * attempt;
+      stats.retries++;
+      console.log(
+        `network error (${err instanceof Error ? err.message : String(err)}) — waiting ${waitMs}ms (attempt ${attempt}/${MAX_ATTEMPTS})`,
+      );
+      await sleep(waitMs);
+      continue;
+    }
     if (res.status === 429 && attempt < MAX_ATTEMPTS) {
       const retryAfter = Number(res.headers.get("retry-after"));
       const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 15000;
       stats.retries++;
       console.log(`429 — waiting ${waitMs}ms (attempt ${attempt}/${MAX_ATTEMPTS})`);
+      await sleep(waitMs);
+      continue;
+    }
+    if (res.status >= 500 && attempt < MAX_ATTEMPTS) {
+      const waitMs = TRANSIENT_BACKOFF_MS * attempt;
+      stats.retries++;
+      console.log(`${res.status} — waiting ${waitMs}ms (attempt ${attempt}/${MAX_ATTEMPTS})`);
       await sleep(waitMs);
       continue;
     }

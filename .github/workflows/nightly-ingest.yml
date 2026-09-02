@@ -37,7 +37,8 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       # Skips loudly while the TOPDECK_API_KEY secret is unset (dormant deploy);
-      # with the key, any error is a hard fail like the sibling steps.
+      # with the key, any error is a hard fail like the sibling steps — the
+      # job goes red, but the safety steps below still run (see !cancelled()).
       - name: Ingest Topdeck tournament results (after the card jobs — commanders resolve via name_norm)
         run: pnpm ingest:topdeck
         env:
@@ -45,6 +46,7 @@ jobs:
           TOPDECK_API_KEY: ${{ secrets.TOPDECK_API_KEY }}
 
       - name: Archive raw Topdeck responses to R2 (no-op when dormant)
+        if: ${{ !cancelled() }}
         run: bash scripts/archive-topdeck-raw.sh
         env:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
@@ -52,12 +54,17 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
 
+      # The remaining steps don't depend on the ingests, and the gauge + backup
+      # are the safety net: they must run even when an ingest step fails
+      # (2026-09-01: one Topdeck 500 skipped the gauge and the backup).
       - name: Database size gauge (fails over 350MB — the alert channel)
+        if: ${{ !cancelled() }}
         run: pnpm db:size
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Purge stale anonymous decks (dry-run until the PURGE_ANON_DECKS_APPLY repo variable is "true")
+        if: ${{ !cancelled() }}
         run: pnpm decks:purge
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -68,6 +75,7 @@ jobs:
       # has a local Postgres 16 cluster, which makes Debian's pg_wrapper resolve
       # `pg_dump` to 16 even with 17 installed — put 17's real binaries on PATH.
       - name: Install Postgres 17 client for pg_dump
+        if: ${{ !cancelled() }}
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl --fail -sS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
@@ -77,6 +85,7 @@ jobs:
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
       - name: Back up user tables to R2 (no-op until R2 secrets are configured)
+        if: ${{ !cancelled() }}
         run: bash scripts/backup-user-tables.sh
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
