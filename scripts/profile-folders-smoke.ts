@@ -13,6 +13,13 @@
  * see better-call/dist/crypto.mjs). Both the plain and __Secure- cookie
  * names are sent so the server's baseURL mode doesn't matter. Everything is
  * cleaned up in `finally`, pass or fail.
+ *
+ * Deck creates are checked before their ids are recorded: POST /api/decks is
+ * rate-limited per IP (10/hour, 30/day), and a 429 mid-run used to leave an
+ * undefined id in the cleanup list — the `finally` then crashed on it
+ * (postgres UNDEFINED_VALUE) and the minted users + "Smoke Deck" rows stayed
+ * behind in prod (found twice on 2026-09-02). Now a failed create aborts the
+ * run with the status in the message, and cleanup only ever deletes real ids.
  */
 import { createHmac, randomBytes, randomUUID } from "node:crypto";
 
@@ -68,6 +75,22 @@ async function api(
     /* non-JSON (pages, 204s) is fine */
   }
   return { status: res.status, json, text };
+}
+
+/**
+ * Abort the run (cleanup still runs) when a deck create didn't return an id —
+ * almost always the per-IP deck-create limiter. Recording an undefined id
+ * would only crash later, in cleanup, with the cause lost.
+ */
+function requireDeckId(
+  label: string,
+  res: { status: number; json: unknown; text: string },
+  id: unknown,
+): string {
+  if (typeof id === "string" && id.length > 0) return id;
+  throw new Error(
+    `${label} failed (HTTP ${res.status}${res.status === 429 ? " — the per-IP deck-create limiter; see rate_limit_counters" : ""}): ${res.text.slice(0, 200)}`,
+  );
 }
 
 /** Loose JSON accessor for smoke assertions — shape mistakes fail the checks, not the compile. */
@@ -178,12 +201,12 @@ async function main() {
       body: { game: "mtg", format: "commander", name: `Smoke Deck ${run}` },
     });
     const deck = j<{ id: string; publicId: string }>(j(deckRes.json).deck);
+    cleanup.deckIds.push(requireDeckId("session deck create", deckRes, deck.id));
     check(
       "session deck created (no claim token)",
       deckRes.status === 201 && j(deckRes.json).claimToken === null,
       deckRes.json,
     );
-    cleanup.deckIds.push(deck.id);
 
     const filed = await api("PATCH", `/api/decks/${deck.id}`, {
       cookie: alice.cookie,
@@ -215,7 +238,7 @@ async function main() {
     });
     const guest = j<{ id: string }>(j(guestRes.json).deck);
     const guestToken = j(guestRes.json).claimToken as string;
-    cleanup.deckIds.push(guest.id);
+    cleanup.deckIds.push(requireDeckId("guest deck create", guestRes, guest.id));
     check(
       "guest deck into a folder → 400 (sign in first)",
       (
@@ -301,12 +324,17 @@ async function main() {
       afterDelete.json,
     );
   } finally {
-    if (cleanup.deckIds.length > 0) {
-      await sql`delete from decks where id in ${sql(cleanup.deckIds)}`;
+    // Only real ids reach the DELETEs: an undefined here once crashed the
+    // cleanup itself and left the fixtures behind.
+    const isId = (v: unknown): v is string => typeof v === "string" && v.length > 0;
+    const deckIds = cleanup.deckIds.filter(isId);
+    const userIds = cleanup.userIds.filter(isId);
+    if (deckIds.length > 0) {
+      await sql`delete from decks where id in ${sql(deckIds)}`;
     }
-    if (cleanup.userIds.length > 0) {
+    if (userIds.length > 0) {
       // Sessions + remaining folders go with the users (FK cascade).
-      await sql`delete from users where id in ${sql(cleanup.userIds)}`;
+      await sql`delete from users where id in ${sql(userIds)}`;
     }
     await sql.end();
   }
