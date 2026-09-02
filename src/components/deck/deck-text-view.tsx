@@ -24,6 +24,8 @@ interface DeckTextViewProps {
   /** Absent = read-only (share pages): no remove button. */
   onRemove?: (zoneId: string, cardId: string) => void;
   onPreview: (card: EditorCard) => void;
+  /** Card ids the viewer owns any printing of (P3.7); absent = no collection, no marks. */
+  owned?: ReadonlySet<string>;
 }
 
 export function DeckTextView({
@@ -33,6 +35,7 @@ export function DeckTextView({
   onSetQty,
   onRemove,
   onPreview,
+  owned,
 }: DeckTextViewProps) {
   return (
     <>
@@ -85,6 +88,18 @@ export function DeckTextView({
                     />
                   )}
                   <span className="truncate">{card.name}</span>
+                  {/* Owned mark (P3.7): inside the truncating name button, so it
+                      never shifts the row's steppers or pips. */}
+                  {owned?.has(card.id) && (
+                    <span
+                      role="img"
+                      aria-label="In your collection"
+                      title="In your collection"
+                      className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400"
+                    >
+                      ✓
+                    </span>
+                  )}
                 </button>
                 <CostPips html={adapter.display.costHtml(card)} className="shrink-0 text-xs" />
                 {onRemove && (

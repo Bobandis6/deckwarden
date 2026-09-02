@@ -15,6 +15,7 @@ import { LeaderZone } from "@/components/deck/leader-zone";
 import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
+import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
 import { deckSizeCount, type EditorCard, type EditorEntry } from "@/lib/decks/editor-state";
 import { issueSeverityByCard } from "@/lib/decks/validation";
 import {
@@ -39,6 +40,10 @@ interface DeckListPaneProps {
   onPreview: (card: EditorCard) => void;
   /** Opens the Cut Coach tab (P3.4); absent when the game declares no cuts. */
   onOpenCuts?: (() => void) | undefined;
+  /** Card ids the owner owns any printing of (P3.7); undefined = no collection imported. */
+  owned?: ReadonlySet<string>;
+  /** "You own N/100 · missing ≈ $Y" (P3.7); null = no collection imported, nothing shown. */
+  ownership?: OwnershipSummary | null;
 }
 
 export function DeckListPane({
@@ -52,6 +57,8 @@ export function DeckListPane({
   onRemove,
   onPreview,
   onOpenCuts,
+  owned,
+  ownership = null,
 }: DeckListPaneProps) {
   // Stored preference wins; absent fields fall back (group to the adapter's
   // default). Read once — this pane only mounts client-side, after deck load.
@@ -87,7 +94,7 @@ export function DeckListPane({
     <div className="p-3">
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-semibold">Deck</h2>
-        <span className="flex items-baseline gap-2">
+        <span className="flex flex-wrap items-baseline justify-end gap-x-2">
           {/* The over-limit pain point (the DECK_SIZE error's always-visible
               face) links straight to the Cut Coach (P3.4). */}
           {onOpenCuts && format.deckSize.max !== null && total > format.deckSize.max && (
@@ -100,6 +107,17 @@ export function DeckListPane({
             </button>
           )}
           <span className="text-muted-foreground text-sm tabular-nums">{sizeLabel} cards</span>
+          {/* Collection line (P3.7): only for owners with an imported
+              collection — never a fake "0/100" for someone who has none. */}
+          {ownership && (
+            <span
+              className="text-muted-foreground text-xs tabular-nums"
+              title={OWNERSHIP_METHOD}
+              data-testid="ownership-line"
+            >
+              · {ownershipLine(ownership)}
+            </span>
+          )}
         </span>
       </div>
 
@@ -170,9 +188,10 @@ export function DeckListPane({
           onSetQty={setQtyChecked}
           onRemove={onRemove}
           onPreview={onPreview}
+          owned={owned}
         />
       ) : (
-        <DeckGridView groups={groups} severity={severity} onPreview={onPreview} />
+        <DeckGridView groups={groups} severity={severity} onPreview={onPreview} owned={owned} />
       )}
 
       {/* P2.7: same widget as the share page — pure client state, below the

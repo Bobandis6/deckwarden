@@ -14,9 +14,11 @@ interface DeckGridViewProps {
   /** Worst validation severity per card id (P1.4) — drives the card rings. */
   severity: ReadonlyMap<string, "error" | "warning">;
   onPreview: (card: EditorCard) => void;
+  /** Card ids the viewer owns any printing of (P3.7); absent = no collection, no badges. */
+  owned?: ReadonlySet<string>;
 }
 
-export function DeckGridView({ groups, severity, onPreview }: DeckGridViewProps) {
+export function DeckGridView({ groups, severity, onPreview, owned }: DeckGridViewProps) {
   return (
     <>
       {groups.map((group) => (
@@ -63,6 +65,16 @@ export function DeckGridView({ groups, severity, onPreview }: DeckGridViewProps)
                 >
                   ×{entry.qty}
                 </span>
+                {/* Owned badge (P3.7) sits top-left: the bottom of the frame is
+                    the artist/© line, which stays uncovered (CLAUDE.md). */}
+                {owned?.has(card.id) && (
+                  <span
+                    aria-label="In your collection"
+                    className="bg-background/85 pointer-events-none absolute top-1 left-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-emerald-700 shadow-sm dark:text-emerald-400"
+                  >
+                    ✓ Owned
+                  </span>
+                )}
               </li>
             ))}
           </ul>

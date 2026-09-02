@@ -25,10 +25,12 @@ import { DeckShareView } from "@/components/deck/deck-share-view";
 import { PrivateShareGate } from "@/components/deck/private-share-gate";
 import { getDb, schema } from "@/db";
 import { getSessionUserId } from "@/lib/auth";
+import { deckOwnedForViewer } from "@/lib/collection/owned";
+import { deckOwnership } from "@/lib/collection/ownership";
 import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
 import { viewerEngagement } from "@/lib/decks/engagement";
 import { forkCredit } from "@/lib/decks/forks";
-import { loadDeckByPublicId } from "@/lib/decks/route-helpers";
+import { deckFormat, loadDeckByPublicId } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { deckJsonLd, JsonLd } from "@/lib/seo/jsonld";
 
@@ -93,6 +95,21 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
     // without name or link, except to someone who can read it.
     forkCredit(deck, { token: null, userId: sessionUserId }),
   ]);
+  // "You own N/100 · missing ≈ $Y" (P3.7) — the signed-in viewer's OWN
+  // collection against this deck, computed server-side like viewerEngagement
+  // and rendered only when they have imported one. Signed out: nothing.
+  const ownedInfo = sessionUserId
+    ? await deckOwnedForViewer(
+        sessionUserId,
+        cards.map((c) => c.cardId),
+      )
+    : null;
+  const fmt = deckFormat(deck);
+  const owned = ownedInfo?.hasCollection ? new Set(ownedInfo.owned) : undefined;
+  const ownership =
+    owned && fmt
+      ? deckOwnership(cards, new Map(cards.map((c) => [c.cardId, c.card])), owned, fmt.format)
+      : null;
   return (
     <>
       {/* Structured data only where it can be indexed (public decks). */}
@@ -115,6 +132,8 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
         author={author}
         viewer={viewer}
         forkedFrom={forkedFrom}
+        ownership={ownership}
+        owned={owned}
       />
     </>
   );

@@ -50,7 +50,8 @@ export function DeleteAccount() {
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-muted-foreground text-sm">
-          Deleting your account permanently removes your decks, folders, likes, and bookmarks.
+          Deleting your account permanently removes your decks, folders, likes, bookmarks, and
+          imported collection.
         </p>
         <Button
           variant="outline"
@@ -69,7 +70,8 @@ export function DeleteAccount() {
         <Modal label="Delete account" onClose={() => (busy ? null : setOpen(false))}>
           <p className="text-sm">
             This permanently deletes your account and everything in it — all your decks (including
-            public ones), folders, likes, and bookmarks. There is no undo and no grace period.
+            public ones), folders, likes, bookmarks, and your imported collection. There is no undo
+            and no grace period.
           </p>
           <label className="text-muted-foreground block text-xs" htmlFor="delete-account-confirm">
             Type <span className="text-foreground font-mono">{DELETE_CONFIRM_PHRASE}</span> to

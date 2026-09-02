@@ -47,3 +47,6 @@ next-env.d.ts
 
 # raw Topdeck API responses (ingest writes, workflow archives to R2)
 .topdeck-raw/
+
+# scratch tsx scripts for Claude sessions (must live inside the repo to resolve node_modules)
+scripts/.tmp/

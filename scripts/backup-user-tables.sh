@@ -14,6 +14,8 @@ fi
 # pg_dump wants a real session — use the direct (non -pooler) host.
 DIRECT_URL="${DATABASE_URL/-pooler./.}"
 
+# `collections` was listed from day one and only came into existence in P3.7
+# (2026-09-02); the pg_tables filter below always tolerated its absence.
 USER_TABLES="users decks deck_folders deck_cards deck_versions deck_likes deck_bookmarks collections"
 EXISTING=$(psql "$DIRECT_URL" -Atc \
   "SELECT string_agg(tablename, ' ') FROM pg_tables WHERE schemaname='public'

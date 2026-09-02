@@ -25,6 +25,7 @@ import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { Button } from "@/components/ui/button";
+import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
 import {
   deckSizeCount,
   toEditorCard,
@@ -82,6 +83,8 @@ export function DeckShareView({
   author = null,
   viewer = null,
   forkedFrom = null,
+  ownership = null,
+  owned,
 }: {
   deck: ShareDeckMeta;
   cards: ShareDeckCard[];
@@ -90,6 +93,10 @@ export function DeckShareView({
   viewer?: EngagementViewer | null;
   /** Fork credit (P3.6), resolved for this viewer; null = not a fork. */
   forkedFrom?: ForkCredit | null;
+  /** "You own N/100 · missing ≈ $Y" for the signed-in viewer (P3.7); null = signed out or no collection. */
+  ownership?: OwnershipSummary | null;
+  /** The viewer's owned card ids among this deck (P3.7) — drives the ✓ marks. */
+  owned?: ReadonlySet<string>;
 }) {
   const router = useRouter();
 
@@ -207,6 +214,17 @@ export function DeckShareView({
             <ForkCreditLine credit={forkedFrom} className="text-sm" />
           </p>
         )}
+        {/* Collection line (P3.7): server-computed for THIS signed-in viewer
+            against their own collection — never rendered signed out. */}
+        {ownership && (
+          <p
+            className="text-muted-foreground mt-1 text-sm tabular-nums"
+            title={OWNERSHIP_METHOD}
+            data-testid="ownership-line"
+          >
+            {ownershipLine(ownership)}
+          </p>
+        )}
         {deck.description && <p className="mt-2 text-sm whitespace-pre-wrap">{deck.description}</p>}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <EngagementButtons deckId={deck.id} likesCount={deck.likesCount} viewer={viewer} />
@@ -252,9 +270,15 @@ export function DeckShareView({
       {rest.length === 0 ? (
         <p className="text-muted-foreground mt-4 text-xs">This deck has no cards yet.</p>
       ) : view === "text" ? (
-        <DeckTextView adapter={adapter} groups={groups} severity={severity} onPreview={onPreview} />
+        <DeckTextView
+          adapter={adapter}
+          groups={groups}
+          severity={severity}
+          onPreview={onPreview}
+          owned={owned}
+        />
       ) : (
-        <DeckGridView groups={groups} severity={severity} onPreview={onPreview} />
+        <DeckGridView groups={groups} severity={severity} onPreview={onPreview} owned={owned} />
       )}
 
       {deck.notes && (

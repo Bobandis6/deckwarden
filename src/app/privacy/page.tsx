@@ -42,6 +42,14 @@ export default function PrivacyPage() {
           account is browsable.
         </p>
         <p>
+          Importing a collection is optional too. If you upload a ManaBox or Moxfield CSV export on
+          the account page, the file is read in your browser and only three things per line reach
+          our servers: which card printing, its finish, and how many. Purchase prices, conditions,
+          languages, and binder names are never sent. The collection is private — it only ever shows{" "}
+          <em>you</em> which cards you own in decks you view — and you can wipe it from the account
+          page at any time.
+        </p>
+        <p>
           While signed in, a session cookie keeps you signed in; it is strictly functional and is
           the only cookie this site sets. Decks built on a browser before signing in are attached to
           your account when you sign in on that browser; their localStorage edit keys are retired in
@@ -50,7 +58,8 @@ export default function PrivacyPage() {
             account page
           </Link>{" "}
           — it permanently and immediately removes your account and everything in it: decks,
-          folders, likes, and bookmarks. If you can no longer sign in, email{" "}
+          folders, likes, bookmarks, and your imported collection. If you can no longer sign in,
+          email{" "}
           <a href="mailto:contact@deckwarden.gg" className="underline">
             contact@deckwarden.gg
           </a>{" "}

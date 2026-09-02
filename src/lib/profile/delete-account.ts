@@ -23,8 +23,9 @@
  *      likes/bookmarks ON those decks (their denorms die with the rows).
  *   4. Delete the user row — cascades sessions, accounts, folders (which
  *      SET NULL any surviving decks' folder_id — there are none by now),
- *      and the user's like/bookmark rows on other people's decks (already
- *      recounted in step 1).
+ *      the user's like/bookmark rows on other people's decks (already
+ *      recounted in step 1), and (P3.7) their imported collection —
+ *      collections.user_id is ON DELETE CASCADE; smoke:account proves it.
  */
 import { eq, inArray, sql } from "drizzle-orm";
 

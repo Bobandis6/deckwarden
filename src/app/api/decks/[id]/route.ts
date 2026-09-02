@@ -3,6 +3,10 @@
  *
  * GET    — meta + current card list (joined card basics so P1.2's editor needs
  *          no N+1). Owner always; non-owners only when visibility != private.
+ *          Plus (P3.7) `owned`: the ids among THIS deck's cards that the
+ *          signed-in requester owns any printing of, and `hasCollection` —
+ *          the editor's owned badges and "you own N/100" line. Session-only
+ *          data: the guest-token path returns [] / false.
  * PATCH  — meta only (name / description / visibility / folder). Owner only.
  * DELETE — hard delete; deck_cards + deck_versions cascade. Owner only.
  *          Fork-safe (P3.6, fired LATER row): forks' upstream pointers are
@@ -22,6 +26,7 @@ import { getDb, schema } from "@/db";
 import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
 import { clientIp, deckTokenFrom } from "@/lib/decks/access";
 import { getSessionUserId } from "@/lib/auth";
+import { deckOwnedForViewer } from "@/lib/collection/owned";
 import { loadFolder } from "@/lib/decks/folders";
 import { deleteDecksForkSafe, forkCredit } from "@/lib/decks/forks";
 import { requireOwnedDeck, requireReadableDeck } from "@/lib/decks/route-helpers";
@@ -46,18 +51,23 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   // Query shared with the P1.7 share page (deck-cards-wire.ts).
   // forkedFrom (P3.6): the credit line, resolved for THIS viewer (a private
   // upstream credits without name/link). One extra query, forks only.
+  const userId = await getSessionUserId(request.headers);
   const [cards, forkedFrom] = await Promise.all([
     fetchDeckCardsWire(deck),
     deck.forkedFromDeckId
-      ? forkCredit(deck, {
-          token: deckTokenFrom(request.headers),
-          userId: await getSessionUserId(request.headers),
-        })
+      ? forkCredit(deck, { token: deckTokenFrom(request.headers), userId })
       : Promise.resolve(null),
   ]);
+  // Owned badges (P3.7): the requester's own collection against this deck's
+  // cards — one LIMIT 1 + one deck-sized join for signed-in users, nothing
+  // for guests.
+  const { owned, hasCollection } = await deckOwnedForViewer(
+    userId,
+    cards.map((c) => c.cardId),
+  );
 
   return NextResponse.json(
-    { deck: { ...deckMetaJson(deck, { isOwner }), forkedFrom }, cards },
+    { deck: { ...deckMetaJson(deck, { isOwner }), forkedFrom }, cards, owned, hasCollection },
     { headers: NO_STORE },
   );
 }

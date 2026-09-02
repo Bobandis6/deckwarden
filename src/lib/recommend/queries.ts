@@ -30,10 +30,11 @@ export interface CandidateFilter {
   /** Budget: only cards with a KNOWN price at or under this (USD). */
   maxPriceUsd?: number;
   /**
-   * Collections hook (P3.7) — INERT today: nothing populates it. When set,
-   * the pool is restricted to owned cards (an empty set = empty pool, not
-   * "hook off"); undefined = hook off. Wired now so the filter signature is
-   * stable when collection import lands.
+   * Collections hook (wired in P3.7 by the recommendations route's opt-in
+   * `?owned=1`; the signature predates it from P3.1). When set, the pool is
+   * restricted to owned cards (an empty set = empty pool, not "hook off");
+   * undefined = hook off. The ROUTE is what guarantees a guest or a user
+   * with no collection gets undefined, never an empty set.
    */
   ownedCardIds?: ReadonlySet<string>;
   /** Adapter's never-advise rules (MTG: basic lands). */

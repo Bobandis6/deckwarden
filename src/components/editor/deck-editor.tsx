@@ -37,6 +37,7 @@ import { SearchPane } from "@/components/editor/search-pane";
 import { ShareDialog, type DeckVisibility } from "@/components/editor/share-dialog";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { Button } from "@/components/ui/button";
+import { deckOwnership } from "@/lib/collection/ownership";
 import {
   addCard,
   removeCard,
@@ -84,6 +85,10 @@ interface DeckResponse {
     printingId: string | null;
     card: CardWire;
   }[];
+  /** Ids among `cards` the signed-in requester owns any printing of (P3.7). */
+  owned: string[];
+  /** Whether the requester has imported a collection at all (P3.7). */
+  hasCollection: boolean;
 }
 
 type LoadState =
@@ -147,6 +152,12 @@ export function DeckEditor({
   >(null);
   const [share, setShare] = useState<{ publicId: string; visibility: DeckVisibility } | null>(null);
   const [forkedFrom, setForkedFrom] = useState<ForkCredit | null>(null);
+  // Collection (P3.7): the owned identity set, grown lazily as cards are
+  // added; ownedCheckedRef remembers every id already asked about so the
+  // lookup effect only ever asks about NEW cards.
+  const [owned, setOwned] = useState<ReadonlySet<string>>(() => new Set());
+  const [hasCollection, setHasCollection] = useState(false);
+  const ownedCheckedRef = useRef<Set<string>>(new Set());
   // Right pane tab (P3.2/P3.3/P3.4). liveDeckId mirrors deckIdRef as STATE so
   // the panels re-render when draft mode's first save mints the row.
   const [rightTab, setRightTab] = useState<"card" | "suggest" | "combos" | "cuts">("card");
@@ -292,8 +303,48 @@ export function DeckEditor({
     setDetails({ description: json.deck.description ?? "", notes: json.deck.notes ?? "" });
     setShare({ publicId: json.deck.publicId, visibility: json.deck.visibility });
     setForkedFrom(json.deck.forkedFrom ?? null);
+    setOwned(new Set(json.owned ?? []));
+    setHasCollection(json.hasCollection ?? false);
+    ownedCheckedRef.current = new Set(json.cards.map((c) => c.cardId));
     setLoad({ state: "ready", adapter, format });
   }, []);
+
+  // Owned lookups for cards added mid-session (P3.7): one debounced POST per
+  // burst of new ids, only for users with a collection. A failed lookup
+  // un-marks its ids so the next edit retries instead of leaving a card
+  // silently "not owned" for the rest of the session.
+  useEffect(() => {
+    if (!hasCollection) return;
+    const unknown = [...new Set(entries.map((e) => e.cardId))].filter(
+      (id) => !ownedCheckedRef.current.has(id),
+    );
+    if (unknown.length === 0) return;
+    const ids = unknown.slice(0, 400);
+    const timer = setTimeout(() => {
+      for (const id of ids) ownedCheckedRef.current.add(id);
+      void (async () => {
+        try {
+          const res = await fetch("/api/collection/owned", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+          });
+          if (!res.ok) throw new Error(`owned lookup failed (${res.status})`);
+          const json: { owned: string[] } = await res.json();
+          if (json.owned.length > 0) {
+            setOwned((prev) => {
+              const next = new Set(prev);
+              for (const id of json.owned) next.add(id);
+              return next;
+            });
+          }
+        } catch {
+          for (const id of ids) ownedCheckedRef.current.delete(id);
+        }
+      })();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [entries, hasCollection]);
 
   useEffect(() => {
     if (initialDeckId === null) return;
@@ -535,6 +586,15 @@ export function DeckEditor({
     () => (load.state === "ready" && snapshot ? load.adapter.analyze(snapshot, cards) : []),
     [load, snapshot, cards],
   );
+  // "You own N/100 · missing ≈ $Y" (P3.7): pure math over the same entries,
+  // card prices and owned set; null (nothing rendered) without a collection.
+  const ownership = useMemo(
+    () =>
+      hasCollection && load.state === "ready"
+        ? deckOwnership(entries, cards, owned, load.format)
+        : null,
+    [hasCollection, load, entries, cards, owned],
+  );
 
   if (load.state !== "ready") {
     return (
@@ -684,6 +744,8 @@ export function DeckEditor({
             onRemove={handleRemove}
             onPreview={showCard}
             onOpenCuts={load.adapter.recommend?.cuts ? openCuts : undefined}
+            owned={hasCollection ? owned : undefined}
+            ownership={ownership}
           />
         </section>
         <section
@@ -731,6 +793,7 @@ export function DeckEditor({
                     saveStatus={autosave.status}
                     active={rightTab === "suggest"}
                     onAdd={handlePanelAdd}
+                    ownedAvailable={hasCollection}
                   />
                 </div>
               )}

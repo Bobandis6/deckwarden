@@ -550,6 +550,69 @@ export const deckVersions = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Collections (P3.7) — owned printings
+// ---------------------------------------------------------------------------
+
+export const COLLECTION_FINISHES = ["nonfoil", "foil", "etched"] as const;
+export type CollectionFinish = (typeof COLLECTION_FINISHES)[number];
+
+/**
+ * One row per (user, printing, finish) the user owns (P3.7 — Appendix A's
+ * "collections(user_id, printing_id, finish, quantity)" sketch, landing WITH
+ * the ManaBox/Moxfield import rather than ahead of it: the "schema now" the
+ * plan promised was never actually written, so this is the first user-data
+ * migration since M1). Account-only by construction — user_id is NOT NULL,
+ * so a guest never has a collection (the P3.6 fork call: a feature that
+ * mints rows per person needs a person; no localStorage collections).
+ *
+ * Lean by design: printing + finish + quantity, nothing else. The source
+ * exports carry purchase prices, conditions, languages, binder names — we
+ * deliberately store none of it (Neon budget AND privacy: the privacy page
+ * promises exactly this). Language folds to the English printing (ManaBox
+ * writes one Scryfall id per printing regardless of language; Moxfield rows
+ * resolve by set + collector number).
+ *
+ * FKs: user ON DELETE CASCADE — account deletion takes the collection
+ * (delete-account.ts step 4, proved by smoke:account). Printing WITHOUT
+ * cascade — ingest never hard-deletes printings (it flips is_removed), and
+ * a removed printing stays owned.
+ *
+ * Neon math, out loud: a row is ~75B on the heap (23B tuple header + two
+ * uuids + a short finish + smallint + timestamptz) plus ~50B in the PK
+ * btree — ~130B all-in. This is the second table that grows with USAGE
+ * rather than with the card corpus (after deck_versions): growth ≈ users ×
+ * distinct owned printings. The import caps a user at
+ * COLLECTION_LIMITS.perUser (20,000 printings ≈ 2.6MB on disk), so a
+ * hundred users at the cap is ~260MB — past the free tier's 350MB alert
+ * line only if a hundred serious paper collections arrive, which is the
+ * Neon-exit trigger firing for the right reason. The nightly db:size gauge
+ * is the tripwire (209.0MB on 2026-09-02, before this table existed).
+ *
+ * Index: the composite PK (user_id, printing_id, finish) IS the per-user
+ * index — every read is "this user's rows" (a prefix scan) — so there is
+ * deliberately no second index; nothing asks "who owns printing X".
+ */
+export const collections = pgTable(
+  "collections",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    printingId: uuid("printing_id")
+      .notNull()
+      .references(() => cardPrintings.id),
+    finish: text("finish").$type<CollectionFinish>().notNull().default("nonfoil"),
+    quantity: smallint("quantity").notNull().default(1),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.printingId, t.finish] }),
+    check("collections_finish_check", sql`${t.finish} in ('nonfoil','foil','etched')`),
+    check("collections_quantity_check", sql`${t.quantity} > 0`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Combos (P2.5) — Commander Spellbook
 // ---------------------------------------------------------------------------
 

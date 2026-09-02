@@ -4,8 +4,9 @@
  * user deletion must not break — other people's decks keep an accurate
  * likes_count (the cascade alone would leave it high), and forks of the
  * deleted user's decks survive with their upstream pointer nulled (seeded by
- * SQL — no fork API exists until M3). Runs against a live server + real DB —
- * deliberately outside `pnpm check`.
+ * SQL — no fork API exists until M3). P3.7: the user's imported collection
+ * (collections.user_id ON DELETE CASCADE) must go with the account. Runs
+ * against a live server + real DB — deliberately outside `pnpm check`.
  *
  *   pnpm smoke:account                                  # http://localhost:3000
  *   BASE_URL=http://localhost:3111 pnpm smoke:account   # another port
@@ -117,6 +118,13 @@ async function main() {
     await api("PUT", `/api/decks/${bobDeck.id}/bookmark`, { cookie: alice.cookie });
     await api("POST", "/api/folders", { cookie: alice.cookie, body: { name: `Del ${run}` } });
     await sql`update decks set forked_from_deck_id = ${aliceDeck.id} where id = ${bobDeck.id}`;
+    // A collection row (P3.7) — any real printing; the cascade must take it.
+    await sql`
+      insert into collections (user_id, printing_id, finish, quantity)
+      select ${alice.id}, id, 'nonfoil', 2 from card_printings where is_removed = false limit 1`;
+    const [{ n: collectionBefore }] =
+      await sql`select count(*)::int as n from collections where user_id = ${alice.id}`;
+    check("precondition: alice holds 1 collection row", Number(collectionBefore) === 1);
 
     const [{ n: bobLikesBefore }] =
       await sql`select likes_count as n from decks where id = ${bobDeck.id}`;
@@ -163,6 +171,9 @@ async function main() {
     const [{ n: bookmarks }] =
       await sql`select count(*)::int as n from deck_bookmarks where user_id = ${alice.id}`;
     check("her bookmarks gone", Number(bookmarks) === 0);
+    const [{ n: collectionAfter }] =
+      await sql`select count(*)::int as n from collections where user_id = ${alice.id}`;
+    check("her collection gone (P3.7 cascade)", Number(collectionAfter) === 0);
 
     // The two invariants the cascade alone would break:
     const [bobRow] = await sql`

@@ -11,7 +11,9 @@
  * and basic lands never come back · color-identity fit · combo participation
  * names its deck partners (Basalt Monolith → Rings of Brighthearth) · budget
  * and limit params · tiny-deck curve evidence degrades to low confidence ·
- * no-store caching. Cleans up its deck even on failure.
+ * no-store caching · (P3.7) `?owned=1` from a guest is honest: requested,
+ * NOT applied, reason "signed-out", and the pool is NOT emptied (the signed-
+ * in states live in smoke:collection). Cleans up its deck even on failure.
  *
  * Also covers the Combo Radar route (P3.3) on the same fixture deck:
  * Basalt Monolith alone → the Rings combo in oneAway with the add target
@@ -207,6 +209,30 @@ async function main() {
     check(
       "invalid budget → 400",
       (await api("GET", `/api/decks/${deckId}/recommendations?budget=-3`)).status === 400,
+    );
+
+    // Collections hook (P3.7): a guest opting in gets the hook OFF, disclosed.
+    const ownedGuest = await api("GET", `/api/decks/${deckId}/recommendations?owned=1`);
+    const ownedMeta = (
+      ownedGuest.json as { owned?: { requested: boolean; applied: boolean; reason?: string } }
+    )?.owned;
+    const ownedRecs = (ownedGuest.json as { recommendations?: Rec[] })?.recommendations ?? [];
+    check(
+      "?owned=1 signed out → 200, requested but not applied, reason signed-out, pool NOT emptied",
+      ownedGuest.status === 200 &&
+        ownedMeta?.requested === true &&
+        ownedMeta.applied === false &&
+        ownedMeta.reason === "signed-out" &&
+        ownedRecs.length > 0,
+      ownedMeta,
+    );
+    check(
+      "no owned param → owned.requested false",
+      (res.json as { owned?: { requested: boolean } })?.owned?.requested === false,
+    );
+    check(
+      "invalid owned value → 400",
+      (await api("GET", `/api/decks/${deckId}/recommendations?owned=2`)).status === 400,
     );
 
     // --- Combo Radar (P3.3): the same fixture, the other question ------------

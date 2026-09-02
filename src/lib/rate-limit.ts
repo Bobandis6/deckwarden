@@ -134,6 +134,25 @@ export const RATE_LIMITS = {
   accountDelete: (userId: string): RateLimit[] => [
     { key: `account-delete:user:${userId}`, max: 3, windowSeconds: 3600 },
   ],
+  /**
+   * POST /api/collection (P3.7) — session-only, so keyed by user id. An
+   * import is a rare, deliberate act (one file, one transaction of up to
+   * 20k rows); 10/hour leaves room for a merge, a fix, a replace.
+   */
+  collectionImport: (userId: string): RateLimit[] => [
+    { key: `collection-import:user:${userId}`, max: 10, windowSeconds: 3600 },
+  ],
+  /** DELETE /api/collection — same stance as the import. */
+  collectionWipe: (userId: string): RateLimit[] => [
+    { key: `collection-wipe:user:${userId}`, max: 10, windowSeconds: 3600 },
+  ],
+  /**
+   * POST /api/collection/owned — the editor asking which newly added cards
+   * the user owns (≤400 ids, debounced client-side per settled burst).
+   */
+  collectionOwned: (userId: string): RateLimit[] => [
+    { key: `collection-owned:user:${userId}`, max: 60, windowSeconds: 60 },
+  ],
 };
 
 const { rateLimitCounters } = schema;

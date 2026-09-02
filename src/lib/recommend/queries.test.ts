@@ -15,7 +15,7 @@ const BASE: CandidateFilter = {
 };
 
 describe("candidateConditions", () => {
-  it("owned-cards hook is INERT when undefined (the P3.7 contract)", () => {
+  it("owned-cards hook is off when undefined (the contract P3.7's ?owned=1 relies on)", () => {
     const off = candidateConditions(BASE);
     const alsoOff = candidateConditions({ ...BASE, ownedCardIds: undefined });
     expect(alsoOff).toHaveLength(off.length);

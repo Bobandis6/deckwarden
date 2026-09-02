@@ -22,6 +22,12 @@
  * refetch-key/leader-gate helpers live in decks/panel-view.ts — both shared
  * with the Combo Radar (P3.3). Game knowledge (leader noun, source
  * labels/links) comes off the adapter.
+ *
+ * "Only cards I own" (P3.7): the engine's collections hook as an explicit
+ * opt-in (`?owned=1`). Enabled only when the editor knows the user has an
+ * imported collection; otherwise the checkbox is disabled with the honest
+ * hint. The server may still decline (session expired, collection wiped in
+ * another tab) — its `owned.reason` is shown, never a silent empty list.
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -57,6 +63,14 @@ interface RecommendationsPanelProps {
   active: boolean;
   /** Quiet add to the main zone via the editor's own edit path. */
   onAdd: (card: EditorCard) => string | undefined;
+  /** The user has an imported collection (P3.7) — enables "only cards I own". */
+  ownedAvailable?: boolean;
+}
+
+interface OwnedFilterMeta {
+  requested: boolean;
+  applied: boolean;
+  reason?: "signed-out" | "no-collection";
 }
 
 export function RecommendationsPanel({
@@ -68,8 +82,11 @@ export function RecommendationsPanel({
   saveStatus,
   active,
   onAdd,
+  ownedAvailable = false,
 }: RecommendationsPanelProps) {
   const [budget, setBudget] = useState<BudgetTier>("all");
+  const [onlyOwned, setOnlyOwned] = useState(false);
+  const [ownedMeta, setOwnedMeta] = useState<OwnedFilterMeta | null>(null);
   const [recs, setRecs] = useState<Recommendation[] | null>(null);
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -80,7 +97,8 @@ export function RecommendationsPanel({
   const { pendingAdd, notice, add } = useResolvedAdd(adapter, format, onAdd);
 
   const leader = hasLeader(entries, format);
-  const fetchKey = `${deckStateKey(entries)}§b:${budget}§n:${nonce}`;
+  const wantOwned = onlyOwned && ownedAvailable;
+  const fetchKey = `${deckStateKey(entries)}§b:${budget}§o:${wantOwned ? 1 : 0}§n:${nonce}`;
 
   useEffect(() => {
     if (!active || !leader || !deckId || saveStatus !== "saved") return;
@@ -90,7 +108,11 @@ export function RecommendationsPanel({
       setFetching(true);
       setFetchError(null);
       try {
-        const params = budget === "all" ? "" : `?budget=${budget}`;
+        const search = new URLSearchParams();
+        if (budget !== "all") search.set("budget", budget);
+        if (wantOwned) search.set("owned", "1");
+        const query = search.toString();
+        const params = query ? `?${query}` : "";
         const token = getDeckToken(deckId);
         const res = await fetch(`/api/decks/${deckId}/recommendations${params}`, {
           headers: token ? { "x-deck-token": token } : {},
@@ -101,9 +123,11 @@ export function RecommendationsPanel({
           throw new Error("Suggestions are rate-limited for a moment — try again shortly.");
         }
         if (!res.ok) throw new Error(`Suggestions failed to load (${res.status}).`);
-        const json: { recommendations: Recommendation[] } = await res.json();
+        const json: { recommendations: Recommendation[]; owned?: OwnedFilterMeta } =
+          await res.json();
         lastKeyRef.current = fetchKey;
         setRecs(json.recommendations);
+        setOwnedMeta(json.owned ?? null);
         setFetching(false);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -112,7 +136,7 @@ export function RecommendationsPanel({
       }
     })();
     return () => controller.abort();
-  }, [active, leader, deckId, saveStatus, fetchKey, budget]);
+  }, [active, leader, deckId, saveStatus, fetchKey, budget, wantOwned]);
 
   const toggleExpanded = (cardId: string) => {
     setExpanded((prev) => {
@@ -144,11 +168,46 @@ export function RecommendationsPanel({
         </Button>
       </div>
 
+      <label
+        className={`mt-1.5 flex items-center gap-2 text-xs ${ownedAvailable ? "" : "text-muted-foreground"}`}
+        title={
+          ownedAvailable
+            ? "Restrict suggestions to cards you own any printing of"
+            : "Sign in and import a collection on your Account page to filter by cards you own"
+        }
+      >
+        <input
+          type="checkbox"
+          checked={wantOwned}
+          disabled={!ownedAvailable}
+          onChange={(e) => setOnlyOwned(e.target.checked)}
+          data-testid="only-owned-toggle"
+        />
+        Only cards I own
+        {!ownedAvailable && (
+          <span className="text-muted-foreground">
+            ·{" "}
+            <Link href="/account" className="underline">
+              import a collection
+            </Link>
+          </span>
+        )}
+      </label>
+
       <p
         aria-live="polite"
         className={`mt-1 min-h-5 text-xs ${notice?.tone === "err" ? "text-destructive" : "text-muted-foreground"}`}
       >
-        {notice?.text ?? (fetching && recs !== null ? "Updating…" : "")}
+        {notice?.text ??
+          (fetching && recs !== null
+            ? "Updating…"
+            : wantOwned && ownedMeta?.requested && !ownedMeta.applied
+              ? ownedMeta.reason === "signed-out"
+                ? "Sign in to filter by your collection — showing all suggestions."
+                : "No collection found on this account — showing all suggestions."
+              : wantOwned && ownedMeta?.applied
+                ? "Showing only cards in your collection."
+                : "")}
       </p>
 
       {fetchError ? (
@@ -171,9 +230,11 @@ export function RecommendationsPanel({
         </p>
       ) : recs.length === 0 ? (
         <p className="text-muted-foreground mt-2 text-sm">
-          {budget === "all"
-            ? "No suggestions right now."
-            : `No suggestions with a known price under $${budget} — try a wider budget.`}
+          {ownedMeta?.applied
+            ? "Nothing you own fits this deck right now — untick “Only cards I own” for the full list."
+            : budget === "all"
+              ? "No suggestions right now."
+              : `No suggestions with a known price under ${budget} — try a wider budget.`}
         </p>
       ) : (
         <ul className="mt-1 space-y-1.5">

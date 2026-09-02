@@ -18,6 +18,7 @@ import { ClaimDecks } from "@/components/auth/claim-decks";
 import { DeleteAccount } from "@/components/auth/delete-account";
 import { SignInButtons } from "@/components/auth/sign-in-buttons";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { CollectionImport } from "@/components/collection/collection-import";
 import { RemoveBookmarkButton } from "@/components/deck/engagement-buttons";
 import { DeckFolderSelect, type FolderOption } from "@/components/folders/deck-folder-select";
 import { FolderControls } from "@/components/folders/folder-controls";
@@ -25,6 +26,7 @@ import { NewFolderForm } from "@/components/folders/new-folder-form";
 import { UsernameForm } from "@/components/profile/username-form";
 import { getDb, schema } from "@/db";
 import { auth } from "@/lib/auth";
+import { collectionSummary } from "@/lib/collection/owned";
 import { formatLabel, updatedLabel } from "@/lib/decks/display";
 
 export const dynamic = "force-dynamic";
@@ -89,7 +91,7 @@ export default async function AccountPage() {
   }
 
   const db = getDb();
-  const [decks, linked, [profile], folders, bookmarks] = await Promise.all([
+  const [decks, linked, [profile], folders, bookmarks, collection] = await Promise.all([
     db
       .select()
       .from(schema.decks)
@@ -137,6 +139,8 @@ export default async function AccountPage() {
       )
       .orderBy(desc(schema.deckBookmarks.createdAt))
       .limit(100),
+    // Collection (P3.7): the import section's summary line.
+    collectionSummary(session.user.id),
   ]);
   const providers = [...new Set(linked.map((a) => a.providerId))]
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
@@ -291,6 +295,14 @@ export default async function AccountPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      {/* Collection import (P3.7): ManaBox / Moxfield CSV → owned badges. */}
+      <section aria-label="Collection" className="mt-8 space-y-3">
+        <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          Collection
+        </h2>
+        <CollectionImport summary={collection} />
       </section>
 
       {/* Self-serve deletion (P2.8) — the privacy page points here now. */}

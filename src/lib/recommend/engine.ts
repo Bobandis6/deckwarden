@@ -37,7 +37,7 @@ export interface RecommendOptions {
   limit?: number;
   /** Budget filter: only cards with a known price ≤ this (USD). */
   maxPriceUsd?: number;
-  /** Collections hook (P3.7) — see CandidateFilter; nothing sets this today. */
+  /** Collections hook — see CandidateFilter; set by the route's opt-in `?owned=1` (P3.7). */
   ownedCardIds?: ReadonlySet<string>;
 }
 
