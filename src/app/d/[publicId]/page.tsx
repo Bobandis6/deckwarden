@@ -27,6 +27,7 @@ import { getDb, schema } from "@/db";
 import { getSessionUserId } from "@/lib/auth";
 import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
 import { viewerEngagement } from "@/lib/decks/engagement";
+import { forkCredit } from "@/lib/decks/forks";
 import { loadDeckByPublicId } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { deckJsonLd, JsonLd } from "@/lib/seo/jsonld";
@@ -75,7 +76,7 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
   // is the opt-in that makes name/profile public, so accounts without one
   // stay anonymous here.
   const sessionUserId = await getSessionUserId(await headers());
-  const [cards, author, viewer] = await Promise.all([
+  const [cards, author, viewer, forkedFrom] = await Promise.all([
     fetchDeckCardsWire(deck),
     deck.userId
       ? getDb()
@@ -88,6 +89,9 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
     // Like/bookmark state (P2.3) — signed-in viewers only; null renders the
     // sign-in affordances with the public count.
     sessionUserId ? viewerEngagement(deck.id, sessionUserId) : Promise.resolve(null),
+    // Fork credit (P3.6) for THIS viewer: a private upstream credits
+    // without name or link, except to someone who can read it.
+    forkCredit(deck, { token: null, userId: sessionUserId }),
   ]);
   return (
     <>
@@ -110,6 +114,7 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
         cards={cards}
         author={author}
         viewer={viewer}
+        forkedFrom={forkedFrom}
       />
     </>
   );

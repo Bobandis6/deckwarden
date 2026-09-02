@@ -28,6 +28,7 @@
     "smoke:combos": "tsx scripts/combos-smoke.ts",
     "smoke:recommend": "tsx scripts/recommend-smoke.ts",
     "smoke:seo": "tsx scripts/seo-smoke.ts",
+    "smoke:versions": "tsx scripts/versions-forks-smoke.ts",
     "search:canned": "tsx scripts/canned-searches.ts",
     "db:size": "tsx scripts/db-size.ts"
   },

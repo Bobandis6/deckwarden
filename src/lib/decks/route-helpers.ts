@@ -14,10 +14,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
+import { findFormatById, gameCodeById } from "@/db/seed-data";
 import { getSessionUserId } from "@/lib/auth";
 import { canReadDeck, deckTokenFrom, isDeckOwner } from "@/lib/decks/access";
 import { isFolderOwner, loadFolder, type FolderRow } from "@/lib/decks/folders";
 import type { DeckRow } from "@/lib/decks/serialize";
+import { getAdapter } from "@/lib/games/registry";
+import type { FormatDef, GameAdapter } from "@/lib/games/types";
 
 const UUID = z.uuid();
 
@@ -107,4 +110,20 @@ export async function requireOwnedFolder(
     return NextResponse.json({ error: "This folder isn't yours" }, { status: 403 });
   }
   return { folder };
+}
+
+/**
+ * A deck row's adapter + FormatDef (the core <-> adapter seam every card
+ * writer needs). Undefined only for a row whose seeded game/format has no
+ * adapter — a deploy misconfiguration, which routes surface as a 500.
+ */
+export function deckFormat(deck: {
+  gameId: number;
+  formatId: number;
+}): { adapter: GameAdapter; format: FormatDef } | undefined {
+  const game = gameCodeById(deck.gameId);
+  const adapter = game ? getAdapter(game) : undefined;
+  const formatCode = findFormatById(deck.formatId)?.code;
+  const format = adapter?.formats.find((f) => f.code === formatCode);
+  return adapter && format ? { adapter, format } : undefined;
 }

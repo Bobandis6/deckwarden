@@ -10,9 +10,9 @@
  *      liked that they also own get deleted in step 3, so the wasted
  *      decrement there is harmless.
  *   2. Detach forks: null forked_from_deck_id on other people's decks that
- *      fork this user's decks. Nothing writes forks until M3, but the FK has
- *      no ON DELETE and a single referencing row would abort the whole
- *      transaction the day forks exist.
+ *      fork this user's decks. The FK has no ON DELETE and a single
+ *      referencing row would abort the whole transaction (forks are live
+ *      since P3.6).
  *   3. Delete the user's decks. decks.user_id deliberately has no ON DELETE
  *      (nothing implicit may eat decks), so the user row can't go first.
  *      Deletion rather than orphaning: an orphaned deck (user_id NULL, no
@@ -29,6 +29,7 @@
 import { eq, inArray, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
+import { detachForksAndDeleteDecks } from "@/lib/decks/forks";
 
 const { decks, deckLikes, users } = schema;
 
@@ -52,14 +53,11 @@ export async function deleteAccount(userId: string): Promise<{ decksDeleted: num
     }
 
     const owned = await tx.select({ id: decks.id }).from(decks).where(eq(decks.userId, userId));
-    if (owned.length > 0) {
-      const ownedIds = owned.map((row) => row.id);
-      await tx
-        .update(decks)
-        .set({ forkedFromDeckId: null })
-        .where(inArray(decks.forkedFromDeckId, ownedIds));
-      await tx.delete(decks).where(inArray(decks.id, ownedIds));
-    }
+    // Steps 2-3 (P3.6: shared with every other delete path, forks.ts).
+    await detachForksAndDeleteDecks(
+      tx,
+      owned.map((row) => row.id),
+    );
 
     await tx.delete(users).where(eq(users.id, userId));
     return { decksDeleted: owned.length };

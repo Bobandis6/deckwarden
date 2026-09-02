@@ -5,6 +5,8 @@
  *          no N+1). Owner always; non-owners only when visibility != private.
  * PATCH  — meta only (name / description / visibility / folder). Owner only.
  * DELETE — hard delete; deck_cards + deck_versions cascade. Owner only.
+ *          Fork-safe (P3.6, fired LATER row): forks' upstream pointers are
+ *          NULLed in the same transaction — the self-FK has no ON DELETE.
  *
  * Caching intent: force-dynamic + Cache-Control no-store on every response —
  * output depends on the x-deck-token header (isOwner, private reads), so
@@ -18,8 +20,10 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
-import { clientIp } from "@/lib/decks/access";
+import { clientIp, deckTokenFrom } from "@/lib/decks/access";
+import { getSessionUserId } from "@/lib/auth";
 import { loadFolder } from "@/lib/decks/folders";
+import { deleteDecksForkSafe, forkCredit } from "@/lib/decks/forks";
 import { requireOwnedDeck, requireReadableDeck } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
@@ -40,9 +44,22 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   // in src/lib/decks/editor-state.ts): the editor feeds it straight to the
   // adapter's display/validate/analyze without any game-specific reshaping.
   // Query shared with the P1.7 share page (deck-cards-wire.ts).
-  const cards = await fetchDeckCardsWire(deck);
+  // forkedFrom (P3.6): the credit line, resolved for THIS viewer (a private
+  // upstream credits without name/link). One extra query, forks only.
+  const [cards, forkedFrom] = await Promise.all([
+    fetchDeckCardsWire(deck),
+    deck.forkedFromDeckId
+      ? forkCredit(deck, {
+          token: deckTokenFrom(request.headers),
+          userId: await getSessionUserId(request.headers),
+        })
+      : Promise.resolve(null),
+  ]);
 
-  return NextResponse.json({ deck: deckMetaJson(deck, { isOwner }), cards }, { headers: NO_STORE });
+  return NextResponse.json(
+    { deck: { ...deckMetaJson(deck, { isOwner }), forkedFrom }, cards },
+    { headers: NO_STORE },
+  );
 }
 
 const PATCH_BODY = z
@@ -117,7 +134,6 @@ export async function DELETE(request: NextRequest, ctx: RouteContext<"/api/decks
   const access = await requireOwnedDeck(request.headers, id);
   if (access instanceof NextResponse) return access;
 
-  const db = getDb();
-  await db.delete(decks).where(eq(decks.id, access.deck.id));
+  await deleteDecksForkSafe(getDb(), [access.deck.id]);
   return new NextResponse(null, { status: 204, headers: NO_STORE });
 }

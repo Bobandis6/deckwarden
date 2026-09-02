@@ -10,10 +10,13 @@ import { Button } from "@/components/ui/button";
 export function Modal({
   label,
   onClose,
+  wide = false,
   children,
 }: {
   label: string;
   onClose: () => void;
+  /** List-heavy dialogs (P3.6 history/diff) get a wider panel. */
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -28,7 +31,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="bg-background flex max-h-[85dvh] w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-lg border p-4 shadow-lg"
+        className={`bg-background flex max-h-[85dvh] w-full ${wide ? "max-w-2xl" : "max-w-lg"} flex-col gap-3 overflow-y-auto rounded-lg border p-4 shadow-lg`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

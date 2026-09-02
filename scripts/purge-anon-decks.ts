@@ -17,10 +17,11 @@ import { config as loadEnv } from "dotenv";
 // Next.js convention: .env.local overrides .env (first file in the list wins).
 loadEnv({ path: [".env.local", ".env"], quiet: true });
 
-import { inArray, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 import { createDb } from "../src/db";
 import { decks, deckCards, rateLimitCounters } from "../src/db/schema";
+import { deleteDecksForkSafe } from "../src/lib/decks/forks";
 
 const EMPTY_AFTER = "30 days";
 const UNTOUCHED_AFTER = "12 months";
@@ -63,16 +64,13 @@ async function main() {
     }
 
     if (apply && candidates.length > 0) {
-      const deleted = await db
-        .delete(decks)
-        .where(
-          inArray(
-            decks.id,
-            candidates.map((c) => c.id),
-          ),
-        )
-        .returning({ id: decks.id });
-      console.log(`deleted ${deleted.length} deck(s) (deck_cards/deck_versions cascade).`);
+      // Fork-safe (P3.6): a purged guest deck may be someone's upstream —
+      // their pointer is NULLed in the same transaction (self-FK, no ON DELETE).
+      const deleted = await deleteDecksForkSafe(
+        db,
+        candidates.map((c) => c.id),
+      );
+      console.log(`deleted ${deleted} deck(s) (deck_cards/deck_versions cascade; forks detached).`);
     } else if (candidates.length > 0) {
       console.log("dry run — nothing deleted. Set PURGE_APPLY=true to delete.");
     }

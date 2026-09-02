@@ -113,6 +113,23 @@ export const RATE_LIMITS = {
     { key: `engage:user:${userId}`, max: 30, windowSeconds: 60 },
     { key: `engage:user-hour:${userId}`, max: 300, windowSeconds: 3600 },
   ],
+  /**
+   * POST /api/decks/[id]/versions + restore/delete (P3.6) — owner writes,
+   * checked before auth like deckMetaWrite. Versions are deliberate clicks,
+   * never autosaved, so 30/min per deck is unreachable in honest use.
+   */
+  deckVersionWrite: (ip: string | null, deckId: string): RateLimit[] => [
+    { key: `deck-version:deck:${deckId}`, max: 30, windowSeconds: 60 },
+    { key: `deck-version:ip:${ip ?? "unknown"}`, max: 90, windowSeconds: 60 },
+  ],
+  /**
+   * POST /api/decks/[id]/fork (P3.6) — session-only, so keyed by user id;
+   * the route ALSO consumes deckCreate(ip) because a fork mints a deck row
+   * the purge policy never reaps (it's an account deck).
+   */
+  deckFork: (userId: string): RateLimit[] => [
+    { key: `deck-fork:user:${userId}`, max: 10, windowSeconds: 3600 },
+  ],
   /** DELETE /api/account — a legit user needs this once, ever. */
   accountDelete: (userId: string): RateLimit[] => [
     { key: `account-delete:user:${userId}`, max: 3, windowSeconds: 3600 },

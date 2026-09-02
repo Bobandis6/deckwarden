@@ -9,7 +9,8 @@
  * Zones are validated against the adapter's FormatDef via the registry (the
  * route knows nothing game-specific); card/printing ids are verified against
  * the deck's game before any row is written. The decks-table denorms
- * (leader_ids, ci_mask, updated_at) update in the same transaction.
+ * (leader_ids, ci_mask, updated_at) update in the same transaction, via
+ * src/lib/decks/save-cards.ts — shared with version restore (P3.6).
  *
  * Caching intent: dynamic — a mutation; Cache-Control no-store.
  */
@@ -19,10 +20,11 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
-import { cardListIssues, leaderDenorm, type DeckCardInput } from "@/lib/decks/cards";
+import { cardListIssues, type DeckCardInput } from "@/lib/decks/cards";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import { clientIp } from "@/lib/decks/access";
 import { requireOwnedDeck } from "@/lib/decks/route-helpers";
+import { writeDeckCards } from "@/lib/decks/save-cards";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
@@ -32,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
-const { decks, deckCards, cardIdentities: ci, cardPrintings: cp } = schema;
+const { cardIdentities: ci, cardPrintings: cp } = schema;
 
 const BODY = z.object({
   cards: z
@@ -171,25 +173,11 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   );
   const validation = adapter.validate(toDeckSnapshot(adapter.id, formatDef, entries), cardData);
 
-  const { leaderIds, ciMask } = leaderDenorm(entries, formatDef, ciMaskByCard);
-  const updatedAt = new Date();
-
-  await db.transaction(async (tx) => {
-    await tx.delete(deckCards).where(eq(deckCards.deckId, deck.id));
-    if (entries.length > 0) {
-      await tx.insert(deckCards).values(
-        entries.map((e) => ({
-          deckId: deck.id,
-          zone: e.zone,
-          cardIdentityId: e.cardId,
-          quantity: e.qty,
-          printingId: e.printingId ?? null,
-          tags: e.tags,
-        })),
-      );
-    }
-    await tx.update(decks).set({ leaderIds, ciMask, updatedAt }).where(eq(decks.id, deck.id));
-  });
+  // The write + denorms live in save-cards.ts (P3.6): version restore
+  // replaces the list through the very same function.
+  const { leaderIds, ciMask, updatedAt } = await db.transaction((tx) =>
+    writeDeckCards(tx, deck.id, entries, formatDef, ciMaskByCard),
+  );
 
   return NextResponse.json(
     { count: entries.length, leaderIds, ciMask, updatedAt, validation },

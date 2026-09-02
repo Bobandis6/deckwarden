@@ -25,7 +25,11 @@ export function createDb(url = databaseUrl()) {
   return { client, db: drizzle(client, { schema }) };
 }
 
-type Db = ReturnType<typeof createDb>["db"];
+export type Db = ReturnType<typeof createDb>["db"];
+/** The callback argument of db.transaction, for helpers that run inside a caller's transaction. */
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+/** Anything that can run queries: the singleton or an open transaction. */
+export type DbExecutor = Db | Tx;
 
 const globalForDb = globalThis as unknown as { __deckwardenDb?: Db };
 

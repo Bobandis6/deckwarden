@@ -24,11 +24,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { ForkCreditLine } from "@/components/deck/fork-button";
 import { CardDetailPane } from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
 import { CutCoachPanel } from "@/components/editor/cut-coach-panel";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
 import { DetailsDialog, type DeckDetails } from "@/components/editor/details-dialog";
+import { HistoryDialog } from "@/components/editor/history-dialog";
 import { ExportDialog, ImportDialog } from "@/components/editor/import-export";
 import { RecommendationsPanel } from "@/components/editor/recommendations-panel";
 import { SearchPane } from "@/components/editor/search-pane";
@@ -47,6 +49,7 @@ import {
   type EditorEntry,
   type EditResult,
 } from "@/lib/decks/editor-state";
+import type { ForkCredit } from "@/lib/decks/fork-credit";
 import type { ImportOutcome } from "@/lib/decks/import";
 import { getDeckToken, removeDeckToken, setDeckToken } from "@/lib/decks/token-store";
 import { toDeckSnapshot } from "@/lib/decks/validation";
@@ -70,6 +73,8 @@ interface DeckResponse {
     notes: string | null;
     visibility: DeckVisibility;
     isOwner: boolean;
+    /** Fork credit (P3.6), resolved for this viewer; null = not a fork. */
+    forkedFrom: ForkCredit | null;
   };
   cards: {
     cardId: string;
@@ -137,8 +142,11 @@ export function DeckEditor({
   const [entries, setEntries] = useState<EditorEntry[]>([]);
   const [cards, setCards] = useState<ReadonlyMap<string, EditorCard>>(new Map());
   const [preview, setPreview] = useState<EditorCard | null>(null);
-  const [dialog, setDialog] = useState<"import" | "export" | "share" | "details" | null>(null);
+  const [dialog, setDialog] = useState<
+    "import" | "export" | "share" | "details" | "history" | null
+  >(null);
   const [share, setShare] = useState<{ publicId: string; visibility: DeckVisibility } | null>(null);
+  const [forkedFrom, setForkedFrom] = useState<ForkCredit | null>(null);
   // Right pane tab (P3.2/P3.3/P3.4). liveDeckId mirrors deckIdRef as STATE so
   // the panels re-render when draft mode's first save mints the row.
   const [rightTab, setRightTab] = useState<"card" | "suggest" | "combos" | "cuts">("card");
@@ -234,65 +242,72 @@ export function DeckEditor({
   const autosave = useAutosave(save);
   const { markDirty, isDirty } = autosave;
 
-  // Hydrate from the server once (GET joins card data — no N+1). Draft mode
+  // Hydrate from the server (GET joins card data — no N+1): once on mount for
+  // an existing deck, and again after a version restore (P3.6) replaced the
+  // list server-side — the refs and the last-saved baselines are reset too,
+  // so the next autosave can't push the pre-restore list back. Draft mode
   // has no server row yet — its ready state and baselines were set at init.
+  const hydrate = useCallback(async (deckId: string, signal?: AbortSignal) => {
+    const token = getDeckToken(deckId);
+    const res = await fetch(`/api/decks/${deckId}`, {
+      headers: token ? { [TOKEN_HEADER]: token } : {},
+      signal,
+      cache: "no-store",
+    });
+    if (res.status === 404) throw new Error("Deck not found.");
+    if (res.status === 403) throw new Error("This deck is private and you don't have its key.");
+    if (!res.ok) throw new Error(`Failed to load deck (${res.status}).`);
+    const json: DeckResponse = await res.json();
+    if (!json.deck.isOwner) {
+      throw new Error(
+        "You don't have edit access to this deck on this browser. " +
+          "The edit key lives where the deck was created — and if you've " +
+          "claimed it into an account, sign in from the Account page first.",
+      );
+    }
+    const adapter = json.deck.game ? getAdapter(json.deck.game) : null;
+    const format = adapter?.formats.find((f) => f.code === json.deck.format);
+    if (!adapter || !format) throw new Error("This deck has an unknown game or format.");
+
+    const loadedEntries: EditorEntry[] = json.cards.map((c) => ({
+      cardId: c.cardId,
+      zone: c.zone,
+      qty: c.qty,
+      tags: c.tags,
+      ...(c.printingId ? { printingId: c.printingId } : {}),
+    }));
+    entriesRef.current = loadedEntries;
+    metaRef.current = {
+      name: json.deck.name,
+      description: json.deck.description ?? "",
+      notes: json.deck.notes ?? "",
+    };
+    lastSavedRef.current = {
+      cards: JSON.stringify({ cards: toSavePayload(loadedEntries) }),
+      meta: metaPatchBody(metaRef.current),
+    };
+    setEntries(loadedEntries);
+    setCards(new Map(json.cards.map((c) => [c.cardId, toEditorCard(c.card)])));
+    setDeckName(json.deck.name);
+    setDetails({ description: json.deck.description ?? "", notes: json.deck.notes ?? "" });
+    setShare({ publicId: json.deck.publicId, visibility: json.deck.visibility });
+    setForkedFrom(json.deck.forkedFrom ?? null);
+    setLoad({ state: "ready", adapter, format });
+  }, []);
+
   useEffect(() => {
     if (initialDeckId === null) return;
-    const deckId = initialDeckId;
     const controller = new AbortController();
     void (async () => {
       try {
-        const token = getDeckToken(deckId);
-        const res = await fetch(`/api/decks/${deckId}`, {
-          headers: token ? { [TOKEN_HEADER]: token } : {},
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        if (res.status === 404) throw new Error("Deck not found.");
-        if (res.status === 403) throw new Error("This deck is private and you don't have its key.");
-        if (!res.ok) throw new Error(`Failed to load deck (${res.status}).`);
-        const json: DeckResponse = await res.json();
-        if (!json.deck.isOwner) {
-          throw new Error(
-            "You don't have edit access to this deck on this browser. " +
-              "The edit key lives where the deck was created — and if you've " +
-              "claimed it into an account, sign in from the Account page first.",
-          );
-        }
-        const adapter = json.deck.game ? getAdapter(json.deck.game) : null;
-        const format = adapter?.formats.find((f) => f.code === json.deck.format);
-        if (!adapter || !format) throw new Error("This deck has an unknown game or format.");
-
-        const loadedEntries: EditorEntry[] = json.cards.map((c) => ({
-          cardId: c.cardId,
-          zone: c.zone,
-          qty: c.qty,
-          tags: c.tags,
-          ...(c.printingId ? { printingId: c.printingId } : {}),
-        }));
-        entriesRef.current = loadedEntries;
-        metaRef.current = {
-          name: json.deck.name,
-          description: json.deck.description ?? "",
-          notes: json.deck.notes ?? "",
-        };
-        lastSavedRef.current = {
-          cards: JSON.stringify({ cards: toSavePayload(loadedEntries) }),
-          meta: metaPatchBody(metaRef.current),
-        };
-        setEntries(loadedEntries);
-        setCards(new Map(json.cards.map((c) => [c.cardId, toEditorCard(c.card)])));
-        setDeckName(json.deck.name);
-        setDetails({ description: json.deck.description ?? "", notes: json.deck.notes ?? "" });
-        setShare({ publicId: json.deck.publicId, visibility: json.deck.visibility });
-        setLoad({ state: "ready", adapter, format });
+        await hydrate(initialDeckId, controller.signal);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setLoad({ state: "error", message: err instanceof Error ? err.message : String(err) });
       }
     })();
     return () => controller.abort();
-  }, [initialDeckId]);
+  }, [initialDeckId, hydrate]);
 
   // Flush pending edits when the tab closes (pagehide) or the component
   // unmounts on client-side navigation. keepalive lets the request outlive
@@ -471,6 +486,17 @@ export function DeckEditor({
     return null;
   }, [router]);
 
+  // Version restore (P3.6): flush what's on screen first so the safety
+  // snapshot is the list the user sees, then re-hydrate from the server
+  // after the swap. The preview card may now be out of the deck — harmless.
+  const beforeRestore = useCallback(async () => {
+    await autosave.flush();
+  }, [autosave]);
+  const afterRestore = useCallback(async () => {
+    const deckId = deckIdRef.current;
+    if (deckId) await hydrate(deckId);
+  }, [hydrate]);
+
   const inDeckQty = useMemo(() => {
     const counts = new Map<string, number>();
     for (const e of entries) counts.set(e.cardId, (counts.get(e.cardId) ?? 0) + e.qty);
@@ -552,6 +578,13 @@ export function DeckEditor({
           maxLength={120}
           className="focus-visible:ring-ring/50 order-last min-w-0 basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 lg:order-none lg:flex-1 lg:basis-auto"
         />
+        {/* Fork credit (P3.6) rides the name row on mobile and sits inline on desktop. */}
+        {forkedFrom && (
+          <ForkCreditLine
+            credit={forkedFrom}
+            className="order-last basis-full truncate px-2 lg:order-none lg:max-w-56 lg:basis-auto"
+          />
+        )}
         <div className="ml-auto flex items-center gap-3 lg:ml-0">
           <Button variant="outline" size="xs" onClick={() => setDialog("details")}>
             Details
@@ -565,6 +598,13 @@ export function DeckEditor({
           {share && (
             <Button variant="outline" size="xs" onClick={() => setDialog("share")}>
               Share
+            </Button>
+          )}
+          {/* Versioning is a deck-level concern (P3.6): a header affordance,
+              not a fourth right-pane tab. Needs a server row (not a draft). */}
+          {liveDeckId && (
+            <Button variant="outline" size="xs" onClick={() => setDialog("history")}>
+              History
             </Button>
           )}
           <SaveIndicator status={autosave.status} onRetry={() => void autosave.flush()} />
@@ -592,6 +632,18 @@ export function DeckEditor({
       {dialog === "export" && snapshot && (
         <ExportDialog
           text={load.adapter.serializeDecklist(snapshot, cards)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === "history" && liveDeckId && (
+        <HistoryDialog
+          deckId={liveDeckId}
+          format={load.format}
+          entries={entries}
+          cards={cards}
+          forkedFrom={forkedFrom}
+          onBeforeRestore={beforeRestore}
+          onRestored={afterRestore}
           onClose={() => setDialog(null)}
         />
       )}

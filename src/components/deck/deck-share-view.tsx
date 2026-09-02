@@ -19,6 +19,7 @@ import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
 import { DeckGridView } from "@/components/deck/deck-grid-view";
 import { DeckTextView } from "@/components/deck/deck-text-view";
 import { EngagementButtons, type EngagementViewer } from "@/components/deck/engagement-buttons";
+import { ForkButton, ForkCreditLine } from "@/components/deck/fork-button";
 import { LeaderZone } from "@/components/deck/leader-zone";
 import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
@@ -31,6 +32,7 @@ import {
   type EditorCard,
   type EditorEntry,
 } from "@/lib/decks/editor-state";
+import type { ForkCredit } from "@/lib/decks/fork-credit";
 import { getDeckToken } from "@/lib/decks/token-store";
 import { issueSeverityByCard, toDeckSnapshot } from "@/lib/decks/validation";
 import {
@@ -79,12 +81,15 @@ export function DeckShareView({
   cards,
   author = null,
   viewer = null,
+  forkedFrom = null,
 }: {
   deck: ShareDeckMeta;
   cards: ShareDeckCard[];
   author?: ShareDeckAuthor | null;
   /** Signed-in viewer's like/bookmark state (P2.3); null = signed out. */
   viewer?: EngagementViewer | null;
+  /** Fork credit (P3.6), resolved for this viewer; null = not a fork. */
+  forkedFrom?: ForkCredit | null;
 }) {
   const router = useRouter();
 
@@ -197,9 +202,15 @@ export function DeckShareView({
             timeZone: "UTC",
           })}
         </p>
+        {forkedFrom && (
+          <p className="mt-1">
+            <ForkCreditLine credit={forkedFrom} className="text-sm" />
+          </p>
+        )}
         {deck.description && <p className="mt-2 text-sm whitespace-pre-wrap">{deck.description}</p>}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <EngagementButtons deckId={deck.id} likesCount={deck.likesCount} viewer={viewer} />
+          <ForkButton deckId={deck.id} signedIn={viewer !== null} />
           <Button variant="outline" size="sm" onClick={copyDecklist}>
             {copied ? "Copied ✓" : "Copy decklist"}
           </Button>
