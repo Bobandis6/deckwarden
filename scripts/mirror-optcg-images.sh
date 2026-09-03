@@ -8,10 +8,15 @@
 # interrupted backfill continues wherever it stopped on the next run, and a
 # steady-state night with nothing new is a few seconds of `aws s3 ls`.
 #
-# Serving stays on Bandai hotlinks until the bucket gets a public domain
-# (owner step); flipping R2_PUBLIC_IMAGE_BASE + one forced ingest re-points
-# image_override at the mirror. Same skip-clean env pattern as
-# archive-topdeck-raw.sh: no R2 secrets or no manifest → exit 0.
+# Serving: images upload to R2_PUBLIC_BUCKET (the images-only public bucket —
+# the main bucket stays private, it holds pg/ backups) and are served from its
+# public domain (R2_PUBLIC_IMAGE_BASE, which the ingest writes into
+# image_override). Falls back to R2_BUCKET when no public bucket is set (the
+# pre-flip archival mode). When both are set, a legacy seed pass first copies
+# anything the private bucket's optcg/images/ already holds — bucket-to-bucket
+# through the runner, so Bandai is never re-asked for images we already have.
+# Same skip-clean env pattern as archive-topdeck-raw.sh: no R2 secrets or no
+# manifest → exit 0.
 # Volume: ~4,843 PNGs ≈ low single-digit GB, inside R2's 10GB free tier.
 set -euo pipefail
 
@@ -29,8 +34,18 @@ fi
 
 export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 
+DEST_BUCKET="${R2_PUBLIC_BUCKET:-$R2_BUCKET}"
+
+# One-time seed: images the pre-flip runs archived into the private bucket
+# move over without touching Bandai. No-ops in seconds once caught up.
+if [ -n "${R2_PUBLIC_BUCKET:-}" ] && [ "$R2_PUBLIC_BUCKET" != "$R2_BUCKET" ]; then
+  echo "seeding $R2_PUBLIC_BUCKET from legacy $R2_BUCKET/$PREFIX/ …"
+  aws s3 sync "s3://$R2_BUCKET/$PREFIX/" "s3://$DEST_BUCKET/$PREFIX/" \
+    --endpoint-url "$R2_ENDPOINT" --content-type image/png --only-show-errors
+fi
+
 existing=$(mktemp)
-aws s3 ls "s3://$R2_BUCKET/$PREFIX/" --recursive --endpoint-url "$R2_ENDPOINT" \
+aws s3 ls "s3://$DEST_BUCKET/$PREFIX/" --recursive --endpoint-url "$R2_ENDPOINT" \
   | awk '{print $NF}' | sed "s|^$PREFIX/||" > "$existing" || true
 
 total=0 present=0 uploaded=0 failed=0
@@ -43,7 +58,7 @@ while IFS=$'\t' read -r key url; do
     continue
   fi
   if curl -sSf --retry 2 -m 60 -A "Deckwarden/1.0 (https://deckwarden.gg)" "$url" -o "$tmp"; then
-    aws s3 cp "$tmp" "s3://$R2_BUCKET/$PREFIX/$key.png" \
+    aws s3 cp "$tmp" "s3://$DEST_BUCKET/$PREFIX/$key.png" \
       --endpoint-url "$R2_ENDPOINT" --content-type image/png --only-show-errors
     uploaded=$((uploaded + 1))
   else
@@ -54,7 +69,7 @@ while IFS=$'\t' read -r key url; do
 done < "$MANIFEST"
 rm -f "$tmp" "$existing"
 
-echo "mirror: $total in manifest, $present already mirrored, $uploaded uploaded, $failed failed"
+echo "mirror → $DEST_BUCKET: $total in manifest, $present already mirrored, $uploaded uploaded, $failed failed"
 # Individual misses are warned above and retried next night; only total
 # failure (likely a blocked UA or layout change) should go red.
 if [ "$failed" -gt 0 ] && [ "$uploaded" -eq 0 ] && [ "$present" -eq 0 ]; then
