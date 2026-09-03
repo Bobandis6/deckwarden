@@ -58,8 +58,12 @@ jobs:
 
       # Self-healing delta mirror: manifest from the DB, then upload only what
       # the bucket is missing (first run = the full backfill, resumable).
+      # Step-level cap so a slow backfill FAILS THIS STEP instead of hitting
+      # the job timeout — a job-timeout cancellation takes the !cancelled()
+      # safety steps down with it (learned 2026-09-03, first backfill run).
       - name: Mirror One Piece card images to R2 (no-op when complete or unconfigured)
         if: ${{ !cancelled() }}
+        timeout-minutes: 60
         run: pnpm optcg:image-manifest && bash scripts/mirror-optcg-images.sh
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

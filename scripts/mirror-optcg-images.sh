@@ -44,12 +44,15 @@ if [ -n "${R2_PUBLIC_BUCKET:-}" ] && [ "$R2_PUBLIC_BUCKET" != "$R2_BUCKET" ]; th
     --endpoint-url "$R2_ENDPOINT" --content-type image/png --only-show-errors
 fi
 
+# Two phases (2026-09-03: per-file `aws s3 cp` cost ~1s each and blew the
+# first backfill past the job timeout): a polite download loop into a temp
+# dir, then ONE parallel recursive upload — aws-cli overhead paid once.
 existing=$(mktemp)
 aws s3 ls "s3://$DEST_BUCKET/$PREFIX/" --recursive --endpoint-url "$R2_ENDPOINT" \
   | awk '{print $NF}' | sed "s|^$PREFIX/||" > "$existing" || true
 
-total=0 present=0 uploaded=0 failed=0
-tmp=$(mktemp)
+stage=$(mktemp -d)
+total=0 present=0 downloaded=0 failed=0
 while IFS=$'\t' read -r key url; do
   [ -n "$key" ] || continue
   total=$((total + 1))
@@ -57,21 +60,25 @@ while IFS=$'\t' read -r key url; do
     present=$((present + 1))
     continue
   fi
-  if curl -sSf --retry 2 -m 60 -A "Deckwarden/1.0 (https://deckwarden.gg)" "$url" -o "$tmp"; then
-    aws s3 cp "$tmp" "s3://$DEST_BUCKET/$PREFIX/$key.png" \
-      --endpoint-url "$R2_ENDPOINT" --content-type image/png --only-show-errors
-    uploaded=$((uploaded + 1))
+  if curl -sSf --retry 2 -m 60 -A "Deckwarden/1.0 (https://deckwarden.gg)" "$url" -o "$stage/$key.png"; then
+    downloaded=$((downloaded + 1))
   else
     echo "WARN: download failed for $key ($url)"
+    rm -f "$stage/$key.png"
     failed=$((failed + 1))
   fi
   sleep 0.25 # Bandai politeness
 done < "$MANIFEST"
-rm -f "$tmp" "$existing"
 
-echo "mirror → $DEST_BUCKET: $total in manifest, $present already mirrored, $uploaded uploaded, $failed failed"
+if [ "$downloaded" -gt 0 ]; then
+  aws s3 cp "$stage" "s3://$DEST_BUCKET/$PREFIX/" --recursive \
+    --endpoint-url "$R2_ENDPOINT" --content-type image/png --only-show-errors
+fi
+rm -rf "$stage" "$existing"
+
+echo "mirror → $DEST_BUCKET: $total in manifest, $present already mirrored, $downloaded uploaded, $failed failed"
 # Individual misses are warned above and retried next night; only total
 # failure (likely a blocked UA or layout change) should go red.
-if [ "$failed" -gt 0 ] && [ "$uploaded" -eq 0 ] && [ "$present" -eq 0 ]; then
+if [ "$failed" -gt 0 ] && [ "$downloaded" -eq 0 ] && [ "$present" -eq 0 ]; then
   exit 1
 fi
