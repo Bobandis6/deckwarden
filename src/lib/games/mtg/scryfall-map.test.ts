@@ -267,6 +267,54 @@ describe("mapIdentity", () => {
       }),
     ).toBe(true);
   });
+
+  // CR 903.3 (b)/(c): legendary Vehicles, and legendary Spacecraft with a P/T
+  // box, are commanders with NO "can be your commander" oracle text — WotC's
+  // errata removed that sentence (Shorikai's stored oracle_text has no
+  // commander line in prod, verified 2026-09-02).
+  it("flags legendary Vehicles and P/T-boxed Spacecraft as leader candidates", () => {
+    // Shorikai-shaped: Legendary Artifact — Vehicle, no commander line
+    expect(
+      isLeaderCandidate({
+        ...bolt,
+        type_line: "Legendary Artifact — Vehicle",
+        oracle_text: "At the beginning of your end step, draw two cards...\nCrew 8",
+        power: "1",
+        toughness: "8",
+      }),
+    ).toBe(true);
+    // Smuggler's Copter-shaped: Vehicle but not legendary
+    expect(
+      isLeaderCandidate({
+        ...bolt,
+        type_line: "Artifact — Vehicle",
+        oracle_text: "Flying\nWhenever Smuggler's Copter attacks or blocks...\nCrew 1",
+        power: "3",
+        toughness: "3",
+      }),
+    ).toBe(false);
+    // Hearthhull-shaped: Legendary Spacecraft with a P/T box
+    expect(
+      isLeaderCandidate({
+        ...bolt,
+        type_line: "Legendary Artifact — Spacecraft",
+        oracle_text: "Whenever Hearthhull, the Worldseed attacks...\nStation",
+        power: "6",
+        toughness: "7",
+      }),
+    ).toBe(true);
+    // Eternity Elevator-shaped: Legendary Spacecraft with NO P/T box — CR 903.3(c)
+    // requires one, so it is NOT a legal commander.
+    expect(
+      isLeaderCandidate({
+        ...bolt,
+        type_line: "Legendary Artifact — Spacecraft",
+        oracle_text: "{T}: Add {C}{C}.\nStation",
+        power: undefined,
+        toughness: undefined,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("mapPrinting", () => {

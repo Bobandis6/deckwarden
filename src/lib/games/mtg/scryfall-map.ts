@@ -136,10 +136,24 @@ function foldFaces(card: ScryfallCard, field: "type_line" | "oracle_text", sep: 
   return (card.card_faces ?? []).map((f) => f[field] ?? "").join(sep);
 }
 
+/**
+ * CR 903.3 (verified 2026-09-02, MagicCompRules 20260227): a commander must be
+ * a legendary (a) creature card, (b) Vehicle card, or (c) Spacecraft card with
+ * one or more power/toughness boxes — WotC's errata removed the "can be your
+ * commander" sentence from legendary Vehicles when (b)/(c) were added, so the
+ * type line is the only signal for them. The Spacecraft P/T qualifier is load-
+ * bearing: The Eternity Elevator (Legendary Artifact — Spacecraft, no P/T box)
+ * is not a legal commander. The oracle-text fallback covers 903.3a grants
+ * (planeswalkers etc.). Front face only, as everywhere else in this file.
+ */
 export function isLeaderCandidate(card: ScryfallCard): boolean {
   const typeLine = foldFaces(card, "type_line", " // ");
   const front = typeLine.split(" // ")[0];
-  if (front.includes("Legendary") && front.includes("Creature")) return true;
+  if (front.includes("Legendary")) {
+    if (front.includes("Creature") || front.includes("Vehicle")) return true;
+    if (front.includes("Spacecraft") && (card.power ?? card.card_faces?.[0]?.power) != null)
+      return true;
+  }
   const text = foldFaces(card, "oracle_text", "\n");
   return /can be your commander/i.test(text);
 }
