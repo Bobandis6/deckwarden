@@ -114,25 +114,23 @@ export async function aggregateSettledTournaments(
   };
   if (input.length === 0) return outcome;
 
+  // = ANY(param) throughout, never `IN ${sql(list)}`: the sql(array) helper
+  // is postgres.js's IDENTIFIER builder in these positions (the dispatched
+  // 2026-09-03 run died on it with "str.replace is not a function"), while
+  // an array VALUE param serializes cleanly at any size.
   const byKey = new Map(input.map((t) => [t.external_key, t]));
   const keys = [...byKey.keys()];
-  const pending: { id: number; external_key: string }[] = [];
-  for (let i = 0; i < keys.length; i += BATCH) {
-    const rows = await sql<{ id: number; external_key: string }[]>`
-      SELECT id, external_key FROM tournaments
-      WHERE source = 'topdeck' AND cards_aggregated_at IS NULL
-        AND external_key IN ${sql(keys.slice(i, i + BATCH))}`;
-    pending.push(...rows);
-  }
+  const pending = await sql<{ id: number; external_key: string }[]>`
+    SELECT id, external_key FROM tournaments
+    WHERE source = 'topdeck' AND cards_aggregated_at IS NULL
+      AND external_key = ANY(${keys})`;
   const found = new Set(pending.map((r) => r.external_key));
   // Distinguish "already aggregated" (fine, skip silently) from "not in the
   // tournaments table at all" (should not happen — counted loudly).
-  for (let i = 0; i < keys.length; i += BATCH) {
-    const rows = await sql<{ external_key: string }[]>`
-      SELECT external_key FROM tournaments
-      WHERE source = 'topdeck' AND external_key IN ${sql(keys.slice(i, i + BATCH))}`;
-    for (const r of rows) found.add(r.external_key);
-  }
+  const allKnown = await sql<{ external_key: string }[]>`
+    SELECT external_key FROM tournaments
+    WHERE source = 'topdeck' AND external_key = ANY(${keys})`;
+  for (const r of allKnown) found.add(r.external_key);
   outcome.tournaments_missing = keys.filter((k) => !found.has(k)).length;
 
   if (pending.length === 0) return outcome;
@@ -164,12 +162,9 @@ export async function aggregateSettledTournaments(
           first_seen = least(s.first_seen, excluded.first_seen),
           last_seen = greatest(s.last_seen, excluded.last_seen)`;
     }
-    const ids = pending.map((r) => r.id);
-    for (let i = 0; i < ids.length; i += BATCH) {
-      await tx`
-        UPDATE tournaments SET cards_aggregated_at = now()
-        WHERE id IN ${tx(ids.slice(i, i + BATCH))}`;
-    }
+    await tx`
+      UPDATE tournaments SET cards_aggregated_at = now()
+      WHERE id = ANY(${pending.map((r) => r.id)})`;
   });
 
   outcome.tournaments_aggregated = pending.length;
