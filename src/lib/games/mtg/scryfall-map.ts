@@ -221,7 +221,54 @@ function buildAttrs(card: ScryfallCard): MtgAttrs {
   return attrs;
 }
 
-export function mapIdentity(card: ScryfallCard, todayIso: string): IdentityRow {
+/**
+ * Scryfall's `reversible_card` layout (two-sided printings whose sides are
+ * the same card, or an alternate-art restatement of a DFC) repeats each side
+ * in `card_faces` and joins every face name into the top-level `name`.
+ * Mapping that verbatim minted doubled identities — "Chulane, Teller of
+ * Tales // Chulane, Teller of Tales", and tripled forms like "Marang River
+ * Regent // Coil and Catch // Marang River Regent" (12 + 2 in prod,
+ * 2026-09-02) — with doubled name_norm, so exact resolution (the Topdeck
+ * leader map, decklist import) missed them entirely. Identity mapping
+ * dedupes identical faces first: one surviving face is a normal single-faced
+ * card (name + fields from that face, no `faces` attr); distinct faces keep
+ * the real "A // B". Printing mapping is untouched — a reversible printing
+ * really does have a back image (hasBack reads the raw faces).
+ */
+export function dedupeReversibleFaces(card: ScryfallCard): ScryfallCard {
+  if (card.layout !== "reversible_card" || !card.card_faces?.length) return card;
+  const seen = new Set<string>();
+  const faces = card.card_faces.filter((f) => {
+    const key = f.name ?? "";
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const name =
+    faces
+      .map((f) => f.name)
+      .filter(Boolean)
+      .join(" // ") || card.name;
+  if (faces.length > 1) return { ...card, name, card_faces: faces };
+  const f = faces[0];
+  return {
+    ...card,
+    name,
+    card_faces: undefined,
+    // reversible cards carry oracle_id on the faces, not the top level
+    oracle_id: card.oracle_id ?? f.oracle_id,
+    mana_cost: card.mana_cost ?? f.mana_cost,
+    type_line: card.type_line ?? f.type_line,
+    oracle_text: card.oracle_text ?? f.oracle_text,
+    power: card.power ?? f.power,
+    toughness: card.toughness ?? f.toughness,
+    loyalty: card.loyalty ?? f.loyalty,
+    colors: card.colors ?? f.colors,
+  };
+}
+
+export function mapIdentity(rawCard: ScryfallCard, todayIso: string): IdentityRow {
+  const card = dedupeReversibleFaces(rawCard);
   const colors =
     card.colors ?? Array.from(new Set((card.card_faces ?? []).flatMap((f) => f.colors ?? [])));
   return {

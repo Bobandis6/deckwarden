@@ -155,6 +155,105 @@ describe("mapIdentity", () => {
     expect(row.colors_mask).toBe(2); // union of face colors
   });
 
+  // The reversible_card layout repeats each side in card_faces and joins all
+  // face names into `name` — mapping it verbatim minted "Chulane // Chulane"
+  // identities in prod (2026-09-02) whose doubled name_norm broke exact
+  // resolution (Topdeck leader map, import). Pinned here both ways.
+  it("reversible printing of a single-faced card collapses to the one real face", () => {
+    const reversible: ScryfallCard = {
+      id: "0f2a7b16-1b8e-4ac5-a4a8-6b6c85c1c8f1",
+      lang: "en",
+      layout: "reversible_card",
+      name: "Chulane, Teller of Tales // Chulane, Teller of Tales",
+      set: "sld",
+      collector_number: "379",
+      cmc: 5,
+      color_identity: ["G", "U", "W"],
+      card_faces: [
+        {
+          name: "Chulane, Teller of Tales",
+          mana_cost: "{2}{G}{W}{U}",
+          type_line: "Legendary Creature — Human Druid",
+          oracle_text: "Whenever you cast a creature spell, draw a card...",
+          power: "2",
+          toughness: "4",
+          colors: ["G", "U", "W"],
+          oracle_id: "1e94a742-7cb8-4b93-a621-63ee68b12271",
+          image_uris: { normal: "https://example.invalid/a.jpg" },
+        },
+        {
+          name: "Chulane, Teller of Tales",
+          mana_cost: "{2}{G}{W}{U}",
+          type_line: "Legendary Creature — Human Druid",
+          oracle_text: "Whenever you cast a creature spell, draw a card...",
+          power: "2",
+          toughness: "4",
+          colors: ["G", "U", "W"],
+          oracle_id: "1e94a742-7cb8-4b93-a621-63ee68b12271",
+          image_uris: { normal: "https://example.invalid/b.jpg" },
+        },
+      ],
+    };
+    const row = mapIdentity(reversible, TODAY);
+    expect(row.name).toBe("Chulane, Teller of Tales");
+    expect(row.name_norm).toBe("chulane, teller of tales");
+    expect(row.external_key).toBe("1e94a742-7cb8-4b93-a621-63ee68b12271");
+    expect(row.is_leader_candidate).toBe(true);
+    const attrs = JSON.parse(row.attrs);
+    expect(attrs.type_line).toBe("Legendary Creature — Human Druid");
+    expect(attrs.oracle_text).not.toContain("//");
+    expect(attrs.faces).toBeUndefined(); // one real face = a single-faced card
+    // the printing keeps its real back image regardless
+    expect(hasBack(reversible)).toBe(true);
+  });
+
+  it("reversible printing of a DFC keeps the real A // B name", () => {
+    const reversibleDfc: ScryfallCard = {
+      id: "5f0c37b2-2b9e-4a15-9c30-25f0f2f3d001",
+      lang: "en",
+      layout: "reversible_card",
+      // Scryfall joins every face name: front MDFC + its restated front again.
+      name: "Marang River Regent // Coil and Catch // Marang River Regent",
+      set: "tdm",
+      collector_number: "410",
+      cmc: 7,
+      color_identity: ["U"],
+      card_faces: [
+        {
+          name: "Marang River Regent",
+          type_line: "Creature — Dragon",
+          oracle_text: "Flying...",
+          power: "6",
+          toughness: "7",
+          colors: ["U"],
+          oracle_id: "8bd8b2a0-df90-4b74-95a4-8bdb0b6bd05e",
+        },
+        {
+          name: "Coil and Catch",
+          type_line: "Instant — Omen",
+          oracle_text: "Draw three cards...",
+          colors: ["U"],
+          oracle_id: "8bd8b2a0-df90-4b74-95a4-8bdb0b6bd05e",
+        },
+        {
+          name: "Marang River Regent",
+          type_line: "Creature — Dragon",
+          oracle_text: "Flying...",
+          power: "6",
+          toughness: "7",
+          colors: ["U"],
+          oracle_id: "8bd8b2a0-df90-4b74-95a4-8bdb0b6bd05e",
+        },
+      ],
+    };
+    const row = mapIdentity(reversibleDfc, TODAY);
+    expect(row.name).toBe("Marang River Regent // Coil and Catch");
+    expect(row.name_norm).toBe("marang river regent coil and catch");
+    const attrs = JSON.parse(row.attrs);
+    expect(attrs.faces).toHaveLength(2);
+    expect(attrs.type_line).toBe("Creature — Dragon // Instant — Omen");
+  });
+
   it("flags previews and leader candidates", () => {
     expect(mapIdentity({ ...bolt, released_at: "2027-01-01" }, TODAY).is_preview).toBe(true);
     expect(isLeaderCandidate({ ...bolt, type_line: "Legendary Creature — Elder Dragon" })).toBe(
