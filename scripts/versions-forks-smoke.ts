@@ -95,6 +95,23 @@ const sameList = (a: ListEntry[], b: ListEntry[]) => {
   return JSON.stringify(a.map(key).sort()) === JSON.stringify(b.map(key).sort());
 };
 
+/**
+ * Abort the run (cleanup still runs) when a deck create didn't return an id —
+ * almost always the per-IP deck-create limiter (10/hour, 30/day). Recording an
+ * undefined id would only crash later, in cleanup, with the cause lost
+ * (profile-folders-smoke learned this in prod on 2026-09-02).
+ */
+function requireDeckId(
+  label: string,
+  res: { status: number; json: unknown; text: string },
+  id: unknown,
+): string {
+  if (typeof id === "string" && id.length > 0) return id;
+  throw new Error(
+    `${label} failed (HTTP ${res.status}${res.status === 429 ? " — the per-IP deck-create limiter; see rate_limit_counters" : ""}): ${res.text.slice(0, 200)}`,
+  );
+}
+
 async function main() {
   console.log(`versions+forks smoke against ${BASE}`);
   const sql = postgres(DB_URL as string, { max: 1, prepare: false });
@@ -134,7 +151,7 @@ async function main() {
       },
     });
     const deck = j<{ id: string; publicId: string; currentVersion: number }>(j(created.json).deck);
-    cleanup.deckIds.push(deck.id);
+    cleanup.deckIds.push(requireDeckId("session deck create", created, deck.id));
     check("create → currentVersion 0", created.status === 201 && deck.currentVersion === 0);
 
     const listV1 = [
@@ -334,7 +351,7 @@ async function main() {
     });
     const guest = j<{ id: string }>(j(guestRes.json).deck);
     const guestToken = j(guestRes.json).claimToken as string;
-    cleanup.deckIds.push(guest.id);
+    cleanup.deckIds.push(requireDeckId("guest deck create", guestRes, guest.id));
     const guestSave = await api("POST", `/api/decks/${guest.id}/versions`, {
       deckToken: guestToken,
       body: { note: "guest v1" },
@@ -387,7 +404,7 @@ async function main() {
       likesCount: number;
       isOwner: boolean;
     }>(j(forked.json).deck);
-    cleanup.deckIds.push(fork.id);
+    cleanup.deckIds.push(requireDeckId("fork create", forked, fork.id));
     check(
       "bob forks → 201: same name, unlisted, currentVersion 1, likes 0, owner",
       forked.status === 201 &&
@@ -574,12 +591,17 @@ async function main() {
       forkAfterPurge?.forked_from_deck_id === null,
     );
   } finally {
-    if (cleanup.deckIds.length > 0) {
-      await sql`update decks set forked_from_deck_id = null where forked_from_deck_id in ${sql(cleanup.deckIds)}`;
-      await sql`delete from decks where id in ${sql(cleanup.deckIds)}`;
+    // Only real ids reach the DELETEs: an undefined here once crashed the
+    // cleanup itself and left the fixtures behind.
+    const isId = (v: unknown): v is string => typeof v === "string" && v.length > 0;
+    const deckIds = cleanup.deckIds.filter(isId);
+    const userIds = cleanup.userIds.filter(isId);
+    if (deckIds.length > 0) {
+      await sql`update decks set forked_from_deck_id = null where forked_from_deck_id in ${sql(deckIds)}`;
+      await sql`delete from decks where id in ${sql(deckIds)}`;
     }
-    if (cleanup.userIds.length > 0) {
-      await sql`delete from users where id in ${sql(cleanup.userIds)}`;
+    if (userIds.length > 0) {
+      await sql`delete from users where id in ${sql(userIds)}`;
     }
     await sql.end();
   }
