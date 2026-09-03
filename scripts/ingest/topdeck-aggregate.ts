@@ -145,22 +145,26 @@ export async function aggregateSettledTournaments(
   const { pairs, commanders } = rollUpLists(datedLists);
 
   await sql.begin(async (tx) => {
+    // No table alias next to the row helper: `INSERT INTO t AS s ${tx(rows)}`
+    // breaks postgres.js's helper-type inference (it stops reading "insert"
+    // and escapes the rows as identifiers — the same str.replace crash as
+    // the IN case above). DO UPDATE references the table by full name.
     for (let i = 0; i < pairs.length; i += BATCH) {
       await tx`
-        INSERT INTO commander_card_stats AS s ${tx(pairs.slice(i, i + BATCH))}
+        INSERT INTO commander_card_stats ${tx(pairs.slice(i, i + BATCH))}
         ON CONFLICT (leader_ids, card_identity_id) DO UPDATE SET
-          lists = s.lists + excluded.lists,
-          top4 = s.top4 + excluded.top4,
-          first_seen = least(s.first_seen, excluded.first_seen),
-          last_seen = greatest(s.last_seen, excluded.last_seen)`;
+          lists = commander_card_stats.lists + excluded.lists,
+          top4 = commander_card_stats.top4 + excluded.top4,
+          first_seen = least(commander_card_stats.first_seen, excluded.first_seen),
+          last_seen = greatest(commander_card_stats.last_seen, excluded.last_seen)`;
     }
     for (let i = 0; i < commanders.length; i += BATCH) {
       await tx`
-        INSERT INTO commander_stats AS s ${tx(commanders.slice(i, i + BATCH))}
+        INSERT INTO commander_stats ${tx(commanders.slice(i, i + BATCH))}
         ON CONFLICT (leader_ids) DO UPDATE SET
-          lists = s.lists + excluded.lists,
-          first_seen = least(s.first_seen, excluded.first_seen),
-          last_seen = greatest(s.last_seen, excluded.last_seen)`;
+          lists = commander_stats.lists + excluded.lists,
+          first_seen = least(commander_stats.first_seen, excluded.first_seen),
+          last_seen = greatest(commander_stats.last_seen, excluded.last_seen)`;
     }
     await tx`
       UPDATE tournaments SET cards_aggregated_at = now()
