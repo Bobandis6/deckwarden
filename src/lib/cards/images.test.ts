@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { printingImageUrl, scryfallImageUrl, toSmallImage } from "./images";
+import {
+  embeddablePrintingImageUrl,
+  isEmbeddableImageUrl,
+  printingImageUrl,
+  scryfallImageUrl,
+  toSmallImage,
+} from "./images";
 
 const ID = "e3285e6b-3e79-4d7c-bf96-d920f973b122";
 
@@ -42,5 +48,29 @@ describe("toSmallImage", () => {
     // "normal" appearing later in the path must not be rewritten
     const tricky = `https://cards.scryfall.io/png/front/e/3/normal.png`;
     expect(toSmallImage(tricky)).toBe(tricky);
+  });
+});
+
+describe("embeddablePrintingImageUrl", () => {
+  it("returns Bandai CORP-blocked override URLs as null, everything else as-is", () => {
+    // Bandai serves Cross-Origin-Resource-Policy: same-site (2026-09-03) —
+    // browsers refuse the embed, so the wire must carry null, not a broken src.
+    const bandai = {
+      id: "f17abc33-b7f1-51b2-9a61-7f3af8c60d6a",
+      imageOverride: {
+        front: "https://en.onepiece-cardgame.com/images/cardlist/card/ST01-001.png?260828",
+      },
+    };
+    expect(embeddablePrintingImageUrl(bandai)).toBeNull();
+    expect(isEmbeddableImageUrl("https://asia-en.onepiece-cardgame.com/images/x.png")).toBe(false);
+    const r2 = {
+      id: "f17abc33-b7f1-51b2-9a61-7f3af8c60d6a",
+      imageOverride: { front: "https://img.deckwarden.gg/optcg/images/ST01-001.png" },
+    };
+    expect(embeddablePrintingImageUrl(r2)).toBe(
+      "https://img.deckwarden.gg/optcg/images/ST01-001.png",
+    );
+    // MTG's derived Scryfall URLs are untouched by the gate.
+    expect(embeddablePrintingImageUrl({ id: ID })).toBe(scryfallImageUrl(ID));
   });
 });

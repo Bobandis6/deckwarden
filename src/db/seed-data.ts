@@ -12,7 +12,7 @@ export const GAMES: ReadonlyArray<{ id: number; code: GameCode; name: string }> 
   { id: GAME_ID.azuki, code: "azuki", name: "Azuki TCG" },
 ];
 
-export const FORMAT_ID = { commander: 1 } as const;
+export const FORMAT_ID = { commander: 1, optcgStandard: 2 } as const;
 
 /**
  * Commander defaults to `legal` — the vast majority of ~35k oracle cards are, so
@@ -32,6 +32,17 @@ export const FORMATS: ReadonlyArray<{
     gameId: GAME_ID.mtg,
     code: "commander",
     name: "Commander",
+    defaultLegality: "legal",
+  },
+  {
+    // P4.1: OP has no upstream legality feed, so `legal` as the default carries
+    // the whole load with ZERO legality rows (validate treats missing as
+    // default). Bandai's real banlist + banned-pair overlay land with the M4
+    // adapter package as explicit dated rows.
+    id: FORMAT_ID.optcgStandard,
+    gameId: GAME_ID.optcg,
+    code: "standard",
+    name: "Standard",
     defaultLegality: "legal",
   },
 ];

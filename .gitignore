@@ -48,5 +48,8 @@ next-env.d.ts
 # raw Topdeck API responses (ingest writes, workflow archives to R2)
 .topdeck-raw/
 
+# One Piece image-mirror manifest (optcg-image-manifest.ts writes, mirror script reads)
+.optcg-images/
+
 # scratch tsx scripts for Claude sessions (must live inside the repo to resolve node_modules)
 scripts/.tmp/

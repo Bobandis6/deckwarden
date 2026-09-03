@@ -48,6 +48,32 @@ export default function LegalPage() {
         </p>
       </section>
 
+      <section id="one-piece" className="mt-8 space-y-3">
+        <h2 className="text-xl font-semibold">One Piece Card Game data</h2>
+        <p>
+          ©Eiichiro Oda/Shueisha, Toei Animation. ONE PIECE CARD GAME ©BANDAI. Deckwarden is
+          unofficial fan content and is not affiliated with, approved by, or endorsed by Bandai,
+          Bandai Namco, Shueisha, or Toei Animation.
+        </p>
+        <p>
+          Being honest about sourcing: no official card-data API exists for the One Piece Card Game.
+          Like every One Piece deck-building site, Deckwarden relies on community-maintained
+          datasets of the publicly listed card information (we use the open-source{" "}
+          <a
+            href="https://github.com/buhbbl/punk-records"
+            className="underline"
+            rel="noreferrer"
+            target="_blank"
+          >
+            punk-records
+          </a>{" "}
+          dataset), and card images come from Bandai&apos;s official card list. We have written to
+          Bandai requesting permission for this use. Our posture is simple: full disclaimers, One
+          Piece card data and images will never sit behind a paywall or account gate, and any
+          takedown request from the rights holders is honored immediately (see Contact below).
+        </p>
+      </section>
+
       <section className="mt-8 space-y-3">
         <h2 className="text-xl font-semibold">Terms of use</h2>
         <p>

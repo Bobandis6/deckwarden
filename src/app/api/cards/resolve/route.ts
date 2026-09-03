@@ -20,7 +20,7 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
-import { printingImageUrl } from "@/lib/cards/images";
+import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { clientIp } from "@/lib/decks/access";
 import { fetchLegalityMap } from "@/lib/decks/legality";
@@ -50,6 +50,7 @@ function wireSelect(db: ReturnType<typeof getDb>) {
       id: ci.id,
       name: ci.name,
       nameNorm: ci.nameNorm,
+      externalKey: ci.externalKey,
       primaryType: ci.primaryType,
       costValue: ci.costValue,
       colorsMask: ci.colorsMask,
@@ -70,12 +71,21 @@ function wireSelect(db: ReturnType<typeof getDb>) {
 type WireRow = Awaited<ReturnType<typeof wireSelect>>[number];
 
 function toWire(row: WireRow, legality: Map<string, LegalityEntry[]>) {
-  const { nameNorm: _nameNorm, printingId, imageOverride, cheapestUsd, ...card } = row;
+  const {
+    nameNorm: _nameNorm,
+    externalKey: _externalKey,
+    printingId,
+    imageOverride,
+    cheapestUsd,
+    ...card
+  } = row;
   return {
     ...card,
     cheapestUsd: cheapestUsd === null ? null : Number(cheapestUsd),
     legality: legality.get(row.id) ?? [],
-    image: printingId ? printingImageUrl({ id: printingId, imageOverride }, "normal") : null,
+    image: printingId
+      ? embeddablePrintingImageUrl({ id: printingId, imageOverride }, "normal")
+      : null,
   };
 }
 
@@ -119,8 +129,28 @@ export async function POST(request: NextRequest) {
 
   const norms = [...new Set(names.map(normalizeCardName))].filter(Boolean);
 
-  // Pass 1: exact normalized-name match, one query for the whole paste.
+  // Pass 0 (optcg only, P4.1): exact card-id match on external_key. OP
+  // identity IS the card id ("OP01-025" — 1,615 duplicate names upstream),
+  // and the adapter's parseDecklist emits id tokens, so id-first resolution
+  // is the real import path. MTG external keys are oracle uuids nobody
+  // pastes, so the pass is skipped there. Keyed by name_norm of the pasted
+  // token so the shared per-name lookup below just works.
   const matchByNorm = new Map<string, WireRow>();
+  if (game === "optcg") {
+    const idTokens = [
+      ...new Set(names.map((n) => n.trim().toUpperCase()).filter((n) => /^[A-Z]+\d*-\d+$/.test(n))),
+    ];
+    if (idTokens.length > 0) {
+      const rows = await wireSelect(db).where(and(gameCond, inArray(ci.externalKey, idTokens)));
+      const byKey = new Map(rows.map((r) => [r.externalKey, r]));
+      for (const input of names) {
+        const row = byKey.get(input.trim().toUpperCase());
+        if (row) matchByNorm.set(normalizeCardName(input), row);
+      }
+    }
+  }
+
+  // Pass 1: exact normalized-name match, one query for the whole paste.
   if (norms.length > 0) {
     const rows = await wireSelect(db).where(and(gameCond, inArray(ci.nameNorm, norms)));
     for (const row of rows) {

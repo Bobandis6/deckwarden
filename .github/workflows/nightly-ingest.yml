@@ -16,7 +16,9 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 100 covers the one-time OP image-mirror backfill (~4.8k polite downloads);
+    # steady-state nights are still well under the old 30.
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -36,6 +38,15 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      # Skips clean on most nights (upstream commits every 3-7 days; the sha
+      # check is one GitHub API call). R2_PUBLIC_IMAGE_BASE is unset until the
+      # bucket has a public domain — until then image_override hotlinks Bandai.
+      - name: Ingest punk-records One Piece corpus (pins upstream sha; re-ingests on change)
+        run: pnpm ingest:punk-records
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          R2_PUBLIC_IMAGE_BASE: ${{ secrets.R2_PUBLIC_IMAGE_BASE }}
+
       # Skips loudly while the TOPDECK_API_KEY secret is unset (dormant deploy);
       # with the key, any error is a hard fail like the sibling steps — the
       # job goes red, but the safety steps below still run (see !cancelled()).
@@ -44,6 +55,18 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           TOPDECK_API_KEY: ${{ secrets.TOPDECK_API_KEY }}
+
+      # Self-healing delta mirror: manifest from the DB, then upload only what
+      # the bucket is missing (first run = the full backfill, resumable).
+      - name: Mirror One Piece card images to R2 (no-op when complete or unconfigured)
+        if: ${{ !cancelled() }}
+        run: pnpm optcg:image-manifest && bash scripts/mirror-optcg-images.sh
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
 
       - name: Archive raw Topdeck responses to R2 (no-op when dormant)
         if: ${{ !cancelled() }}

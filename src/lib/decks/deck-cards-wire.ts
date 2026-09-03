@@ -12,7 +12,7 @@
 import { and, asc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
-import { printingImageUrl } from "@/lib/cards/images";
+import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import type { CardWire } from "@/lib/decks/editor-state";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 
@@ -105,7 +105,7 @@ export async function fetchDeckCardsWire(deck: {
         // jsonb comes back `unknown`; ingest writes object attrs by contract.
         attrs: r.attrs as Record<string, unknown>,
         legality: legalityMap.get(r.cardId) ?? [],
-        image: printing ? printingImageUrl(printing, "normal") : null,
+        image: printing ? embeddablePrintingImageUrl(printing, "normal") : null,
       },
     };
   });

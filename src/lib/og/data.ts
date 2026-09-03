@@ -89,6 +89,7 @@ export interface CardOgData {
   /** Full type line when the game stores one; primaryType otherwise. */
   typeLine: string | null;
   isLeaderCandidate: boolean;
+  gameId: number;
 }
 
 export async function loadCardOgData(id: string): Promise<CardOgData | null> {
@@ -99,6 +100,7 @@ export async function loadCardOgData(id: string): Promise<CardOgData | null> {
       name: cardIdentities.name,
       primaryType: cardIdentities.primaryType,
       isLeaderCandidate: cardIdentities.isLeaderCandidate,
+      gameId: cardIdentities.gameId,
       attrs: cardIdentities.attrs,
     })
     .from(cardIdentities)
@@ -111,6 +113,7 @@ export async function loadCardOgData(id: string): Promise<CardOgData | null> {
     name: row.name,
     typeLine: attrs.type_line ?? row.primaryType,
     isLeaderCandidate: row.isLeaderCandidate,
+    gameId: row.gameId,
   };
 }
 

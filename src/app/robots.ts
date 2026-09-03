@@ -10,10 +10,11 @@
  * ones carry noindex metadata instead, so crawlers can fetch and then drop
  * them rather than indexing bare disallowed URLs.
  */
-import { count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import type { MetadataRoute } from "next";
 
 import { getDb, schema } from "@/db";
+import { GAME_ID } from "@/db/seed-data";
 import { absUrl, CARDS_SITEMAP_CHUNK } from "@/lib/seo/site";
 
 export const revalidate = 86400;
@@ -22,7 +23,14 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   const [{ n }] = await getDb()
     .select({ n: count() })
     .from(schema.cardIdentities)
-    .where(eq(schema.cardIdentities.isRemoved, false));
+    // Must mirror cards/sitemap.ts's scope (MTG-only pre-OP-beta) or the
+    // chunk count here drifts from the chunks that actually exist.
+    .where(
+      and(
+        eq(schema.cardIdentities.gameId, GAME_ID.mtg),
+        eq(schema.cardIdentities.isRemoved, false),
+      ),
+    );
   const chunks = Math.max(1, Math.ceil(n / CARDS_SITEMAP_CHUNK));
 
   return {

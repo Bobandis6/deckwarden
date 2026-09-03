@@ -1,22 +1,38 @@
 /**
- * One Piece TCG adapter — TYPED STUB (build plan P0.5: "the fire drill").
- *
- * Its whole job in M0 is to typecheck against the full GameAdapter interface,
- * proving nothing MTG-specific leaked into the contract. Real validation
- * (leader color legality, banned pairs via conditional legality rows +
- * data/optcg/legalities.json overlay) and real analytics land in M4 (P4.x).
- * Everything here is deliberately minimal, not deliberately wrong.
+ * One Piece TCG adapter. The DATA half is real as of P4.1 (punk-records
+ * ingest, see punk-map.ts); validate/analyze remain the M0 stubs until the
+ * M4 adapter package lands real validation (leader color legality, the
+ * 4-copy rule, banned pairs via conditional legality rows +
+ * data/optcg/legalities.json overlay) and real analytics.
  */
 import type { CardData, FormatDef, GameAdapter, SearchFieldDef, ValidationIssue } from "../types";
 
-/** OP colors reuse the mask bits: Red 8, Green 16, Blue 2, Purple ?, Black 4, Yellow ? — finalized in M4. */
+/**
+ * Ingest-written attrs (punk-map.ts is the writer; changing the contract
+ * means a re-ingest). `type_line`/`oracle_text` are the keys the search_text
+ * generated column hardcodes (schema.ts) — the cross-game FTS contract —
+ * so the type line and effect text are stored once, under those names.
+ * Colors on the shared mask bits: Red 8, Green 16, Blue 2, Black 4,
+ * Yellow 1 (W's bit), Purple 32 (C's bit) — punk-map.OPTCG_COLOR_BIT is
+ * the one source of truth.
+ */
 export type OptcgAttrs = {
   category?: "leader" | "character" | "event" | "stage";
-  effect_text?: string;
+  /** "Leader — Supernovas / Straw Hat Crew" (category + traits, FTS mirror). */
+  type_line?: string;
+  /** The card's effect text (FTS key; OP has no "oracle" but the column contract does). */
+  oracle_text?: string;
+  /** [Trigger] text, kept structured for the M4 validator — not folded into oracle_text. */
+  trigger_text?: string;
   traits?: string[];
+  /** Battle attributes (Strike/Slash/Ranged/Special/Wisdom). */
+  attributes?: string[];
   power_num?: number | null;
   counter_num?: number | null;
+  /** Leaders only — punk-records' `cost` slot IS the life total (verified vs optcgapi). */
   life?: number;
+  /** Bandai block number (1/2/…). */
+  block?: number;
 };
 
 type OptcgCard = CardData<OptcgAttrs>;
@@ -42,6 +58,9 @@ const STANDARD: FormatDef = {
 
 const SEARCH_FIELDS: SearchFieldDef[] = [
   { key: "name", label: "Name", kind: "text", target: { column: "name_norm" }, match: "trgm" },
+  // FTS over name + type_line + oracle_text (the generated column's contract;
+  // punk-map writes those keys, so OP effect text is genuinely searchable).
+  { key: "text", label: "Text", kind: "text", target: { column: "search_text" }, match: "fts" },
   {
     key: "cost",
     label: "Cost",
@@ -49,6 +68,21 @@ const SEARCH_FIELDS: SearchFieldDef[] = [
     target: { column: "cost_value" },
     ops: ["eq", "lte", "gte"],
   },
+  {
+    key: "type",
+    label: "Type",
+    kind: "multiselect",
+    target: { column: "primary_type" },
+    mode: "any",
+    options: [
+      { value: "Leader", label: "Leader" },
+      { value: "Character", label: "Character" },
+      { value: "Event", label: "Event" },
+      { value: "Stage", label: "Stage" },
+    ],
+  },
+  // Colorset grammar speaks MTG letters (translate.ts COLOR_BIT): Red=R,
+  // Green=G, Blue=U, Black=B, Yellow=W, Purple=C — see punk-map.OPTCG_COLOR_BIT.
   { key: "color", label: "Color", kind: "colorset", target: { column: "colors_mask" } },
   {
     key: "traits",
@@ -108,7 +142,18 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
       const traits = card.attrs.traits?.join(" / ") ?? "";
       return [cat.charAt(0).toUpperCase() + cat.slice(1), traits].filter(Boolean).join(" — ");
     },
-    bodyText: (card: OptcgCard) => card.attrs.effect_text ?? "",
+    bodyText: (card: OptcgCard) => {
+      const effect = card.attrs.oracle_text ?? "";
+      const trigger = card.attrs.trigger_text;
+      return trigger ? `${effect}${effect ? "\n" : ""}[Trigger] ${trigger}` : effect;
+    },
+    statLine: (card: OptcgCard) => {
+      const parts: string[] = [];
+      if (card.attrs.power_num != null) parts.push(`${card.attrs.power_num} Power`);
+      if (card.attrs.counter_num != null) parts.push(`+${card.attrs.counter_num} Counter`);
+      if (card.attrs.life != null) parts.push(`${card.attrs.life} Life`);
+      return parts.length ? parts.join(" · ") : null;
+    },
     defaultGroupBy: "costValue",
     leaderNoun: "Leader",
   },

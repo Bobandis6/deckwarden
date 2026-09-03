@@ -7,6 +7,7 @@
  */
 import { ImageResponse } from "next/og";
 
+import { GAME_ID } from "@/db/seed-data";
 import { loadCardOgData, loadDefaultPrintingId } from "@/lib/og/data";
 import {
   OG_SIZE,
@@ -39,17 +40,29 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     );
   }
 
-  const printingId = await loadDefaultPrintingId(card.id);
+  // fetchOgArt is Scryfall-only; other games' printing ids 404 there and the
+  // unfurl renders artless — never hotlink Bandai art into OG images.
+  const isMtg = card.gameId === GAME_ID.mtg;
+  const printingId = isMtg ? await loadDefaultPrintingId(card.id) : null;
   const art = printingId ? await fetchOgArt(printingId) : null;
 
+  const kicker = isMtg
+    ? card.isLeaderCandidate
+      ? "Commander"
+      : "Magic card"
+    : card.isLeaderCandidate
+      ? "One Piece Leader"
+      : "One Piece card";
   return new ImageResponse(
     <OgFrame art={art}>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <OgKicker>{card.isLeaderCandidate ? "Commander" : "Magic card"}</OgKicker>
+        <OgKicker>{kicker}</OgKicker>
         <OgTitle>{card.name}</OgTitle>
         {card.typeLine && <OgSubtitle>{card.typeLine}</OgSubtitle>}
       </div>
-      <OgFooter stats={["Printings · prices · legality"]} />
+      <OgFooter
+        stats={[isMtg ? "Printings · prices · legality" : "Card text · printings · legality"]}
+      />
     </OgFrame>,
     size,
   );

@@ -16,8 +16,8 @@ import { cache as reactCache } from "react";
 
 import { ComboList } from "@/components/combos/combo-list";
 import { getDb, schema } from "@/db";
-import { GAMES } from "@/db/seed-data";
-import { printingImageUrl } from "@/lib/cards/images";
+import { GAME_ID, GAMES } from "@/db/seed-data";
+import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
 import { getAdapter } from "@/lib/games/registry";
 import type { CardData } from "@/lib/games/types";
@@ -87,7 +87,10 @@ export async function generateMetadata({ params }: PageProps<"/cards/[id]">): Pr
   if (!data) return { title: "Card not found" };
   const attrs = data.identity.attrs as { type_line?: string };
   const typeLine = attrs.type_line ?? data.identity.primaryType;
-  const description = `${typeLine ? `${typeLine}. ` : ""}Printings, current prices, format legality, and Commander combos for ${data.identity.name}.`;
+  const description =
+    data.identity.gameId === GAME_ID.optcg
+      ? `${typeLine ? `${typeLine}. ` : ""}Card text, printings, and format legality for ${data.identity.name}.`
+      : `${typeLine ? `${typeLine}. ` : ""}Printings, current prices, format legality, and Commander combos for ${data.identity.name}.`;
   return {
     title: data.identity.name,
     description,
@@ -124,6 +127,9 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
   };
 
   const defaultPrinting = printings.find((p) => p.isDefault) ?? printings[0];
+  // null while the URL is one browsers refuse to embed (Bandai's CORP:
+  // same-site) — the OP mirror's public domain flips this without a code change.
+  const imageUrl = defaultPrinting ? embeddablePrintingImageUrl(defaultPrinting, "normal") : null;
   const statLine = adapter.display.statLine?.(card) ?? null;
   const statusByFormat = new Map(legalityRows.map((l) => [l.formatId, l.status]));
 
@@ -141,20 +147,20 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
 
       <div className="mt-4 flex flex-col gap-8 md:flex-row">
         <div className="shrink-0">
-          {defaultPrinting ? (
-            // Scryfall CDN hotlink, unoptimized by design (CLAUDE.md: Hobby image
+          {imageUrl ? (
+            // CDN hotlink, unoptimized by design (CLAUDE.md: Hobby image
             // quota). Full-card image keeps the artist/© line intact.
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={printingImageUrl(defaultPrinting, "normal")}
+              src={imageUrl}
               alt={identity.name}
               width={488}
               height={680}
               className="w-72 rounded-2xl shadow-lg"
             />
           ) : (
-            <div className="bg-muted flex h-96 w-72 items-center justify-center rounded-2xl">
-              No image
+            <div className="bg-muted flex h-96 w-72 items-center justify-center rounded-2xl px-6 text-center text-sm">
+              {defaultPrinting ? "Card image coming soon" : "No image"}
             </div>
           )}
         </div>
@@ -257,29 +263,44 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
         </div>
       </div>
 
-      <p className="text-muted-foreground mt-12 text-xs">
-        Card data and images courtesy of{" "}
-        <a href="https://scryfall.com" className="underline" rel="noreferrer" target="_blank">
-          Scryfall
-        </a>
-        .
-        {combosData.total > 0 && (
-          <>
-            {" "}
-            Combo data courtesy of{" "}
-            <a
-              href="https://commanderspellbook.com"
-              className="underline"
-              rel="noreferrer"
-              target="_blank"
-            >
-              Commander Spellbook
-            </a>
-            .
-          </>
-        )}{" "}
-        Deckwarden is unofficial Fan Content and is not endorsed by Wizards of the Coast.
-      </p>
+      {gameCode === "optcg" ? (
+        // Attribution + the gray-zone posture (P4.1): the © line stays with the
+        // card image (Bandai footer wording, verified 2026-09-03), same spirit
+        // as the Scryfall artist/© rule; the full statement lives on /legal.
+        <p className="text-muted-foreground mt-12 text-xs">
+          ©Eiichiro Oda/Shueisha, Toei Animation · ONE PIECE CARD GAME ©BANDAI. Deckwarden is
+          unofficial fan content, not affiliated with or endorsed by Bandai, Shueisha, or Toei
+          Animation. No official card-data API exists for the One Piece Card Game —{" "}
+          <Link href="/legal#one-piece" className="underline">
+            how we source this data
+          </Link>
+          .
+        </p>
+      ) : (
+        <p className="text-muted-foreground mt-12 text-xs">
+          Card data and images courtesy of{" "}
+          <a href="https://scryfall.com" className="underline" rel="noreferrer" target="_blank">
+            Scryfall
+          </a>
+          .
+          {combosData.total > 0 && (
+            <>
+              {" "}
+              Combo data courtesy of{" "}
+              <a
+                href="https://commanderspellbook.com"
+                className="underline"
+                rel="noreferrer"
+                target="_blank"
+              >
+                Commander Spellbook
+              </a>
+              .
+            </>
+          )}{" "}
+          Deckwarden is unofficial Fan Content and is not endorsed by Wizards of the Coast.
+        </p>
+      )}
     </main>
   );
 }

@@ -13,6 +13,7 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import type { MetadataRoute } from "next";
 
 import { getDb, schema } from "@/db";
+import { GAME_ID } from "@/db/seed-data";
 import { absUrl } from "@/lib/seo/site";
 
 export const revalidate = 86400;
@@ -25,6 +26,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .from(cardIdentities)
     .where(
       and(
+        // Game-scoped (P4.1): only MTG leaders get slugs today, but a missing
+        // filter here would advertise /c/ URLs that don't resolve the moment
+        // any other game's leaders are slugged.
+        eq(cardIdentities.gameId, GAME_ID.mtg),
         eq(cardIdentities.isLeaderCandidate, true),
         isNotNull(cardIdentities.slug),
         eq(cardIdentities.isRemoved, false),

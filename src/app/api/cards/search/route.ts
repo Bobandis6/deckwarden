@@ -16,7 +16,7 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
-import { printingImageUrl } from "@/lib/cards/images";
+import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import { getAdapter } from "@/lib/games/registry";
 import { translateSearch } from "@/lib/search/translate";
@@ -105,7 +105,9 @@ export async function GET(request: NextRequest) {
       ...card,
       cheapestUsd: cheapestUsd === null ? null : Number(cheapestUsd),
       legality: legalityMap.get(card.id) ?? [],
-      image: printingId ? printingImageUrl({ id: printingId, imageOverride }, "normal") : null,
+      image: printingId
+        ? embeddablePrintingImageUrl({ id: printingId, imageOverride }, "normal")
+        : null,
     }),
   );
 
