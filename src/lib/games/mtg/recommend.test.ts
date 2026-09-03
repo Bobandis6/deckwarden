@@ -82,6 +82,41 @@ describe("evidence phrasing (sources named, honesty scoped)", () => {
   it("declares basic lands as never-advise", () => {
     expect(mtgRecommend.exclude).toEqual([{ jsonbPath: ["type_line"], likePattern: "%Basic%" }]);
   });
+
+  it("tournament evidence names topdeck-top16, the exact scope, and the raw numbers", () => {
+    expect(mtgRecommend.tournaments?.source).toBe("topdeck-top16");
+    const { why, howOften } = mtgRecommend.tournaments!.evidence({
+      commanderNames: ["Kinnan, Bonder Prodigy"],
+      lists: 58,
+      ofLists: 94,
+      share: 58 / 94,
+      top4: 17,
+      since: "2026-03-07",
+    });
+    expect(why).toBe("Played in 62% of top-16 lists with Kinnan, Bonder Prodigy");
+    expect(howOften).toBe(
+      "58 of 94 top-16 lists at 16+ player events on Topdeck.gg, settled events since 2026-03; 17 placed top 4",
+    );
+
+    // partner pairs name both commanders; no top-4s and no date stay silent
+    const pair = mtgRecommend.tournaments!.evidence({
+      commanderNames: ["Kraum, Ludevic's Opus", "Tymna the Weaver"],
+      lists: 1,
+      ofLists: 2,
+      share: 0.5,
+      top4: 0,
+      since: null,
+    });
+    expect(pair.why).toContain("Kraum, Ludevic's Opus + Tymna the Weaver");
+    expect(pair.howOften).toBe("1 of 2 top-16 lists at 16+ player events on Topdeck.gg");
+  });
+
+  it("credits Topdeck.gg with a link — the hard attribution rule", () => {
+    expect(mtgRecommend.sources?.["topdeck-top16"]).toEqual({
+      label: "Topdeck.gg",
+      href: "https://topdeck.gg",
+    });
+  });
 });
 
 describe("cut phrasing (P3.4 — the tradeoff in the deck's own terms)", () => {

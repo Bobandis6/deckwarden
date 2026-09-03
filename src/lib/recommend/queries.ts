@@ -11,14 +11,15 @@
  * shared by both entry points (popularity pool + combo-candidate recheck),
  * so "legal / color-fit / budget / not-in-deck" cannot drift apart.
  */
-import { and, asc, eq, inArray, notInArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, notInArray, sql, type SQL } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
 import { loadCombosNearDeck } from "@/lib/combos/queries";
 import type { RecommendMeta } from "@/lib/games/types";
+import type { TournamentContext, TournamentSignal } from "./rank";
 import type { CandidateCard, CandidateCombo } from "./types";
 
-const { cardIdentities, deckCards, legalities } = schema;
+const { cardIdentities, commanderCardStats, commanderStats, deckCards, legalities } = schema;
 
 export interface CandidateFilter {
   gameId: number;
@@ -149,6 +150,94 @@ export async function loadComboSignals(
     byCandidate.set(candidateId, list);
   }
   return byCandidate;
+}
+
+/**
+ * The deck's leader set as the aggregate keys it: SORTED. decks.leader_ids
+ * keeps command-zone entry order (leaderDenorm) while the Topdeck mapper
+ * sorts — never compare the arrays raw.
+ */
+const sortedLeaders = (leaderIds: readonly string[]): string[] => [...leaderIds].sort();
+
+/**
+ * Tournament signals for a deck's EXACT commander set (P3.8): the
+ * denominator context (null = no aggregated lists — the honest-absence
+ * contract: callers then emit no tournament evidence at all) and per-
+ * candidate list counts. Two queries on the aggregate tables plus one name
+ * lookup for the evidence sentences.
+ */
+export async function loadTournamentSignals(
+  leaderIds: readonly string[],
+  candidateIds: readonly string[],
+): Promise<{ context: TournamentContext | null; byCandidate: Map<string, TournamentSignal> }> {
+  const byCandidate = new Map<string, TournamentSignal>();
+  if (leaderIds.length === 0) return { context: null, byCandidate };
+  const sorted = sortedLeaders(leaderIds);
+
+  const [totals] = await getDb()
+    .select({ lists: commanderStats.lists, firstSeen: commanderStats.firstSeen })
+    .from(commanderStats)
+    .where(eq(commanderStats.leaderIds, sorted));
+  if (!totals) return { context: null, byCandidate };
+
+  // Display order (the deck's own), not the aggregate's sorted key.
+  const nameRows = await getDb()
+    .select({ id: cardIdentities.id, name: cardIdentities.name })
+    .from(cardIdentities)
+    .where(inArray(cardIdentities.id, sorted));
+  const nameById = new Map(nameRows.map((r) => [r.id, r.name]));
+  const commanderNames = leaderIds
+    .map((id) => nameById.get(id))
+    .filter((n): n is string => n !== undefined);
+
+  if (candidateIds.length > 0) {
+    const rows = await getDb()
+      .select({
+        cardId: commanderCardStats.cardIdentityId,
+        lists: commanderCardStats.lists,
+        top4: commanderCardStats.top4,
+      })
+      .from(commanderCardStats)
+      .where(
+        and(
+          eq(commanderCardStats.leaderIds, sorted),
+          inArray(commanderCardStats.cardIdentityId, [...candidateIds]),
+        ),
+      );
+    for (const r of rows) byCandidate.set(r.cardId, { lists: r.lists, top4: r.top4 });
+  }
+
+  return {
+    context: { commanderNames, lists: totals.lists, since: totals.firstSeen },
+    byCandidate,
+  };
+}
+
+/**
+ * Tournament-sourced candidates (P3.8): the cards most played with the
+ * deck's exact commander set, re-checked through the SAME deterministic
+ * filter as every other source. This is the third candidate source — the
+ * whole point is commander-specific tech the global popularity pool never
+ * surfaces (and such cards often have no edhrec popularity at all).
+ */
+export async function loadTournamentCandidates(
+  filter: CandidateFilter,
+  leaderIds: readonly string[],
+  limit: number,
+): Promise<CandidateCard[]> {
+  if (leaderIds.length === 0) return [];
+  return getDb()
+    .select(CANDIDATE_PROJECTION)
+    .from(commanderCardStats)
+    .innerJoin(cardIdentities, eq(cardIdentities.id, commanderCardStats.cardIdentityId))
+    .where(
+      and(
+        eq(commanderCardStats.leaderIds, sortedLeaders(leaderIds)),
+        ...candidateConditions(filter),
+      ),
+    )
+    .orderBy(desc(commanderCardStats.lists), asc(cardIdentities.id))
+    .limit(limit);
 }
 
 /** The deck's cards with the fields curve bucketing reads (all zones). */

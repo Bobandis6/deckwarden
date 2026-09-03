@@ -5,11 +5,15 @@ import type { CandidateCard, CandidateCombo } from "./types";
 import {
   COMBO_EVIDENCE_CAP,
   CURVE_CONFIDENCE_FLOOR,
+  TOURNAMENT_SHRINK_K,
   WEIGHTS,
   comboScore,
   deckCurve,
   popularityScore,
   rankCandidates,
+  tournamentConfidence,
+  type TournamentContext,
+  type TournamentSignal,
 } from "./rank";
 
 /**
@@ -39,6 +43,13 @@ const META: RecommendMeta = {
     evidence: ({ withNames, templates, popularity }) => ({
       why: `combos with ${withNames.join(" + ")}${templates.length ? ` needs ${templates.join(",")}` : ""}`,
       howOften: popularity !== null ? `${popularity} decks` : null,
+    }),
+  },
+  tournaments: {
+    source: "test-tournaments",
+    evidence: ({ commanderNames, lists, ofLists, share }) => ({
+      why: `${Math.round(share * 100)}% with ${commanderNames.join(" + ")}`,
+      howOften: `${lists} of ${ofLists} lists`,
     }),
   },
 };
@@ -84,6 +95,81 @@ function rank(
 ) {
   return rankCandidates({ meta: META, deckCards, candidates, combosByCandidate, limit });
 }
+
+function rankWithTournaments(
+  candidates: CandidateCard[],
+  tournamentsByCandidate: Map<string, TournamentSignal>,
+  tournamentContext: TournamentContext | null,
+) {
+  return rankCandidates({
+    meta: META,
+    deckCards: FULLISH_DECK,
+    candidates,
+    combosByCandidate: new Map(),
+    tournamentsByCandidate,
+    tournamentContext,
+    limit: 25,
+  });
+}
+
+describe("tournament signal (P3.8)", () => {
+  it("emits evidence with the real numbers and scores share shrunk by sample size", () => {
+    const cand = candidate();
+    const ctx: TournamentContext = { commanderNames: ["Kinnan"], lists: 94, since: "2026-03-07" };
+    const [rec] = rankWithTournaments([cand], new Map([[cand.id, { lists: 58, top4: 20 }]]), ctx);
+    expect(rec.evidence).toHaveLength(1);
+    expect(rec.evidence[0]).toMatchObject({
+      source: "test-tournaments",
+      why: "62% with Kinnan",
+      howOften: "58 of 94 lists",
+      confidence: "high", // 94 lists ≥ 20
+    });
+    const share = 58 / 94;
+    expect(rec.score).toBeCloseTo(
+      WEIGHTS.tournaments * share * (94 / (94 + TOURNAMENT_SHRINK_K)),
+      10,
+    );
+  });
+
+  it("honest absence: no context (commander set never aggregated) → no tournament evidence", () => {
+    const cand = candidate();
+    // Even a stale per-candidate row cannot fabricate evidence without a denominator.
+    const recs = rankWithTournaments([cand], new Map([[cand.id, { lists: 3, top4: 1 }]]), null);
+    expect(recs).toHaveLength(0); // no other signals either → dropped entirely
+  });
+
+  it("a candidate with no row gets no tournament evidence — no neutral filler", () => {
+    const withRow = candidate();
+    const withoutRow = candidate({ popularity: 50 });
+    const ctx: TournamentContext = { commanderNames: ["Kinnan"], lists: 40, since: null };
+    const recs = rankWithTournaments(
+      [withRow, withoutRow],
+      new Map([[withRow.id, { lists: 30, top4: 5 }]]),
+      ctx,
+    );
+    const bare = recs.find((r) => r.cardId === withoutRow.id);
+    expect(bare?.evidence.every((e) => e.source !== "test-tournaments")).toBe(true);
+  });
+
+  it("small samples surface but read low-confidence and score shrunk", () => {
+    const cand = candidate();
+    const ctx: TournamentContext = { commanderNames: ["Obscura"], lists: 2, since: null };
+    const [rec] = rankWithTournaments([cand], new Map([[cand.id, { lists: 2, top4: 0 }]]), ctx);
+    expect(rec.confidence).toBe("low");
+    // 100% share from 2 lists scores well under the weight ceiling
+    expect(rec.score).toBeCloseTo(WEIGHTS.tournaments * 1 * (2 / (2 + TOURNAMENT_SHRINK_K)), 10);
+    expect(tournamentConfidence(2)).toBe("low");
+    expect(tournamentConfidence(5)).toBe("medium");
+    expect(tournamentConfidence(20)).toBe("high");
+  });
+
+  it("weights still sum to 1 after the P3.8 rebalance", () => {
+    expect(WEIGHTS.popularity + WEIGHTS.tournaments + WEIGHTS.combos + WEIGHTS.curve).toBeCloseTo(
+      1,
+      10,
+    );
+  });
+});
 
 describe("evidence payload invariants (the product identity)", () => {
   it("every recommendation carries at least one evidence entry — never a bare score", () => {

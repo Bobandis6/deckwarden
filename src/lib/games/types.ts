@@ -293,6 +293,33 @@ export interface RecommendMeta {
     }): { why: string; howOften: string | null };
   };
   /**
+   * Tournament play with the deck's EXACT commander set (P3.8 — MTG: the
+   * commander×card aggregate mined from Topdeck top-16 lists). Absent = no
+   * tournament signal for this game. Honest absence at the data level too:
+   * a commander set with no aggregated lists gets NO tournament evidence and
+   * no tournament-sourced candidates — never a fabricated neutral score.
+   * The `sources` entry for this slug carries the REQUIRED visible credit
+   * (label + link rendered with every evidence entry — the plan's hard
+   * attribution rule for tournament data).
+   */
+  tournaments?: {
+    source: string;
+    evidence(i: {
+      /** The deck's commander names, display order. */
+      commanderNames: string[];
+      /** Lists with this commander set that played the card. */
+      lists: number;
+      /** All aggregated lists with this commander set (the denominator). */
+      ofLists: number;
+      /** lists / ofLists, in [0, 1]. */
+      share: number;
+      /** Of `lists`, how many placed in the top 4. */
+      top4: number;
+      /** ISO date of the set's first aggregated event; null = unknown. */
+      since: string | null;
+    }): { why: string; howOften: string };
+  };
+  /**
    * Display metadata for evidence sources, keyed by the source slugs above
    * (P3.2's panel): human name + optional credit link, so attribution is a
    * game declaration, not a core-side lookup table. Purely presentational —

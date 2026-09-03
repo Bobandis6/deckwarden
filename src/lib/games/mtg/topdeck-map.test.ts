@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   commanderNamesFrom,
   hasCardList,
+  mainboardEntries,
   mapTournament,
   MIN_EVENT_PLAYERS,
   TOP_PLACEMENT,
@@ -289,5 +290,84 @@ describe("mapTournament", () => {
     const res = mapTournament(tournament({ standings: [withList, ...rest] }), resolve);
     if (!res.ok) throw new Error("expected ok");
     expect(res.standingsWithLists).toBe(1);
+  });
+});
+
+describe("mapTournament list extraction (P3.8 aggregate)", () => {
+  /** The verified raw value shape: { id: <scryfall oracle id>, count }. */
+  const realBoard = (extra: Record<string, unknown> = {}) => ({
+    ...Object.fromEntries(
+      Array.from({ length: 96 }, (_, i) => [`Filler ${i}`, { id: `oid-filler-${i}`, count: 1 }]),
+    ),
+    "Sol Ring": { id: "oid-sol-ring", count: 1 },
+    "Kinnan, Bonder Prodigy": { id: "oid-kinnan", count: 1 }, // the commander re-listed
+    "Unknown Promo Thing": { id: "oid-not-in-db", count: 1 },
+    ...extra,
+  });
+  const resolveListCard = (entry: { name: string; oracleId?: string }) => {
+    if (entry.oracleId === "oid-sol-ring") return "id-sol-ring";
+    if (entry.oracleId === "oid-kinnan") return "id-kinnan";
+    if (entry.oracleId?.startsWith("oid-filler-")) return `id-${entry.oracleId}`;
+    return undefined;
+  };
+
+  it("emits resolved per-standing lists: deduped, commanders excluded, unresolved counted", () => {
+    const withList = standing({
+      standing: 2,
+      deckObj: { Commanders: { "Kinnan, Bonder Prodigy": 1 }, Mainboard: realBoard() },
+    });
+    const rest = Array.from({ length: MIN_EVENT_PLAYERS - 1 }, (_, i) =>
+      standing({ standing: i + 3 }),
+    );
+    const res = mapTournament(
+      tournament({ standings: [withList, ...rest] }),
+      resolve,
+      undefined,
+      resolveListCard,
+    );
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.lists).toHaveLength(1);
+    const [list] = res.lists;
+    expect(list.leaderIds).toEqual(["id-kinnan"]);
+    expect(list.placement).toBe(2);
+    expect(list.cardIds).toContain("id-sol-ring");
+    // the commander is in every one of its lists by definition — never counted
+    expect(list.cardIds).not.toContain("id-kinnan");
+    expect(list.cardIds).toHaveLength(97); // 96 fillers + Sol Ring
+    expect(res.listCards).toEqual({ seen: 99, unresolved: 1 });
+  });
+
+  it("without a list resolver, mainboards are counted but never walked", () => {
+    const withList = standing({
+      standing: 1,
+      deckObj: { Commanders: { "Kinnan, Bonder Prodigy": 1 }, Mainboard: realBoard() },
+    });
+    const rest = Array.from({ length: MIN_EVENT_PLAYERS - 1 }, (_, i) =>
+      standing({ standing: i + 2 }),
+    );
+    const res = mapTournament(tournament({ standings: [withList, ...rest] }), resolve);
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.standingsWithLists).toBe(1);
+    expect(res.lists).toEqual([]);
+    expect(res.listCards).toEqual({ seen: 0, unresolved: 0 });
+  });
+
+  it("mainboardEntries surfaces name + oracle id and tolerates bare-number values", () => {
+    const entries = mainboardEntries(
+      standing({
+        deckObj: {
+          Commanders: {},
+          Mainboard: { ...mainboard(94), "Sol Ring": { id: "oid-sol-ring", count: 1 } },
+        },
+      }),
+    );
+    expect(entries).not.toBeNull();
+    expect(entries!).toHaveLength(95);
+    expect(entries!.find((e) => e.name === "Sol Ring")).toEqual({
+      name: "Sol Ring",
+      oracleId: "oid-sol-ring",
+    });
+    // legacy bare-number values (the defensive shape) carry no oracle id
+    expect(entries!.find((e) => e.name === "Card 0")).toEqual({ name: "Card 0" });
   });
 });

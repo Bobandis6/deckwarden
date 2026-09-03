@@ -48,13 +48,20 @@ import {
   type TournamentRow,
   type TournamentSkip,
 } from "../../src/lib/games/mtg/topdeck-map";
+import { settledCutoffIso } from "../../src/lib/tournaments/aggregate";
+import {
+  aggregateSettledTournaments,
+  listCardResolver,
+  loadListCardMaps,
+  TRAILING_REFETCH_DAYS,
+  type AggregateInput,
+  type AggregateOutcome,
+} from "./topdeck-aggregate";
 
 const API_URL = "https://topdeck.gg/api/v2/tournaments";
 const USER_AGENT = "Deckwarden/1.0 (https://deckwarden.gg)";
 /** First-run window. ~180 days of ≥16-player EDH events (schema.ts has the row math). */
 const BACKFILL_DAYS = 180;
-/** Nightly overlap re-fetched because results settle after events end. */
-const TRAILING_REFETCH_DAYS = 14;
 /**
  * Per-request date span — window pagination that no server paging scheme can
  * break. Sized from the live probe (2026-09-01): 7 days of ≥16-player EDH
@@ -93,6 +100,20 @@ interface Stats {
   standing_skips: Partial<Record<StandingSkip, number>>;
   tournaments_merged: { inserted: number; updated: number };
   standings_merged: { inserted: number; updated: number; stale_deleted: number };
+  /**
+   * The commander×card aggregate increment (P3.8): settled events (start_date
+   * older than TRAILING_REFETCH_DAYS — they never re-enter the fetch window)
+   * rolled into commander_card_stats exactly once, gated by
+   * tournaments.cards_aggregated_at.
+   */
+  tournaments_aggregated: number;
+  card_lists_aggregated: number;
+  list_cards_seen: number;
+  list_cards_unresolved: number;
+  aggregate_rows: Pick<
+    AggregateOutcome,
+    "pair_rows_upserted" | "commander_rows_upserted" | "tournaments_missing"
+  >;
   duration_ms: number;
   db_size_bytes: number;
 }
@@ -233,6 +254,11 @@ async function main() {
       standing_skips: {},
       tournaments_merged: { inserted: 0, updated: 0 },
       standings_merged: { inserted: 0, updated: 0, stale_deleted: 0 },
+      tournaments_aggregated: 0,
+      card_lists_aggregated: 0,
+      list_cards_seen: 0,
+      list_cards_unresolved: 0,
+      aggregate_rows: { pair_rows_upserted: 0, commander_rows_upserted: 0, tournaments_missing: 0 },
       duration_ms: 0,
       db_size_bytes: 0,
     };
@@ -254,10 +280,15 @@ async function main() {
     stats.name_map_size = byNameNorm.size;
     console.log(`leader map loaded: ${byNameNorm.size} candidates`);
 
+    // Full-identity resolver maps for mainboard cards (P3.8 aggregate) —
+    // oracle id → exact name → face name, unresolved counted, never trgm.
+    const resolveListCard = listCardResolver(await loadListCardMaps(sql));
+
     mkdirSync(RAW_DIR, { recursive: true });
 
     const tournamentRows: TournamentRow[] = [];
     const standingRows: StandingRow[] = [];
+    const aggregateInputs: AggregateInput[] = [];
     const seenTids = new Set<string>();
     for (
       let chunkStart = windowStartS, i = 0;
@@ -284,10 +315,15 @@ async function main() {
         stats.tournaments_seen++;
         // A day of slack each side; anything further out (probe found a
         // future-dated test event) is the API ignoring its own filter.
-        const mapped = mapTournament(t, (norm) => byNameNorm.get(norm), {
-          minStartSeconds: windowStartS - DAY_S,
-          maxStartSeconds: endS + DAY_S,
-        });
+        const mapped = mapTournament(
+          t,
+          (norm) => byNameNorm.get(norm),
+          {
+            minStartSeconds: windowStartS - DAY_S,
+            maxStartSeconds: endS + DAY_S,
+          },
+          resolveListCard,
+        );
         if (!mapped.ok) {
           stats.tournament_skips[mapped.skip] = (stats.tournament_skips[mapped.skip] ?? 0) + 1;
           continue;
@@ -295,12 +331,19 @@ async function main() {
         stats.tournaments_kept++;
         stats.standings_kept += mapped.standings.length;
         stats.standings_with_lists += mapped.standingsWithLists;
+        stats.list_cards_seen += mapped.listCards.seen;
+        stats.list_cards_unresolved += mapped.listCards.unresolved;
         for (const [reason, count] of Object.entries(mapped.standingSkips)) {
           const key = reason as StandingSkip;
           stats.standing_skips[key] = (stats.standing_skips[key] ?? 0) + count;
         }
         tournamentRows.push(mapped.tournament);
         standingRows.push(...mapped.standings);
+        aggregateInputs.push({
+          external_key: mapped.tournament.external_key,
+          start_date: mapped.tournament.start_date,
+          lists: mapped.lists,
+        });
       }
       console.log(
         `…chunk ${i}: ${tournaments.length} events (${stats.tournaments_kept} kept so far)`,
@@ -368,6 +411,26 @@ async function main() {
           SELECT 1 FROM stage_standing s
           WHERE s.external_key = t.external_key AND s.placement = ts.placement)`;
     stats.standings_merged.stale_deleted = stale.count;
+
+    // The settled-day aggregate increment (P3.8): events old enough to have
+    // left the trailing re-fetch window get their lists rolled into
+    // commander_card_stats exactly once (cards_aggregated_at gates re-runs —
+    // the window's deliberate overlap makes re-seeing aggregated events
+    // normal). Runs after the merges so the tournaments rows exist.
+    const cutoff = settledCutoffIso(endS * 1000, TRAILING_REFETCH_DAYS);
+    const settled = aggregateInputs.filter((t) => t.start_date < cutoff);
+    const outcome = await aggregateSettledTournaments(sql, settled);
+    stats.tournaments_aggregated = outcome.tournaments_aggregated;
+    stats.card_lists_aggregated = outcome.card_lists_aggregated;
+    stats.aggregate_rows = {
+      pair_rows_upserted: outcome.pair_rows_upserted,
+      commander_rows_upserted: outcome.commander_rows_upserted,
+      tournaments_missing: outcome.tournaments_missing,
+    };
+    console.log(
+      `aggregated ${outcome.tournaments_aggregated} settled events (cutoff ${cutoff}): ` +
+        `${outcome.card_lists_aggregated} lists → ${outcome.pair_rows_upserted} pair upserts`,
+    );
 
     const [{ size }] = await sql<{ size: string }[]>`
       SELECT pg_database_size(current_database())::text AS size`;

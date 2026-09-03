@@ -101,6 +101,20 @@ export type StandingSkip =
   | "unresolved_commander"
   | "duplicate_placement";
 
+/**
+ * One kept standing's resolved mainboard, for the commander×card aggregate
+ * (P3.8). Never staged or stored per-standing — the ingest rolls these up in
+ * memory into commander_card_stats. `cardIds` is deduplicated and excludes
+ * the commanders themselves (they are in every one of their lists by
+ * definition — counting them would only pollute the shares).
+ */
+export interface StandingListCards {
+  /** Sorted commander identity ids — the aggregate key. */
+  leaderIds: string[];
+  placement: number;
+  cardIds: string[];
+}
+
 export type TournamentMapResult =
   | {
       ok: true;
@@ -109,12 +123,18 @@ export type TournamentMapResult =
       standingSkips: Partial<Record<StandingSkip, number>>;
       /**
        * How many KEPT standings embedded a full card list (deckObj mainboard
-       * with ≥ MIN_LIST_CARDS entries). Pure measurement, nothing stored:
-       * this is the empirical gate for two LATER rows — the "seen in top-X
-       * lists" ranking signal and co-occurrence mining — so the first live
-       * run answers "does Topdeck reliably carry lists?" from ingest stats.
+       * with ≥ MIN_LIST_CARDS entries). Pure measurement — P3.8's aggregate
+       * confirmed the gate this was built for (99.96% of kept standings
+       * carry one) and now consumes the lists via `lists` below.
        */
       standingsWithLists: number;
+      /**
+       * Resolved mainboards of kept standings — populated only when the
+       * caller passes `resolveListCard` (P3.8 aggregation); empty otherwise.
+       */
+      lists: StandingListCards[];
+      /** Mainboard entries seen / failed to resolve (across kept standings). */
+      listCards: { seen: number; unresolved: number };
     }
   | { ok: false; skip: TournamentSkip };
 
@@ -161,12 +181,30 @@ function isUrl(v: string): boolean {
 /** A stub "Mainboard" section isn't a list; a Commander mainboard has ~98 distinct names. */
 const MIN_LIST_CARDS = 40;
 
-/** Whether a standing embeds a readable full card list (see standingsWithLists). */
-export function hasCardList(s: TopdeckStanding): boolean {
-  if (!isRecord(s.deckObj)) return false;
+/**
+ * Mainboard entries of a standing's deckObj, or null when there is no
+ * readable full list. Keys are card names; values are `{id, count}` objects
+ * (verified against the raw corpus 2026-09-02: 358k entries in the newest
+ * chunk, all that shape, non-1 counts only on basics) where `id` is the
+ * card's Scryfall ORACLE id — it matches card_identities.external_key
+ * directly. Copies are irrelevant to the aggregate (`lists` counts lists,
+ * not copies), so only name + id are extracted.
+ */
+export function mainboardEntries(s: TopdeckStanding): { name: string; oracleId?: string }[] | null {
+  if (!isRecord(s.deckObj)) return null;
   const key = Object.keys(s.deckObj).find((k) => /^main/i.test(k.trim()));
   const section = key === undefined ? undefined : s.deckObj[key];
-  return isRecord(section) && Object.keys(section).length >= MIN_LIST_CARDS;
+  if (!isRecord(section) || Object.keys(section).length < MIN_LIST_CARDS) return null;
+  return Object.entries(section).map(([name, value]) => {
+    const oracleId =
+      isRecord(value) && typeof value.id === "string" && value.id.length > 0 ? value.id : undefined;
+    return { name: name.trim(), ...(oracleId !== undefined ? { oracleId } : {}) };
+  });
+}
+
+/** Whether a standing embeds a readable full card list (see standingsWithLists). */
+export function hasCardList(s: TopdeckStanding): boolean {
+  return mainboardEntries(s) !== null;
 }
 
 // --- Field coercion helpers ----------------------------------------------------
@@ -189,11 +227,16 @@ function textOrNull(v: unknown, maxLen: number): string | null {
  * Map one bulk-response tournament. `resolveName` looks a NORMALIZED name up
  * in card_identities.name_norm (exact — the IO script passes a Map lookup);
  * `window` re-checks the fetch window's own promise (see WindowBounds).
+ * `resolveListCard` (P3.8) resolves one mainboard entry to an identity id —
+ * layering (oracle id, then exact name, then face name; never trgm) is the
+ * caller's (src/lib/tournaments/aggregate.ts) — and turns on the `lists`
+ * output; without it mainboards are only counted, never walked per card.
  */
 export function mapTournament(
   t: TopdeckTournament,
   resolveName: (nameNorm: string) => string | undefined,
   window?: WindowBounds,
+  resolveListCard?: (entry: { name: string; oracleId?: string }) => string | undefined,
 ): TournamentMapResult {
   const externalKey = textOrNull(t.TID, 200);
   const name = textOrNull(t.tournamentName, 300);
@@ -219,6 +262,8 @@ export function mapTournament(
   };
 
   const standings: StandingRow[] = [];
+  const lists: StandingListCards[] = [];
+  const listCards = { seen: 0, unresolved: 0 };
   let standingsWithLists = 0;
   const seenPlacements = new Set<number>();
   for (const [index, s] of rawStandings.entries()) {
@@ -265,7 +310,26 @@ export function mapTournament(
     leaderIds.sort();
 
     seenPlacements.add(placement);
-    if (hasCardList(s)) standingsWithLists++;
+    const mainboard = mainboardEntries(s);
+    if (mainboard !== null) {
+      standingsWithLists++;
+      if (resolveListCard) {
+        const cardIds: string[] = [];
+        const seenIds = new Set<string>(leaderIds);
+        for (const entry of mainboard) {
+          listCards.seen++;
+          const id = resolveListCard(entry);
+          if (!id) {
+            listCards.unresolved++;
+            continue;
+          }
+          if (seenIds.has(id)) continue; // dupes + the commanders themselves
+          seenIds.add(id);
+          cardIds.push(id);
+        }
+        if (cardIds.length > 0) lists.push({ leaderIds, placement, cardIds });
+      }
+    }
     standings.push({
       external_key: externalKey,
       placement,
@@ -297,5 +361,7 @@ export function mapTournament(
     standings,
     standingSkips,
     standingsWithLists,
+    lists,
+    listCards,
   };
 }

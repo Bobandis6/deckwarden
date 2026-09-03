@@ -7,13 +7,22 @@
  *   BASE_URL=https://deckwarden.gg pnpm smoke:recommend   # against a deploy
  *
  * Covers: every recommendation carries evidence (no bare scores) · sources
- * are the real ones (edhrec_rank / spellbook / curve-template) · deck cards
- * and basic lands never come back · color-identity fit · combo participation
- * names its deck partners (Basalt Monolith → Rings of Brighthearth) · budget
- * and limit params · tiny-deck curve evidence degrades to low confidence ·
- * no-store caching · (P3.7) `?owned=1` from a guest is honest: requested,
- * NOT applied, reason "signed-out", and the pool is NOT emptied (the signed-
- * in states live in smoke:collection). Cleans up its deck even on failure.
+ * are the real ones (edhrec_rank / spellbook / curve-template /
+ * topdeck-top16) · deck cards and basic lands never come back ·
+ * color-identity fit · combo participation names its deck partners (Basalt
+ * Monolith → Rings of Brighthearth) · budget and limit params · tiny-deck
+ * curve evidence degrades to low confidence · no-store caching · (P3.7)
+ * `?owned=1` from a guest is honest: requested, NOT applied, reason
+ * "signed-out", and the pool is NOT emptied (the signed-in states live in
+ * smoke:collection). Cleans up its decks even on failure.
+ *
+ * P3.8 tournament-signal contract, both directions: a SECOND deck under a
+ * commander with aggregated top-16 lists (Kinnan, Bonder Prodigy — 1,474
+ * lists in the 180-day corpus; Talrand, the main fixture, has ZERO) must
+ * surface topdeck-top16 evidence with the disclosed scope in the words, and
+ * the Talrand deck must carry NO topdeck-top16 evidence at all — honest
+ * absence, never a neutral filler. Costs one extra deck create against the
+ * per-IP limiter (10/hour, 30/day).
  *
  * Also covers the Combo Radar route (P3.3) on the same fixture deck:
  * Basalt Monolith alone → the Rings combo in oneAway with the add target
@@ -102,7 +111,7 @@ interface RadarBody {
   truncated?: boolean;
 }
 
-const SOURCES = new Set(["edhrec_rank", "spellbook", "curve-template"]);
+const SOURCES = new Set(["edhrec_rank", "spellbook", "curve-template", "topdeck-top16"]);
 const CONFIDENCES = new Set(["high", "medium", "low"]);
 const BASICS = new Set(["Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"]);
 
@@ -301,6 +310,76 @@ async function main() {
       "radar 404s on an unknown deck",
       (await api("GET", "/api/decks/00000000-0000-4000-8000-000000000000/combos")).status === 404,
     );
+
+    // --- Tournament signal (P3.8), absence side: Talrand has ZERO top-16
+    // lists in the corpus — no topdeck-top16 evidence may appear, ever.
+    check(
+      "commander with no aggregated lists → NO topdeck-top16 evidence (honest absence)",
+      recs.every((r) => r.evidence.every((e) => e.source !== "topdeck-top16")),
+    );
+
+    // --- Presence side: a Kinnan deck (1,474 lists in the 180-day corpus)
+    // must surface tournament evidence with the disclosed scope in the words.
+    const kinnan = await findCard("kinnan bonder prodigy");
+    const kCreated = await api("POST", "/api/decks", {
+      body: { game: "mtg", format: "commander", name: "Recommend smoke deck (tournament)" },
+    });
+    const kJson = kCreated.json as { deck: { id: string }; claimToken?: string };
+    const kDeckId = kJson?.deck?.id;
+    const kToken = kJson?.claimToken;
+    check(
+      "tournament fixture deck created",
+      kCreated.status === 201 && !!kDeckId && !!kToken,
+      kCreated.status,
+    );
+    if (kDeckId && kToken) {
+      try {
+        const kPut = await api("PUT", `/api/decks/${kDeckId}/cards`, {
+          token: kToken,
+          body: { cards: [{ cardId: kinnan.id, zone: "commander", qty: 1, tags: [] }] },
+        });
+        check("Kinnan set as commander", kPut.status === 200, kPut.json);
+
+        const kRes = await api("GET", `/api/decks/${kDeckId}/recommendations`);
+        const kRecs = (kRes.json as { recommendations?: Rec[] })?.recommendations ?? [];
+        check("Kinnan deck returns recommendations", kRes.status === 200 && kRecs.length > 0);
+        const tEvidence = kRecs
+          .flatMap((r) => r.evidence)
+          .filter((e) => e.source === "topdeck-top16");
+        check(
+          "topdeck-top16 evidence present for a commander with aggregated lists",
+          tEvidence.length > 0,
+        );
+        check(
+          "tournament why names the scope and the commander",
+          tEvidence.every(
+            (e) => /top-16 lists with Kinnan, Bonder Prodigy/.test(e.why) && /\d+%/.test(e.why),
+          ),
+          tEvidence[0]?.why,
+        );
+        check(
+          "tournament howOften carries the raw numbers, the event floor, and the source",
+          tEvidence.every(
+            (e) =>
+              e.howOften !== null &&
+              /\d[\d,]* of \d[\d,]* top-16 lists at 16\+ player events on Topdeck\.gg/.test(
+                e.howOften,
+              ),
+          ),
+          tEvidence[0]?.howOften,
+        );
+        check(
+          "tournament evidence carries a machine confidence",
+          tEvidence.every((e) => CONFIDENCES.has(e.confidence)),
+        );
+      } finally {
+        const kDel = await api("DELETE", `/api/decks/${kDeckId}`, { token: kToken });
+        check(
+          "cleanup: tournament fixture deck deleted",
+          kDel.status === 200 || kDel.status === 204,
+        );
+      }
+    }
   } finally {
     const del = await api("DELETE", `/api/decks/${deckId}`, { token });
     check("cleanup: deck deleted", del.status === 200 || del.status === 204);

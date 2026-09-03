@@ -23,13 +23,16 @@ import type {
 } from "./types";
 
 /**
- * Signal weights (sum 1). Popularity leads — it is the broadest measured
- * signal; combos outrank curve because "completes a combo with your cards"
- * is deck-specific where the curve template is editorial. Co-occurrence
- * ("played together in real decks") is deliberately absent until a real deck
- * corpus exists — see LATER.md.
+ * Signal weights (sum 1). Tournaments tie popularity at the top (P3.8):
+ * measured play with the deck's EXACT commander set is deck-specific where
+ * edhrec_rank is global — but it covers only ~990 commander sets, so global
+ * popularity keeps equal footing rather than being demoted below a signal
+ * most decks won't have. Combos outrank curve because "completes a combo
+ * with your cards" is deck-specific where the curve template is editorial.
+ * (P3.1 shipped without tournaments at .45/.35/.20; the P3.8 rebalance takes
+ * proportionally from all three.)
  */
-export const WEIGHTS = { popularity: 0.45, combos: 0.35, curve: 0.2 } as const;
+export const WEIGHTS = { popularity: 0.3, tournaments: 0.3, combos: 0.25, curve: 0.15 } as const;
 
 /** Rank at which the popularity signal reads 0.5 (rank 1 ≈ 1.0, 10k ≈ 0.17). */
 export const POPULARITY_PIVOT = 2000;
@@ -42,6 +45,36 @@ export const CURVE_CONFIDENCE_FLOOR = 10;
 
 /** Evidence entries per candidate from combos (the count still scores fully). */
 export const COMBO_EVIDENCE_CAP = 3;
+
+/**
+ * Sample-size shrink for the tournament share: score = share × n/(n+K)
+ * where n is the commander set's aggregated list count. A 100% share from 2
+ * lists scores 0.17, from 90 lists 0.9 — small samples still surface (their
+ * single list is real data) but can't outrank measured consensus.
+ */
+export const TOURNAMENT_SHRINK_K = 10;
+
+/** Tournament evidence confidence from the sample size (the denominator). */
+export function tournamentConfidence(ofLists: number): Confidence {
+  if (ofLists >= 20) return "high";
+  if (ofLists >= 5) return "medium";
+  return "low";
+}
+
+/** How often a candidate appears with the deck's exact commander set. */
+export interface TournamentSignal {
+  lists: number;
+  top4: number;
+}
+
+/** The commander set's aggregate context (null = no aggregated lists — honest absence). */
+export interface TournamentContext {
+  commanderNames: string[];
+  /** Total aggregated lists for the set (the share's denominator). */
+  lists: number;
+  /** ISO date of the set's first aggregated event. */
+  since: string | null;
+}
 
 const CONFIDENCE_ORDER: Record<Confidence, number> = { low: 0, medium: 1, high: 2 };
 
@@ -98,6 +131,13 @@ export interface RankInput {
   candidates: readonly CandidateCard[];
   /** Combo participation per candidate id (empty map = no combo signal). */
   combosByCandidate: ReadonlyMap<string, readonly CandidateCombo[]>;
+  /**
+   * Tournament play per candidate id (P3.8). Both absent/empty when the
+   * deck's commander set has no aggregated lists — candidates then get no
+   * tournament evidence at all, never a neutral filler score.
+   */
+  tournamentsByCandidate?: ReadonlyMap<string, TournamentSignal>;
+  tournamentContext?: TournamentContext | null;
   limit: number;
 }
 
@@ -120,6 +160,28 @@ export function rankCandidates(input: RankInput): Recommendation[] {
         confidence: "high",
       });
       score += WEIGHTS.popularity * popularityScore(cand.popularity);
+    }
+
+    const tournament = input.tournamentsByCandidate?.get(cand.id);
+    const tCtx = input.tournamentContext;
+    if (meta.tournaments && tournament && tCtx && tCtx.lists > 0) {
+      const share = Math.min(1, tournament.lists / tCtx.lists);
+      const { why, howOften } = meta.tournaments.evidence({
+        commanderNames: tCtx.commanderNames,
+        lists: tournament.lists,
+        ofLists: tCtx.lists,
+        share,
+        top4: tournament.top4,
+        since: tCtx.since,
+      });
+      evidence.push({
+        source: meta.tournaments.source,
+        why,
+        with: [],
+        howOften,
+        confidence: tournamentConfidence(tCtx.lists),
+      });
+      score += WEIGHTS.tournaments * share * (tCtx.lists / (tCtx.lists + TOURNAMENT_SHRINK_K));
     }
 
     const combos = combosByCandidate.get(cand.id) ?? [];

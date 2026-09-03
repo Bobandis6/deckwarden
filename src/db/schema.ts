@@ -700,6 +700,14 @@ export const tournaments = pgTable(
     playerCount: smallint("player_count").notNull(),
     /** Source-reported top cut size, when stated. */
     topCut: smallint("top_cut"),
+    /**
+     * When this event's card lists were rolled into commander_card_stats
+     * (P3.8) — the aggregate-EXACTLY-ONCE marker. Set only once the event is
+     * SETTLED (start_date older than the ingest's 14-day trailing re-fetch,
+     * so the nightly window never re-fetches it); NULL = not yet aggregated.
+     * Standings that change after aggregation are accepted drift.
+     */
+    cardsAggregatedAt: timestamp("cards_aggregated_at", { withTimezone: true }),
   },
   (t) => [
     unique("tournaments_source_key").on(t.source, t.externalKey),
@@ -744,6 +752,66 @@ export const tournamentStandings = pgTable(
   ],
 );
 
+/**
+ * The commander×card tournament aggregate (P3.8) — the lean alternative to
+ * storing per-standing card lists (the ~100-raw-rows-per-standing shape the
+ * tournaments comment above forbids). One row per (exact commander SET,
+ * mainboard card) pair seen in a settled top-16 list: `lists` = how many
+ * lists played the card, `top4` = how many of those placed ≤ 4. Rolled up in
+ * memory at ingest from the raw deckObj mainboards (nothing per-standing
+ * touches disk) and incremented EXACTLY ONCE per tournament, gated by
+ * tournaments.cards_aggregated_at (see there for the settled rule).
+ *
+ * `leader_ids` is SORTED (the Topdeck mapper sorts) — decks.leader_ids is
+ * NOT (leaderDenorm keeps command-zone entry order), so the deck side is
+ * sorted at query time; never compare the arrays raw. The exact commander
+ * set is the honest key ("with your commander(s)"); a per-single-leader
+ * partner fallback is a LATER row.
+ *
+ * Neon math (measured against the 180-day backfill, 2026-09-02): ~90B heap
+ * (23B header + 1–2-uuid array 24–40B + uuid + 2×int4 + 2×date) + ~60B PK
+ * btree ≈ 150B all-in → the corpus' ~170k pairs ≈ 26MB. One-list commanders
+ * (386 of 990 sets) are kept — their single list is real data that reads
+ * low-confidence, not noise to floor away. The aggregate is all-time (NOT
+ * time-windowed, though the ingest window is): growth ≈ 26MB per 180 days ≈
+ * 50MB/year; pruning = rebuild from the R2 raw archive (LATER row with a
+ * size trigger).
+ */
+export const commanderCardStats = pgTable(
+  "commander_card_stats",
+  {
+    /** Exact commander set, sorted uuid[] of card_identities ids (1–2 entries). */
+    leaderIds: uuid("leader_ids").array().notNull(),
+    cardIdentityId: uuid("card_identity_id")
+      .notNull()
+      .references(() => cardIdentities.id, { onDelete: "cascade" }),
+    /** Settled top-16 lists with this commander set that played the card. */
+    lists: integer("lists").notNull(),
+    /** Of those, lists that placed in the top 4. */
+    top4: integer("top4").notNull().default(0),
+    firstSeen: date("first_seen").notNull(),
+    lastSeen: date("last_seen").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.leaderIds, t.cardIdentityId] })],
+);
+
+/**
+ * The denominator: settled top-16 lists per exact commander set (~990 rows).
+ * "58 of 94 lists" needs both numbers; keeping the total here means the
+ * share never silently drifts from the pair rows it normalizes.
+ */
+export const commanderStats = pgTable(
+  "commander_stats",
+  {
+    leaderIds: uuid("leader_ids").array().notNull(),
+    /** Settled top-16 lists with a readable mainboard for this commander set. */
+    lists: integer("lists").notNull(),
+    firstSeen: date("first_seen").notNull(),
+    lastSeen: date("last_seen").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.leaderIds] })],
+);
+
 // ---------------------------------------------------------------------------
 // Rate limiting (P1.8)
 // ---------------------------------------------------------------------------
@@ -777,7 +845,7 @@ export const ingestRuns = pgTable(
   "ingest_runs",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
-    /** 'scryfall' | 'spellbook' | 'topdeck' | 'punk-records' */
+    /** 'scryfall' | 'spellbook' | 'topdeck' | 'topdeck-aggregate' | 'punk-records' */
     source: text("source").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
