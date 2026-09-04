@@ -1,11 +1,12 @@
 /**
  * One Piece TCG adapter. The DATA half is real as of P4.1 (punk-records
- * ingest, see punk-map.ts); validate/analyze remain the M0 stubs until the
- * M4 adapter package lands real validation (leader color legality, the
- * 4-copy rule, banned pairs via conditional legality rows +
- * data/optcg/legalities.json overlay) and real analytics.
+ * ingest, see punk-map.ts); P4.2 landed real validation (validate.ts —
+ * leader-color legality, the 4-copy card-number rule, Bandai bans and
+ * banned pairs via conditional legality rows + the data/optcg/legalities.json
+ * overlay). analyze stays a stub until the OP analytics package.
  */
-import type { CardData, FormatDef, GameAdapter, SearchFieldDef, ValidationIssue } from "../types";
+import type { CardData, FormatDef, GameAdapter, SearchFieldDef } from "../types";
+import { validateOptcg } from "./validate";
 
 /**
  * Ingest-written attrs (punk-map.ts is the writer; changing the contract
@@ -100,10 +101,17 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
   formats: [STANDARD],
   searchFields: SEARCH_FIELDS,
 
-  // M4: leader-color legality, 4-copy limit, banned pairs (conditional rows +
-  // the hand-maintained overlay). Stub validates nothing rather than half-validating.
-  validate(): ValidationIssue[] {
-    return [];
+  validate(deck, cards) {
+    if (deck.formatCode !== STANDARD.code) {
+      return [
+        {
+          code: "FORMAT_UNKNOWN",
+          severity: "error",
+          message: `Unknown One Piece format "${deck.formatCode}".`,
+        },
+      ];
+    }
+    return validateOptcg(deck, cards, STANDARD);
   },
 
   analyze() {

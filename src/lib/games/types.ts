@@ -56,14 +56,23 @@ export interface LegalityEntry {
   /**
    * NULL/absent = unconditional. Only the game adapter interprets conditions
    * (e.g. OP pair bans); the core just fetches rows.
+   *
+   * `banned_with` (P4.2): Bandai's pair bans are symmetric card+card ("Card A
+   * and Card B cannot be included in the same deck") — one live pair has no
+   * leader side at all — so the condition names partner cards by external_key
+   * (readable, dump/restore-stable) and is stored mirrored on both cards.
    */
-  condition?:
-    { type: "banned_with_leader"; leaderIds: string[] } | { type: string; [k: string]: unknown };
+  condition?: { type: "banned_with"; cardIds: string[] } | { type: string; [k: string]: unknown };
 }
 
 export interface CardData<A = Record<string, unknown>> {
   id: string;
   name: string;
+  /**
+   * Stable per-game key (MTG: oracle uuid; OP: the card number "OP01-025").
+   * On the wire since P4.2 — OP pair-ban conditions reference partners by it.
+   */
+  externalKey: string;
   primaryType: string | null;
   costValue: number | null;
   /** Bitmask W1 U2 B4 R8 G16 C32 (other games reuse bits). */

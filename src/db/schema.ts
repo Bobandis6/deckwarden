@@ -224,7 +224,8 @@ export const legalities = pgTable(
     status: text("status").$type<LegalityStatus>().notNull(),
     /**
      * NULL = unconditional. Only the game adapter interprets conditions, e.g.
-     * OP pair bans: {"type":"banned_with_leader","leaderIds":[...]}.
+     * OP pair bans (symmetric, mirrored on both partners, external_key refs):
+     * {"type":"banned_with","cardIds":["EB04-058"]}.
      */
     condition: jsonb("condition"),
     effectiveFrom: date("effective_from").notNull(),

@@ -20,6 +20,7 @@
     "ingest:spellbook": "tsx scripts/ingest/spellbook.ts",
     "ingest:topdeck": "tsx scripts/ingest/topdeck.ts",
     "ingest:punk-records": "tsx scripts/ingest/punk-records.ts",
+    "ingest:optcg-legalities": "tsx scripts/ingest/optcg-legalities.ts",
     "optcg:image-manifest": "tsx scripts/optcg-image-manifest.ts",
     "decks:purge": "tsx scripts/purge-anon-decks.ts",
     "smoke:decks": "tsx scripts/deck-api-smoke.ts",
@@ -33,6 +34,7 @@
     "smoke:versions": "tsx scripts/versions-forks-smoke.ts",
     "smoke:collection": "tsx scripts/collection-smoke.ts",
     "smoke:optcg": "tsx scripts/optcg-smoke.ts",
+    "smoke:optcg-deck": "tsx scripts/optcg-deck-smoke.ts",
     "search:canned": "tsx scripts/canned-searches.ts",
     "db:size": "tsx scripts/db-size.ts"
   },

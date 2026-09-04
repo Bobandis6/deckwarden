@@ -106,6 +106,7 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
         .select({
           id: ci.id,
           name: ci.name,
+          externalKey: ci.externalKey,
           primaryType: ci.primaryType,
           costValue: ci.costValue,
           colorsMask: ci.colorsMask,
@@ -158,6 +159,7 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
       {
         id: r.id,
         name: r.name,
+        externalKey: r.externalKey,
         primaryType: r.primaryType,
         costValue: r.costValue,
         colorsMask: r.colorsMask,

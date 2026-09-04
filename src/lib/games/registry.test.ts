@@ -23,6 +23,7 @@ describe("optcg stub (the fire drill)", () => {
   const leader: CardData = {
     id: "op-leader-1",
     name: "Monkey.D.Luffy",
+    externalKey: "OP11-040",
     primaryType: "Leader",
     costValue: null,
     colorsMask: 8,
@@ -50,7 +51,12 @@ describe("optcg stub (the fire drill)", () => {
   });
 
   it("runs the pure surface end to end", () => {
-    expect(optcg.validate(deck, new Map([[leader.id, leader]]))).toEqual([]);
+    // Real validation since P4.2: a leader with an empty main deck is honestly
+    // incomplete (50-card zone + deck size), not silently "valid".
+    expect(optcg.validate(deck, new Map([[leader.id, leader]])).map((i) => i.code)).toEqual([
+      "ZONE_SIZE",
+      "DECK_SIZE",
+    ]);
     expect(optcg.analyze(deck, new Map([[leader.id, leader]]))).toEqual([]);
 
     const { lines, warnings } = optcg.parseDecklist("1xOP01-001\n4 OP01-025\nnot a line?!");

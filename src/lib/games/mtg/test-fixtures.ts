@@ -20,6 +20,7 @@ export function card(
   };
   return {
     id: over.id ?? `00000000-0000-4000-8000-${String(++uuidCounter).padStart(12, "0")}`,
+    externalKey: over.externalKey ?? `oracle-${uuidCounter}`,
     primaryType: "Creature",
     costValue: 2,
     colorsMask: 0,

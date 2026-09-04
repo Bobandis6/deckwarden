@@ -98,6 +98,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
   const card: CardData = {
     id: leader.id,
     name: leader.name,
+    externalKey: leader.externalKey,
     primaryType: leader.primaryType,
     costValue: leader.costValue,
     colorsMask: leader.colorsMask,

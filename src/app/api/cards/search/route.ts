@@ -71,6 +71,7 @@ export async function GET(request: NextRequest) {
     .select({
       id: ci.id,
       name: ci.name,
+      externalKey: ci.externalKey,
       primaryType: ci.primaryType,
       costValue: ci.costValue,
       colorsMask: ci.colorsMask,

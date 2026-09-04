@@ -44,6 +44,7 @@ import {
   type PunkIndexEntry,
   type PunkPack,
 } from "../../src/lib/games/optcg/punk-map";
+import { applyOptcgLegalities, type OverlayApplyStats } from "./optcg-legalities";
 
 const USER_AGENT = "Deckwarden/1.0 (https://deckwarden.gg)";
 const HEADERS = { "User-Agent": USER_AGENT, Accept: "application/json" };
@@ -83,6 +84,7 @@ interface Stats {
   mapper_version: number;
   image_base: string | null;
   skipped_unchanged?: boolean;
+  legalities_overlay?: OverlayApplyStats;
   requests: number;
   packs: number;
   sets_upserted: number;
@@ -116,6 +118,11 @@ async function main() {
       process.exit(2);
     }
 
+    // Banlist overlay applier (P4.2) — UNCONDITIONALLY, before the sha-skip
+    // exit: data/optcg/legalities.json changes with Bandai announcements, not
+    // upstream commits, so overlay edits must land within a nightly either way.
+    const overlayStats = await applyOptcgLegalities(sql);
+
     const sha = process.env.PUNK_RECORDS_SHA?.trim() || (await latestSha());
     console.log(`punk-records pinned sha: ${sha}`);
 
@@ -131,7 +138,7 @@ async function main() {
     if (unchanged && process.env.PUNK_FORCE !== "1") {
       await sql`INSERT INTO ingest_runs (source, status, finished_at, stats)
         VALUES ('punk-records', 'succeeded', now(),
-                ${sql.json({ sha, mapper_version: MAPPER_VERSION, image_base: imageBase, skipped_unchanged: true, duration_ms: Date.now() - started })})`;
+                ${sql.json({ sha, mapper_version: MAPPER_VERSION, image_base: imageBase, skipped_unchanged: true, legalities_overlay: { ...overlayStats }, duration_ms: Date.now() - started })})`;
       console.log("sha, mapper and image base unchanged since last success — clean no-op skip");
       return;
     }
@@ -144,6 +151,7 @@ async function main() {
       sha,
       mapper_version: MAPPER_VERSION,
       image_base: imageBase,
+      legalities_overlay: overlayStats,
       requests: 0,
       packs: 0,
       sets_upserted: 0,

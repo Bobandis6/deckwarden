@@ -9,6 +9,7 @@ function wire(name: string): CardWire {
   return {
     id: `00000000-0000-4000-9000-${String(++n).padStart(12, "0")}`,
     name,
+    externalKey: `oracle-${n}`,
     primaryType: "Creature",
     costValue: 2,
     colorsMask: 0,

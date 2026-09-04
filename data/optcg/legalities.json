@@ -1,0 +1,69 @@
+{
+  "$comment": "Hand-maintained OPTCG banlist overlay — THE authority for format-2 legality rows (build plan M4: community scrapers lag Bandai, so a human edits this file against the official page). cardId is the card number (card_identities.external_key, game_id 2). The applier (scripts/ingest/optcg-legalities.ts, run nightly by punk-records and manually via `pnpm ingest:optcg-legalities`) diffs entries against current DB rows: close what's gone, open what's new, source 'bandai:<effectiveFrom>'. Pair bans are symmetric card+card per Bandai's wording — keep BOTH mirrored entries when editing.",
+  "game": "optcg",
+  "format": "standard",
+  "source_url": "https://en.onepiece-cardgame.com/news/restriction.html",
+  "retrieved": "2026-09-04",
+  "entries": [
+    {
+      "cardId": "OP06-047",
+      "status": "banned",
+      "effectiveFrom": "2026-04-10",
+      "note": "Charlotte Pudding"
+    },
+    {
+      "cardId": "OP03-040",
+      "status": "banned",
+      "effectiveFrom": "2026-04-10",
+      "note": "Nami (Leader)"
+    },
+    {
+      "cardId": "OP06-086",
+      "status": "banned",
+      "effectiveFrom": "2026-04-10",
+      "note": "Gecko Moria"
+    },
+    {
+      "cardId": "ST10-001",
+      "status": "banned",
+      "effectiveFrom": "2026-04-10",
+      "note": "Trafalgar Law (Leader)"
+    },
+    { "cardId": "OP06-116", "status": "banned", "effectiveFrom": "2026-04-10", "note": "Reject" },
+    {
+      "cardId": "OP07-115",
+      "status": "banned",
+      "effectiveFrom": "2026-04-10",
+      "condition": { "type": "banned_with", "cardIds": ["EB04-058"] },
+      "note": "I Re-Quasar Helllp!! — pair ban with Borsalino"
+    },
+    {
+      "cardId": "EB04-058",
+      "status": "banned",
+      "effectiveFrom": "2026-04-10",
+      "condition": { "type": "banned_with", "cardIds": ["OP07-115"] },
+      "note": "Borsalino — pair ban with I Re-Quasar Helllp!!"
+    },
+    {
+      "cardId": "OP11-040",
+      "status": "banned",
+      "effectiveFrom": "2026-04-10",
+      "condition": { "type": "banned_with", "cardIds": ["OP11-067", "OP08-069"] },
+      "note": "Monkey.D.Luffy (Leader) — pair bans with Katakuri and Linlin"
+    },
+    {
+      "cardId": "OP11-067",
+      "status": "banned",
+      "effectiveFrom": "2026-04-10",
+      "condition": { "type": "banned_with", "cardIds": ["OP11-040"] },
+      "note": "Charlotte Katakuri — pair ban with Luffy OP11-040"
+    },
+    {
+      "cardId": "OP08-069",
+      "status": "banned",
+      "effectiveFrom": "2026-04-10",
+      "condition": { "type": "banned_with", "cardIds": ["OP11-040"] },
+      "note": "Charlotte Linlin — pair ban with Luffy OP11-040"
+    }
+  ]
+}

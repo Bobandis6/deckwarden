@@ -40,6 +40,7 @@ export async function fetchDeckCardsWire(deck: {
       tags: dc.tags,
       printingId: dc.printingId,
       name: ci.name,
+      externalKey: ci.externalKey,
       primaryType: ci.primaryType,
       costValue: ci.costValue,
       colorsMask: ci.colorsMask,
@@ -94,6 +95,7 @@ export async function fetchDeckCardsWire(deck: {
       card: {
         id: r.cardId,
         name: r.name,
+        externalKey: r.externalKey,
         primaryType: r.primaryType,
         costValue: r.costValue,
         colorsMask: r.colorsMask,

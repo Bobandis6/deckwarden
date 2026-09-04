@@ -71,14 +71,7 @@ function wireSelect(db: ReturnType<typeof getDb>) {
 type WireRow = Awaited<ReturnType<typeof wireSelect>>[number];
 
 function toWire(row: WireRow, legality: Map<string, LegalityEntry[]>) {
-  const {
-    nameNorm: _nameNorm,
-    externalKey: _externalKey,
-    printingId,
-    imageOverride,
-    cheapestUsd,
-    ...card
-  } = row;
+  const { nameNorm: _nameNorm, printingId, imageOverride, cheapestUsd, ...card } = row;
   return {
     ...card,
     cheapestUsd: cheapestUsd === null ? null : Number(cheapestUsd),

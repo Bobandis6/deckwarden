@@ -114,6 +114,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
   const card: CardData = {
     id: identity.id,
     name: identity.name,
+    externalKey: identity.externalKey,
     primaryType: identity.primaryType,
     costValue: identity.costValue,
     colorsMask: identity.colorsMask,
