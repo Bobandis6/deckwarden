@@ -25,7 +25,7 @@ export type OptcgAttrs = {
   type_line?: string;
   /** The card's effect text (FTS key; OP has no "oracle" but the column contract does). */
   oracle_text?: string;
-  /** [Trigger] text, kept structured for the M4 validator — not folded into oracle_text. */
+  /** [Trigger] text (source-verbatim, "[Trigger] " prefix included), kept structured for the M4 validator — not folded into oracle_text. */
   trigger_text?: string;
   traits?: string[];
   /** Battle attributes (Strike/Slash/Ranged/Special/Wisdom). */
@@ -155,7 +155,11 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
     bodyText: (card: OptcgCard) => {
       const effect = card.attrs.oracle_text ?? "";
       const trigger = card.attrs.trigger_text;
-      return trigger ? `${effect}${effect ? "\n" : ""}[Trigger] ${trigger}` : effect;
+      if (!trigger) return effect;
+      // Corpus trigger_text carries the "[Trigger] " prefix verbatim (punk-map
+      // stores source text as-is); add the keyword only when it's missing.
+      const line = trigger.trimStart().startsWith("[Trigger]") ? trigger : `[Trigger] ${trigger}`;
+      return `${effect}${effect ? "\n" : ""}${line}`;
     },
     statLine: (card: OptcgCard) => {
       const parts: string[] = [];
