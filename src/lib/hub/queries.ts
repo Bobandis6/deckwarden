@@ -1,7 +1,14 @@
 /**
- * Hub data access (P2.4). MTG-only for now (game_id pinned): /c/[slug]
- * resolves within one game's slug namespace, and M4 revisits routing when a
- * second game grows hubs. Everything here reads card data only — hubs carry
+ * Hub data access (P2.4; game-scoped P4.4). Routing decision (the "M4
+ * revisits" this header used to promise): each game keeps its own hub root —
+ * /commanders → /c/[slug] for MTG, /leaders → /l/[slug] for OP — because the
+ * vocabulary differs ("commander" is MTG-speak; OP players say "leader") and
+ * the 4,012 existing /c/ URLs are live SEO surface that must not move.
+ * Cross-game slug collisions are structurally dead regardless: ci_slug is
+ * unique per game, and OP slugs embed the external key (leaderHubSlug).
+ * Slug-taking loaders are game_id-parameterized; MTG-signal loaders
+ * (staples, decks shelf, the popularity-ordered index) stay MTG-only by
+ * construction and say so. Everything here reads card data only — hubs carry
  * no per-viewer state, which is what lets the pages be ISR-cached.
  *
  * Staples contract (cold-start rule): cards that FIT the leader's color
@@ -21,14 +28,15 @@ export type LeaderRow = typeof schema.cardIdentities.$inferSelect;
 
 const SLUG_RE = /^[a-z0-9-]{1,60}$/;
 
-export async function loadLeaderBySlug(slug: string): Promise<LeaderRow | null> {
+/** Slug lookup within ONE game's namespace (ci_slug is unique per game). */
+export async function loadLeaderBySlug(gameId: number, slug: string): Promise<LeaderRow | null> {
   if (!SLUG_RE.test(slug)) return null;
   const [leader] = await getDb()
     .select()
     .from(cardIdentities)
     .where(
       and(
-        eq(cardIdentities.gameId, GAME_ID.mtg),
+        eq(cardIdentities.gameId, gameId),
         eq(cardIdentities.slug, slug),
         eq(cardIdentities.isLeaderCandidate, true),
       ),
@@ -47,14 +55,14 @@ export async function loadDefaultPrinting(cardIdentityId: string) {
   return printing ?? null;
 }
 
-/** The leader's own current unconditional status in the leader format ('legal' when no row). */
-export async function loadLeaderStatus(cardIdentityId: string): Promise<string> {
+/** The leader's own current unconditional status in the given format ('legal' when no row). */
+export async function loadLeaderStatus(formatId: number, cardIdentityId: string): Promise<string> {
   const [row] = await getDb()
     .select({ status: legalities.status })
     .from(legalities)
     .where(
       and(
-        eq(legalities.formatId, FORMAT_ID.commander),
+        eq(legalities.formatId, formatId),
         eq(legalities.cardIdentityId, cardIdentityId),
         isNull(legalities.effectiveTo),
         isNull(legalities.condition),
@@ -161,6 +169,8 @@ export const LEADERS_PAGE_SIZE = 60;
 /**
  * Leader index page: popularity order (edhrec_rank asc = most played first;
  * unranked leaders sort last), optional exact color-identity filter.
+ * MTG-only by construction — popularity is an MTG signal (EDHREC), and the
+ * OP index below deliberately doesn't pretend to have one.
  */
 export async function loadLeaderIndex(opts: {
   ciMask: number | null;
@@ -188,4 +198,77 @@ export async function loadLeaderIndex(opts: {
     .orderBy(sql`${cardIdentities.popularity} ASC NULLS LAST`, asc(cardIdentities.name))
     .limit(LEADERS_PAGE_SIZE)
     .offset((opts.page - 1) * LEADERS_PAGE_SIZE);
+}
+
+export interface OpLeaderIndexRow {
+  id: string;
+  name: string;
+  slug: string | null;
+  externalKey: string;
+  colorsMask: number;
+  attrs: unknown;
+}
+
+/**
+ * OP leader index (P4.4): every slugged OP leader, name order — the honest
+ * zero-signal ordering (popularity/prices are all-NULL for OP, and
+ * external_key order interleaves EB/OP/P/ST prefixes, a poor "newest first"
+ * proxy; LATER row 55 holds the release-date map). 142 rows today, no
+ * pagination needed; exact colors_mask filter mirrors /commanders semantics
+ * (colors_mask == ci_mask for OP by ingest contract).
+ */
+export async function loadOpLeaderIndex(opts: {
+  colorsMask: number | null;
+}): Promise<OpLeaderIndexRow[]> {
+  const conditions = [
+    eq(cardIdentities.gameId, GAME_ID.optcg),
+    eq(cardIdentities.isLeaderCandidate, true),
+    eq(cardIdentities.isRemoved, false),
+    sql`${cardIdentities.slug} IS NOT NULL`,
+  ];
+  if (opts.colorsMask !== null) conditions.push(eq(cardIdentities.colorsMask, opts.colorsMask));
+  return getDb()
+    .select({
+      id: cardIdentities.id,
+      name: cardIdentities.name,
+      slug: cardIdentities.slug,
+      externalKey: cardIdentities.externalKey,
+      colorsMask: cardIdentities.colorsMask,
+      attrs: cardIdentities.attrs,
+    })
+    .from(cardIdentities)
+    .where(and(...conditions))
+    .orderBy(asc(cardIdentities.name), asc(cardIdentities.externalKey));
+}
+
+/**
+ * Same-name OP leaders (P4.4): the 17-Luffys problem as a feature — each hub
+ * cross-links its namesakes so a searcher landing on the wrong Luffy finds
+ * the right one. Callers render the block only when this returns rows.
+ */
+export async function loadOpLeaderSiblings(
+  name: string,
+  excludeId: string,
+): Promise<OpLeaderIndexRow[]> {
+  return getDb()
+    .select({
+      id: cardIdentities.id,
+      name: cardIdentities.name,
+      slug: cardIdentities.slug,
+      externalKey: cardIdentities.externalKey,
+      colorsMask: cardIdentities.colorsMask,
+      attrs: cardIdentities.attrs,
+    })
+    .from(cardIdentities)
+    .where(
+      and(
+        eq(cardIdentities.gameId, GAME_ID.optcg),
+        eq(cardIdentities.isLeaderCandidate, true),
+        eq(cardIdentities.isRemoved, false),
+        eq(cardIdentities.name, name),
+        ne(cardIdentities.id, excludeId),
+        sql`${cardIdentities.slug} IS NOT NULL`,
+      ),
+    )
+    .orderBy(asc(cardIdentities.externalKey));
 }

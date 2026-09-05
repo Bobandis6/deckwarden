@@ -22,7 +22,7 @@
  * rows never shift between chunks except when cards are added/removed at
  * ingest, and a daily re-read heals that.
  */
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import type { MetadataRoute } from "next";
 
 import { getDb, schema } from "@/db";
@@ -33,11 +33,14 @@ export const revalidate = 86400;
 
 const { cardIdentities } = schema;
 
-// MTG only, for now (P4.1): the OP corpus is live but pre-beta — no nav
-// surface links OP cards, so advertising 4.8k orphan URLs to crawlers would
-// be pure thin-content risk. The OP beta package widens this deliberately.
+// MTG + OP since P4.4 (LATER row 54 fired: this comment used to defer the
+// widening to "the OP beta package", but the row's real trigger was "an OP
+// browse/search surface exists to link them" — /cards?game=optcg, /leaders
+// and /l/ hubs shipped in P4.4, so OP card pages stopped being orphans in
+// the same session). robots.ts mirrors this WHERE for its chunk count —
+// change them together or the math drifts.
 const SITEMAP_GAMES = and(
-  eq(cardIdentities.gameId, GAME_ID.mtg),
+  inArray(cardIdentities.gameId, [GAME_ID.mtg, GAME_ID.optcg]),
   eq(cardIdentities.isRemoved, false),
 );
 

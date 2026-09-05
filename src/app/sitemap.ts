@@ -53,7 +53,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
     { url: absUrl("/") },
     { url: absUrl("/commanders") },
+    { url: absUrl("/leaders") },
     { url: absUrl("/cards") },
+    // The OP corpus variant is its own canonical (cards/page.tsx, P4.4).
+    { url: absUrl("/cards?game=optcg") },
     { url: absUrl("/legal") },
     { url: absUrl("/privacy") },
   ];

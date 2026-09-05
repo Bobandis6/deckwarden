@@ -167,9 +167,17 @@ async function main() {
     for (const frag of ["Disallow: /api/", "Disallow: /decks/", "Disallow: /account"]) {
       check(`robots.txt has "${frag}"`, robots.text.includes(frag));
     }
-    for (const sm of ["/sitemap.xml", "/c/sitemap.xml", "/cards/sitemap/0.xml"]) {
+    for (const sm of ["/sitemap.xml", "/c/sitemap.xml", "/l/sitemap.xml", "/cards/sitemap/0.xml"]) {
       check(`robots.txt lists ${sm}`, robots.text.includes(sm));
     }
+    // Lockstep pin (P4.4): robots' chunk count must mirror cards/sitemap.ts's
+    // WHERE (MTG + OP, non-removed) — cardCount below is exactly that set.
+    const expectedChunks = Math.max(1, Math.ceil(cardCount / 10_000));
+    check(
+      `robots.txt lists exactly ${expectedChunks} card sitemap chunks`,
+      robots.text.includes(`/cards/sitemap/${expectedChunks - 1}.xml`) &&
+        !robots.text.includes(`/cards/sitemap/${expectedChunks}.xml`),
+    );
 
     // ---- sitemaps ----------------------------------------------------------
     const core = await page("/sitemap.xml");
@@ -293,6 +301,124 @@ async function main() {
       );
     }
 
+    // ---- OP surfaces (P4.4) ------------------------------------------------
+    const [opLeader] = await sql<{ id: string; slug: string; name: string; key: string }[]>`
+      SELECT ci.id::text AS id, ci.slug, ci.name, ci.external_key AS key
+      FROM card_identities ci
+      WHERE ci.game_id = 2 AND ci.is_leader_candidate AND ci.slug IS NOT NULL
+        AND NOT ci.is_removed
+        AND EXISTS (SELECT 1 FROM card_printings p
+                    WHERE p.card_identity_id = ci.id AND p.is_default)
+      ORDER BY ci.external_key ASC LIMIT 1`;
+    check("OP fixture leader exists (slugs assigned)", !!opLeader, opLeader);
+    if (!opLeader) throw new Error("no slugged OP leader; run the slug backfill first");
+
+    const leadersPage = await page("/leaders");
+    check("/leaders 200", leadersPage.status === 200, leadersPage.status);
+    check("/leaders canonical tag", hasCanonical(leadersPage.text, "/leaders"));
+    check(
+      "/leaders links the fixture hub",
+      leadersPage.text.includes(`/l/${opLeader.slug}`),
+      opLeader.slug,
+    );
+    check("/leaders carries the Bandai posture line", leadersPage.text.includes("©BANDAI"));
+
+    const opHub = await page(`/l/${opLeader.slug}`);
+    check("OP hub 200", opHub.status === 200, opHub.status);
+    check("OP hub canonical tag", hasCanonical(opHub.text, `/l/${opLeader.slug}`));
+    check(
+      "OP hub title carries the external key (17-Luffys disambiguation)",
+      opHub.text.includes(`(${opLeader.key}) — One Piece Leader`),
+    );
+    check(
+      "OP hub JSON-LD breadcrumb",
+      jsonLdBlocks(opHub.text).some((b) => b["@type"] === "BreadcrumbList"),
+    );
+    check(
+      "OP hub build CTA targets the OP editor deep link",
+      opHub.text.includes("Build with this leader") && opHub.text.includes("/decks/new?game=optcg"),
+    );
+    check(
+      "OP hub browse links land preset on /cards",
+      opHub.text.includes("/cards?game=optcg&amp;color=within:") ||
+        opHub.text.includes("/cards?game=optcg&color=within:"),
+    );
+    check("OP hub carries the Bandai posture line", opHub.text.includes("©BANDAI"));
+    check(
+      "OP hub renders no MTG-signal shelves (cold-start rule)",
+      !opHub.text.includes("Staples") && !opHub.text.includes("Budget"),
+    );
+    const opHubOgPath = ogImagePath(opHub.text);
+    check("OP hub og:image present", !!opHubOgPath);
+    if (opHubOgPath) {
+      const img = await fetchImage(opHubOgPath);
+      check(
+        "OP hub OG image renders (200, png — artless frame by design)",
+        img.status === 200 && img.type.startsWith("image/png") && img.bytes > 5_000,
+        img,
+      );
+    }
+
+    // The OP leader's own card page: game-aware hub link + no price columns.
+    const opCardPage = await page(`/cards/${opLeader.id}`);
+    check("OP card page 200", opCardPage.status === 200, opCardPage.status);
+    check(
+      "OP card meta description (no price claims)",
+      opCardPage.text.includes("Card text, printings, and format legality"),
+    );
+    check("OP card page links its /l/ hub", opCardPage.text.includes(`/l/${opLeader.slug}`));
+    check("OP card page suppresses price columns", !opCardPage.text.includes(">USD<"));
+    check("OP card page carries the Bandai posture line", opCardPage.text.includes("©BANDAI"));
+
+    // /cards game scoping: each corpus is its own canonical (P4.4 call).
+    const cardsMtg = await page("/cards");
+    check("/cards (MTG) canonical stays bare", hasCanonical(cardsMtg.text, "/cards"));
+    check("/cards (MTG) keeps Scryfall attribution", cardsMtg.text.includes("Scryfall"));
+    const cardsOp = await page("/cards?game=optcg");
+    check(
+      "/cards?game=optcg canonical keeps the game param",
+      /rel="canonical" href="[^"]*\/cards\?game=optcg"/.test(cardsOp.text),
+    );
+    check("/cards?game=optcg carries the Bandai posture line", cardsOp.text.includes("©BANDAI"));
+
+    const lMap = await page("/l/sitemap.xml");
+    check("OP hub sitemap 200", lMap.status === 200, lMap.status);
+    check("OP hub sitemap lists the fixture hub", lMap.text.includes(`/l/${opLeader.slug}</loc>`));
+
+    // The widened card sitemap really advertises OP pages: locate the fixture
+    // leader's chunk by its position in the shared id order and look inside.
+    const [{ before }] = await sql<{ before: number }[]>`
+      SELECT count(*)::int AS before FROM card_identities
+      WHERE NOT is_removed AND game_id IN (1, 2) AND id < ${opLeader.id}::uuid`;
+    const opChunk = Math.floor(before / 10_000);
+    const opChunkMap = await page(`/cards/sitemap/${opChunk}.xml`);
+    check(
+      `card sitemap chunk ${opChunk} lists the OP card page`,
+      opChunkMap.status === 200 && opChunkMap.text.includes(`/cards/${opLeader.id}</loc>`),
+      { status: opChunkMap.status, chunk: opChunk },
+    );
+
+    // Traits: the distinct-options endpoint and the live filter (P4.2 wire).
+    const traits = await api("GET", "/api/cards/options?game=optcg&field=traits");
+    const traitOptions = (traits.json as { options?: string[] })?.options ?? [];
+    check(
+      "traits options endpoint serves the corpus (171 distinct as of P4.4)",
+      traits.status === 200 && traitOptions.length >= 100 && traitOptions.includes("Navy"),
+      { status: traits.status, count: traitOptions.length },
+    );
+    const oneTrait = await api("GET", "/api/cards/search?game=optcg&traits=Supernovas&limit=1");
+    const oneTotal = (oneTrait.json as { total?: number })?.total ?? 0;
+    const twoTraits = await api(
+      "GET",
+      "/api/cards/search?game=optcg&traits=Supernovas,Navy&limit=1",
+    );
+    const twoTotal = (twoTraits.json as { total?: number })?.total ?? 0;
+    check("traits filter matches cards (any-mode)", oneTotal > 0, oneTotal);
+    check("two-trait list widens the match (mode any = OR)", twoTotal > oneTotal, {
+      oneTotal,
+      twoTotal,
+    });
+
     // ---- home --------------------------------------------------------------
     const home = await page("/");
     // Next collapses `canonical: "/"` + metadataBase to the bare origin.
@@ -302,6 +428,10 @@ async function main() {
       jsonLdBlocks(home.text).some(
         (b) => b["@type"] === "WebSite" && JSON.stringify(b).includes("search_term_string"),
       ),
+    );
+    check(
+      "home links the OP surfaces (leaders + scoped card search)",
+      home.text.includes("/leaders") && home.text.includes("/cards?game=optcg"),
     );
   } finally {
     if (deckId && token) {

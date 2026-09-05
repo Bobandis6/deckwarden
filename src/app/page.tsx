@@ -102,8 +102,29 @@ export default function Home() {
       <YourDecks />
       <RecentPublicDecks />
 
+      <section
+        aria-label="One Piece Card Game"
+        className="flex w-full max-w-xl flex-col items-center gap-3 rounded-lg border p-5 text-center"
+      >
+        <h2 className="text-sm font-semibold tracking-wide uppercase">Also speaks One Piece</h2>
+        <p className="text-muted-foreground text-sm">
+          The One Piece Card Game runs on the same engine: every card and leader is browsable, and
+          the builder validates 50-card decks against Bandai&apos;s banlist as you type.
+        </p>
+        <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm">
+          <Link href="/leaders" className="underline underline-offset-4">
+            Browse leaders
+          </Link>
+          <Link href="/cards?game=optcg" className="underline underline-offset-4">
+            Search One Piece cards
+          </Link>
+          <Link href="/decks/new?game=optcg" className="underline underline-offset-4">
+            Start an OP deck
+          </Link>
+        </p>
+      </section>
+
       <p className="text-muted-foreground max-w-xl text-center text-sm">
-        Magic: The Gathering is first — One Piece is on the roadmap behind the same engine.{" "}
         <a
           href="https://github.com/Bobandis6/deckwarden"
           className="underline underline-offset-4"

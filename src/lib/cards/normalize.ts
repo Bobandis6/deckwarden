@@ -41,3 +41,24 @@ export function cardSlug(name: string): string {
     .slice(0, 60)
     .replace(/-+$/, "");
 }
+
+/**
+ * URL slug for leader hubs in games where names don't identify a leader
+ * (P4.4): OP has 142 leaders across only 77 names — 17 distinct
+ * Monkey.D.Luffys — so the card's external key is part of the identity.
+ * `cardSlug(name)-external_key` ("monkey-d-luffy-op01-003") is
+ * self-disambiguating and stable; the name part is trimmed so the whole
+ * slug stays within the 60-char slug convention. "" when the name yields
+ * nothing (caller keeps slug NULL), same contract as cardSlug.
+ */
+export function leaderHubSlug(name: string, externalKey: string): string {
+  const key = externalKey
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (!key) return "";
+  const base = cardSlug(name)
+    .slice(0, 60 - key.length - 1)
+    .replace(/-+$/, "");
+  return base ? `${base}-${key}` : "";
+}

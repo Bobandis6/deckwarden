@@ -10,7 +10,7 @@
  * ones carry noindex metadata instead, so crawlers can fetch and then drop
  * them rather than indexing bare disallowed URLs.
  */
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import type { MetadataRoute } from "next";
 
 import { getDb, schema } from "@/db";
@@ -23,11 +23,11 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   const [{ n }] = await getDb()
     .select({ n: count() })
     .from(schema.cardIdentities)
-    // Must mirror cards/sitemap.ts's scope (MTG-only pre-OP-beta) or the
+    // Must mirror cards/sitemap.ts's scope (MTG + OP since P4.4) or the
     // chunk count here drifts from the chunks that actually exist.
     .where(
       and(
-        eq(schema.cardIdentities.gameId, GAME_ID.mtg),
+        inArray(schema.cardIdentities.gameId, [GAME_ID.mtg, GAME_ID.optcg]),
         eq(schema.cardIdentities.isRemoved, false),
       ),
     );
@@ -42,6 +42,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     sitemap: [
       absUrl("/sitemap.xml"),
       absUrl("/c/sitemap.xml"),
+      absUrl("/l/sitemap.xml"),
       ...Array.from({ length: chunks }, (_, i) => absUrl(`/cards/sitemap/${i}.xml`)),
     ],
   };

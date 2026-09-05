@@ -188,9 +188,16 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
           </div>
           {identity.isLeaderCandidate && identity.slug && (
             <p className="mt-3">
-              <Link href={`/c/${identity.slug}`} className="text-sm underline">
-                {adapter.display.leaderNoun} hub: staples, curve & budget picks →
-              </Link>
+              {/* Hub roots are per game (hub/queries.ts routing decision). */}
+              {gameCode === "optcg" ? (
+                <Link href={`/l/${identity.slug}`} className="text-sm underline">
+                  {adapter.display.leaderNoun} hub: profile & deck building →
+                </Link>
+              ) : (
+                <Link href={`/c/${identity.slug}`} className="text-sm underline">
+                  {adapter.display.leaderNoun} hub: staples, curve & budget picks →
+                </Link>
+              )}
             </p>
           )}
 
@@ -211,14 +218,20 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
 
           <h2 className="mt-8 text-lg font-semibold">Printings</h2>
           <div className="mt-2 overflow-x-auto">
-            <table className="w-full min-w-[28rem] text-sm">
+            {/* No price columns for OP (P4.4): prices are 0/2,785 non-null —
+                two all-dash columns would imply data we don't have. */}
+            <table className={`w-full text-sm ${gameCode === "optcg" ? "" : "min-w-[28rem]"}`}>
               <thead>
                 <tr className="text-muted-foreground border-b text-left">
                   <th className="py-1.5 pr-4 font-medium">Set</th>
                   <th className="py-1.5 pr-4 font-medium">#</th>
                   <th className="py-1.5 pr-4 font-medium">Rarity</th>
-                  <th className="py-1.5 pr-4 font-medium">USD</th>
-                  <th className="py-1.5 font-medium">Foil</th>
+                  {gameCode !== "optcg" && (
+                    <>
+                      <th className="py-1.5 pr-4 font-medium">USD</th>
+                      <th className="py-1.5 font-medium">Foil</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -236,8 +249,14 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
                         {p.setCode} {p.collectorNumber}
                       </td>
                       <td className="py-1.5 pr-4 capitalize">{p.rarity ?? "—"}</td>
-                      <td className="py-1.5 pr-4">{prices.usd ? `$${prices.usd}` : "—"}</td>
-                      <td className="py-1.5">{prices.usd_foil ? `$${prices.usd_foil}` : "—"}</td>
+                      {gameCode !== "optcg" && (
+                        <>
+                          <td className="py-1.5 pr-4">{prices.usd ? `$${prices.usd}` : "—"}</td>
+                          <td className="py-1.5">
+                            {prices.usd_foil ? `$${prices.usd_foil}` : "—"}
+                          </td>
+                        </>
+                      )}
                     </tr>
                   );
                 })}

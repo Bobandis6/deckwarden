@@ -26,9 +26,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .from(cardIdentities)
     .where(
       and(
-        // Game-scoped (P4.1): only MTG leaders get slugs today, but a missing
-        // filter here would advertise /c/ URLs that don't resolve the moment
-        // any other game's leaders are slugged.
+        // Game-scoped (P4.1) — and load-bearing since P4.4: OP leaders have
+        // slugs now, but they live under /l/ (l/sitemap.ts); without this
+        // filter their slugs would be advertised as /c/ URLs that 404.
         eq(cardIdentities.gameId, GAME_ID.mtg),
         eq(cardIdentities.isLeaderCandidate, true),
         isNotNull(cardIdentities.slug),

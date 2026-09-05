@@ -8,6 +8,7 @@
  */
 import { ImageResponse } from "next/og";
 
+import { GAME_ID } from "@/db/seed-data";
 import { loadCombosForCard } from "@/lib/combos/queries";
 import { staplesCurveBlock } from "@/lib/hub/curve";
 import { loadDefaultPrinting, loadLeaderBySlug, loadStaples } from "@/lib/hub/queries";
@@ -31,7 +32,7 @@ export const contentType = "image/png";
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const leader = await loadLeaderBySlug(slug);
+  const leader = await loadLeaderBySlug(GAME_ID.mtg, slug);
 
   if (!leader) {
     return new ImageResponse(

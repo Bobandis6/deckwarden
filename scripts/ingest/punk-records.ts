@@ -32,6 +32,7 @@ loadEnv({ path: [".env.local", ".env"], quiet: true });
 import postgres from "postgres";
 
 import { GAME_ID } from "../../src/db/seed-data";
+import { assignOpLeaderSlugs } from "./assign-leader-slugs";
 import {
   baseCardId,
   mapOptcgIdentity,
@@ -98,7 +99,11 @@ interface Stats {
     variants_without_base: number;
     base_without_data_entry: number;
   };
-  post_pass: { identities_removed: number; printings_removed: number };
+  post_pass: {
+    identities_removed: number;
+    printings_removed: number;
+    leader_slugs_assigned: number;
+  };
   duration_ms: number;
   db_size_bytes: number;
 }
@@ -165,7 +170,7 @@ async function main() {
         variants_without_base: 0,
         base_without_data_entry: 0,
       },
-      post_pass: { identities_removed: 0, printings_removed: 0 },
+      post_pass: { identities_removed: 0, printings_removed: 0, leader_slugs_assigned: 0 },
       duration_ms: 0,
       db_size_bytes: 0,
     };
@@ -346,8 +351,10 @@ async function main() {
       WHERE p.game_id = ${GAME_ID.optcg} AND NOT p.is_removed
         AND NOT EXISTS (SELECT 1 FROM stage_cp s WHERE s.id = p.id)`;
     stats.post_pass.printings_removed = remCp.count;
-    // No slug pass (leader hubs are an M4+ decision — assign-leader-slugs is
-    // GAME_ID.mtg-pinned on purpose), no prices, no legality rows.
+
+    // Hub slugs (P4.4): append-only — new OP leaders get /l/[slug] URLs.
+    // No prices, no legality rows here (the banlist overlay is its own step).
+    stats.post_pass.leader_slugs_assigned = await assignOpLeaderSlugs(sql);
 
     const [{ size }] = await sql<{ size: string }[]>`
       SELECT pg_database_size(current_database())::text AS size`;

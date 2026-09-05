@@ -20,6 +20,7 @@ import { cache } from "react";
 import { ComboList } from "@/components/combos/combo-list";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
 import { StaplesTable } from "@/components/hub/staples-table";
+import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
 import { printingImageUrl } from "@/lib/cards/images";
 import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
 import { updatedLabel } from "@/lib/decks/display";
@@ -61,7 +62,7 @@ function eventDateLabel(isoDate: string): string {
 
 export const revalidate = 3600;
 
-const getLeader = cache(loadLeaderBySlug);
+const getLeader = cache((slug: string) => loadLeaderBySlug(GAME_ID.mtg, slug));
 
 export async function generateMetadata({ params }: PageProps<"/c/[slug]">): Promise<Metadata> {
   const { slug } = await params;
@@ -85,7 +86,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
 
   const [printing, status, staples, combosData, hubDecks, topFinishes] = await Promise.all([
     loadDefaultPrinting(leader.id),
-    loadLeaderStatus(leader.id),
+    loadLeaderStatus(FORMAT_ID.commander, leader.id),
     loadStaples(leader),
     // Only combos a deck with THIS commander could actually run (CI fit).
     loadCombosForCard(leader.id, { fitCiMask: leader.ciMask }),
