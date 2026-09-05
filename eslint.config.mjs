@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Claude Code task worktrees are sibling checkouts, not part of this tree.
+    ".claude/worktrees/**",
   ]),
 ]);
 

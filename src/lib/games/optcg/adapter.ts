@@ -3,9 +3,11 @@
  * ingest, see punk-map.ts); P4.2 landed real validation (validate.ts —
  * leader-color legality, the 4-copy card-number rule, Bandai bans and
  * banned pairs via conditional legality rows + the data/optcg/legalities.json
- * overlay). analyze stays a stub until the OP analytics package.
+ * overlay); P4.3 landed the dashboard (analyze.ts — DON!! curve, counters,
+ * blockers, triggers, category ratios, searcher hit rates).
  */
 import type { CardData, FormatDef, GameAdapter, SearchFieldDef } from "../types";
+import { analyzeOptcg } from "./analyze";
 import { validateOptcg } from "./validate";
 
 /**
@@ -114,8 +116,8 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
     return validateOptcg(deck, cards, STANDARD);
   },
 
-  analyze() {
-    return [];
+  analyze(deck, cards) {
+    return analyzeOptcg(deck, cards);
   },
 
   // Sim-style lists: "4xOP01-025" / "4 OP01-025" / one leader line first.

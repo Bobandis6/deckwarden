@@ -57,7 +57,11 @@ describe("optcg stub (the fire drill)", () => {
       "ZONE_SIZE",
       "DECK_SIZE",
     ]);
-    expect(optcg.analyze(deck, new Map([[leader.id, leader]]))).toEqual([]);
+    // Real analytics since P4.3: an empty main deck still renders the full
+    // dashboard shape (zeroed), never a component and never a price stat.
+    const blocks = optcg.analyze(deck, new Map([[leader.id, leader]]));
+    expect(blocks.map((b) => b.id)).toContain("don-curve");
+    expect(blocks.map((b) => b.id)).not.toContain("price");
 
     const { lines, warnings } = optcg.parseDecklist("1xOP01-001\n4 OP01-025\nnot a line?!");
     expect(lines).toEqual([
