@@ -57,3 +57,21 @@ describe("display.bodyText trigger rendering", () => {
     );
   });
 });
+
+// P4.5: the /l/ finishes shelf renders this credit + link with every row —
+// the plan's hard attribution rule for tournament data. Pinned so a
+// capability rename or URL drift fails loudly, like MTG's Topdeck meta.
+describe("capabilities.tournaments (Limitless, P4.5)", () => {
+  it("declares the Limitless credit", () => {
+    expect(optcgAdapter.capabilities.tournaments).toMatchObject({
+      sourceLabel: "Limitless",
+      sourceHref: "https://play.limitlesstcg.com",
+    });
+  });
+
+  it("builds the public event permalink from the stored external key", () => {
+    expect(optcgAdapter.capabilities.tournaments!.eventUrl("6a8f06390580a332c84204b0")).toBe(
+      "https://play.limitlesstcg.com/tournament/6a8f06390580a332c84204b0",
+    );
+  });
+});

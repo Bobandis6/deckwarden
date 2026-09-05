@@ -143,6 +143,47 @@ async function main() {
       check("no tournament rows → no Top finishes shelf", !hub.text.includes("Top finishes"));
     }
 
+    // ---- OP Top finishes shelf on /l/ (P4.5) ------------------------------
+    // The /c/ block above, mirrored for the Limitless pipeline. Both states
+    // pinned: the busiest OP finisher's hub renders the shelf + the required
+    // Limitless credit + event deep link; a leader with no finishes renders
+    // NO shelf (hubs without data change not one pixel — the cold-start rule).
+    const [opFinisher] = await sql`
+      SELECT ci.name, ci.slug, count(*)::int AS finishes
+      FROM tournament_standings ts
+      JOIN tournaments t ON t.id = ts.tournament_id AND t.game_id = 2
+      JOIN card_identities ci ON ci.id = ANY(ts.leader_ids)
+      WHERE ci.slug IS NOT NULL
+      GROUP BY ci.name, ci.slug ORDER BY count(*) DESC LIMIT 1`;
+    if (opFinisher) {
+      const opHub = await page(`/l/${opFinisher.slug as string}`);
+      check(
+        `OP finishes shelf renders for "${opFinisher.name as string}" (${opFinisher.finishes} finishes)`,
+        opHub.status === 200 && opHub.text.includes("Top finishes"),
+      );
+      check(
+        "OP finishes shelf carries the Limitless credit + event link",
+        opHub.text.includes("Limitless") &&
+          opHub.text.includes("https://play.limitlesstcg.com/tournament/"),
+      );
+    } else {
+      console.log("  (no OP tournament rows yet — asserting the /l/ shelf stays hidden)");
+    }
+    const [opQuiet] = await sql`
+      SELECT ci.name, ci.slug FROM card_identities ci
+      WHERE ci.game_id = 2 AND ci.is_leader_candidate AND NOT ci.is_removed
+        AND ci.slug IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM tournament_standings ts WHERE ts.leader_ids @> ARRAY[ci.id])
+      ORDER BY ci.external_key LIMIT 1`;
+    if (opQuiet) {
+      const quietHub = await page(`/l/${opQuiet.slug as string}`);
+      check(
+        `OP leader without finishes ("${opQuiet.name as string}") renders no shelf`,
+        quietHub.status === 200 && !quietHub.text.includes("Top finishes"),
+      );
+    }
+
     // ---- slug hygiene (DB-level) -----------------------------------------
     const dupes = await sql`
       SELECT slug FROM card_identities WHERE game_id = 1 AND slug IS NOT NULL

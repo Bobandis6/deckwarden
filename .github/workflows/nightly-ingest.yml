@@ -47,6 +47,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           R2_PUBLIC_IMAGE_BASE: ${{ secrets.R2_PUBLIC_IMAGE_BASE }}
 
+      # KEYLESS by design (P4.5) — the tournament endpoints need no API key.
+      # LIMITLESS_API_KEY is optional rate headroom: the secret may not exist
+      # (evaluates empty → the script runs keyless, zero behavior change).
+      - name: Ingest Limitless One Piece tournaments (after punk-records — leaders resolve via external_key)
+        run: pnpm ingest:limitless
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LIMITLESS_API_KEY: ${{ secrets.LIMITLESS_API_KEY }}
+
       # Skips loudly while the TOPDECK_API_KEY secret is unset (dormant deploy);
       # with the key, any error is a hard fail like the sibling steps — the
       # job goes red, but the safety steps below still run (see !cancelled()).

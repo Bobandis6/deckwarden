@@ -91,7 +91,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
     // Only combos a deck with THIS commander could actually run (CI fit).
     loadCombosForCard(leader.id, { fitCiMask: leader.ciMask }),
     loadHubDecks(leader.id),
-    loadTopFinishes(leader.id),
+    loadTopFinishes(GAME_ID.mtg, leader.id),
   ]);
 
   const adapter = getAdapter("mtg");

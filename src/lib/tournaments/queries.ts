@@ -12,7 +12,6 @@
 import { desc, asc, eq, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
-import { GAME_ID } from "@/db/seed-data";
 
 const { tournaments, tournamentStandings } = schema;
 
@@ -41,8 +40,12 @@ export interface TopFinishes {
   total: number;
 }
 
-/** Most recent kept finishes (placement ≤ 16 at 16+ player events) for one leader. */
-export async function loadTopFinishes(leaderId: string): Promise<TopFinishes> {
+/**
+ * Most recent kept finishes (placement ≤ 16 at 16+ player events) for one
+ * leader. Game-scoped since P4.5: /c/ passes GAME_ID.mtg, /l/ GAME_ID.optcg
+ * — one query, two source pipelines (topdeck / limitless) behind it.
+ */
+export async function loadTopFinishes(gameId: number, leaderId: string): Promise<TopFinishes> {
   const rows = await getDb()
     .select({
       externalKey: tournaments.externalKey,
@@ -65,7 +68,7 @@ export async function loadTopFinishes(leaderId: string): Promise<TopFinishes> {
     .from(tournamentStandings)
     .innerJoin(tournaments, eq(tournamentStandings.tournamentId, tournaments.id))
     .where(
-      sql`${tournaments.gameId} = ${GAME_ID.mtg}
+      sql`${tournaments.gameId} = ${gameId}
         AND ${tournamentStandings.leaderIds} @> ARRAY[${leaderId}]::uuid[]`,
     )
     .orderBy(desc(tournaments.startDate), asc(tournamentStandings.placement))

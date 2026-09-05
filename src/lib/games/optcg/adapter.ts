@@ -8,6 +8,7 @@
  */
 import type { CardData, FormatDef, GameAdapter, SearchFieldDef } from "../types";
 import { analyzeOptcg } from "./analyze";
+import { limitlessEventUrl } from "./limitless-map";
 import { validateOptcg } from "./validate";
 
 /**
@@ -172,5 +173,14 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
     leaderNoun: "Leader",
   },
 
-  capabilities: {},
+  capabilities: {
+    // Tournament results: Limitless (P4.5 ingest). Query IO is core
+    // (src/lib/tournaments/); this is the required visible credit + the
+    // event deep link, the same hard attribution rule as MTG's Topdeck.
+    tournaments: {
+      sourceLabel: "Limitless",
+      sourceHref: "https://play.limitlesstcg.com",
+      eventUrl: limitlessEventUrl,
+    },
+  },
 };

@@ -6,11 +6,16 @@
  * Cold-start composition (adapter contract types.ts: optcg ships no
  * `hub` capability, so hubs show CARD DATA ONLY): leader art, colors, life,
  * traits, effect text, namesake cross-links, and browse links into /cards —
- * plus the build CTA. Deliberately NO staples/budget/combos/tournament/deck
- * sections: every one of those signals is MTG-only today (popularity and
- * prices are all-NULL for OP, no Spellbook analogue, no tournament corpus),
- * and the cold-start rule (plan §1) bans rendering empty or faked shelves.
- * Real deck shelves return the day real OP decks exist — the counter runs.
+ * plus the build CTA. Deliberately NO staples/budget/combos/deck sections:
+ * those signals are MTG-only today (popularity and prices are all-NULL for
+ * OP, no Spellbook analogue), and the cold-start rule (plan §1) bans
+ * rendering empty or faked shelves. Real deck shelves return the day real
+ * OP decks exist — the counter runs.
+ *
+ * P4.5 adds the one shelf that is NOT user data and never pretends to be:
+ * "Top finishes" from the Limitless ingest — source-attributed EXTERNAL
+ * tournament results, the same distinction /c/ hubs draw. It renders only
+ * when rows exist; a leader with none gets exactly the P4.4 page.
  *
  * Caching intent: ISR, revalidate hourly — same reasoning as /c/[slug]:
  * card data changes once nightly, no per-viewer state, rendered on demand.
@@ -27,6 +32,7 @@ import { getAdapter } from "@/lib/games/registry";
 import type { CardData } from "@/lib/games/types";
 import type { OptcgAttrs } from "@/lib/games/optcg/adapter";
 import { maskToOptcgColorNames, maskToOptcgLetters, OPTCG_COLORS } from "@/lib/games/optcg/colors";
+import { MIN_EVENT_PLAYERS, TOP_PLACEMENT } from "@/lib/games/optcg/limitless-map";
 import {
   loadDefaultPrinting,
   loadLeaderBySlug,
@@ -34,6 +40,27 @@ import {
   loadOpLeaderSiblings,
 } from "@/lib/hub/queries";
 import { breadcrumbJsonLd, JsonLd } from "@/lib/seo/jsonld";
+import { loadTopFinishes, TOP_FINISHES_SHOWN } from "@/lib/tournaments/queries";
+
+/** 1 → "1st", 12 → "12th" — placements only ever hit 1..16 (the /c/ helper, mirrored). */
+function ordinal(n: number): string {
+  const rem10 = n % 10;
+  const rem100 = n % 100;
+  if (rem10 === 1 && rem100 !== 11) return `${n}st`;
+  if (rem10 === 2 && rem100 !== 12) return `${n}nd`;
+  if (rem10 === 3 && rem100 !== 13) return `${n}rd`;
+  return `${n}th`;
+}
+
+/** "2026-08-30" → "Aug 30, 2026", pinned to UTC so the date column never shifts a day. */
+function eventDateLabel(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
 
 export const revalidate = 3600;
 
@@ -62,13 +89,15 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
   const leader = await getLeader(slug);
   if (!leader) notFound();
 
-  const [printing, status, siblings] = await Promise.all([
+  const [printing, status, siblings, topFinishes] = await Promise.all([
     loadDefaultPrinting(leader.id),
     loadLeaderStatus(FORMAT_ID.optcgStandard, leader.id),
     loadOpLeaderSiblings(leader.name, leader.id),
+    loadTopFinishes(GAME_ID.optcg, leader.id),
   ]);
 
   const adapter = getAdapter("optcg");
+  const tournamentsMeta = adapter.capabilities.tournaments;
   const card: CardData = {
     id: leader.id,
     name: leader.name,
@@ -222,6 +251,78 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
         </div>
       </div>
 
+      {/* Cold-start rule: renders only with real rows — a leader with none gets the P4.4 page. */}
+      {tournamentsMeta && topFinishes.total > 0 && (
+        <section aria-label="Top finishes" className="mt-10 max-w-2xl">
+          <h2 className="text-lg font-semibold">Top finishes</h2>
+          <p className="text-muted-foreground mt-0.5 text-xs">
+            {topFinishes.total > TOP_FINISHES_SHOWN
+              ? `The ${TOP_FINISHES_SHOWN} most recent of ${topFinishes.total} finishes`
+              : topFinishes.total === 1
+                ? "One finish"
+                : `${topFinishes.total} finishes`}{" "}
+            placing top {TOP_PLACEMENT} at {MIN_EVENT_PLAYERS}+ player events with this leader.
+            Results from{" "}
+            <a
+              href={tournamentsMeta.sourceHref}
+              className="underline"
+              rel="noreferrer"
+              target="_blank"
+            >
+              {tournamentsMeta.sourceLabel}
+            </a>
+            .
+          </p>
+          <ul className="mt-2 divide-y rounded-lg border">
+            {topFinishes.finishes.map((finish) => {
+              // draws stores the source's `ties` — OP terminology on an OP shelf.
+              const record =
+                finish.wins !== null && finish.losses !== null
+                  ? `${finish.wins}–${finish.losses}–${finish.draws ?? 0}`
+                  : null;
+              return (
+                <li
+                  key={`${finish.externalKey}-${finish.placement}`}
+                  className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 py-2"
+                >
+                  <span className="min-w-0">
+                    <span className="text-sm">
+                      <span className="font-semibold tabular-nums">
+                        {ordinal(finish.placement)}
+                      </span>{" "}
+                      <span className="text-muted-foreground">of {finish.playerCount}</span> —{" "}
+                      <a
+                        href={tournamentsMeta.eventUrl(finish.externalKey)}
+                        className="font-medium underline-offset-2 hover:underline"
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {finish.eventName} ↗
+                      </a>
+                    </span>
+                    <span className="text-muted-foreground block text-xs">
+                      {eventDateLabel(finish.startDate)}
+                      {record && <span title="wins–losses–ties"> · {record}</span>}
+                      {finish.playerName && <> · by {finish.playerName}</>}
+                    </span>
+                  </span>
+                  {finish.decklistUrl && (
+                    <a
+                      href={finish.decklistUrl}
+                      className="shrink-0 text-xs underline"
+                      rel="noreferrer nofollow"
+                      target="_blank"
+                    >
+                      Decklist ↗
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       <p className="text-muted-foreground mt-12 text-xs">
         ©Eiichiro Oda/Shueisha, Toei Animation · ONE PIECE CARD GAME ©BANDAI. Deckwarden is
         unofficial fan content, not affiliated with or endorsed by Bandai, Shueisha, or Toei
@@ -230,6 +331,21 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
           how we source this data
         </Link>
         .
+        {tournamentsMeta && topFinishes.total > 0 && (
+          <>
+            {" "}
+            Tournament results courtesy of{" "}
+            <a
+              href={tournamentsMeta.sourceHref}
+              className="underline"
+              rel="noreferrer"
+              target="_blank"
+            >
+              {tournamentsMeta.sourceLabel}
+            </a>
+            .
+          </>
+        )}
       </p>
     </main>
   );
