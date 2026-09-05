@@ -78,6 +78,38 @@ export interface PunkPack {
   title_parts: { label: string | null; prefix: string | null; title: string | null } | null;
 }
 
+// --- HTML entities -----------------------------------------------------------
+
+const NAMED_ENTITY: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+/**
+ * punk-records text is scraped from Bandai's HTML and arrives with entities
+ * un-decoded (33 card names + 2 pack titles carry "&amp;" at 916181e1; no
+ * other entity or field affected — verified live 2026-09-04). Decode at the
+ * mapping boundary so stored rows hold display-ready text. Single pass, so
+ * double-encoded input ("&amp;lt;") decodes one level only; unknown entities
+ * pass through verbatim — never invent characters.
+ */
+export function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(#[xX]?[0-9a-fA-F]+|[a-zA-Z]+);/g, (whole, body: string) => {
+    if (body.startsWith("#")) {
+      const hex = body[1] === "x" || body[1] === "X";
+      const code = parseInt(body.slice(hex ? 2 : 1), hex ? 16 : 10);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : whole;
+    }
+    return NAMED_ENTITY[body.toLowerCase()] ?? whole;
+  });
+}
+
 // --- Colors ------------------------------------------------------------------
 
 /**
@@ -154,7 +186,7 @@ export function packSetCode(pack: PunkPack): string | null {
 }
 
 export function packSetName(pack: PunkPack): string {
-  return pack.title_parts?.title ?? pack.raw_title;
+  return decodeHtmlEntities(pack.title_parts?.title ?? pack.raw_title);
 }
 
 // --- Row mapping -------------------------------------------------------------
@@ -189,21 +221,23 @@ export interface OptcgPrintingRow {
 }
 
 /** "Leader — Supernovas / Straw Hat Crew" — the FTS type line, category + traits. */
-function typeLine(card: PunkCard): string {
-  const traits = (card.types ?? []).join(" / ");
-  return traits ? `${card.category} — ${traits}` : card.category;
+function typeLine(card: PunkCard, traits: string[]): string {
+  const joined = traits.join(" / ");
+  return joined ? `${card.category} — ${joined}` : card.category;
 }
 
 export function mapOptcgIdentity(card: PunkCard): OptcgIdentityRow {
   const isLeader = card.category === "Leader";
+  const name = decodeHtmlEntities(card.name);
+  const traits = (card.types ?? []).map(decodeHtmlEntities);
   const attrs: OptcgAttrs = {
     category: card.category.toLowerCase() as OptcgAttrs["category"],
-    type_line: typeLine(card),
+    type_line: typeLine(card, traits),
   };
-  if (card.effect) attrs.oracle_text = card.effect;
-  if (card.trigger) attrs.trigger_text = card.trigger;
-  if (card.types?.length) attrs.traits = card.types;
-  if (card.attributes?.length) attrs.attributes = card.attributes;
+  if (card.effect) attrs.oracle_text = decodeHtmlEntities(card.effect);
+  if (card.trigger) attrs.trigger_text = decodeHtmlEntities(card.trigger);
+  if (traits.length) attrs.traits = traits;
+  if (card.attributes?.length) attrs.attributes = card.attributes.map(decodeHtmlEntities);
   if (card.power != null) attrs.power_num = card.power;
   if (card.counter != null) attrs.counter_num = card.counter;
   if (isLeader && card.cost != null) attrs.life = card.cost;
@@ -212,8 +246,8 @@ export function mapOptcgIdentity(card: PunkCard): OptcgIdentityRow {
   return {
     game_id: GAME_ID.optcg,
     external_key: card.id,
-    name: card.name,
-    name_norm: normalizeCardName(card.name),
+    name,
+    name_norm: normalizeCardName(name),
     primary_type: card.category,
     cost_value: isLeader ? null : (card.cost ?? null),
     colors_mask: mask,

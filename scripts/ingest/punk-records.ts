@@ -51,7 +51,7 @@ const HEADERS = { "User-Agent": USER_AGENT, Accept: "application/json" };
 const REPO = "buhbbl/punk-records";
 const RAW_BASE = `https://raw.githubusercontent.com/${REPO}`;
 /** Bump when punk-map.ts mapping changes — forces a re-ingest at an unchanged sha. */
-const MAPPER_VERSION = 1;
+const MAPPER_VERSION = 2; // v2: decode HTML entities (&amp; in 33 names, 2 pack titles)
 const FETCH_DELAY_MS = 100;
 const BATCH_SIZE = 1000;
 /** Session-wide lock id shared by all Deckwarden ingest jobs. */

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   baseCardId,
+  decodeHtmlEntities,
   isBasePrinting,
   mapOptcgIdentity,
   mapOptcgPrinting,
@@ -68,6 +69,20 @@ const EVENT: PunkCard = {
   trigger: null,
 };
 
+describe("decodeHtmlEntities", () => {
+  it("decodes the entities Bandai scrapes leave behind, single pass", () => {
+    expect(decodeHtmlEntities("Ace &amp; Sabo &amp; Luffy")).toBe("Ace & Sabo & Luffy");
+    expect(decodeHtmlEntities("&lt;b&gt;&quot;&apos;&nbsp;")).toBe("<b>\"' ");
+    expect(decodeHtmlEntities("&#39;&#x27;&#X27;")).toBe("'''");
+    // Single pass: double-encoded input loses exactly one level.
+    expect(decodeHtmlEntities("&amp;amp;")).toBe("&amp;");
+    // Unknown entities and bare ampersands pass through verbatim.
+    expect(decodeHtmlEntities("&bogus; DON!! & Luffy &#xFFFFFFFF;")).toBe(
+      "&bogus; DON!! & Luffy &#xFFFFFFFF;",
+    );
+  });
+});
+
 describe("colors", () => {
   it("maps all six OP colors onto the shared mask bits", () => {
     expect(OPTCG_COLOR_BIT).toEqual({
@@ -131,6 +146,15 @@ describe("sets", () => {
     expect(packSetCode(other)).toBe("OTHER");
     expect(packSetName(other)).toBe("Other Product Card");
   });
+
+  it("decodes HTML entities in pack titles (ST-22 'Ace &amp; Newgate' upstream)", () => {
+    const st22: PunkPack = {
+      id: "569122",
+      raw_title: "STARTER DECK -Ace &amp; Newgate- [ST-22]",
+      title_parts: { label: "ST-22", prefix: "STARTER DECK", title: "Ace &amp; Newgate" },
+    };
+    expect(packSetName(st22)).toBe("Ace & Newgate");
+  });
 });
 
 describe("mapOptcgIdentity", () => {
@@ -169,6 +193,25 @@ describe("mapOptcgIdentity", () => {
     expect(attrs.trigger_text).toBe("Play this card.");
     // Trigger deliberately NOT folded into the FTS body text.
     expect(attrs.oracle_text).not.toContain("Play this card.");
+  });
+
+  it("decodes HTML entities in name (and name_norm follows), text fields, and traits", () => {
+    // OP13-007 name verbatim from punk-records@916181e1 — Bandai scrape ships &amp;.
+    const row = mapOptcgIdentity({
+      ...CHARACTER,
+      id: "OP13-007",
+      name: "Ace &amp; Sabo &amp; Luffy",
+      types: ["Whitebeard Pirates &amp; Co."],
+      effect: "K.O. up to 1 of your opponent&#39;s Characters.",
+      trigger: "Draw 1 card &amp; rest this card.",
+    });
+    expect(row.name).toBe("Ace & Sabo & Luffy");
+    expect(row.name_norm).toBe("ace & sabo & luffy");
+    const attrs = JSON.parse(row.attrs);
+    expect(attrs.oracle_text).toBe("K.O. up to 1 of your opponent's Characters.");
+    expect(attrs.trigger_text).toBe("Draw 1 card & rest this card.");
+    expect(attrs.traits).toEqual(["Whitebeard Pirates & Co."]);
+    expect(attrs.type_line).toBe("Character — Whitebeard Pirates & Co.");
   });
 
   it("maps an event: no power/counter/life keys at all — lean rows", () => {
