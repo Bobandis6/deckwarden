@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { CardWire } from "@/lib/decks/editor-state";
 import { applyImport, buildImportItems, defaultZoneId, type Resolution } from "@/lib/decks/import";
 import { COMMANDER } from "@/lib/games/mtg/formats";
+import { optcgAdapter } from "@/lib/games/optcg/adapter";
+
+const OP_STANDARD = optcgAdapter.formats[0];
 
 let n = 0;
 function wire(name: string): CardWire {
@@ -53,6 +56,36 @@ describe("buildImportItems", () => {
       "Sol Ring",
       null,
     ]);
+  });
+
+  it("routes cards via the adapter hook when unhinted — OP leader lines land in the leader zone (P4.6)", () => {
+    const enel = { ...wire("Enel"), attrs: { category: "leader" } };
+    const ohm = { ...wire("Ohm"), attrs: { category: "character" } };
+    const zoneFor = (card: CardWire) => optcgAdapter.importZoneFor!(card);
+    const items = buildImportItems(
+      OP_STANDARD,
+      [
+        { rawName: "Enel (OP15-058)", qty: 1 },
+        { rawName: "Ohm (OP15-061)", qty: 4 },
+      ],
+      resolutions([
+        ["Enel (OP15-058)", enel],
+        ["Ohm (OP15-061)", ohm],
+      ]),
+      zoneFor,
+    );
+    expect(items.map((i) => i.zone)).toEqual(["leader", "main"]);
+  });
+
+  it("a zone hint beats the adapter routing hook", () => {
+    const enel = { ...wire("Enel"), attrs: { category: "leader" } };
+    const items = buildImportItems(
+      OP_STANDARD,
+      [{ rawName: "Enel", qty: 1, zoneHint: "main" }],
+      resolutions([["Enel", enel]]),
+      (card) => optcgAdapter.importZoneFor!(card),
+    );
+    expect(items[0].zone).toBe("main");
   });
 });
 
@@ -125,6 +158,45 @@ describe("applyImport", () => {
     expect(entries.find((e) => e.cardId === thrasios.id)?.zone).toBe("main");
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/Commander is full/);
+  });
+
+  it("skips a line whose exact card already fills a capped zone — idempotent re-import (P4.6)", () => {
+    // The latched-leader funnel: hub CTA seeds Enel, then a pasted Limitless
+    // export names Enel again. Same card at the zone max = a silent no-op,
+    // not a spill into the 50.
+    const enel = { ...wire("Enel"), attrs: { category: "leader" } };
+    const items = buildImportItems(
+      OP_STANDARD,
+      [{ rawName: "Enel (OP15-058)", qty: 1 }],
+      resolutions([["Enel (OP15-058)", enel]]),
+      (card) => optcgAdapter.importZoneFor!(card),
+    );
+    const existing = [{ cardId: enel.id, zone: "leader", qty: 1, tags: [] }];
+    const { entries, warnings } = applyImport(existing, items, OP_STANDARD, "add");
+    expect(warnings).toEqual([]);
+    expect(entries).toEqual(existing);
+  });
+
+  it("says a full default zone honestly instead of 'moved X to' itself (P4.6)", () => {
+    // 51 real cards into OP's 50-max main: the old text claimed to move the
+    // overflow "to Deck" — from Deck. It still lands (validation renders the
+    // over-size verdict), but the words now say what happened.
+    const fill = { ...wire("Filler"), attrs: { category: "character" } };
+    const extra = { ...wire("Extra"), attrs: { category: "character" } };
+    const items = buildImportItems(
+      OP_STANDARD,
+      [
+        { rawName: "Filler", qty: 50 },
+        { rawName: "Extra", qty: 1 },
+      ],
+      resolutions([
+        ["Filler", fill],
+        ["Extra", extra],
+      ]),
+    );
+    const { entries, warnings } = applyImport([], items, OP_STANDARD, "replace");
+    expect(entries.reduce((s, e) => s + e.qty, 0)).toBe(51);
+    expect(warnings).toEqual(["Deck is full — Extra puts it over"]);
   });
 
   it("reports unresolved and zoneless lines as skipped warnings", () => {

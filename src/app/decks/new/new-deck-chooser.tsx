@@ -27,6 +27,10 @@ export function NewDeckChooser() {
   // editor back to the picker mid-edit. Once chosen, the editor stays.
   const paramGame = params.get("game");
   const [gameId, setGameId] = useState(paramGame);
+  // The hub CTA's leader (P4.6) — an external key ("OP15-058"), latched like
+  // the game so the first save's URL swap can't un-seed a live editor.
+  const paramLeader = params.get("leader");
+  const [leaderKey] = useState(paramLeader);
   // Adjust-state-during-render (the React-docs pattern): latch a present
   // param, ignore its later disappearance.
   if (paramGame && paramGame !== gameId) setGameId(paramGame);
@@ -38,6 +42,7 @@ export function NewDeckChooser() {
         deckId={null}
         draftGame={chosen.id as GameId}
         draftFormat={chosen.formats[0].code}
+        draftLeaderKey={leaderKey ?? undefined}
       />
     );
   }

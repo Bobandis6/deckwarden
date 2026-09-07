@@ -22,6 +22,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import { DeckShareView } from "@/components/deck/deck-share-view";
+import { OptcgPostureLine } from "@/components/optcg-posture-line";
 import { PrivateShareGate } from "@/components/deck/private-share-gate";
 import { getDb, schema } from "@/db";
 import { getSessionUserId } from "@/lib/auth";
@@ -135,6 +136,14 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
         ownership={ownership}
         owned={owned}
       />
+      {/* An OP deck's share page is a grid of Bandai card images — it needs
+          the same posture line as /cards (P4.6); the walked funnel found it
+          carrying only the site-wide Scryfall/WotC footer. */}
+      {fmt?.adapter.id === "optcg" && (
+        <div className="mx-auto w-full max-w-3xl px-4">
+          <OptcgPostureLine className="text-muted-foreground pb-4 text-xs" />
+        </div>
+      )}
     </>
   );
 }

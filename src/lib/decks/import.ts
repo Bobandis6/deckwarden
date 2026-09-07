@@ -40,27 +40,33 @@ export function defaultZoneId(format: FormatDef): string {
 
 /**
  * Pair each parsed line with its resolution and map its zone hint. Hints that
- * name a real ZoneDef id map to it; no hint → the default zone; a hint the
- * format lacks (Commander has no sideboard) → zone null, and the line is
- * reported rather than silently dumped into the deck.
+ * name a real ZoneDef id map to it; no hint → the adapter's card-based
+ * routing (P4.6 — OP leader-category cards can only be leaders) or the
+ * default zone; a hint the format lacks (Commander has no sideboard) → zone
+ * null, and the line is reported rather than silently dumped into the deck.
  */
 export function buildImportItems(
   format: FormatDef,
   lines: readonly ParsedLine[],
   resolutions: readonly Resolution[],
+  zoneFor?: (card: CardWire) => string | null,
 ): ImportItem[] {
   const zoneIds = new Set(format.zones.map((z) => z.id));
   const byInput = new Map(resolutions.map((r) => [r.input, r]));
   return lines.map((line) => {
     const resolution = byInput.get(line.rawName);
+    const card = resolution?.match ?? null;
+    const routed = card && !line.zoneHint ? (zoneFor?.(card) ?? null) : null;
     return {
       line,
       zone: line.zoneHint
         ? zoneIds.has(line.zoneHint)
           ? line.zoneHint
           : null
-        : defaultZoneId(format),
-      card: resolution?.match ?? null,
+        : routed && zoneIds.has(routed)
+          ? routed
+          : defaultZoneId(format),
+      card,
       suggestions: resolution?.suggestions ?? [],
     };
   });
@@ -115,6 +121,22 @@ export function applyImport(
     }
     const max = zoneMax.get(item.zone) ?? null;
     if (max !== null && (zoneQty.get(item.zone) ?? 0) + item.line.qty > max) {
+      // Idempotent re-import (P4.6): the exact card already filling a capped
+      // zone is the same line landing twice — a latched hub leader plus a
+      // pasted Limitless export both name the leader. Skip it silently.
+      const already = entries.some(
+        (e) => e.zone === item.zone && e.cardId === item.card!.id && e.qty >= item.line.qty,
+      );
+      if (already) continue;
+      if (fallback === item.zone) {
+        // No different zone to spill into — add anyway and say so honestly;
+        // validation renders the over-size verdict with reasons.
+        warnings.push(
+          `${zoneLabel.get(item.zone) ?? item.zone} is full — ${item.card.name} puts it over`,
+        );
+        merge(item.zone, item.card, item.line.qty);
+        continue;
+      }
       warnings.push(
         `${zoneLabel.get(item.zone) ?? item.zone} is full — moved ${item.card.name} to ${
           zoneLabel.get(fallback) ?? fallback

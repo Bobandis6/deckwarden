@@ -58,6 +58,7 @@ const STANDARD: FormatDef = {
     { id: "main", label: "Deck", min: 50, max: 50, countsTowardSize: true, defaultCopyLimit: 4 },
   ],
   deckSize: { min: 50, max: 50 },
+  openingHandSize: 5,
 };
 
 const SEARCH_FIELDS: SearchFieldDef[] = [
@@ -121,7 +122,9 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
     return analyzeOptcg(deck, cards);
   },
 
-  // Sim-style lists: "4xOP01-025" / "4 OP01-025" / one leader line first.
+  // Sim-style lists ("4xOP01-025" / "4 OP01-025", one leader line first) and
+  // Limitless exports ("4 Charlotte Pudding (OP12-071)") — the trailing
+  // parenthesized id is resolved by the core's exact external_key pass.
   parseDecklist(text: string) {
     const lines: { rawName: string; qty: number }[] = [];
     const warnings: string[] = [];
@@ -143,6 +146,13 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
       .flat()
       .map((e) => `${e.qty}x${cards.get(e.cardId)?.name ?? e.cardId}`)
       .join("\n");
+  },
+
+  // Leader-category cards are only ever legal in the leader zone — route a
+  // pasted leader line there (Limitless exports lead with "1 Enel (OP15-058)")
+  // instead of dumping it into the 50 and flagging it.
+  importZoneFor(card) {
+    return card.attrs.category === "leader" ? "leader" : null;
   },
 
   display: {
@@ -171,6 +181,12 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
     },
     defaultGroupBy: "costValue",
     leaderNoun: "Leader",
+    // 1,615 upstream duplicate names (17 printed Enels): the printed id is
+    // the only thing that identifies a card, so surface it everywhere.
+    idBadge: (card: OptcgCard) => card.externalKey,
+    searchPlaceholder: "Add cards — try “4 OP01-025”",
+    importPlaceholder:
+      "1 Enel (OP15-058)\n4 OP01-025\n…paste a sim-style list or a Limitless export.",
   },
 
   capabilities: {

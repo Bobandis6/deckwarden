@@ -128,16 +128,26 @@ export async function POST(request: NextRequest) {
   // is the real import path. MTG external keys are oracle uuids nobody
   // pastes, so the pass is skipped there. Keyed by name_norm of the pasted
   // token so the shared per-name lookup below just works.
+  //
+  // P4.6: a token may also CARRY its id — Limitless's Copy-to-Clipboard
+  // export writes "4 Charlotte Pudding (OP12-071)", and the walked funnel
+  // resolved 0/17 of those by name (the parenthetical breaks name_norm).
+  // The trailing parenthesized id is authoritative when present.
   const matchByNorm = new Map<string, WireRow>();
   if (game === "optcg") {
-    const idTokens = [
-      ...new Set(names.map((n) => n.trim().toUpperCase()).filter((n) => /^[A-Z]+\d*-\d+$/.test(n))),
-    ];
+    const idOf = (input: string): string | null => {
+      const bare = input.trim().toUpperCase();
+      if (/^[A-Z]+\d*-\d+$/.test(bare)) return bare;
+      const trailing = /\(([A-Za-z]+\d*-\d+)\)\s*$/.exec(input.trim());
+      return trailing ? trailing[1].toUpperCase() : null;
+    };
+    const idTokens = [...new Set(names.map(idOf).filter((n): n is string => n !== null))];
     if (idTokens.length > 0) {
       const rows = await wireSelect(db).where(and(gameCond, inArray(ci.externalKey, idTokens)));
       const byKey = new Map(rows.map((r) => [r.externalKey, r]));
       for (const input of names) {
-        const row = byKey.get(input.trim().toUpperCase());
+        const key = idOf(input);
+        const row = key ? byKey.get(key) : undefined;
         if (row) matchByNorm.set(normalizeCardName(input), row);
       }
     }

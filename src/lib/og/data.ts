@@ -15,6 +15,8 @@ const { decks, deckCards, cardIdentities } = schema;
 export interface DeckOgData {
   name: string;
   visibility: string;
+  /** The deck's game — kicker/curve-label vocabulary and the art posture (P4.6). */
+  gameId: number;
   cardCount: number;
   priceUsd: number | null;
   curve: number[];
@@ -32,6 +34,7 @@ export async function loadDeckOgData(publicId: string): Promise<DeckOgData | nul
       id: decks.id,
       name: decks.name,
       visibility: decks.visibility,
+      gameId: decks.gameId,
       leaderIds: decks.leaderIds,
     })
     .from(decks)
@@ -75,6 +78,7 @@ export async function loadDeckOgData(publicId: string): Promise<DeckOgData | nul
   return {
     name: deck.name,
     visibility: deck.visibility,
+    gameId: deck.gameId,
     cardCount,
     priceUsd: priced ? priceSum : null,
     curve: ogCurveBuckets(cards),

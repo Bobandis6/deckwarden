@@ -16,7 +16,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toSmallImage } from "@/lib/cards/images";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
-import { buildLibrary, drawHand, HAND_SIZE } from "@/lib/decks/sample-hand";
+import { buildLibrary, drawHand } from "@/lib/decks/sample-hand";
 import type { FormatDef } from "@/lib/games/types";
 
 export function SampleHand({
@@ -37,7 +37,7 @@ export function SampleHand({
   if (library.length === 0) return null;
 
   const draw = (mullCount: number) => {
-    setHand(drawHand(library));
+    setHand(drawHand(library, format.openingHandSize));
     setMulligans(mullCount);
   };
 
@@ -61,7 +61,8 @@ export function SampleHand({
             </Button>
             <span aria-live="polite" className="text-muted-foreground text-xs tabular-nums">
               {mulligans > 0 && `After ${mulligans} mulligan${mulligans === 1 ? "" : "s"}`}
-              {hand.length < HAND_SIZE && ` (only ${hand.length} cards in the library)`}
+              {hand.length < format.openingHandSize &&
+                ` (only ${hand.length} cards in the library)`}
             </span>
           </>
         )}

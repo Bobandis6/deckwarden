@@ -98,6 +98,8 @@ async function main() {
   const sql = postgres(DB_URL as string, { max: 1, prepare: false });
   let deckId: string | undefined;
   let token: string | undefined;
+  let opDeckId: string | undefined;
+  let opToken: string | undefined;
 
   try {
     // Repeated local runs trip the anon create limiter; its localhost keys
@@ -335,8 +337,10 @@ async function main() {
       jsonLdBlocks(opHub.text).some((b) => b["@type"] === "BreadcrumbList"),
     );
     check(
-      "OP hub build CTA targets the OP editor deep link",
-      opHub.text.includes("Build with this leader") && opHub.text.includes("/decks/new?game=optcg"),
+      "OP hub build CTA latches the leader (P4.6 — the button's words made true)",
+      opHub.text.includes("Build with this leader") &&
+        (opHub.text.includes(`/decks/new?game=optcg&amp;leader=${opLeader.key}`) ||
+          opHub.text.includes(`/decks/new?game=optcg&leader=${opLeader.key}`)),
     );
     check(
       "OP hub browse links land preset on /cards",
@@ -419,6 +423,56 @@ async function main() {
       twoTotal,
     });
 
+    // ---- OP deck share page + OG (P4.6) ------------------------------------
+    // The first OP deck fixture: leader + one playset, unlisted (full OG
+    // without ever sitting on the home rail or in the sitemap).
+    const [opMain] = await sql<{ id: string }[]>`
+      SELECT ci.id::text AS id FROM card_identities ci
+      WHERE ci.game_id = 2 AND NOT ci.is_removed AND NOT ci.is_leader_candidate
+      ORDER BY ci.external_key ASC LIMIT 1`;
+    const opCreated = await api("POST", "/api/decks", {
+      body: { game: "optcg", format: "standard", name: "SEO smoke OP deck" },
+    });
+    const opCreatedJson = opCreated.json as {
+      deck?: { id: string; publicId: string };
+      claimToken?: string;
+    };
+    opDeckId = opCreatedJson?.deck?.id;
+    opToken = opCreatedJson?.claimToken;
+    const opPublicId = opCreatedJson?.deck?.publicId;
+    check("OP fixture deck created", opCreated.status === 201 && !!opDeckId && !!opPublicId);
+    if (opDeckId && opToken && opPublicId && opMain) {
+      await api("PUT", `/api/decks/${opDeckId}/cards`, {
+        token: opToken,
+        body: {
+          cards: [
+            { cardId: opLeader.id, zone: "leader", qty: 1, tags: [] },
+            { cardId: opMain.id, zone: "main", qty: 4, tags: [] },
+          ],
+        },
+      });
+      await api("PATCH", `/api/decks/${opDeckId}`, {
+        token: opToken,
+        body: { visibility: "unlisted" },
+      });
+      const opDeckPage = await page(`/d/${opPublicId}`);
+      check("OP deck share page 200", opDeckPage.status === 200, opDeckPage.status);
+      check(
+        "OP deck share page carries the Bandai posture line (P4.6)",
+        opDeckPage.text.includes("©BANDAI"),
+      );
+      const opDeckOgPath = ogImagePath(opDeckPage.text);
+      check("OP deck og:image present", !!opDeckOgPath);
+      if (opDeckOgPath) {
+        const img = await fetchImage(opDeckOgPath);
+        check(
+          "OP deck OG image renders (200, png — artless + game-true words by design, labels.ts)",
+          img.status === 200 && img.type.startsWith("image/png") && img.bytes > 5_000,
+          img,
+        );
+      }
+    }
+
     // ---- home --------------------------------------------------------------
     const home = await page("/");
     // Next collapses `canonical: "/"` + metadataBase to the bare origin.
@@ -433,9 +487,29 @@ async function main() {
       "home links the OP surfaces (leaders + scoped card search)",
       home.text.includes("/leaders") && home.text.includes("/cards?game=optcg"),
     );
+    // Two-game identity (P4.6): the default title/OG widened, the indexed
+    // "Commander deck builder" phrase intact inside it.
+    check(
+      "home title + og:title carry the two-game identity",
+      home.text.includes("Commander &amp; One Piece deck builder") ||
+        home.text.includes("Commander & One Piece deck builder"),
+    );
+    check(
+      "home description names both games",
+      home.text.includes("Magic: The Gathering Commander and One Piece Card Game decks"),
+    );
+    check("home hero is game-neutral", home.text.includes("Build a legal deck, fast."));
+    // The template holds: per-page MTG titles must NOT pick up the widening.
+    check(
+      "MTG hub page title untouched by the two-game default (template pages keep their own)",
+      !/<title>[^<]*One Piece[^<]*<\/title>/.test(hubPage.text),
+    );
   } finally {
     if (deckId && token) {
       await api("DELETE", `/api/decks/${deckId}`, { token }).catch(() => {});
+    }
+    if (opDeckId && opToken) {
+      await api("DELETE", `/api/decks/${opDeckId}`, { token: opToken }).catch(() => {});
     }
     await sql.end();
   }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { COMMANDER } from "@/lib/games/mtg/formats";
-import { buildLibrary, drawHand, HAND_SIZE, shuffle } from "./sample-hand";
+import { optcgAdapter } from "@/lib/games/optcg/adapter";
+import { buildLibrary, drawHand, shuffle } from "./sample-hand";
 
 const entry = (cardId: string, qty = 1, zone = "main") => ({ cardId, zone, qty, tags: [] });
 
@@ -46,15 +47,21 @@ describe("shuffle", () => {
 });
 
 describe("drawHand", () => {
-  it("draws exactly 7 cards from a full library", () => {
+  it("draws exactly the format's hand size from a full library", () => {
     const lib = Array.from({ length: 99 }, (_, i) => `card-${i}`);
-    const hand = drawHand(lib);
-    expect(hand).toHaveLength(HAND_SIZE);
+    const hand = drawHand(lib, COMMANDER.openingHandSize);
+    expect(hand).toHaveLength(7);
     for (const id of hand) expect(lib).toContain(id);
   });
 
-  it("draws the whole library when it holds fewer than 7", () => {
-    expect(drawHand(["a", "b", "c"]).sort()).toEqual(["a", "b", "c"]);
-    expect(drawHand([])).toEqual([]);
+  it("draws 5 for One Piece — the OP opening hand is not MTG's 7 (P4.6)", () => {
+    const lib = Array.from({ length: 50 }, (_, i) => `card-${i}`);
+    expect(optcgAdapter.formats[0].openingHandSize).toBe(5);
+    expect(drawHand(lib, optcgAdapter.formats[0].openingHandSize)).toHaveLength(5);
+  });
+
+  it("draws the whole library when it holds fewer than the hand size", () => {
+    expect(drawHand(["a", "b", "c"], 7).sort()).toEqual(["a", "b", "c"]);
+    expect(drawHand([], 7)).toEqual([]);
   });
 });

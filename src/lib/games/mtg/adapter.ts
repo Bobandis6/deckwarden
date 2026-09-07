@@ -128,6 +128,9 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
     },
     defaultGroupBy: "primaryType",
     leaderNoun: "Commander",
+    searchPlaceholder: "Add cards — try “4 Sol Ring”",
+    importPlaceholder:
+      "1 Sol Ring\n1 Arcane Signet (AFC) 95\n…paste from Moxfield, Arena, Archidekt, anywhere.",
   },
 
   /**

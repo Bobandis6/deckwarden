@@ -46,6 +46,23 @@ export default function LegalPage() {
           on Deckwarden are — and will always remain — free to view without an account or payment.
           Prices are daily estimates, not offers to buy or sell.
         </p>
+        <p>
+          Tournament results are courtesy of{" "}
+          <a href="https://topdeck.gg" className="underline" rel="noreferrer" target="_blank">
+            Topdeck.gg
+          </a>{" "}
+          (Magic: The Gathering) and{" "}
+          <a
+            href="https://play.limitlesstcg.com"
+            className="underline"
+            rel="noreferrer"
+            target="_blank"
+          >
+            Limitless
+          </a>{" "}
+          (One Piece Card Game), credited and linked wherever they appear. Neither is affiliated
+          with Deckwarden.
+        </p>
       </section>
 
       <section id="one-piece" className="mt-8 space-y-3">

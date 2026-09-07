@@ -31,6 +31,7 @@ export const COMMANDER: FormatDef = {
     },
   ],
   deckSize: { min: 100, max: 100 },
+  openingHandSize: 7,
 };
 
 export const MTG_FORMATS: FormatDef[] = [COMMANDER];

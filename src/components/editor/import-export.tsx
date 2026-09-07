@@ -64,7 +64,7 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
       const json: { results: Resolution[] } = await res.json();
       setState({
         step: "review",
-        items: buildImportItems(format, lines, json.results),
+        items: buildImportItems(format, lines, json.results, adapter.importZoneFor?.bind(adapter)),
         parseWarnings: warnings,
       });
     } catch (err) {
@@ -150,16 +150,22 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
                     </span>
                     {item.suggestions.length > 0 ? (
                       <span className="mt-0.5 flex flex-wrap gap-1">
-                        {item.suggestions.map((s) => (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => pick(index, s)}
-                            className="bg-muted hover:bg-muted/70 rounded px-1.5 py-0.5 hover:underline"
-                          >
-                            {s.name}
-                          </button>
-                        ))}
+                        {item.suggestions.map((s) => {
+                          // 17 printed Enels: the id chip is what tells OP
+                          // suggestions apart (idBadge is absent for MTG).
+                          const badge = adapter.display.idBadge?.(s);
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => pick(index, s)}
+                              className="bg-muted hover:bg-muted/70 rounded px-1.5 py-0.5 hover:underline"
+                            >
+                              {s.name}
+                              {badge && <span className="text-muted-foreground"> {badge}</span>}
+                            </button>
+                          );
+                        })}
                       </span>
                     ) : (
                       <span className="text-muted-foreground"> — no close matches</span>
@@ -198,9 +204,7 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={12}
-        placeholder={
-          "1 Sol Ring\n1 Arcane Signet (AFC) 95\n…paste from Moxfield, Arena, Archidekt, anywhere."
-        }
+        placeholder={adapter.display.importPlaceholder}
         aria-label="Decklist text"
         className="border-input focus-visible:ring-ring/50 w-full resize-y rounded-md border bg-transparent p-2 font-mono text-xs outline-none focus-visible:ring-2"
       />

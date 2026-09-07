@@ -26,6 +26,7 @@ import {
   OgSubtitle,
   OgTitle,
 } from "@/lib/og/elements";
+import { deckOgLabels } from "@/lib/og/labels";
 import { fetchOgArt } from "@/lib/og/scryfall";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,11 @@ export default async function Image({ params }: { params: Promise<{ publicId: st
     );
   }
 
-  const printingId = deck.commanderId ? await loadDefaultPrintingId(deck.commanderId) : null;
+  // Game-true vocabulary + art posture (P4.6): OP unfurls are artless by
+  // design (labels.ts has the reasoning) and never touch the Scryfall API.
+  const labels = deckOgLabels(deck.gameId);
+  const printingId =
+    labels.fetchArt && deck.commanderId ? await loadDefaultPrintingId(deck.commanderId) : null;
   const art = printingId ? await fetchOgArt(printingId) : null;
 
   const stats = [`${deck.cardCount} cards`];
@@ -58,14 +63,14 @@ export default async function Image({ params }: { params: Promise<{ publicId: st
   return new ImageResponse(
     <OgFrame art={art}>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <OgKicker>Commander deck</OgKicker>
+        <OgKicker>{labels.kicker}</OgKicker>
         <OgTitle>{deck.name}</OgTitle>
         {deck.commanderNames.length > 0 && (
           <OgSubtitle>{deck.commanderNames.join(" · ")}</OgSubtitle>
         )}
       </div>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        {hasCurve && <OgCurve buckets={deck.curve} label="Mana curve" />}
+        {hasCurve && <OgCurve buckets={deck.curve} label={labels.curveLabel} />}
         <OgFooter stats={stats} />
       </div>
     </OgFrame>,

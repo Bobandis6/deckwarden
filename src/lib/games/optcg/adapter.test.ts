@@ -75,3 +75,28 @@ describe("capabilities.tournaments (Limitless, P4.5)", () => {
     );
   });
 });
+
+// P4.6 funnel-walk pins: the guest journey (hub CTA → paste import) exposed
+// every one of these — each is a recorded design decision, not decoration.
+describe("OP funnel vocabulary + routing (P4.6)", () => {
+  it("opening hand is 5 — the widget drew MTG's 7 for OP decks before this", () => {
+    expect(optcgAdapter.formats[0].openingHandSize).toBe(5);
+  });
+
+  it("idBadge is the printed card id — names identify nothing (two Enel leaders)", () => {
+    expect(optcgAdapter.display.idBadge!(card({}))).toBe("ST01-002");
+  });
+
+  it("importZoneFor routes leader-category cards to the leader zone, nothing else", () => {
+    const leader = card({ category: "leader" });
+    expect(optcgAdapter.importZoneFor!(leader)).toBe("leader");
+    expect(optcgAdapter.importZoneFor!(card({ category: "character" }))).toBeNull();
+    expect(optcgAdapter.importZoneFor!(card({ category: "event" }))).toBeNull();
+  });
+
+  it("placeholders speak One Piece, not Sol Ring", () => {
+    expect(optcgAdapter.display.searchPlaceholder).toContain("OP01-025");
+    expect(optcgAdapter.display.importPlaceholder).toContain("OP15-058");
+    expect(optcgAdapter.display.importPlaceholder).toContain("Limitless");
+  });
+});

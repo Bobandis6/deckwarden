@@ -15,6 +15,7 @@ import { notFound } from "next/navigation";
 import { cache as reactCache } from "react";
 
 import { ComboList } from "@/components/combos/combo-list";
+import { OptcgPostureLine } from "@/components/optcg-posture-line";
 import { getDb, schema } from "@/db";
 import { GAME_ID, GAMES } from "@/db/seed-data";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
@@ -287,15 +288,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
         // Attribution + the gray-zone posture (P4.1): the © line stays with the
         // card image (Bandai footer wording, verified 2026-09-03), same spirit
         // as the Scryfall artist/© rule; the full statement lives on /legal.
-        <p className="text-muted-foreground mt-12 text-xs">
-          ©Eiichiro Oda/Shueisha, Toei Animation · ONE PIECE CARD GAME ©BANDAI. Deckwarden is
-          unofficial fan content, not affiliated with or endorsed by Bandai, Shueisha, or Toei
-          Animation. No official card-data API exists for the One Piece Card Game —{" "}
-          <Link href="/legal#one-piece" className="underline">
-            how we source this data
-          </Link>
-          .
-        </p>
+        <OptcgPostureLine />
       ) : (
         <p className="text-muted-foreground mt-12 text-xs">
           Card data and images courtesy of{" "}

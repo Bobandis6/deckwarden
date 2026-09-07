@@ -84,6 +84,20 @@ async function main() {
 
   // --- Cast: live banlist cards + searched fillers ---------------------------
   const byId = await resolveIds(["OP06-116", "OP07-115", "EB04-058"]);
+
+  // Limitless Copy-to-Clipboard lines resolve by their trailing id (P4.6):
+  // "4 Charlotte Pudding (OP12-071)" walked as 0/17 matched before the fix.
+  const limitlessLine = "1 Trafalgar Law (ST10-010)";
+  const { status: llStatus, json: llJson } = await api("POST", "/api/cards/resolve", {
+    body: { game: "optcg", format: "standard", names: [limitlessLine.replace(/^\d+\s+/, "")] },
+  });
+  const llMatch = (llJson as { results?: { match: { name: string } | null }[] })?.results?.[0]
+    ?.match;
+  check(
+    "Limitless export line resolves exactly via its trailing (CODE)",
+    llStatus === 200 && llMatch?.name === "Trafalgar Law",
+    llMatch,
+  );
   const reject = byId.get("OP06-116")!;
   const pairA = byId.get("OP07-115")!;
   const pairB = byId.get("EB04-058")!;

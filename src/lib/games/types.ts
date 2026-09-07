@@ -45,6 +45,8 @@ export interface FormatDef {
   zones: ZoneDef[];
   /** Total across countsTowardSize zones. Commander 100/100; OP 50 + leader. */
   deckSize: { min: number; max: number | null };
+  /** Opening-hand size for the sample-hand widget (Commander 7; OP 5). */
+  openingHandSize: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -381,6 +383,17 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
   };
   serializeDecklist(deck: DeckSnapshot, cards: ReadonlyMap<string, CardData<A>>): string;
 
+  /**
+   * Route an imported card to a zone the format's ZoneDefs can't infer from
+   * text alone (P4.6): OP Leader-category cards are only ever legal in the
+   * leader zone, so a pasted leader line lands there instead of the default
+   * zone. Return null to keep the default routing. Absent = default routing
+   * (MTG: a legendary creature in the 99 is normal — never auto-promoted).
+   * Takes the legality-free wire shape — routing is card flavor, not format
+   * legality, and the import dialog holds CardWire.
+   */
+  importZoneFor?(card: Omit<CardData<A>, "legality">): string | null;
+
   display: {
     /** Mana pips / DON!! cost / IKZ — an HTML string, rendered by the core. */
     costHtml(card: CardData<A>): string;
@@ -393,6 +406,17 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
     defaultGroupBy: "primaryType" | "costValue" | "tags";
     /** 'Commander' / 'Leader'. */
     leaderNoun: string;
+    /**
+     * Short printed-id chip ("OP15-058") for games whose names don't identify
+     * a card (17 printed Enels). Rendered beside names in search results,
+     * import suggestions, and the card pane — some of those hold the
+     * legality-free wire shape, hence the Omit. Absent = names identify.
+     */
+    idBadge?(card: Omit<CardData<A>, "legality">): string | null;
+    /** Search-box placeholder in the editor — game-true example syntax. */
+    searchPlaceholder: string;
+    /** Import-dialog textarea placeholder — game-true example lines. */
+    importPlaceholder: string;
   };
 
   /**

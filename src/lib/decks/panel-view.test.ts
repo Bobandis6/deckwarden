@@ -7,6 +7,7 @@ const FORMAT: FormatDef = {
   code: "commander",
   label: "Commander",
   deckSize: { min: 100, max: 100 },
+  openingHandSize: 7,
   zones: [
     {
       id: "commander",

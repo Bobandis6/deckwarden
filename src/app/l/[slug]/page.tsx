@@ -193,7 +193,13 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Button nativeButton={false} render={<Link href="/decks/new?game=optcg" />}>
+            {/* ?leader= makes the button's words true (P4.6): the editor
+                opens with this leader already in the leader zone (still a
+                draft — no server row until the first real edit). */}
+            <Button
+              nativeButton={false}
+              render={<Link href={`/decks/new?game=optcg&leader=${leader.externalKey}`} />}
+            >
               Build with this leader
             </Button>
             <Link href={`/cards/${leader.id}`} className="text-sm underline">

@@ -17,6 +17,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CardSearch } from "@/components/cards/card-search";
+import { OptcgPostureLine } from "@/components/optcg-posture-line";
 
 function gameFrom(sp: Record<string, string | string[] | undefined>): "mtg" | "optcg" {
   return sp.game === "optcg" ? "optcg" : "mtg";
@@ -79,15 +80,7 @@ export default async function CardsPage({ searchParams }: PageProps<"/cards">) {
       />
 
       {game === "optcg" ? (
-        <p className="text-muted-foreground mt-12 text-xs">
-          ©Eiichiro Oda/Shueisha, Toei Animation · ONE PIECE CARD GAME ©BANDAI. Deckwarden is
-          unofficial fan content, not affiliated with or endorsed by Bandai, Shueisha, or Toei
-          Animation. No official card-data API exists for the One Piece Card Game —{" "}
-          <Link href="/legal#one-piece" className="underline">
-            how we source this data
-          </Link>
-          .
-        </p>
+        <OptcgPostureLine />
       ) : (
         <p className="text-muted-foreground mt-12 text-xs">
           Card data and images courtesy of{" "}

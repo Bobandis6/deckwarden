@@ -65,6 +65,9 @@ export function CardDetailPane({
         <CostPips html={adapter.display.costHtml(card)} className="text-xs" />
       </div>
       <p className="text-muted-foreground mt-0.5 text-sm">
+        {/* Printed id first where names don't identify (P4.6): "OP15-058 ·
+            Leader — Sky Island" tells the two Enel leaders apart. */}
+        {adapter.display.idBadge?.(card) ? `${adapter.display.idBadge(card)} · ` : ""}
         {adapter.display.subtitle(card)}
         {statLine ? ` · ${statLine}` : ""}
       </p>

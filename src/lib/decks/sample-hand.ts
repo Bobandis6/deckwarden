@@ -4,14 +4,14 @@
  *
  * The library is every non-leader-zone entry expanded to qty copies (the
  * commander starts in the command zone, not your deck — splitLeaderEntries is
- * already the one place that knows which zones those are). Mulligan is
- * plan-literal: shuffle everything back, draw 7 again — London bottoming
- * belongs to the future goldfish playtester (LATER.md), not this widget.
+ * already the one place that knows which zones those are). Hand size comes
+ * off the format (Commander 7, OP 5 — P4.6). Mulligan is plan-literal:
+ * shuffle everything back, redraw the full hand — which happens to BE the
+ * One Piece mulligan; London bottoming belongs to the future goldfish
+ * playtester (LATER.md), not this widget.
  */
 import { splitLeaderEntries } from "@/lib/decks/view-model";
 import type { FormatDef } from "@/lib/games/types";
-
-export const HAND_SIZE = 7;
 
 /** Card ids of the shuffleable library: non-leader zones, expanded by qty. */
 export function buildLibrary(
@@ -32,7 +32,11 @@ export function shuffle<T>(items: readonly T[], rng: () => number = Math.random)
   return a;
 }
 
-/** A fresh 7 (or the whole library when it's smaller). */
-export function drawHand(library: readonly string[], rng?: () => number): string[] {
-  return shuffle(library, rng).slice(0, HAND_SIZE);
+/** A fresh opening hand (or the whole library when it's smaller). */
+export function drawHand(
+  library: readonly string[],
+  handSize: number,
+  rng?: () => number,
+): string[] {
+  return shuffle(library, rng).slice(0, handSize);
 }

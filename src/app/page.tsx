@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { JsonLd, websiteJsonLd } from "@/lib/seo/jsonld";
 
 /**
- * The real landing page (P2.8 — beta launch package). Every claim below is a
- * shipped feature, and there are no invented numbers or testimonials (cold-
- * start rule): the only social proof on this page is the recent-public-decks
- * rail, which renders real rows or an honest empty state.
+ * The real landing page (P2.8 — beta launch package; hero widened to both
+ * games in P4.6 for the OP beta). Every claim below is a shipped feature,
+ * and there are no invented numbers or testimonials (cold-start rule): the
+ * only social proof on this page is the recent-public-decks rail, which
+ * renders real rows or an honest empty state.
  *
  * Caching intent: force-dynamic since the rail landed (P2.3) — same
  * reasoning as /d and /u: a deck flipped private must vanish from the rail
@@ -57,12 +58,12 @@ export default function Home() {
           Open beta
         </p>
         <h1 className="max-w-2xl text-5xl font-bold tracking-tight text-balance">
-          Build a legal Commander deck, fast.
+          Build a legal deck, fast.
         </h1>
         <p className="text-muted-foreground max-w-xl text-lg text-balance">
-          Keyboard-first deck building with live legality checks, combo detection, and share pages
-          that unfurl beautifully. Free, and no account needed — your deck exists the moment you
-          start typing.
+          Keyboard-first deck building for Magic: The Gathering Commander and the One Piece Card
+          Game — live legality checks, combo detection, and share pages that unfurl beautifully.
+          Free, and no account needed — your deck exists the moment you start typing.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Button size="lg" nativeButton={false} render={<Link href="/decks/new" />}>
@@ -78,8 +79,9 @@ export default function Home() {
           </Button>
         </div>
         <p className="text-muted-foreground text-sm">
-          Coming from Moxfield or Archidekt? Paste your list into the builder’s import and it lands
-          in seconds. Decks built here follow you into an account whenever you{" "}
+          Coming from Moxfield, Archidekt, or a Limitless decklist? Paste your list into the
+          builder’s import and it lands in seconds. Decks built here follow you into an account
+          whenever you{" "}
           <Link href="/account" className="underline underline-offset-4">
             sign in
           </Link>
@@ -108,8 +110,9 @@ export default function Home() {
       >
         <h2 className="text-sm font-semibold tracking-wide uppercase">Also speaks One Piece</h2>
         <p className="text-muted-foreground text-sm">
-          The One Piece Card Game runs on the same engine: every card and leader is browsable, and
-          the builder validates 50-card decks against Bandai&apos;s banlist as you type.
+          The One Piece Card Game runs on the same engine: every card and leader is browsable, the
+          builder validates 50-card decks against Bandai&apos;s banlist as you type, and leader
+          pages carry recent tournament finishes from Limitless.
         </p>
         <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm">
           <Link href="/leaders" className="underline underline-offset-4">

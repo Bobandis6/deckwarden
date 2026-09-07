@@ -156,7 +156,7 @@ export function SearchPane({ adapter, format, inDeckQty, onAdd, onPreview }: Sea
           }
         }}
         onKeyDown={onKeyDown}
-        placeholder="Add cards — try “4 Sol Ring”"
+        placeholder={adapter.display.searchPlaceholder}
         autoFocus
         autoComplete="off"
         spellCheck={false}
@@ -201,7 +201,16 @@ export function SearchPane({ adapter, format, inDeckQty, onAdd, onPreview }: Sea
               }}
               onDoubleClick={() => add(card, mainZone?.id, qty)}
             >
-              <span className="min-w-0 flex-1 truncate">{card.name}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {card.name}
+                {/* Printed-id chip (P4.6): OP names don't identify a card —
+                    two Enel leaders exist; the chip is the disambiguator. */}
+                {adapter.display.idBadge?.(card) && (
+                  <span className="text-muted-foreground ml-1.5 text-xs">
+                    {adapter.display.idBadge(card)}
+                  </span>
+                )}
+              </span>
               {owned > 0 && (
                 <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
                   ×{owned}

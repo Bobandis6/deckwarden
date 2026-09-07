@@ -123,12 +123,20 @@ export function DeckEditor({
   deckId: initialDeckId,
   draftGame,
   draftFormat,
+  draftLeaderKey,
 }: {
   /** null = draft mode (/decks/new): no server deck exists until the first real edit. */
   deckId: string | null;
   /** Draft mode only: what the lazily-created deck will be. */
   draftGame?: GameId;
   draftFormat?: string;
+  /**
+   * Draft mode only (P4.6): external key of a leader to seed into the leader
+   * zone — the hub CTA's "Build with this leader" made literal. Seeding is
+   * state only, never a save: bouncing still leaves no row (the P2.8 draft
+   * contract), and the first real edit persists the leader with the rest.
+   */
+  draftLeaderKey?: string;
 }) {
   const router = useRouter();
   // Draft mode is ready (or misconfigured) synchronously — only a real deck
@@ -308,6 +316,48 @@ export function DeckEditor({
     ownedCheckedRef.current = new Set(json.cards.map((c) => c.cardId));
     setLoad({ state: "ready", adapter, format });
   }, []);
+
+  // Seed the hub CTA's leader into a fresh draft (P4.6). Resolve by external
+  // key (the exact-id pass), then add the leader-zone entry WITHOUT marking
+  // dirty — state only, so abandoning the draft still creates nothing. The
+  // ref guard keeps StrictMode's double-effect from seeding twice; the fetch
+  // is deliberately not aborted on cleanup (StrictMode's immediate
+  // mount/unmount would cancel the one attempt the guard allows), and the
+  // occupied-zone check makes a late response a no-op rather than a clobber.
+  const seededLeaderRef = useRef(false);
+  useEffect(() => {
+    if (initialDeckId !== null || !draftLeaderKey || seededLeaderRef.current) return;
+    if (load.state !== "ready") return;
+    seededLeaderRef.current = true;
+    const { adapter, format } = load;
+    const leaderZone = format.zones.find((z) => z.isLeaderZone);
+    if (!leaderZone) return;
+    void (async () => {
+      try {
+        const res = await fetch("/api/cards/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ game: adapter.id, format: format.code, names: [draftLeaderKey] }),
+        });
+        if (!res.ok) return; // a broken CTA key degrades to the plain editor
+        const json: { results: { match: CardWire | null }[] } = await res.json();
+        const wire = json.results[0]?.match;
+        if (!wire || !wire.isLeaderCandidate) return;
+        if (entriesRef.current.some((e) => e.zone === leaderZone.id)) return;
+        const next: EditorEntry[] = [
+          ...entriesRef.current,
+          { cardId: wire.id, zone: leaderZone.id, qty: 1, tags: [] },
+        ];
+        entriesRef.current = next;
+        setEntries(next);
+        const card = toEditorCard(wire);
+        setCards((prev) => new Map(prev).set(wire.id, card));
+        setPreview(card);
+      } catch {
+        // Seeding is a convenience — the editor works without it.
+      }
+    })();
+  }, [initialDeckId, draftLeaderKey, load]);
 
   // Owned lookups for cards added mid-session (P3.7): one debounced POST per
   // burst of new ids, only for users with a collection. A failed lookup
