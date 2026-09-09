@@ -1,6 +1,6 @@
 # Deckwarden — Redesign Plan (R-series)
 
-**Status:** R1a shipped 2026-09-08 (progress tracker below); R1b is next. This file is the contract for the R-series work packages.
+**Status:** R1b shipped 2026-09-09 (progress tracker below); R3 is next. This file is the contract for the R-series work packages.
 **Saved:** September 5, 2026 (as `MASTER-REDESIGN.md` in the codex folder). **Revised:** September 8, 2026 against commit `d4c21e5` (HEAD). P4.5 and P4.6 shipped between the first review (`3456927`) and this revision; both were game-parity and copy work, so the visual baseline is otherwise unchanged.
 **Canonical copy:** `REDESIGN.md` in the repo root (this file). The codex copy is a snapshot with a pointer.
 **Start condition:** the first R-package begins after P4.7 (the state-gated beta-response session whose prompt is at HEAD) has reported. P4.2, P4.4, P4.6, and P4.7 each carry a "NOT a home / editor redesign" fence; those fences are per-session, and the R-packages are the sanctioned vehicle for exactly that work.
@@ -325,6 +325,19 @@ Open items:
   - The OG kicker, curve bars and `.gg` wordmark take the accent as an explicit prop (satori has no context); the empty curve bars and stat chips paint the panel / raised tokens; the attribution chip's own colors are untouched.
   - `meter.tsx` is hand-written (no base-nova registry item as of shadcn 4.19); the CLI's `import { cn } from "cn"` and the stray `cn` npm package it installs were reverted to the `@/lib/utils` alias — expect the same on every future `shadcn add`.
   - Installed but not yet wired (for R1b / R3 to use offline): tabs, tooltip, toast, collapsible, skeleton, badge, input, select, toggle, toggle-group, scroll-area, hover-card, sheet, drawer, separator, avatar, progress, popover, navigation-menu, meter.
+- R1b decisions beyond §1/§2 (2026-09-09), pinned by `src/components/site-header.test.tsx`, `cards/card-image.test.tsx`, `empty-state.test.tsx` and `game-switch.test.tsx`:
+  - The `(site)` layout is typed `LayoutProps<"/">` — `next typegen` folds a route group into its URL path, so the group layout and the root layout share the key (Next 16.3.2).
+  - The footer stays in the root layout on every page (attribution is site-wide); only the appearance menu moved. The editor routes get `AppearanceRow` — a slim row above the footer, below the fold on desktop, rendered by the chooser's editor branch and `/decks/[id]/edit` — rather than a `decks/layout.tsx`: the `/decks/new` picker renders `SiteHeader` (menu included) itself, so a layout-level row would have doubled the control on that page. Consequence: the root 404 and error pages, which render headerless this session, carry no appearance control until R5b/F8 restyles them.
+  - Base UI names a menu popup after its trigger (`aria-labelledby` wins over `aria-label`): the phone menu is "Menu", Browse is "Browse". `DropdownMenuLinkItem` (new in `ui/dropdown-menu.tsx`) wraps `Menu.LinkItem` — a real `<a>`, rendered as a Next `Link` with `closeOnClick` — so Enter and middle-click behave like links.
+  - "Sign in" is a `Link` styled with `buttonVariants`, not Button-as-Link: Base UI's Button sets `role="button"` on a non-native element. The avatar in the signed-in slot is `aria-hidden` so the initial never leaks into the link's name.
+  - `CardImage` renders no wrapper — the DOM shape at every site is today's `<img>` (the buttons and badges around it are untouched). `frame` (G2) goes on the interactive sites only: the `/cards` grid (its `Link` gained a focus ring in the game accent), the leader zone and the deck grid; the detail pane keeps the card radius without a hover lift because it is not interactive; the hub heroes, the card page and the sample hand keep their look. `priority` images skip the fade (the LCP image must not wait on hydration); lazy ones fade on load, with a `complete` check so a cached image is never stuck invisible. Keyboard focus rings belong to the interactive parent, never to the image.
+  - `/cards` `<main>` now carries `data-game` so its focus and frame accents follow the chosen game (the R1a rule extended to the index).
+  - Type scale: "Card search" and the picker's "Start a new deck" are page titles (30/36 semibold); the `/u/` and `/account` names, the `/f/` folder name and the share-page deck name stay 24 px semibold (user strings beside avatars, R5b's artwork header restyles the deck one); the `/f/` private gate stays 20 px; body 14 applied on `/legal`, `/privacy` and the sign-in intro only; the root 404/error titles took the semibold weight and nothing else.
+  - `EmptyState` copy: deck list "No cards yet" + hint "Add them from Search." (mark shown); leader zone "No commander yet" / "No leader yet" + the Ctrl+Enter hint in the editor only; `/account` "No decks in this account yet" + a Build one button and "No bookmarks yet" + its hint; `/leaders` keeps its sentence as the title with Show all leaders as the action.
+  - Containers: `/commanders`, `/leaders` and the share pages widened 48→64rem, home 56→64rem, `/cards` 72→80rem; the reading pages were already 42rem. The header itself sits in the 80rem container.
+  - The OG routes got `generateStaticParams` too: their renders are cached (`x-nextjs-cache: HIT` on the second hit) while the response keeps Next's metadata-route `Cache-Control` (`public, max-age=0, must-revalidate`); prerendered metadata routes get Next's hashed `opengraph-image-<hash>` path, which the page's `og:image` meta carries.
+  - The header is not sticky (§2 does not ask for it; hub pages stay content-first). ⌘K stays a LATER row for the day a user asks — no row written yet.
+  - Wired in R1b: avatar (the account slot) and, further, dropdown-menu (Browse, the phone menu, appearance). Still installed and unwired: tabs, tooltip, toast, collapsible, skeleton, badge, input, select, toggle, toggle-group, scroll-area, hover-card, sheet, drawer, separator, progress, popover, navigation-menu, meter.
 
 ## 7. Acceptance checks and boundaries
 
@@ -357,7 +370,7 @@ Run `pnpm check` for every package. Focused tests: tokens against CSS, the hotke
 - [x] Select direction, game balance, art placement, motion level, and mobile structure (2026-09-05).
 - [x] R0 — Revise the contract against `d4c21e5`, record decisions 1–4, place it in the repo (2026-09-08).
 - [x] R1a — Foundation (2026-09-08: `ce4e544` primitives, `bcb8489` dialogs, `8f69064` tokens / theme / accents / icons / OG; LATER row 47 fired).
-- [ ] R1b — Shell.
+- [x] R1b — Shell (2026-09-09: `d0b25de` — `(site)` route group + SiteHeader with a client-side session slot, CardImage on all eight sites, EmptyState, GameSwitch, the three containers, the type scale, F13; LATER row 69 fired — `/c/`, `/l/`, `/cards/[id]` and their OG routes are ISR for real, proven on prod).
 - [ ] R3 — Desktop builder.
 - [ ] R2 — Deck artwork.
 - [ ] R5a — Public surfaces I.
