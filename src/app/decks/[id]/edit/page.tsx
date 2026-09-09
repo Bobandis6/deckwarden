@@ -9,6 +9,7 @@
 import type { Metadata } from "next";
 
 import { DeckEditor } from "@/components/editor/deck-editor";
+import { AppearanceRow } from "@/components/theme/appearance-row";
 
 export const dynamic = "force-dynamic";
 
@@ -20,5 +21,12 @@ export const metadata: Metadata = {
 
 export default async function DeckEditPage({ params }: PageProps<"/decks/[id]/edit">) {
   const { id } = await params;
-  return <DeckEditor deckId={id} />;
+  return (
+    <>
+      <DeckEditor deckId={id} />
+      {/* No site header on editor routes (R3 builds the editor's own); the
+          appearance control lives in this row until then (R1b). */}
+      <AppearanceRow />
+    </>
+  );
 }

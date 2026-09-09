@@ -1,0 +1,37 @@
+/**
+ * The Deckwarden mark (R1b): src/app/icon.svg inlined, so the site header
+ * and EmptyState render it without an <img> round-trip. The colors stay
+ * literal on purpose — the indigo shield IS the brand (REDESIGN.md §1), not
+ * a theme token, so it reads the same in both themes. Decorative by
+ * default (aria-hidden); the link or heading around it carries the name.
+ * Edit icon.svg and this file together.
+ */
+export function BrandMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden className={className} xmlns="http://www.w3.org/2000/svg">
+      <path d="M32 3 L57 11 V31 C57 46 46 55.5 32 61 C18 55.5 7 46 7 31 V11 Z" fill="#4338ca" />
+      <path
+        d="M32 3 L57 11 V31 C57 46 46 55.5 32 61 C18 55.5 7 46 7 31 V11 Z"
+        fill="none"
+        stroke="#312e81"
+        strokeWidth="2"
+      />
+      <g transform="rotate(-8 32 31)">
+        <rect
+          x="22"
+          y="17"
+          width="20"
+          height="28"
+          rx="3"
+          fill="#a5b4fc"
+          opacity="0.85"
+          transform="rotate(14 32 31)"
+        />
+        <rect x="22" y="17" width="20" height="28" rx="3" fill="#eef2ff" />
+        <rect x="25" y="20" width="14" height="10" rx="1.5" fill="#6366f1" />
+        <rect x="25" y="33" width="14" height="2.5" rx="1.25" fill="#c7d2fe" />
+        <rect x="25" y="38" width="10" height="2.5" rx="1.25" fill="#c7d2fe" />
+      </g>
+    </svg>
+  );
+}

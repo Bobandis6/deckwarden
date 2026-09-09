@@ -8,6 +8,9 @@
  * for the read-only rendering (no remove button, no editing hint).
  */
 import { XIcon } from "lucide-react";
+
+import { CardImage } from "@/components/cards/card-image";
+import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import type { ViewItem } from "@/lib/decks/view-model";
@@ -31,10 +34,11 @@ export function LeaderZone({ zone, items, severity, onRemove, onPreview }: Leade
         <span className="ml-1.5 tabular-nums">{items.reduce((n, i) => n + i.entry.qty, 0)}</span>
       </h3>
       {items.length === 0 ? (
-        <p className="text-muted-foreground mt-1.5 text-xs">
-          No {zone.label.toLowerCase()} yet
-          {onRemove ? " — Ctrl+Enter on a search result adds one." : "."}
-        </p>
+        <EmptyState
+          className="mt-2 py-3"
+          title={`No ${zone.label.toLowerCase()} yet`}
+          hint={onRemove ? "Ctrl+Enter on a search result adds one." : undefined}
+        />
       ) : (
         <ul className="mt-2 flex flex-wrap gap-3">
           {items.map(({ entry, card }) => (
@@ -51,20 +55,14 @@ export function LeaderZone({ zone, items, severity, onRemove, onPreview }: Leade
                       : ""
                 }`}
               >
-                {card.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={card.image}
-                    alt={card.name}
-                    width={488}
-                    height={680}
-                    className="w-full rounded-[4.75%/3.5%] shadow-md"
-                  />
-                ) : (
-                  <span className="bg-muted flex aspect-488/680 w-full items-center justify-center rounded-xl p-2 text-center text-xs">
-                    {card.name}
-                  </span>
-                )}
+                <CardImage
+                  src={card.image}
+                  alt={card.name}
+                  width={488}
+                  height={680}
+                  frame
+                  className="w-full text-xs shadow-md"
+                />
               </button>
               <span className="mt-1 flex items-center gap-1">
                 <span className="min-w-0 flex-1 truncate text-xs">{card.name}</span>

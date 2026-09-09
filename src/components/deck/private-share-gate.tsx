@@ -56,7 +56,7 @@ export function PrivateShareGate({ deckId }: { deckId: string }) {
   if (gate.state === "ready") return <DeckShareView deck={gate.deck} cards={gate.cards} />;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+    <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
       {gate.state === "checking" ? (
         <p className="text-muted-foreground">Loading deck…</p>
       ) : (

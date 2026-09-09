@@ -1,13 +1,14 @@
 "use client";
 
 /**
- * Appearance menu (R1a): Dark / Light / System, the current choice checked.
- * Interim home is the site footer; R1b moves it into the site header (the
- * header does not exist yet). Base UI Menu via the installed dropdown-menu
+ * Appearance menu (R1a; into the site header in R1b): Dark / Light / System,
+ * the current choice checked. Lives in SiteHeader on every (site) page and
+ * in AppearanceRow on the editor routes until R3 builds the editor header —
+ * exactly one per page. Base UI Menu via the installed dropdown-menu
  * primitive — the radio group only renders while the popup is open, so the
  * stored preference (client-only) never produces a hydration mismatch.
  * Radio items keep menus open by default; a theme is a one-shot choice, so
- * these close on click.
+ * these close on click. The label collapses to the icon below `sm`.
  */
 import { MonitorIcon, MoonIcon, SunIcon, SunMoonIcon } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -27,15 +28,15 @@ const OPTIONS = [
   { value: "system", label: "System", Icon: MonitorIcon },
 ] as const;
 
-export function AppearanceMenu() {
+export function AppearanceMenu({ side = "bottom" }: { side?: "top" | "bottom" }) {
   const { theme, setTheme } = useTheme();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="xs" />}>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>
         <SunMoonIcon aria-hidden />
-        Appearance
+        <span className="max-sm:sr-only">Appearance</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="top" aria-label="Appearance">
+      <DropdownMenuContent align="end" side={side} aria-label="Appearance">
         <DropdownMenuRadioGroup
           value={theme ?? "dark"}
           onValueChange={(value) => setTheme(String(value))}

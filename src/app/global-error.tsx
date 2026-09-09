@@ -28,7 +28,7 @@ export default function GlobalError({
       <body className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 antialiased">
         <title>Something went wrong · Deckwarden</title>
         <p className="text-muted-foreground font-mono text-sm">500</p>
-        <h1 className="text-3xl font-bold tracking-tight">Something went wrong</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Something went wrong</h1>
         <p className="text-muted-foreground max-w-md text-center">
           The error has been reported. Reload the page, or come back in a minute.
         </p>

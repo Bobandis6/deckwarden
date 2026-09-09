@@ -16,6 +16,8 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { DeckEditor } from "@/components/editor/deck-editor";
+import { SiteHeader } from "@/components/site-header";
+import { AppearanceRow } from "@/components/theme/appearance-row";
 import { listAdapters } from "@/lib/games/registry";
 import type { GameId } from "@/lib/games/types";
 
@@ -38,47 +40,58 @@ export function NewDeckChooser() {
 
   if (chosen) {
     return (
-      <DeckEditor
-        deckId={null}
-        draftGame={chosen.id as GameId}
-        draftFormat={chosen.formats[0].code}
-        draftLeaderKey={leaderKey ?? undefined}
-      />
+      <>
+        <DeckEditor
+          deckId={null}
+          draftGame={chosen.id as GameId}
+          draftFormat={chosen.formats[0].code}
+          draftLeaderKey={leaderKey ?? undefined}
+        />
+        {/* Editor routes carry no site header (R3 builds the editor's own);
+            the appearance control lives in this row until then (R1b). */}
+        <AppearanceRow />
+      </>
     );
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center gap-8 px-4 py-12">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold">Start a new deck</h1>
-        <p className="text-muted-foreground mt-1">Pick your game.</p>
-      </div>
-      <div className="grid w-full gap-4 sm:grid-cols-2">
-        {adapters.map((adapter) => {
-          const format = adapter.formats[0];
-          // "Leader + 50 cards" when the command zone sits outside the count
-          // (OP); plain "100 cards" when it's inside it (Commander).
-          const leaderOutsideCount = format.zones.some(
-            (z) => z.isLeaderZone && !z.countsTowardSize,
-          );
-          const size = leaderOutsideCount
-            ? `${adapter.display.leaderNoun} + ${format.deckSize.min} cards`
-            : `${format.deckSize.min} cards`;
-          return (
-            <Link
-              key={adapter.id}
-              href={`/decks/new?game=${adapter.id}`}
-              replace
-              className="hover:border-foreground/40 focus-visible:ring-ring/50 flex flex-col gap-1 rounded-lg border p-6 outline-none focus-visible:ring-2"
-            >
-              <span className="text-lg font-medium">{adapter.name}</span>
-              <span className="text-muted-foreground text-sm">
-                {format.label} · {size}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-    </main>
+    <>
+      {/* The picker is a site page (REDESIGN.md §2) and renders the shell
+          itself: /decks/new stands outside the (site) group for the editor
+          branch's sake. */}
+      <SiteHeader />
+      <main className="max-w-reading mx-auto flex w-full flex-1 flex-col items-center justify-center gap-8 px-4 py-12">
+        <div className="text-center">
+          <h1 className="text-3xl font-semibold tracking-tight">Start a new deck</h1>
+          <p className="text-muted-foreground mt-1">Pick your game.</p>
+        </div>
+        <div className="grid w-full gap-4 sm:grid-cols-2">
+          {adapters.map((adapter) => {
+            const format = adapter.formats[0];
+            // "Leader + 50 cards" when the command zone sits outside the count
+            // (OP); plain "100 cards" when it's inside it (Commander).
+            const leaderOutsideCount = format.zones.some(
+              (z) => z.isLeaderZone && !z.countsTowardSize,
+            );
+            const size = leaderOutsideCount
+              ? `${adapter.display.leaderNoun} + ${format.deckSize.min} cards`
+              : `${format.deckSize.min} cards`;
+            return (
+              <Link
+                key={adapter.id}
+                href={`/decks/new?game=${adapter.id}`}
+                replace
+                className="hover:border-foreground/40 focus-visible:ring-ring/50 flex flex-col gap-1 rounded-lg border p-6 outline-none focus-visible:ring-2"
+              >
+                <span className="text-lg font-medium">{adapter.name}</span>
+                <span className="text-muted-foreground text-sm">
+                  {format.label} · {size}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </main>
+    </>
   );
 }

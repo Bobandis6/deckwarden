@@ -2,9 +2,10 @@
 
 /**
  * Card detail pane (P1.2): the card under the cursor — search highlight or a
- * clicked deck row. Full-card Scryfall CDN image via plain <img> (unoptimized
- * by design — CLAUDE.md; artist/© line stays visible in the frame), with the
- * adapter's display contract providing every game-flavored string.
+ * clicked deck row. Full-card image through CardImage (R1b; the CDN and
+ * attribution rules live in its docblock) — no frame hover here, the image
+ * is not interactive — with the adapter's display contract providing every
+ * game-flavored string.
  *
  * P2.7 adds the tag editor here (the LATER.md row's firing): when the shown
  * card has a deck entry, its tags are editable — chips with remove, an
@@ -16,6 +17,7 @@ import { ArrowRightIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { CardImage } from "@/components/cards/card-image";
 import { CostPips } from "@/components/deck/cost-pips";
 import { MAX_TAG_LENGTH, MAX_TAGS, type EditorCard } from "@/lib/decks/editor-state";
 import type { GameAdapter } from "@/lib/games/types";
@@ -46,20 +48,13 @@ export function CardDetailPane({
 
   return (
     <div className="p-3">
-      {card.image ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={card.image}
-          alt={card.name}
-          width={488}
-          height={680}
-          className="mx-auto w-full max-w-72 rounded-[4.75%/3.5%] shadow-md"
-        />
-      ) : (
-        <div className="bg-muted mx-auto flex aspect-488/680 w-full max-w-72 items-center justify-center rounded-xl p-3 text-center text-sm">
-          {card.name}
-        </div>
-      )}
+      <CardImage
+        src={card.image}
+        alt={card.name}
+        width={488}
+        height={680}
+        className="mx-auto w-full max-w-72 rounded-[4.75%/3.5%] shadow-md"
+      />
 
       <div className="mt-3 flex flex-wrap items-baseline gap-x-2">
         <h2 className="font-semibold">{card.name}</h2>

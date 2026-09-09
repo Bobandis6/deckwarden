@@ -36,6 +36,11 @@
   --color-accent-mtg: var(--accent-mtg);
   --color-accent-optcg: var(--accent-optcg);
   --color-accent-game: var(--accent-game);
+  /* Container widths (R1b, REDESIGN.md §1): reading / browse / wide replace the
+     max-w-2xl … 6xl spread → max-w-reading, max-w-browse, max-w-wide. */
+  --container-reading: 42rem;
+  --container-browse: 64rem;
+  --container-wide: 80rem;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

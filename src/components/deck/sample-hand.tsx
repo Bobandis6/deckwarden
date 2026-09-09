@@ -8,11 +8,13 @@
  * share-page views. Mulligan is a full redraw of 7 with a counter — London
  * bottoming is the goldfish playtester's job (LATER.md), not this widget's.
  *
- * Images: small-rendition Scryfall CDN via plain <img> (CLAUDE.md: Hobby's
- * optimizer quota; the full-card frame keeps the artist/© line visible).
+ * Images: the small CDN rendition through CardImage (R1b — lazy, sized; the
+ * CDN and attribution rules live in its docblock). No frame here: F4 (R6)
+ * restyles the dealt hand.
  */
 import { useMemo, useState } from "react";
 
+import { CardImage } from "@/components/cards/card-image";
 import { Button } from "@/components/ui/button";
 import { toSmallImage } from "@/lib/cards/images";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
@@ -72,21 +74,15 @@ export function SampleHand({
           {hand.map((cardId, i) => {
             const card = cards.get(cardId);
             if (!card) return null;
-            const face = card.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={toSmallImage(card.image)}
+            const face = (
+              <CardImage
+                src={card.image ? toSmallImage(card.image) : null}
                 alt={card.name}
                 title={card.name}
                 width={146}
                 height={204}
-                loading="lazy"
-                className="w-full rounded-[4.75%/3.5%] shadow-sm"
+                className="w-full rounded-[4.75%/3.5%] text-[0.65rem] shadow-sm"
               />
-            ) : (
-              <span className="bg-muted flex aspect-146/204 w-full items-center justify-center rounded-md p-1 text-center text-[0.65rem]">
-                {card.name}
-              </span>
             );
             return (
               // Duplicates (30 Islands) are legal hands — key must include the slot.

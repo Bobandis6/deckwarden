@@ -1,12 +1,11 @@
 /**
  * Site-wide footer (P1.8 gate): attribution + disclaimer + legal/privacy/
- * contact links + the appearance menu (Dark / Light / System, R1a — until the
- * R1b header exists). Rendered from the root layout; on app-like full-height
- * pages (the editor) it sits below the fold, which is intentional.
+ * contact links. Rendered from the root layout on EVERY page — attribution
+ * is site-wide; on app-like full-height pages (the editor) it sits below
+ * the fold, which is intentional. The appearance menu it hosted in R1a
+ * moved into the site header (R1b); the editor routes get AppearanceRow.
  */
 import Link from "next/link";
-
-import { AppearanceMenu } from "@/components/theme/appearance-menu";
 
 export function SiteFooter() {
   return (
@@ -40,9 +39,6 @@ export function SiteFooter() {
         >
           GitHub
         </a>
-        {/* Interim home for the appearance menu (R1a); R1b moves it into the
-            site header. */}
-        <AppearanceMenu />
       </p>
     </footer>
   );

@@ -11,7 +11,6 @@
  * loading localStorage prefs during render would break SSR hydration, and a
  * share-page viewer doesn't need their reading preference remembered.
  */
-import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
@@ -150,7 +149,7 @@ export function DeckShareView({
 
   if (!adapter || !format || !snapshot) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
         <p className="max-w-md text-center">This deck has an unknown game or format.</p>
         <Button nativeButton={false} variant="outline" render={<Link href="/" />}>
           Back to Deckwarden
@@ -181,15 +180,9 @@ export function DeckShareView({
   };
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6" data-game={adapter.id}>
-      <p>
-        <Link href="/" className="text-muted-foreground text-sm hover:underline">
-          <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
-          Deckwarden
-        </Link>
-      </p>
-      <header className="mt-2">
-        <h1 className="text-2xl font-bold tracking-tight break-words">{deck.name}</h1>
+    <main className="max-w-browse mx-auto w-full flex-1 px-4 py-6" data-game={adapter.id}>
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight break-words">{deck.name}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           {author && (
             <>

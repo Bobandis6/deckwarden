@@ -62,8 +62,9 @@ export function YourDecks() {
 
   if (!decks || decks.length === 0) return null;
 
+  // id: the site header's guest "My decks" link (/#your-decks) lands here (R1b).
   return (
-    <section aria-label="Your decks" className="w-full max-w-md">
+    <section id="your-decks" aria-label="Your decks" className="w-full max-w-md">
       <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
         Your decks on this browser
       </h2>

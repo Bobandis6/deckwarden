@@ -19,6 +19,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { CardImage } from "@/components/cards/card-image";
 import { Button } from "@/components/ui/button";
 import { getAdapter } from "@/lib/games/registry";
 import { OPTCG_COLORS } from "@/lib/games/optcg/colors";
@@ -219,24 +220,11 @@ export function CardSearch({
       <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {results.map((card) => (
           <li key={card.id}>
-            <Link href={`/cards/${card.id}`} className="block">
-              {card.image ? (
-                // CDN hotlink (Scryfall for MTG, the R2 mirror for OP); full
-                // card image keeps the frame's own credit text visible.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={card.image}
-                  alt={card.name}
-                  loading="lazy"
-                  width={488}
-                  height={680}
-                  className="rounded-[4.75%/3.5%] transition-transform hover:scale-[1.03]"
-                />
-              ) : (
-                <span className="bg-muted flex aspect-[488/680] items-center justify-center rounded-xl p-2 text-center text-sm">
-                  {card.name}
-                </span>
-              )}
+            <Link
+              href={`/cards/${card.id}`}
+              className="focus-visible:ring-accent-game block rounded-[4.75%/3.5%] outline-none focus-visible:ring-2"
+            >
+              <CardImage src={card.image} alt={card.name} width={488} height={680} frame />
             </Link>
           </li>
         ))}

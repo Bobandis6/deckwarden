@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * Image-grid view (P1.3): default-printing card images off the Scryfall CDN
- * (plain <img>, unoptimized by design — CLAUDE.md; full card frame so the
- * artist/© line is never cropped), a quantity badge overlay, click → detail
- * pane. Same precomputed groups as the text view.
+ * Image-grid view (P1.3): default-printing card images through CardImage
+ * (R1b — lazy, sized, framed; the CDN and attribution rules live in its
+ * docblock), a quantity badge overlay, click → detail pane. Same precomputed
+ * groups as the text view.
  */
+import { CardImage } from "@/components/cards/card-image";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import type { DeckGroup } from "@/lib/decks/view-model";
 
@@ -42,22 +43,14 @@ export function DeckGridView({ groups, severity, onPreview, owned }: DeckGridVie
                         : ""
                   }`}
                 >
-                  {card.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={card.image}
-                      alt={card.name}
-                      width={488}
-                      height={680}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full rounded-[4.75%/3.5%] shadow-sm"
-                    />
-                  ) : (
-                    <span className="bg-muted flex aspect-488/680 w-full items-center justify-center rounded-xl p-2 text-center text-xs">
-                      {card.name}
-                    </span>
-                  )}
+                  <CardImage
+                    src={card.image}
+                    alt={card.name}
+                    width={488}
+                    height={680}
+                    frame
+                    className="w-full text-xs shadow-sm"
+                  />
                 </button>
                 <span
                   aria-label={`${entry.qty} in deck`}

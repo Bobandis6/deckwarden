@@ -10,6 +10,7 @@
  */
 import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
 import { DeckGridView } from "@/components/deck/deck-grid-view";
+import { EmptyState } from "@/components/empty-state";
 import { DeckTextView } from "@/components/deck/deck-text-view";
 import { LeaderZone } from "@/components/deck/leader-zone";
 import { SampleHand } from "@/components/deck/sample-hand";
@@ -177,9 +178,9 @@ export function DeckListPane({
       )}
 
       {rest.length === 0 ? (
-        <p className="text-muted-foreground mt-4 text-xs">
-          No cards yet — search on the left and press Enter.
-        </p>
+        // C8 copy fix (R1b): a phone has no "left" — R4 puts Search in a tab;
+        // R3 keeps the keycap hint beside this.
+        <EmptyState className="mt-4" title="No cards yet" hint="Add them from Search." mark />
       ) : view === "text" ? (
         <DeckTextView
           adapter={adapter}

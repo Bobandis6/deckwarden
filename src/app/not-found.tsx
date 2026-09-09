@@ -12,7 +12,7 @@ export default function NotFound() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
       <p className="text-muted-foreground font-mono text-sm">404</p>
-      <h1 className="text-3xl font-bold tracking-tight">This page doesn&apos;t exist</h1>
+      <h1 className="text-3xl font-semibold tracking-tight">This page doesn&apos;t exist</h1>
       <p className="text-muted-foreground max-w-md text-center">
         The card may have been removed, the deck deleted, or the link mistyped.
       </p>
