@@ -1,6 +1,6 @@
 # Deckwarden — Redesign Plan (R-series)
 
-**Status:** Implementation not started. This file is the contract for the R-series work packages.
+**Status:** R1a shipped 2026-09-08 (progress tracker below); R1b is next. This file is the contract for the R-series work packages.
 **Saved:** September 5, 2026 (as `MASTER-REDESIGN.md` in the codex folder). **Revised:** September 8, 2026 against commit `d4c21e5` (HEAD). P4.5 and P4.6 shipped between the first review (`3456927`) and this revision; both were game-parity and copy work, so the visual baseline is otherwise unchanged.
 **Canonical copy:** `REDESIGN.md` in the repo root (this file). The codex copy is a snapshot with a pointer.
 **Start condition:** the first R-package begins after P4.7 (the state-gated beta-response session whose prompt is at HEAD) has reported. P4.2, P4.4, P4.6, and P4.7 each carry a "NOT a home / editor redesign" fence; those fences are per-session, and the R-packages are the sanctioned vehicle for exactly that work.
@@ -316,6 +316,14 @@ Open items:
 
 - Hero wording: "Your next great deck starts here." stands until R5a proves it in place.
 - Mascot: shield mark only. A character asset would be a separate decision.
+- R1a decisions beyond the §1 table (2026-09-08), all pinned by `src/lib/theme/tokens.test.ts` against `globals.css`:
+  - Tokens the table leaves open, chosen on the same palette: secondary `#262d3c` / `#e8eaf2`, muted `#222837` / `#eeeff5`, accent (hover) `#2b3345` / `#e6e8f1`, border `#2a3040` / `#e2e4ec`, input `#2a3040` / `#d8dbe6`, ring = brand text (dark) / `#4f46e5` (light), destructive `#f87171` / `#b91c1c` (6.8:1 / 6.1:1), chart-1…5 recolored on the palette (chart-2 stays the analytics fallback bar). The shadcn sidebar tokens were dropped — nothing used them; a future `shadcn add sidebar` re-adds its own.
+  - Status hues without a token (amber, emerald, green) keep their `dark:` pair; the light shade went 600 → 700 because amber-600 measured 3.0:1 and emerald-600 3.5:1 on the light background. Red status chips use the destructive token. Button's base-nova `dark:` variants were kept as authored.
+  - `Modal` keeps 16 px text inheritance inside the Dialog (`text-base`) so the six call sites render as before; the R1b type scale decides the dialog body size.
+  - The appearance menu's radio items close on click (Base UI leaves radio menus open by default) — a theme is a one-shot choice.
+  - The OG kicker, curve bars and `.gg` wordmark take the accent as an explicit prop (satori has no context); the empty curve bars and stat chips paint the panel / raised tokens; the attribution chip's own colors are untouched.
+  - `meter.tsx` is hand-written (no base-nova registry item as of shadcn 4.19); the CLI's `import { cn } from "cn"` and the stray `cn` npm package it installs were reverted to the `@/lib/utils` alias — expect the same on every future `shadcn add`.
+  - Installed but not yet wired (for R1b / R3 to use offline): tabs, tooltip, toast, collapsible, skeleton, badge, input, select, toggle, toggle-group, scroll-area, hover-card, sheet, drawer, separator, avatar, progress, popover, navigation-menu, meter.
 
 ## 7. Acceptance checks and boundaries
 
@@ -347,7 +355,7 @@ Run `pnpm check` for every package. Focused tests: tokens against CSS, the hotke
 - [x] Review existing source and public UI (2026-09-05).
 - [x] Select direction, game balance, art placement, motion level, and mobile structure (2026-09-05).
 - [x] R0 — Revise the contract against `d4c21e5`, record decisions 1–4, place it in the repo (2026-09-08).
-- [ ] R1a — Foundation.
+- [x] R1a — Foundation (2026-09-08: `ce4e544` primitives, `bcb8489` dialogs, `8f69064` tokens / theme / accents / icons / OG; LATER row 47 fired).
 - [ ] R1b — Shell.
 - [ ] R3 — Desktop builder.
 - [ ] R2 — Deck artwork.
