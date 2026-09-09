@@ -1,11 +1,19 @@
 "use client";
 
 /**
- * Shared modal shell (extracted from import-export.tsx in P1.7): overlay +
- * panel, Escape and overlay-click close. Hand-rolled — no shadcn dialog
- * installed; focus trapped by inert siblings not needed at this scale.
+ * Shared modal shell (extracted from import-export.tsx in P1.7; R1a made it
+ * a thin wrapper over the installed Dialog primitive). The
+ * `label / onClose / wide / children` contract is unchanged, so the six
+ * call sites did not move: callers mount it conditionally and treat
+ * `onClose` as the only way out — return early from it (the delete
+ * dialogs do while a request is in flight) and the dialog stays open.
+ *
+ * Base UI supplies what the hand-rolled version never had: a focus trap,
+ * focus restore to the opener on close, Escape and backdrop-press dismiss
+ * routed through onOpenChange, and the labelled `role="dialog"`.
  */
-import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 export function Modal({
   label,
@@ -20,28 +28,23 @@ export function Modal({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onClose();
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
       }}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-        className={`bg-background flex max-h-[85dvh] w-full ${wide ? "max-w-2xl" : "max-w-lg"} flex-col gap-3 overflow-y-auto rounded-lg border p-4 shadow-lg`}
-        onClick={(e) => e.stopPropagation()}
+      <DialogContent
+        className={cn(
+          "flex max-h-[85dvh] flex-col gap-3 overflow-y-auto text-base",
+          wide ? "sm:max-w-2xl" : "sm:max-w-lg",
+        )}
       >
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">{label}</h2>
-          <Button variant="ghost" size="xs" onClick={onClose} aria-label={`Close ${label}`}>
-            ✕
-          </Button>
-        </div>
+        <DialogHeader>
+          <DialogTitle className="text-sm font-semibold">{label}</DialogTitle>
+        </DialogHeader>
         {children}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
