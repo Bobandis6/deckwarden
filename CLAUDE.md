@@ -12,6 +12,8 @@ follow it or flag the conflict.
 
 - One work package (Pn.m from the plan) per session. A package ends **deployed and
   `pnpm check`-green** or it isn't done. Never leave main broken.
+- Redesign packages (Rn from `REDESIGN.md`, build plan §6b) count as work packages
+  under the same rules.
 - Anything out of scope goes to `LATER.md` with a revisit trigger — no discussion,
   no "while I'm here" changes.
 - `pnpm check` = typecheck + lint + format check + tests. Run it before every commit.

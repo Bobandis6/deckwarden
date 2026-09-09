@@ -226,6 +226,23 @@ M0+M1 ≈ **2.5–3 months** of part-time work to a shareable beta link. M2 land
 
 ---
 
+## 6b. R-series — Redesign packages (added 2026-09-08)
+
+The visual redesign runs as its own numbered packages, governed by [REDESIGN.md](REDESIGN.md) (the contract for these packages) under the same session protocol as Pn.m packages: one package per session, deployed and `pnpm check`-green or not done, out-of-scope items to LATER.md with a trigger. They start after P4.7 reports and interleave with whichever numbered package fires next (the /l/ deck shelves, M5, or another beta-response round) — one session is still one package.
+
+| Package | Deliverable | Done when |
+|---|---|---|
+| R1a Foundation | tokens (dark default, light, system), one token source shared with OG, `data-game` accent, real Base UI primitives via `shadcn add`, lucide icons, `.don-cost` chip, motion policy | both themes readable on editor / hubs / share / OG; no theme flash; dialogs trap focus |
+| R1b Shell | site header + `(site)` route group, `CardImage`, `EmptyState`, type scale and container widths | every non-editor route shows the header; ISR routes still static; pinned copy intact |
+| R3 Desktop builder | header hierarchy, search state machine + thumbnails, sticky headers, One Piece badges, Tabs, Warden-approves moment, completion ring, add toast with Undo, `?` shortcut sheet | keyboard flow unchanged; first edit still creates exactly one deck; appearance never marks dirty |
+| R2 Deck artwork | art resolver + `/api/cards/[id]/art`, `capabilities.ambientArt` (MTG only until Bandai answers), color-identity fallback, background preference | artwork edge cases pass; stale requests never win; saves unaffected |
+| R5a Public surfaces I | equal two-game homepage with real leader shelves, deck tiles, identity strip, `ColorChip`, index image view | seo-smoke green after the hero pin update; hubs-smoke green |
+| R5b Public surfaces II | gradient/art headers on hubs and deck pages, `/c/` build CTA (fires LATER row 63), hover previews, Warden 404/empty states, account sections | all hub and posture smoke pins intact; private data still gated |
+| R4 Responsive builder | `wide:` three panes, tablet tools drawer, phone Deck / Search / Tools tabs, card sheet, keyboard-safe drawers | repeated adds on a phone without tab switching; state survives tab changes; no deck created by tab changes |
+| R6 Polish + accessibility | skeletons, analytics grow-in, dealt sample hand, audit at five widths in both themes | motion, focus, contrast, touch-target, and performance checks pass |
+
+Sanctioned by §10's brand hook (dark default, per-game accent, the Warden persona, shield-and-card mark). Fires LATER row 47 (R1a) and row 63 (R5b); does not fire row 62. One Piece ambient art stays off until Bandai answers (owner decision 2026-09-08). Hard rules unchanged: attribution, no image optimizer, no stored image URLs, the cold-start rule, keyboard-first.
+
 ## 7. Feature Additions Beyond the Original Doc
 
 Adoption- and ease-of-use-focused additions, each slotted into a milestone above:
