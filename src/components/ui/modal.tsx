@@ -12,8 +12,19 @@
  * focus restore to the opener on close, Escape and backdrop-press dismiss
  * routed through onOpenChange, and the labelled `role="dialog"`.
  */
+import { createContext, useContext, type RefObject } from "react";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+
+/**
+ * Where focus goes when a Modal closes (R3). Base UI returns it to whatever
+ * was focused on open — for the editor's More menu that is a menu item that
+ * has since unmounted, so the editor provides its More trigger here while a
+ * menu-opened dialog is up. Undefined keeps Base UI's default (the `?` sheet
+ * returns focus to wherever `?` was pressed).
+ */
+export const ModalFinalFocus = createContext<RefObject<HTMLElement | null> | undefined>(undefined);
 
 export function Modal({
   label,
@@ -27,6 +38,7 @@ export function Modal({
   wide?: boolean;
   children: React.ReactNode;
 }) {
+  const finalFocus = useContext(ModalFinalFocus);
   return (
     <Dialog
       open
@@ -35,6 +47,7 @@ export function Modal({
       }}
     >
       <DialogContent
+        finalFocus={finalFocus}
         className={cn(
           "flex max-h-[85dvh] flex-col gap-3 overflow-y-auto text-base",
           wide ? "sm:max-w-2xl" : "sm:max-w-lg",

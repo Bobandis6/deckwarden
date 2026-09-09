@@ -17,7 +17,6 @@ import { useState } from "react";
 
 import { DeckEditor } from "@/components/editor/deck-editor";
 import { SiteHeader } from "@/components/site-header";
-import { AppearanceRow } from "@/components/theme/appearance-row";
 import { listAdapters } from "@/lib/games/registry";
 import type { GameId } from "@/lib/games/types";
 
@@ -39,18 +38,15 @@ export function NewDeckChooser() {
   const chosen = adapters.find((a) => a.id === gameId);
 
   if (chosen) {
+    // Editor routes carry no site header: the editor renders its own (R3),
+    // appearance menu included — one appearance control per page.
     return (
-      <>
-        <DeckEditor
-          deckId={null}
-          draftGame={chosen.id as GameId}
-          draftFormat={chosen.formats[0].code}
-          draftLeaderKey={leaderKey ?? undefined}
-        />
-        {/* Editor routes carry no site header (R3 builds the editor's own);
-            the appearance control lives in this row until then (R1b). */}
-        <AppearanceRow />
-      </>
+      <DeckEditor
+        deckId={null}
+        draftGame={chosen.id as GameId}
+        draftFormat={chosen.formats[0].code}
+        draftLeaderKey={leaderKey ?? undefined}
+      />
     );
   }
 

@@ -17,35 +17,49 @@
  * /api/decks/[id]; pagehide/unmount flush with keepalive fetch so no edit is
  * lost mid-navigation.
  *
+ * R3 (REDESIGN.md §2 "Desktop builder"): the editor's own header
+ * (EditorHeader — mark, game/format chip, name, the fixed-width save slot,
+ * Share primary, More, the appearance menu), one window hotkey listener
+ * (useEditorHotkeys — `/` and `?`, inert while any dialog is open), the add
+ * toast with Undo (F3 — Undo is a real edit through applyEdit), the leader
+ * replace for max-1 zones, the tool pane on Base UI Tabs with every panel
+ * kept mounted, and the `?` shortcut sheet.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
-import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ForkCreditLine } from "@/components/deck/fork-button";
 import { CardDetailPane } from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
 import { CutCoachPanel } from "@/components/editor/cut-coach-panel";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
 import { DetailsDialog, type DeckDetails } from "@/components/editor/details-dialog";
+import { EditorHeader, type EditorDialog } from "@/components/editor/editor-header";
 import { HistoryDialog } from "@/components/editor/history-dialog";
 import { ExportDialog, ImportDialog } from "@/components/editor/import-export";
 import { RecommendationsPanel } from "@/components/editor/recommendations-panel";
-import { SearchPane } from "@/components/editor/search-pane";
+import { SearchPane, type SearchPaneHandle } from "@/components/editor/search-pane";
 import { ShareDialog, type DeckVisibility } from "@/components/editor/share-dialog";
+import { ShortcutsSheet } from "@/components/editor/shortcuts-sheet";
 import { useAutosave } from "@/components/editor/use-autosave";
+import { useEditorHotkeys } from "@/components/editor/use-editor-hotkeys";
 import { Button } from "@/components/ui/button";
+import { ModalFinalFocus } from "@/components/ui/modal";
+import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast, Toaster } from "@/components/ui/toast";
 import { deckOwnership } from "@/lib/collection/ownership";
 import {
   addCard,
   removeCard,
+  replaceLeader,
   setQty,
   setTags,
   toEditorCard,
   toSavePayload,
+  zoneQty,
   type CardWire,
   type EditorCard,
   type EditorEntry,
@@ -97,7 +111,11 @@ type LoadState =
   | { state: "error"; message: string }
   | { state: "ready"; adapter: GameAdapter; format: FormatDef };
 
+type RightTab = "card" | "suggest" | "combos" | "cuts";
+
 const TOKEN_HEADER = "x-deck-token";
+/** Add-toast lifetime (F3): long enough to reach Undo, short enough to never stack up. */
+const TOAST_MS = 5000;
 
 /** Write headers: token when this browser holds one, else the session cookie authenticates. */
 function writeHeaders(deckId: string): Record<string, string> {
@@ -156,9 +174,12 @@ export function DeckEditor({
   const [entries, setEntries] = useState<EditorEntry[]>([]);
   const [cards, setCards] = useState<ReadonlyMap<string, EditorCard>>(new Map());
   const [preview, setPreview] = useState<EditorCard | null>(null);
-  const [dialog, setDialog] = useState<
-    "import" | "export" | "share" | "details" | "history" | null
-  >(null);
+  const [dialog, setDialog] = useState<EditorDialog | null>(null);
+  // Who opened the dialog decides where focus lands when it closes: a
+  // menu-opened one goes back to the More trigger (its menu item is gone by
+  // then); the `?` sheet returns to wherever `?` was pressed (R3).
+  const [dialogFromMenu, setDialogFromMenu] = useState(false);
+  const moreRef = useRef<HTMLButtonElement>(null);
   const [share, setShare] = useState<{ publicId: string; visibility: DeckVisibility } | null>(null);
   const [forkedFrom, setForkedFrom] = useState<ForkCredit | null>(null);
   // Collection (P3.7): the owned identity set, grown lazily as cards are
@@ -169,9 +190,10 @@ export function DeckEditor({
   const ownedCheckedRef = useRef<Set<string>>(new Set());
   // Right pane tab (P3.2/P3.3/P3.4). liveDeckId mirrors deckIdRef as STATE so
   // the panels re-render when draft mode's first save mints the row.
-  const [rightTab, setRightTab] = useState<"card" | "suggest" | "combos" | "cuts">("card");
+  const [rightTab, setRightTab] = useState<RightTab>("card");
   const [liveDeckId, setLiveDeckId] = useState<string | null>(initialDeckId);
   const rightPaneRef = useRef<HTMLElement | null>(null);
+  const searchRef = useRef<SearchPaneHandle>(null);
 
   // Refs mirror the state the save callback needs, so an autosave always
   // serializes the latest edits regardless of when the debounce fires. The
@@ -464,6 +486,50 @@ export function DeckEditor({
   );
 
   const format = load.state === "ready" ? load.format : null;
+  const adapter = load.state === "ready" ? load.adapter : null;
+
+  // The editor's global keys (R3, C5): ONE listener, off while any dialog is
+  // open. `/` focuses search through the pane's handle — the same handle the
+  // leader zone's "Choose commander / leader" uses; `?` opens the sheet.
+  const focusSearch = useCallback(() => searchRef.current?.focus(), []);
+  const openShortcuts = useCallback(() => {
+    setDialogFromMenu(false);
+    setDialog("shortcuts");
+  }, []);
+  const openFromHeader = useCallback((next: EditorDialog) => {
+    setDialogFromMenu(next !== "share");
+    setDialog(next);
+  }, []);
+  useEditorHotkeys({ enabled: dialog === null, onSlash: focusSearch, onHelp: openShortcuts });
+
+  const handleNameChange = useCallback(
+    (name: string) => {
+      setDeckName(name);
+      metaRef.current = { ...metaRef.current, name };
+      markDirty();
+    },
+    [markDirty],
+  );
+
+  // Add feedback (F3): one toast per successful search-pane add, with an
+  // Undo that is a REAL edit — setQty back to the previous quantity (0
+  // removes) through applyEdit, so the next autosave PUTs it. Rejections go
+  // back to the pane's live line instead; nothing announces twice. The
+  // panels' adds keep their own notices (they announce there already).
+  const notify = useCallback((title: string, undo: () => void) => {
+    const id = toast.add({
+      title,
+      type: "success",
+      timeout: TOAST_MS,
+      actionProps: {
+        children: "Undo",
+        onClick: () => {
+          undo();
+          toast.close(id);
+        },
+      },
+    });
+  }, []);
 
   // Explicit card interactions (search preview/add, deck-row clicks) show the
   // card — including flipping the right pane back to the Card tab (P3.2).
@@ -474,12 +540,43 @@ export function DeckEditor({
 
   const handleAdd = useCallback(
     (card: EditorCard, zoneId: string, qty: number): string | undefined => {
-      if (!format) return "Deck not loaded yet";
+      if (!format || !adapter) return "Deck not loaded yet";
+      const zone = format.zones.find((z) => z.id === zoneId);
+      if (!zone) return `Unknown zone "${zoneId}"`;
       setCards((prev) => (prev.has(card.id) ? prev : new Map(prev).set(card.id, card)));
       showCard(card);
-      return applyEdit(addCard(entriesRef.current, format, zoneId, card.id, qty));
+      const before = entriesRef.current;
+      const previousQty = before.find((e) => e.zone === zoneId && e.cardId === card.id)?.qty ?? 0;
+      // Leader replace (R3 builder fix): a DIFFERENT card into a full max-1
+      // leader zone swaps the occupant out, with Undo. Magic's max-2 zone
+      // never takes this path — addCard's "full" message stands there.
+      if (
+        zone.isLeaderZone &&
+        zone.max === 1 &&
+        previousQty === 0 &&
+        zoneQty(before, zoneId) >= 1
+      ) {
+        const result = replaceLeader(before, format, zoneId, card.id);
+        const error = applyEdit(result);
+        if (error) return error;
+        const previousId = result.replaced;
+        if (previousId) {
+          const previousName = cards.get(previousId)?.name ?? `the previous ${zone.label}`;
+          notify(`Replaced ${previousName} with ${card.name}`, () =>
+            applyEdit(replaceLeader(entriesRef.current, format, zoneId, previousId)),
+          );
+        }
+        return undefined;
+      }
+      const error = applyEdit(addCard(before, format, zoneId, card.id, qty));
+      if (error) return error;
+      const where = zone.isLeaderZone ? ` as ${adapter.display.leaderNoun}` : "";
+      notify(`Added ${qty > 1 ? `${qty}× ` : ""}${card.name}${where}`, () =>
+        applyEdit(setQty(entriesRef.current, format, zoneId, card.id, previousQty)),
+      );
+      return undefined;
     },
-    [format, applyEdit, showCard],
+    [format, adapter, cards, applyEdit, showCard, notify],
   );
 
   // Adds from the right-pane panels (Suggestions P3.2, Combo Radar P3.3):
@@ -664,109 +761,86 @@ export function DeckEditor({
     );
   }
 
+  const mainZone = load.format.zones.find((z) => !z.isLeaderZone);
+  const leaderZone = load.format.zones.find((z) => z.isLeaderZone);
+  const tabbed = Boolean(load.adapter.recommend || load.adapter.capabilities.combos);
+
   return (
     // Mobile (<lg): panes stack and the page scrolls; the header wraps to two
     // rows (name input drops to its own line). Desktop keeps the app-like
     // fixed-viewport three-pane grid.
     <div className="flex min-h-dvh flex-col lg:h-dvh" data-game={load.adapter.id}>
-      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b px-4 py-2 lg:h-14 lg:flex-nowrap lg:py-0">
-        <Link
-          href="/"
-          className="text-muted-foreground shrink-0 text-sm hover:underline"
-          aria-label="Back to home"
-        >
-          <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
-          Deckwarden
-        </Link>
-        <input
-          value={deckName}
-          onChange={(e) => {
-            setDeckName(e.target.value);
-            metaRef.current = { ...metaRef.current, name: e.target.value };
-            markDirty();
-          }}
-          aria-label="Deck name"
-          placeholder="Untitled — click to name your deck"
-          maxLength={120}
-          className="focus-visible:ring-ring/50 order-last min-w-0 basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 lg:order-none lg:flex-1 lg:basis-auto"
-        />
-        {/* Fork credit (P3.6) rides the name row on mobile and sits inline on desktop. */}
-        {forkedFrom && (
-          <ForkCreditLine
-            credit={forkedFrom}
-            className="order-last basis-full truncate px-2 lg:order-none lg:max-w-56 lg:basis-auto"
+      {/* One Toaster per surface (F3). The viewport is portaled outside this
+          root, so it carries data-game itself: the Undo button's focus ring
+          takes the game accent, not the brand fallback. */}
+      <Toaster timeout={TOAST_MS} viewportProps={{ "data-game": load.adapter.id }} />
+      <EditorHeader
+        adapter={load.adapter}
+        format={load.format}
+        deckName={deckName}
+        onNameChange={handleNameChange}
+        forkedFrom={forkedFrom}
+        saveStatus={autosave.status}
+        onRetry={() => void autosave.flush()}
+        canShare={share !== null}
+        canHistory={liveDeckId !== null}
+        onOpen={openFromHeader}
+        moreRef={moreRef}
+      />
+
+      <ModalFinalFocus.Provider value={dialogFromMenu ? moreRef : undefined}>
+        {dialog === "details" && (
+          <DetailsDialog
+            details={details}
+            deckName={deckName}
+            onChange={handleDetailsChange}
+            onDelete={handleDeleteDeck}
+            onClose={() => setDialog(null)}
           />
         )}
-        <div className="ml-auto flex items-center gap-3 lg:ml-0">
-          <Button variant="outline" size="xs" onClick={() => setDialog("details")}>
-            Details
-          </Button>
-          <Button variant="outline" size="xs" onClick={() => setDialog("import")}>
-            Import
-          </Button>
-          <Button variant="outline" size="xs" onClick={() => setDialog("export")}>
-            Export
-          </Button>
-          {share && (
-            <Button variant="outline" size="xs" onClick={() => setDialog("share")}>
-              Share
-            </Button>
-          )}
-          {/* Versioning is a deck-level concern (P3.6): a header affordance,
-              not a fourth right-pane tab. Needs a server row (not a draft). */}
-          {liveDeckId && (
-            <Button variant="outline" size="xs" onClick={() => setDialog("history")}>
-              History
-            </Button>
-          )}
-          <SaveIndicator status={autosave.status} onRetry={() => void autosave.flush()} />
-        </div>
-      </header>
-
-      {dialog === "details" && (
-        <DetailsDialog
-          details={details}
-          deckName={deckName}
-          onChange={handleDetailsChange}
-          onDelete={handleDeleteDeck}
-          onClose={() => setDialog(null)}
-        />
-      )}
-      {dialog === "import" && (
-        <ImportDialog
-          adapter={load.adapter}
-          format={load.format}
-          entries={entries}
-          onApply={handleImport}
-          onClose={() => setDialog(null)}
-        />
-      )}
-      {dialog === "export" && snapshot && (
-        <ExportDialog
-          text={load.adapter.serializeDecklist(snapshot, cards)}
-          onClose={() => setDialog(null)}
-        />
-      )}
-      {dialog === "history" && liveDeckId && (
-        <HistoryDialog
-          deckId={liveDeckId}
-          format={load.format}
-          entries={entries}
-          cards={cards}
-          forkedFrom={forkedFrom}
-          onBeforeRestore={beforeRestore}
-          onRestored={afterRestore}
-          onClose={() => setDialog(null)}
-        />
-      )}
-      {dialog === "share" && share && (
-        <ShareDialog
-          publicId={share.publicId}
-          visibility={share.visibility}
-          onSetVisibility={setVisibility}
-          onClose={() => setDialog(null)}
-        />
-      )}
+        {dialog === "import" && (
+          <ImportDialog
+            adapter={load.adapter}
+            format={load.format}
+            entries={entries}
+            onApply={handleImport}
+            onClose={() => setDialog(null)}
+          />
+        )}
+        {dialog === "export" && snapshot && (
+          <ExportDialog
+            text={load.adapter.serializeDecklist(snapshot, cards)}
+            onClose={() => setDialog(null)}
+          />
+        )}
+        {dialog === "history" && liveDeckId && (
+          <HistoryDialog
+            deckId={liveDeckId}
+            format={load.format}
+            entries={entries}
+            cards={cards}
+            forkedFrom={forkedFrom}
+            onBeforeRestore={beforeRestore}
+            onRestored={afterRestore}
+            onClose={() => setDialog(null)}
+          />
+        )}
+        {dialog === "share" && share && (
+          <ShareDialog
+            publicId={share.publicId}
+            visibility={share.visibility}
+            onSetVisibility={setVisibility}
+            onClose={() => setDialog(null)}
+          />
+        )}
+        {dialog === "shortcuts" && (
+          <ShortcutsSheet
+            mainZoneLabel={mainZone?.label ?? "the deck"}
+            leaderNoun={leaderZone ? load.adapter.display.leaderNoun : undefined}
+            onClose={() => setDialog(null)}
+          />
+        )}
+      </ModalFinalFocus.Provider>
 
       <div className="min-h-0 flex-1 gap-0 lg:grid lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)_minmax(16rem,22rem)]">
         <section
@@ -774,6 +848,7 @@ export function DeckEditor({
           className="min-h-0 border-b lg:overflow-y-auto lg:border-r lg:border-b-0"
         >
           <SearchPane
+            ref={searchRef}
             adapter={load.adapter}
             format={load.format}
             inDeckQty={inDeckQty}
@@ -796,6 +871,7 @@ export function DeckEditor({
             onRemove={handleRemove}
             onPreview={showCard}
             onOpenCuts={load.adapter.recommend?.cuts ? openCuts : undefined}
+            onChooseLeader={focusSearch}
             owned={hasCollection ? owned : undefined}
             ownership={ownership}
           />
@@ -805,37 +881,33 @@ export function DeckEditor({
           aria-label="Card detail and suggestions"
           className="min-h-0 lg:overflow-y-auto lg:border-l"
         >
-          {load.adapter.recommend || load.adapter.capabilities.combos ? (
-            <>
-              <div role="tablist" aria-label="Right pane view" className="flex gap-1 border-b p-2">
-                <RightTab active={rightTab === "card"} onClick={() => setRightTab("card")}>
-                  Card
-                </RightTab>
-                {load.adapter.recommend && (
-                  <RightTab active={rightTab === "suggest"} onClick={() => setRightTab("suggest")}>
-                    Suggestions
-                  </RightTab>
-                )}
-                {load.adapter.capabilities.combos && (
-                  <RightTab active={rightTab === "combos"} onClick={() => setRightTab("combos")}>
-                    Combos
-                  </RightTab>
-                )}
-                {/* Always-on when declared (P3.4): no layout shift at the
-                    limit — the under-limit state says nothing needs cutting. */}
-                {load.adapter.recommend?.cuts && (
-                  <RightTab active={rightTab === "cuts"} onClick={() => setRightTab("cuts")}>
-                    Cuts
-                  </RightTab>
-                )}
+          {tabbed ? (
+            // Base UI Tabs (F11): controlled by rightTab so showCard / openCuts
+            // still drive it; every panel keepMounted so results survive a
+            // switch — each panel's `active` prop gates its fetching.
+            <Tabs
+              value={rightTab}
+              onValueChange={(value) => setRightTab(value as RightTab)}
+              className="gap-0"
+            >
+              <div className="flex h-10 shrink-0 items-center border-b px-2">
+                <TabsList variant="indicator" aria-label="Right pane view">
+                  <TabsIndicator />
+                  <TabsTrigger value="card">Card</TabsTrigger>
+                  {load.adapter.recommend && <TabsTrigger value="suggest">Suggestions</TabsTrigger>}
+                  {load.adapter.capabilities.combos && (
+                    <TabsTrigger value="combos">Combos</TabsTrigger>
+                  )}
+                  {/* Always-on when declared (P3.4): no layout shift at the
+                      limit — the under-limit state says nothing needs cutting. */}
+                  {load.adapter.recommend?.cuts && <TabsTrigger value="cuts">Cuts</TabsTrigger>}
+                </TabsList>
               </div>
-              <div role="tabpanel" hidden={rightTab !== "card"}>
+              <TabsContent value="card" keepMounted>
                 <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
-              </div>
-              {/* Panels stay mounted while hidden so results survive tab
-                  flips; `active` keeps a hidden panel from fetching. */}
+              </TabsContent>
               {load.adapter.recommend && (
-                <div role="tabpanel" hidden={rightTab !== "suggest"}>
+                <TabsContent value="suggest" keepMounted>
                   <RecommendationsPanel
                     adapter={load.adapter}
                     format={load.format}
@@ -847,10 +919,10 @@ export function DeckEditor({
                     onAdd={handlePanelAdd}
                     ownedAvailable={hasCollection}
                   />
-                </div>
+                </TabsContent>
               )}
               {load.adapter.capabilities.combos && (
-                <div role="tabpanel" hidden={rightTab !== "combos"}>
+                <TabsContent value="combos" keepMounted>
                   <ComboRadarPanel
                     adapter={load.adapter}
                     format={load.format}
@@ -861,10 +933,10 @@ export function DeckEditor({
                     active={rightTab === "combos"}
                     onAdd={handlePanelAdd}
                   />
-                </div>
+                </TabsContent>
               )}
               {load.adapter.recommend?.cuts && (
-                <div role="tabpanel" hidden={rightTab !== "cuts"}>
+                <TabsContent value="cuts" keepMounted>
                   <CutCoachPanel
                     adapter={load.adapter}
                     format={load.format}
@@ -875,59 +947,22 @@ export function DeckEditor({
                     active={rightTab === "cuts"}
                     onSetQty={handleSetQty}
                   />
-                </div>
+                </TabsContent>
               )}
-            </>
+            </Tabs>
           ) : (
-            <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
+            // One Piece declares neither recommend nor combos: a single panel
+            // under a plain "Card" heading at the tablist's row height, so both
+            // games' panes align (R3 builder fix).
+            <>
+              <div className="flex h-10 shrink-0 items-center border-b px-3">
+                <h2 className="text-sm font-medium">Card</h2>
+              </div>
+              <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
+            </>
           )}
         </section>
       </div>
     </div>
-  );
-}
-
-function RightTab({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-        active
-          ? "bg-accent text-accent-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SaveIndicator({ status, onRetry }: { status: string; onRetry: () => void }) {
-  if (status === "error") {
-    return (
-      <span className="flex shrink-0 items-center gap-2 text-sm">
-        <span className="text-destructive">Save failed</span>
-        <Button variant="destructive" size="xs" onClick={onRetry}>
-          Retry
-        </Button>
-      </span>
-    );
-  }
-  const label = status === "saving" ? "Saving…" : status === "dirty" ? "Unsaved…" : "Saved";
-  return (
-    <span className="text-muted-foreground shrink-0 text-sm tabular-nums" aria-live="polite">
-      {label}
-    </span>
   );
 }

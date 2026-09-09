@@ -403,6 +403,13 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
     bodyText(card: CardData<A>): string;
     /** Small stat suffix ('4/4', loyalty, OP power), or null when not applicable. */
     statLine?(card: CardData<A>): string | null;
+    /**
+     * Compact numbers for deck ROWS (R3, C15): One Piece's "5000 · +1000"
+     * (Power · Counter, units dropped; Life stays on the leader caption via
+     * statLine). Absent = rows carry no suffix — Magic's P/T belongs to the
+     * detail pane, not to a hundred rows.
+     */
+    rowStats?(card: CardData<A>): string | null;
     defaultGroupBy: "primaryType" | "costValue" | "tags";
     /** 'Commander' / 'Leader'. */
     leaderNoun: string;

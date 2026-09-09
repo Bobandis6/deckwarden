@@ -179,6 +179,14 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
       if (card.attrs.life != null) parts.push(`${card.attrs.life} Life`);
       return parts.length ? parts.join(" · ") : null;
     },
+    // Rows show the numbers alone (C15): "5000 · +1000"; Life is a leader
+    // fact and lives on the leader caption through statLine.
+    rowStats: (card: OptcgCard) => {
+      const parts: string[] = [];
+      if (card.attrs.power_num != null) parts.push(String(card.attrs.power_num));
+      if (card.attrs.counter_num != null) parts.push(`+${card.attrs.counter_num}`);
+      return parts.length ? parts.join(" · ") : null;
+    },
     defaultGroupBy: "costValue",
     leaderNoun: "Leader",
     // 1,615 upstream duplicate names (17 printed Enels): the printed id is

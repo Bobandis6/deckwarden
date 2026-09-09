@@ -7,11 +7,12 @@
  * only from each bucket/slice's optional colorVar (a CSS custom property the
  * theme defines, e.g. --mana-u), falling back to the neutral chart color.
  * Plain CSS bars — no chart library. P1.7's share pages reuse AnalyticsBlocks
- * directly; AnalyticsPanel is the editor's collapsible wrapper around it.
+ * directly; AnalyticsPanel is the editor's collapsible wrapper around it
+ * (on the Collapsible primitive since R3).
  */
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { useState } from "react";
+import { ChevronDownIcon } from "lucide-react";
 
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AnalyticsBlock } from "@/lib/games/types";
 
 function barColor(colorVar?: string): string {
@@ -154,30 +155,26 @@ export function AnalyticsBlocks({ blocks }: { blocks: AnalyticsBlock[] }) {
   );
 }
 
-/** Collapsible editor wrapper, styled after the validation panel's toggle. */
+/**
+ * The editor's labelled collapsible (R3 puts it on the Collapsible
+ * primitive — a real `aria-expanded` trigger, closed by default as before,
+ * state not persisted). The block renderer above stays generic: analytics
+ * are data, not components.
+ */
 export function AnalyticsPanel({ blocks }: { blocks: AnalyticsBlock[] }) {
-  const [open, setOpen] = useState(false);
   if (blocks.length === 0) return null;
   return (
-    <div className="mt-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded text-xs font-medium hover:underline"
-      >
+    <Collapsible className="mt-4">
+      <CollapsibleTrigger className="group/trigger text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded text-xs font-medium tracking-wide uppercase hover:underline">
         Analytics
-        {open ? (
-          <ChevronUpIcon aria-hidden className="size-3.5" />
-        ) : (
-          <ChevronDownIcon aria-hidden className="size-3.5" />
-        )}
-      </button>
-      {open && (
-        <div className="mt-2">
-          <AnalyticsBlocks blocks={blocks} />
-        </div>
-      )}
-    </div>
+        <ChevronDownIcon
+          aria-hidden
+          className="size-3.5 motion-safe:transition-transform motion-safe:duration-150 group-data-panel-open/trigger:rotate-180"
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-2">
+        <AnalyticsBlocks blocks={blocks} />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

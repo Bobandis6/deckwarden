@@ -189,12 +189,25 @@ function ToastList() {
   ));
 }
 
-function Toaster({ children, toastManager = toast, ...props }: ToastPrimitive.Provider.Props) {
+/**
+ * The one mount per surface. `viewportProps` reaches the portaled viewport
+ * (R3): the editor passes `data-game` so the toast's Undo button rings in
+ * the game accent — the portal renders outside the editor's `[data-game]`
+ * root, where `--accent-game` would otherwise fall back to the brand.
+ */
+function Toaster({
+  children,
+  toastManager = toast,
+  viewportProps,
+  ...props
+}: ToastPrimitive.Provider.Props & {
+  viewportProps?: ToastPrimitive.Viewport.Props & Record<`data-${string}`, string | undefined>;
+}) {
   return (
     <ToastProvider toastManager={toastManager} {...props}>
       {children}
       <ToastPortal>
-        <ToastViewport>
+        <ToastViewport {...viewportProps}>
           <ToastList />
         </ToastViewport>
       </ToastPortal>

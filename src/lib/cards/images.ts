@@ -74,3 +74,15 @@ export function embeddablePrintingImageUrl(
 export function toSmallImage(url: string): string {
   return url.replace(/^(https:\/\/cards\.scryfall\.io\/)normal(\/)/, "$1small$2");
 }
+
+/**
+ * The tiny full-card thumbnail for search rows (R3, F6): the `small`
+ * rendition for the Scryfall CDN's `normal` URLs, null for everything else —
+ * the One Piece mirror included, until `img.deckwarden.gg` serves and LATER
+ * row 51's flip decides how OP thumbnails are sized. Null means "no <img>"
+ * (the row keeps a same-width spacer), never a broken src.
+ */
+export function thumbnailUrl(image: string | null): string | null {
+  if (!image || !/^https:\/\/cards\.scryfall\.io\/normal\//.test(image)) return null;
+  return toSmallImage(image);
+}

@@ -7,13 +7,33 @@
  * view-model layer; this component only renders. Shared with the P1.7 share
  * pages: omit onSetQty/onRemove for the read-only rendering (static counts,
  * no remove button).
+ *
+ * R3 (C12 / C13 / C15 / F3): the quantity is always visible while the
+ * steppers and the remove button reveal on hover or focus-within (rows are
+ * plain list items, so focus-within works here); cost pips sit in a fixed
+ * right column so rows align whatever the cost; One Piece rows carry the
+ * printed id and a muted mono "5000 · +1000" (`display.rowStats`); group
+ * headers stick inside the editor's scrolling pane (`stickyHeaders` — the
+ * share page scrolls the document and keeps them plain); and the one row
+ * whose quantity just grew pops its badge (`pop`, keyed so it plays once).
  */
 import { XIcon } from "lucide-react";
+
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import type { DeckGroup } from "@/lib/decks/view-model";
 import type { GameAdapter } from "@/lib/games/types";
+import { cn } from "@/lib/utils";
+
+export const GROUP_HEADER_CLASS =
+  "text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase";
+/** Sticks to the top of the nearest scroll container (the editor's deck section on lg). */
+export const STICKY_HEADER_CLASS = "bg-background sticky top-0 z-10";
+
+/** Reveal-on-hover/focus for the per-row controls; the quantity itself never hides. */
+const REVEAL_CLASS =
+  "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100";
 
 interface DeckTextViewProps {
   adapter: GameAdapter;
@@ -27,6 +47,10 @@ interface DeckTextViewProps {
   onPreview: (card: EditorCard) => void;
   /** Card ids the viewer owns any printing of (P3.7); absent = no collection, no marks. */
   owned?: ReadonlySet<string>;
+  /** Editor: group headers stick to the top of the scrolling pane (C12). */
+  stickyHeaders?: boolean;
+  /** The row ("zone:cardId") whose quantity badge pops, with a nonce so each pop remounts (F3). */
+  pop?: { key: string; nonce: number } | null;
 }
 
 export function DeckTextView({
@@ -37,85 +61,119 @@ export function DeckTextView({
   onRemove,
   onPreview,
   owned,
+  stickyHeaders = false,
+  pop = null,
 }: DeckTextViewProps) {
   return (
     <>
       {groups.map((group) => (
         <section key={group.key} className="mt-4">
-          <h3 className="text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase">
+          <h3 className={cn(GROUP_HEADER_CLASS, stickyHeaders && STICKY_HEADER_CLASS)}>
             {group.label}
             <span className="ml-1.5 tabular-nums">{group.qty}</span>
           </h3>
           <ul className="mt-1">
-            {group.items.map(({ entry, card }) => (
-              <li
-                key={`${entry.zone}:${entry.cardId}`}
-                className="group/row hover:bg-muted/60 flex items-center gap-1 rounded-md px-1 py-0.5 text-sm"
-              >
-                {onSetQty ? (
-                  <span className="flex shrink-0 items-center">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={`One fewer ${card.name}`}
-                      onClick={() => onSetQty(entry.zone, entry.cardId, entry.qty - 1)}
-                    >
-                      −
-                    </Button>
-                    <span className="w-6 text-center text-xs tabular-nums">{entry.qty}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={`One more ${card.name}`}
-                      onClick={() => onSetQty(entry.zone, entry.cardId, entry.qty + 1)}
-                    >
-                      +
-                    </Button>
-                  </span>
-                ) : (
-                  <span className="w-6 shrink-0 text-center text-xs tabular-nums">{entry.qty}</span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => onPreview(card)}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 text-left hover:underline"
+            {group.items.map(({ entry, card }) => {
+              const rowKey = `${entry.zone}:${entry.cardId}`;
+              const popping = pop !== null && pop.key === rowKey;
+              const badge = adapter.display.idBadge?.(card);
+              const stats = adapter.display.rowStats?.(card);
+              return (
+                <li
+                  key={rowKey}
+                  className="group/row hover:bg-muted/60 flex items-center gap-1 rounded-md px-1 py-0.5 text-sm"
                 >
-                  {severity.has(card.id) && (
-                    <span
-                      aria-label={severity.get(card.id) === "error" ? "Has a problem" : "Warning"}
-                      className={`size-1.5 shrink-0 rounded-full ${
-                        severity.get(card.id) === "error" ? "bg-destructive" : "bg-amber-500"
-                      }`}
-                    />
-                  )}
-                  <span className="truncate">{card.name}</span>
-                  {/* Owned mark (P3.7): inside the truncating name button, so it
-                      never shifts the row's steppers or pips. */}
-                  {owned?.has(card.id) && (
-                    <span
-                      role="img"
-                      aria-label="In your collection"
-                      title="In your collection"
-                      className="shrink-0 text-xs text-emerald-700 dark:text-emerald-400"
-                    >
-                      ✓
+                  {onSetQty ? (
+                    <span className="flex shrink-0 items-center">
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`One fewer ${card.name}`}
+                        className={REVEAL_CLASS}
+                        onClick={() => onSetQty(entry.zone, entry.cardId, entry.qty - 1)}
+                      >
+                        −
+                      </Button>
+                      <span
+                        key={popping ? pop.nonce : "qty"}
+                        data-slot="qty"
+                        className={cn(
+                          "w-6 text-center text-xs tabular-nums",
+                          popping &&
+                            "motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200",
+                        )}
+                      >
+                        {entry.qty}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`One more ${card.name}`}
+                        className={REVEAL_CLASS}
+                        onClick={() => onSetQty(entry.zone, entry.cardId, entry.qty + 1)}
+                      >
+                        +
+                      </Button>
+                    </span>
+                  ) : (
+                    <span data-slot="qty" className="w-6 shrink-0 text-center text-xs tabular-nums">
+                      {entry.qty}
                     </span>
                   )}
-                </button>
-                <CostPips html={adapter.display.costHtml(card)} className="shrink-0 text-xs" />
-                {onRemove && (
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Remove ${card.name}`}
-                    className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
-                    onClick={() => onRemove(entry.zone, entry.cardId)}
+                  <button
+                    type="button"
+                    onClick={() => onPreview(card)}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 text-left hover:underline"
                   >
-                    <XIcon />
-                  </Button>
-                )}
-              </li>
-            ))}
+                    {severity.has(card.id) && (
+                      <span
+                        aria-label={severity.get(card.id) === "error" ? "Has a problem" : "Warning"}
+                        className={`size-1.5 shrink-0 rounded-full ${
+                          severity.get(card.id) === "error" ? "bg-destructive" : "bg-amber-500"
+                        }`}
+                      />
+                    )}
+                    <span className="truncate">{card.name}</span>
+                    {/* Owned mark (P3.7): inside the truncating name button, so it
+                        never shifts the row's steppers or pips. */}
+                    {owned?.has(card.id) && (
+                      <span
+                        role="img"
+                        aria-label="In your collection"
+                        title="In your collection"
+                        className="shrink-0 text-xs text-emerald-700 dark:text-emerald-400"
+                      >
+                        ✓
+                      </span>
+                    )}
+                    {/* Printed id (C13) and the row stats (C15) — One Piece; Magic declares neither. */}
+                    {badge && (
+                      <span className="text-muted-foreground shrink-0 text-xs">{badge}</span>
+                    )}
+                    {stats && (
+                      <span className="text-muted-foreground shrink-0 font-mono text-xs">
+                        {stats}
+                      </span>
+                    )}
+                  </button>
+                  {/* Fixed pip column (C12): min-w-20 fits the fixtures' widest six-pip costs; a wider cost extends rather than wraps. */}
+                  <span data-slot="pips" className="inline-flex min-w-20 shrink-0 justify-end">
+                    <CostPips html={adapter.display.costHtml(card)} className="text-xs" />
+                  </span>
+                  {onRemove && (
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={`Remove ${card.name}`}
+                      className={REVEAL_CLASS}
+                      onClick={() => onRemove(entry.zone, entry.cardId)}
+                    >
+                      <XIcon />
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ))}

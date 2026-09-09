@@ -5,6 +5,7 @@ import {
   isEmbeddableImageUrl,
   printingImageUrl,
   scryfallImageUrl,
+  thumbnailUrl,
   toSmallImage,
 } from "./images";
 
@@ -72,5 +73,19 @@ describe("embeddablePrintingImageUrl", () => {
     );
     // MTG's derived Scryfall URLs are untouched by the gate.
     expect(embeddablePrintingImageUrl({ id: ID })).toBe(scryfallImageUrl(ID));
+  });
+});
+
+describe("thumbnailUrl", () => {
+  it("returns the small rendition for a Scryfall normal URL", () => {
+    expect(thumbnailUrl(scryfallImageUrl(ID))).toBe(scryfallImageUrl(ID, "small"));
+  });
+
+  it("returns null for the OP mirror, overrides, foreign URLs, and null (row 51 gates OP)", () => {
+    expect(thumbnailUrl("https://pub-0123.r2.dev/optcg/images/OP15-058.png")).toBeNull();
+    expect(thumbnailUrl("https://img.deckwarden.gg/optcg/images/ST01-001.png")).toBeNull();
+    expect(thumbnailUrl("https://example.com/normal/hosted.jpg")).toBeNull();
+    expect(thumbnailUrl(`https://cards.scryfall.io/png/front/e/3/${ID}.png`)).toBeNull();
+    expect(thumbnailUrl(null)).toBeNull();
   });
 });

@@ -10,12 +10,16 @@
  *
  * Images: the small CDN rendition through CardImage (R1b — lazy, sized; the
  * CDN and attribution rules live in its docblock). No frame here: F4 (R6)
- * restyles the dealt hand.
+ * restyles the dealt hand. R3 wraps the section in a labelled Collapsible
+ * (open by default — the Draw button is the content; state not persisted),
+ * the only change the widget takes this package.
  */
+import { ChevronDownIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toSmallImage } from "@/lib/cards/images";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import { buildLibrary, drawHand } from "@/lib/decks/sample-hand";
@@ -44,66 +48,74 @@ export function SampleHand({
   };
 
   return (
-    <section className="mt-6">
-      <h2 className="text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase">
-        Sample hand
+    <Collapsible defaultOpen className="mt-6" render={<section />}>
+      <h2 className="border-b pb-1">
+        <CollapsibleTrigger className="group/trigger text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded text-xs font-medium tracking-wide uppercase hover:underline">
+          Sample hand
+          <ChevronDownIcon
+            aria-hidden
+            className="size-3.5 motion-safe:transition-transform motion-safe:duration-150 group-data-panel-open/trigger:rotate-180"
+          />
+        </CollapsibleTrigger>
       </h2>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        {hand === null ? (
-          <Button variant="outline" size="sm" onClick={() => draw(0)}>
-            Draw sample hand
-          </Button>
-        ) : (
-          <>
+      <CollapsibleContent>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {hand === null ? (
             <Button variant="outline" size="sm" onClick={() => draw(0)}>
-              New hand
+              Draw sample hand
             </Button>
-            <Button variant="outline" size="sm" onClick={() => draw(mulligans + 1)}>
-              Mulligan
-            </Button>
-            <span aria-live="polite" className="text-muted-foreground text-xs tabular-nums">
-              {mulligans > 0 && `After ${mulligans} mulligan${mulligans === 1 ? "" : "s"}`}
-              {hand.length < format.openingHandSize &&
-                ` (only ${hand.length} cards in the library)`}
-            </span>
-          </>
+          ) : (
+            <>
+              <Button variant="outline" size="sm" onClick={() => draw(0)}>
+                New hand
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => draw(mulligans + 1)}>
+                Mulligan
+              </Button>
+              <span aria-live="polite" className="text-muted-foreground text-xs tabular-nums">
+                {mulligans > 0 && `After ${mulligans} mulligan${mulligans === 1 ? "" : "s"}`}
+                {hand.length < format.openingHandSize &&
+                  ` (only ${hand.length} cards in the library)`}
+              </span>
+            </>
+          )}
+        </div>
+        {hand !== null && (
+          <ul className="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-7">
+            {hand.map((cardId, i) => {
+              const card = cards.get(cardId);
+              if (!card) return null;
+              const face = (
+                <CardImage
+                  src={card.image ? toSmallImage(card.image) : null}
+                  alt={card.name}
+                  title={card.name}
+                  width={146}
+                  height={204}
+                  className="w-full rounded-[4.75%/3.5%] text-[0.65rem] shadow-sm"
+                />
+              );
+              return (
+                // Duplicates (30 Islands) are legal hands — key must include the slot.
+                <li key={`${cardId}-${i}`}>
+                  {onPreview ? (
+                    <button
+                      type="button"
+                      onClick={() => onPreview(card)}
+                      className="block w-full cursor-pointer"
+                      aria-label={card.name}
+                    >
+                      {face}
+                    </button>
+                  ) : (
+                    face
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         )}
-      </div>
-      {hand !== null && (
-        <ul className="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-7">
-          {hand.map((cardId, i) => {
-            const card = cards.get(cardId);
-            if (!card) return null;
-            const face = (
-              <CardImage
-                src={card.image ? toSmallImage(card.image) : null}
-                alt={card.name}
-                title={card.name}
-                width={146}
-                height={204}
-                className="w-full rounded-[4.75%/3.5%] text-[0.65rem] shadow-sm"
-              />
-            );
-            return (
-              // Duplicates (30 Islands) are legal hands — key must include the slot.
-              <li key={`${cardId}-${i}`}>
-                {onPreview ? (
-                  <button
-                    type="button"
-                    onClick={() => onPreview(card)}
-                    className="block w-full cursor-pointer"
-                    aria-label={card.name}
-                  >
-                    {face}
-                  </button>
-                ) : (
-                  face
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

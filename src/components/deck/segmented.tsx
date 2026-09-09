@@ -4,7 +4,18 @@
  * Compact segmented toggle (extracted from DeckListPane in P1.7 — the share
  * page's view controls use the same widget), plus the canonical option lists
  * for the deck-view toggles shared by editor and share pages.
+ *
+ * R3 (F11): reimplemented over the ToggleGroup primitive — one value at a
+ * time (roving focus, `aria-pressed` per item) inside a `role="group"` named
+ * by the label — with an active background that slides between equal-width
+ * segments (`motion-safe:` only; two CSS variables, nothing measured). The
+ * `label / options / value / onChange` contract is unchanged, so neither
+ * call site moved. Deselecting the pressed item is ignored: a view always
+ * has a value.
  */
+import type { CSSProperties } from "react";
+
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { GroupKey, SortKey } from "@/lib/decks/view-model";
 import type { DeckViewMode } from "@/lib/decks/view-prefs";
 
@@ -23,7 +34,7 @@ export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "price", label: "Price" },
 ];
 
-/** A labeled group of aria-pressed buttons. */
+/** A labeled single-value toggle group with a sliding active background. */
 export function Segmented<T extends string>({
   label,
   options,
@@ -35,26 +46,46 @@ export function Segmented<T extends string>({
   value: T;
   onChange: (value: T) => void;
 }) {
+  const index = Math.max(
+    0,
+    options.findIndex((option) => option.value === value),
+  );
   return (
-    <div role="group" aria-label={label} className="flex items-center gap-1">
+    <div className="flex items-center gap-1">
       <span className="text-muted-foreground text-xs">{label}</span>
-      <div className="border-input flex overflow-hidden rounded-md border">
+      <ToggleGroup
+        aria-label={label}
+        value={[value]}
+        onValueChange={(next: unknown[]) => {
+          const picked = next[0];
+          if (typeof picked === "string" && picked !== value) onChange(picked as T);
+        }}
+        spacing={0}
+        style={
+          {
+            gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
+            "--seg-index": index,
+            "--seg-count": options.length,
+          } as CSSProperties
+        }
+        className="border-input relative isolate grid w-fit overflow-hidden rounded-md border"
+      >
+        <span
+          aria-hidden
+          data-slot="segmented-thumb"
+          className="bg-accent pointer-events-none absolute inset-y-0 left-0 -z-10 w-[calc(100%/var(--seg-count))] translate-x-[calc(var(--seg-index)*100%)] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out"
+        />
         {options.map((option) => (
-          <button
+          <ToggleGroupItem
             key={option.value}
-            type="button"
-            aria-pressed={option.value === value}
-            onClick={() => onChange(option.value)}
-            className={`px-2 py-0.5 text-xs transition-colors ${
-              option.value === value
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
+            value={option.value}
+            size="sm"
+            className="text-muted-foreground hover:text-foreground h-auto min-w-0 rounded-none px-2 py-0.5 text-xs font-normal hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-accent-foreground data-[state=on]:bg-transparent"
           >
             {option.label}
-          </button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
     </div>
   );
 }

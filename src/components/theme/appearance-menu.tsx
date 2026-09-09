@@ -3,8 +3,8 @@
 /**
  * Appearance menu (R1a; into the site header in R1b): Dark / Light / System,
  * the current choice checked. Lives in SiteHeader on every (site) page and
- * in AppearanceRow on the editor routes until R3 builds the editor header —
- * exactly one per page. Base UI Menu via the installed dropdown-menu
+ * in EditorHeader on the editor routes (R3 retired the interim
+ * AppearanceRow) — exactly one per page. Base UI Menu via the installed dropdown-menu
  * primitive — the radio group only renders while the popup is open, so the
  * stored preference (client-only) never produces a hydration mismatch.
  * Radio items keep menus open by default; a theme is a one-shot choice, so

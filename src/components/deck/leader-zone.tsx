@@ -6,6 +6,13 @@
  * naming comes off the adapter/format (ZoneDef.label, display.leaderNoun);
  * nothing game-specific here. Shared with the P1.7 share pages: omit onRemove
  * for the read-only rendering (no remove button, no editing hint).
+ *
+ * R3: the caption carries the printed id (`display.idBadge`, C13 — the two
+ * Enel leaders are told apart here too) and the stat line (C15 — Life, for
+ * One Piece, rides `display.statLine`; Magic gets its P/T). The empty state
+ * gains "Choose commander / leader" when `onChooseLeader` is set (the
+ * editor's — it focuses search); the share page passes nothing and keeps
+ * the plain EmptyState.
  */
 import { XIcon } from "lucide-react";
 
@@ -14,7 +21,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import type { ViewItem } from "@/lib/decks/view-model";
-import type { ZoneDef } from "@/lib/games/types";
+import type { GameAdapter, ZoneDef } from "@/lib/games/types";
 
 interface LeaderZoneProps {
   zone: ZoneDef;
@@ -24,9 +31,22 @@ interface LeaderZoneProps {
   /** Absent = read-only (share pages). */
   onRemove?: (zoneId: string, cardId: string) => void;
   onPreview: (card: EditorCard) => void;
+  /** Editor only: the empty state's "Choose {leader}" action (focuses search). */
+  onChooseLeader?: () => void;
+  /** For the caption's id badge and stat line; absent = name only. */
+  adapter?: GameAdapter;
 }
 
-export function LeaderZone({ zone, items, severity, onRemove, onPreview }: LeaderZoneProps) {
+export function LeaderZone({
+  zone,
+  items,
+  severity,
+  onRemove,
+  onPreview,
+  onChooseLeader,
+  adapter,
+}: LeaderZoneProps) {
+  const noun = zone.label.toLowerCase();
   return (
     <section className="mt-4">
       <h3 className="text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase">
@@ -36,49 +56,69 @@ export function LeaderZone({ zone, items, severity, onRemove, onPreview }: Leade
       {items.length === 0 ? (
         <EmptyState
           className="mt-2 py-3"
-          title={`No ${zone.label.toLowerCase()} yet`}
+          title={`No ${noun} yet`}
           hint={onRemove ? "Ctrl+Enter on a search result adds one." : undefined}
+          action={
+            onChooseLeader ? (
+              <Button variant="outline" size="sm" onClick={onChooseLeader}>
+                Choose {noun}
+              </Button>
+            ) : undefined
+          }
         />
       ) : (
         <ul className="mt-2 flex flex-wrap gap-3">
-          {items.map(({ entry, card }) => (
-            <li key={entry.cardId} className="w-40 max-w-[45%]">
-              <button
-                type="button"
-                onClick={() => onPreview(card)}
-                aria-label={`Show ${card.name}`}
-                className={`focus-visible:ring-ring/50 block w-full rounded-[4.75%/3.5%] outline-none focus-visible:ring-3 ${
-                  severity.get(card.id) === "error"
-                    ? "ring-destructive ring-2"
-                    : severity.get(card.id) === "warning"
-                      ? "ring-2 ring-amber-500"
-                      : ""
-                }`}
-              >
-                <CardImage
-                  src={card.image}
-                  alt={card.name}
-                  width={488}
-                  height={680}
-                  frame
-                  className="w-full text-xs shadow-md"
-                />
-              </button>
-              <span className="mt-1 flex items-center gap-1">
-                <span className="min-w-0 flex-1 truncate text-xs">{card.name}</span>
-                {onRemove && (
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Remove ${card.name}`}
-                    onClick={() => onRemove(entry.zone, entry.cardId)}
+          {items.map(({ entry, card }) => {
+            const caption = [adapter?.display.idBadge?.(card), adapter?.display.statLine?.(card)]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <li key={entry.cardId} className="w-40 max-w-[45%]">
+                <button
+                  type="button"
+                  onClick={() => onPreview(card)}
+                  aria-label={`Show ${card.name}`}
+                  className={`focus-visible:ring-ring/50 block w-full rounded-[4.75%/3.5%] outline-none focus-visible:ring-3 ${
+                    severity.get(card.id) === "error"
+                      ? "ring-destructive ring-2"
+                      : severity.get(card.id) === "warning"
+                        ? "ring-2 ring-amber-500"
+                        : ""
+                  }`}
+                >
+                  <CardImage
+                    src={card.image}
+                    alt={card.name}
+                    width={488}
+                    height={680}
+                    frame
+                    className="w-full text-xs shadow-md"
+                  />
+                </button>
+                <span className="mt-1 flex items-center gap-1">
+                  <span className="min-w-0 flex-1 truncate text-xs">{card.name}</span>
+                  {onRemove && (
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={`Remove ${card.name}`}
+                      onClick={() => onRemove(entry.zone, entry.cardId)}
+                    >
+                      <XIcon />
+                    </Button>
+                  )}
+                </span>
+                {caption && (
+                  <span
+                    data-slot="leader-caption"
+                    className="text-muted-foreground block truncate font-mono text-[0.65rem]"
                   >
-                    <XIcon />
-                  </Button>
+                    {caption}
+                  </span>
                 )}
-              </span>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

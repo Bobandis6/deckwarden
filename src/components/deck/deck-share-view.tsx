@@ -253,6 +253,7 @@ export function DeckShareView({
           items={leaderItems}
           severity={severity}
           onPreview={onPreview}
+          adapter={adapter}
         />
       )}
 
@@ -273,7 +274,13 @@ export function DeckShareView({
           owned={owned}
         />
       ) : (
-        <DeckGridView groups={groups} severity={severity} onPreview={onPreview} owned={owned} />
+        <DeckGridView
+          groups={groups}
+          severity={severity}
+          onPreview={onPreview}
+          owned={owned}
+          adapter={adapter}
+        />
       )}
 
       {deck.notes && (

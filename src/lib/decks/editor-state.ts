@@ -175,3 +175,58 @@ export function toSavePayload(
     ...(e.printingId ? { printingId: e.printingId } : {}),
   }));
 }
+
+/**
+ * Replace the card in a single-card leader zone (R3 builder fix): valid only
+ * for `isLeaderZone && max === 1` — One Piece's Leader. The previous card
+ * leaves, the new one lands, and `replaced` names what left so the editor
+ * can offer Undo (the same call with the previous id puts it back). Magic's
+ * commander zone (max 2) is deliberately NOT eligible: partner pairs add,
+ * and a third still gets `addCard`'s "Commander is full (max 2 cards)".
+ */
+export function replaceLeader(
+  entries: readonly EditorEntry[],
+  format: FormatDef,
+  zoneId: string,
+  cardId: string,
+): EditResult & { replaced: string | null } {
+  const zone = format.zones.find((z) => z.id === zoneId);
+  if (!zone) return { entries: [...entries], replaced: null, error: `Unknown zone "${zoneId}"` };
+  if (!zone.isLeaderZone || zone.max !== 1) {
+    return {
+      entries: [...entries],
+      replaced: null,
+      error: `${zone.label} is not a single-card zone`,
+    };
+  }
+  const previous = entries.find((e) => e.zone === zoneId && e.cardId !== cardId) ?? null;
+  const already = entries.some((e) => e.zone === zoneId && e.cardId === cardId);
+  const kept = entries.filter((e) => e.zone !== zoneId || e.cardId === cardId);
+  return {
+    entries: already ? kept : [...kept, { cardId, zone: zoneId, qty: 1, tags: [] }],
+    replaced: previous?.cardId ?? null,
+  };
+}
+
+/**
+ * The one (zone, card) whose quantity GREW between two lists — the row whose
+ * quantity badge pops after an add (R3, F3). Null when nothing grew or when
+ * more than one entry did (an import: the count-up on the total is that
+ * moment's feedback, not a hundred pops). Decreases (Undo, steppers down)
+ * never pop.
+ */
+export function singleQtyIncrease(
+  prev: readonly EditorEntry[],
+  next: readonly EditorEntry[],
+): string | null {
+  const before = new Map(prev.map((e) => [`${e.zone}:${e.cardId}`, e.qty]));
+  let found: string | null = null;
+  for (const e of next) {
+    const key = `${e.zone}:${e.cardId}`;
+    if (e.qty > (before.get(key) ?? 0)) {
+      if (found !== null) return null;
+      found = key;
+    }
+  }
+  return found;
+}

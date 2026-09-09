@@ -5,13 +5,24 @@
  * expandable list. Issues that name cards render clickable name chips into the
  * detail pane. Game-ignorant: messages, severities, and card ids all come from
  * the adapter's validate output.
+ *
+ * R3 (F1, build plan §10): the zero-issue line is the Warden's — "The Warden
+ * approves this deck ✓" as a `role="status"` region, the shield settling
+ * once (≤ 300 ms, motion-safe) ONLY when validation goes from some issues to
+ * none. Never on mount — the share page shows the same line statically — and
+ * never re-triggered by unrelated edits: a name edit, a tag edit, a View
+ * toggle or a theme switch re-render with the same `zero`, and the
+ * previous-render comparison below stays false. An empty deck never gets
+ * the line at all: both adapters emit DECK_SIZE under the minimum.
  */
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useState } from "react";
 
+import { BrandMark } from "@/components/brand-mark";
 import type { EditorCard } from "@/lib/decks/editor-state";
 import { countIssues } from "@/lib/decks/validation";
 import type { ValidationIssue } from "@/lib/games/types";
+import { cn } from "@/lib/utils";
 
 const CHIP_LIMIT = 5;
 
@@ -24,12 +35,44 @@ interface ValidationPanelProps {
 
 export function ValidationPanel({ formatLabel, issues, cards, onPreview }: ValidationPanelProps) {
   const [open, setOpen] = useState(false);
+  const zero = issues.length === 0;
+  // "Storing information from previous renders" (react.dev): the settle key
+  // bumps only when this render's `zero` flipped from false — so a mount at
+  // zero (share page) and every unrelated re-render leave it alone, and a
+  // fresh key remounts the mark so the one-shot animation plays again.
+  const [prevZero, setPrevZero] = useState(zero);
+  const [settleKey, setSettleKey] = useState(0);
+  if (prevZero !== zero) {
+    setPrevZero(zero);
+    if (zero) setSettleKey((k) => k + 1);
+  }
   const { errors, warnings } = countIssues(issues);
 
-  if (issues.length === 0) {
+  if (zero) {
+    const settle = settleKey > 0;
     return (
-      <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
-        <span aria-hidden>✓</span> Legal {formatLabel} deck
+      <p
+        role="status"
+        title={`Legal ${formatLabel} deck`}
+        data-settled={settle || undefined}
+        className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400"
+      >
+        <BrandMark
+          key={settleKey}
+          className={cn(
+            "size-4 shrink-0",
+            settle &&
+              "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-300",
+          )}
+        />
+        <span
+          key={`line-${settleKey}`}
+          className={cn(
+            settle && "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300",
+          )}
+        >
+          The Warden approves this deck <span aria-hidden>✓</span>
+        </span>
       </p>
     );
   }

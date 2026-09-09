@@ -48,6 +48,21 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Completion ring glow (R3, F2): one soft pulse in the game accent when the
+     count reaches the maximum — animate-ring-glow, motion-safe only at the
+     call site; the reduced-motion backstop below zeroes it anyway. */
+  --animate-ring-glow: ring-glow 400ms ease-out 1 both;
+  @keyframes ring-glow {
+    0% {
+      filter: drop-shadow(0 0 0 transparent);
+    }
+    40% {
+      filter: drop-shadow(0 0 6px var(--accent-game));
+    }
+    100% {
+      filter: drop-shadow(0 0 0 transparent);
+    }
+  }
 }
 
 /* Theme tokens — "Warden Studio" (R1a, REDESIGN.md §1). Hex on purpose:

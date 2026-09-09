@@ -8,7 +8,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { Modal } from "./modal";
+import { useRef, useState } from "react";
+
+import { Modal, ModalFinalFocus } from "./modal";
 
 function renderModal(onClose: () => void = () => {}) {
   return render(
@@ -47,6 +49,36 @@ describe("Modal", () => {
     await screen.findByRole("dialog", { name: "Share deck" });
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it("ModalFinalFocus sends focus to the provided element on close (the editor's More trigger)", async () => {
+    function Host({ open, onClose }: { open: boolean; onClose: () => void }) {
+      const target = useRef<HTMLButtonElement>(null);
+      return (
+        <ModalFinalFocus.Provider value={target}>
+          <button type="button" ref={target}>
+            More
+          </button>
+          {open && (
+            <Modal label="Deck details" onClose={onClose}>
+              <button type="button">Done</button>
+            </Modal>
+          )}
+        </ModalFinalFocus.Provider>
+      );
+    }
+    function Wrapper() {
+      const [open, setOpen] = useState(true);
+      return <Host open={open} onClose={() => setOpen(false)} />;
+    }
+    render(<Wrapper />);
+    const dialog = await screen.findByRole("dialog", { name: "Deck details" });
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "More" })),
+    );
   });
 
   it("wide maps to the wider panel size", async () => {

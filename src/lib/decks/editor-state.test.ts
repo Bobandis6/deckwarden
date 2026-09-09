@@ -9,12 +9,15 @@ import {
   normalizeTags,
   parseQuickAdd,
   removeCard,
+  replaceLeader,
   setQty,
   setTags,
+  singleQtyIncrease,
   toSavePayload,
   zoneQty,
   type EditorEntry,
 } from "./editor-state";
+import { optcgAdapter } from "@/lib/games/optcg/adapter";
 
 const entry = (over: Partial<EditorEntry> & { cardId: string }): EditorEntry => ({
   zone: "main",
@@ -160,5 +163,78 @@ describe("tags", () => {
     expect(next.find((e) => e.cardId === "b")?.tags).toEqual(["keep"]);
     // unknown entry → structural no-op
     expect(setTags(start, "commander", "a", ["x"])).toEqual(start);
+  });
+});
+
+const STANDARD = optcgAdapter.formats[0];
+
+describe("replaceLeader (R3 — the max-1 leader zone swap)", () => {
+  it("adds into an empty leader zone with nothing replaced", () => {
+    const result = replaceLeader([entry({ cardId: "op01-025" })], STANDARD, "leader", "enel");
+    expect(result.error).toBeUndefined();
+    expect(result.replaced).toBeNull();
+    expect(result.entries).toEqual([
+      entry({ cardId: "op01-025" }),
+      { cardId: "enel", zone: "leader", qty: 1, tags: [] },
+    ]);
+  });
+
+  it("swaps the occupant out and names it, leaving the main zone alone", () => {
+    const before = [
+      entry({ cardId: "enel", zone: "leader" }),
+      entry({ cardId: "op01-025", qty: 4 }),
+    ];
+    const result = replaceLeader(before, STANDARD, "leader", "nami");
+    expect(result.replaced).toBe("enel");
+    expect(result.entries).toEqual([
+      entry({ cardId: "op01-025", qty: 4 }),
+      { cardId: "nami", zone: "leader", qty: 1, tags: [] },
+    ]);
+    // Undo = the same call with the previous id.
+    const undone = replaceLeader(result.entries, STANDARD, "leader", "enel");
+    expect(undone.replaced).toBe("nami");
+    expect(undone.entries.filter((e) => e.zone === "leader").map((e) => e.cardId)).toEqual([
+      "enel",
+    ]);
+  });
+
+  it("is a no-op when the same card already leads", () => {
+    const before = [entry({ cardId: "enel", zone: "leader" })];
+    const result = replaceLeader(before, STANDARD, "leader", "enel");
+    expect(result.replaced).toBeNull();
+    expect(result.entries).toEqual(before);
+  });
+
+  it("refuses Magic's two-commander zone (partners keep addCard's full message)", () => {
+    const before = [entry({ cardId: "thrasios", zone: "commander" })];
+    const result = replaceLeader(before, COMMANDER, "commander", "tymna");
+    expect(result.error).toBe("Commander is not a single-card zone");
+    expect(result.entries).toEqual(before);
+    expect(addCard(before, COMMANDER, "commander", "tymna", 1).error).toBeUndefined();
+    const two = addCard(before, COMMANDER, "commander", "tymna", 1).entries;
+    expect(addCard(two, COMMANDER, "commander", "kraum", 1).error).toBe(
+      "Commander is full (max 2 cards)",
+    );
+  });
+
+  it("refuses an unknown zone", () => {
+    expect(replaceLeader([], STANDARD, "sideboard", "x").error).toBe('Unknown zone "sideboard"');
+  });
+});
+
+describe("singleQtyIncrease (the badge pop)", () => {
+  it("names the one row whose quantity grew — a new entry or an increment", () => {
+    const a = [entry({ cardId: "sol" })];
+    expect(singleQtyIncrease([], a)).toBe("main:sol");
+    expect(singleQtyIncrease(a, [entry({ cardId: "sol", qty: 4 })])).toBe("main:sol");
+  });
+
+  it("is null for decreases, no change, or several changes at once (imports)", () => {
+    const a = [entry({ cardId: "sol", qty: 4 })];
+    expect(singleQtyIncrease(a, [entry({ cardId: "sol", qty: 3 })])).toBeNull();
+    expect(singleQtyIncrease(a, a)).toBeNull();
+    expect(
+      singleQtyIncrease(a, [entry({ cardId: "sol", qty: 5 }), entry({ cardId: "sig" })]),
+    ).toBeNull();
   });
 });

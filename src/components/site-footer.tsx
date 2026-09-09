@@ -3,7 +3,7 @@
  * contact links. Rendered from the root layout on EVERY page — attribution
  * is site-wide; on app-like full-height pages (the editor) it sits below
  * the fold, which is intentional. The appearance menu it hosted in R1a
- * moved into the site header (R1b); the editor routes get AppearanceRow.
+ * moved into the site header (R1b) and the editor's own header (R3).
  */
 import Link from "next/link";
 

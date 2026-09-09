@@ -7,17 +7,32 @@
  * with P1.7's share pages); this component owns only the toggle state, which
  * persists to localStorage as a UI preference (view-prefs.ts). Group default
  * comes from adapter.display.defaultGroupBy — nothing game-specific here.
+ *
+ * R3 (REDESIGN.md §2 "Deck pane"): the order is summary (count with the
+ * import count-up F10, the completion ring F2, ownership, the over-limit
+ * action) · validation (the Warden line F1) · leader zone (with "Choose
+ * commander / leader") · view controls · card groups (sticky headers, the
+ * badge pop F3) · analytics and the sample hand as labelled collapsibles.
  */
+import { useState } from "react";
+
 import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
+import { CompletionRing } from "@/components/deck/completion-ring";
 import { DeckGridView } from "@/components/deck/deck-grid-view";
-import { EmptyState } from "@/components/empty-state";
 import { DeckTextView } from "@/components/deck/deck-text-view";
 import { LeaderZone } from "@/components/deck/leader-zone";
 import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
+import { useCountUp } from "@/components/editor/use-count-up";
+import { EmptyState } from "@/components/empty-state";
 import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
-import { deckSizeCount, type EditorCard, type EditorEntry } from "@/lib/decks/editor-state";
+import {
+  deckSizeCount,
+  singleQtyIncrease,
+  type EditorCard,
+  type EditorEntry,
+} from "@/lib/decks/editor-state";
 import { issueSeverityByCard } from "@/lib/decks/validation";
 import {
   groupDeckEntries,
@@ -27,7 +42,6 @@ import {
 } from "@/lib/decks/view-model";
 import { loadViewPrefs, saveViewPrefs, type DeckViewMode } from "@/lib/decks/view-prefs";
 import type { AnalyticsBlock, FormatDef, GameAdapter, ValidationIssue } from "@/lib/games/types";
-import { useState } from "react";
 
 interface DeckListPaneProps {
   adapter: GameAdapter;
@@ -41,6 +55,8 @@ interface DeckListPaneProps {
   onPreview: (card: EditorCard) => void;
   /** Opens the Cut Coach tab (P3.4); absent when the game declares no cuts. */
   onOpenCuts?: (() => void) | undefined;
+  /** The empty leader zone's "Choose commander / leader" — focuses search (R3). */
+  onChooseLeader?: () => void;
   /** Card ids the owner owns any printing of (P3.7); undefined = no collection imported. */
   owned?: ReadonlySet<string>;
   /** "You own N/100 · missing ≈ $Y" (P3.7); null = no collection imported, nothing shown. */
@@ -58,6 +74,7 @@ export function DeckListPane({
   onRemove,
   onPreview,
   onOpenCuts,
+  onChooseLeader,
   owned,
   ownership = null,
 }: DeckListPaneProps) {
@@ -71,12 +88,25 @@ export function DeckListPane({
   const [sortBy, setSortBy] = useState<SortKey>(stored.sortBy ?? "name");
   const [error, setError] = useState<string | null>(null);
 
+  // The badge pop (F3): the one row whose quantity grew since the previous
+  // entries — "storing information from previous renders" (react.dev), so
+  // an import (many rows) pops nothing and the count-up carries that moment.
+  const [prevEntries, setPrevEntries] = useState(entries);
+  const [pop, setPop] = useState<{ key: string; nonce: number } | null>(null);
+  if (prevEntries !== entries) {
+    setPrevEntries(entries);
+    const key = singleQtyIncrease(prevEntries, entries);
+    if (key) setPop((p) => ({ key, nonce: (p?.nonce ?? 0) + 1 }));
+  }
+
   const persist = (next: { view?: DeckViewMode; groupBy?: GroupKey; sortBy?: SortKey }) => {
     saveViewPrefs({ view, groupBy, sortBy, ...next });
   };
 
   const total = deckSizeCount(entries, format);
-  const sizeLabel = format.deckSize.max !== null ? `${total} / ${format.deckSize.max}` : `${total}`;
+  const shownTotal = useCountUp(total);
+  const max = format.deckSize.max;
+  const sizeLabel = max !== null ? `${shownTotal} / ${max}` : `${shownTotal}`;
 
   const { leader, rest } = splitLeaderEntries(entries, format);
   const groups = groupDeckEntries(rest, cards, groupBy, sortBy);
@@ -93,21 +123,21 @@ export function DeckListPane({
 
   return (
     <div className="p-3">
-      <div className="flex items-baseline justify-between">
+      {/* Summary (R3): count · ring · ownership · the over-limit action. */}
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Deck</h2>
-        <span className="flex flex-wrap items-baseline justify-end gap-x-2">
+        <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
           {/* The over-limit pain point (the DECK_SIZE error's always-visible
               face) links straight to the Cut Coach (P3.4). */}
-          {onOpenCuts && format.deckSize.max !== null && total > format.deckSize.max && (
+          {onOpenCuts && max !== null && total > max && (
             <button
               type="button"
               onClick={onOpenCuts}
               className="text-destructive cursor-pointer text-xs font-medium hover:underline"
             >
-              Over by {total - format.deckSize.max} — rank cuts
+              Over by {total - max} — rank cuts
             </button>
           )}
-          <span className="text-muted-foreground text-sm tabular-nums">{sizeLabel} cards</span>
           {/* Collection line (P3.7): only for owners with an imported
               collection — never a fake "0/100" for someone who has none. */}
           {ownership && (
@@ -116,13 +146,34 @@ export function DeckListPane({
               title={OWNERSHIP_METHOD}
               data-testid="ownership-line"
             >
-              · {ownershipLine(ownership)}
+              {ownershipLine(ownership)} ·
             </span>
           )}
-        </span>
+          <span className="text-muted-foreground text-sm tabular-nums">{sizeLabel} cards</span>
+          <CompletionRing value={total} max={max} />
+        </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+      <ValidationPanel
+        formatLabel={format.label}
+        issues={issues}
+        cards={cards}
+        onPreview={onPreview}
+      />
+
+      {leaderZoneDef && (
+        <LeaderZone
+          zone={leaderZoneDef}
+          items={leaderItems}
+          severity={severity}
+          onRemove={onRemove}
+          onPreview={onPreview}
+          onChooseLeader={onChooseLeader}
+          adapter={adapter}
+        />
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
         <Segmented
           label="View"
           options={VIEW_OPTIONS}
@@ -158,28 +209,8 @@ export function DeckListPane({
         </p>
       )}
 
-      <ValidationPanel
-        formatLabel={format.label}
-        issues={issues}
-        cards={cards}
-        onPreview={onPreview}
-      />
-
-      <AnalyticsPanel blocks={analytics} />
-
-      {leaderZoneDef && (
-        <LeaderZone
-          zone={leaderZoneDef}
-          items={leaderItems}
-          severity={severity}
-          onRemove={onRemove}
-          onPreview={onPreview}
-        />
-      )}
-
       {rest.length === 0 ? (
-        // C8 copy fix (R1b): a phone has no "left" — R4 puts Search in a tab;
-        // R3 keeps the keycap hint beside this.
+        // C8 copy fix (R1b): a phone has no "left" — R4 puts Search in a tab.
         <EmptyState className="mt-4" title="No cards yet" hint="Add them from Search." mark />
       ) : view === "text" ? (
         <DeckTextView
@@ -190,10 +221,21 @@ export function DeckListPane({
           onRemove={onRemove}
           onPreview={onPreview}
           owned={owned}
+          stickyHeaders
+          pop={pop}
         />
       ) : (
-        <DeckGridView groups={groups} severity={severity} onPreview={onPreview} owned={owned} />
+        <DeckGridView
+          groups={groups}
+          severity={severity}
+          onPreview={onPreview}
+          owned={owned}
+          adapter={adapter}
+          stickyHeaders
+        />
       )}
+
+      <AnalyticsPanel blocks={analytics} />
 
       {/* P2.7: same widget as the share page — pure client state, below the
           list so drawing a hand never shoves the deck out of view. */}

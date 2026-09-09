@@ -22,6 +22,8 @@ const tabsListVariants = cva(
       variant: {
         default: "bg-muted",
         line: "gap-1 bg-transparent",
+        // R3 (F11): a bare strip whose active mark is the sliding TabsIndicator.
+        indicator: "relative gap-1 bg-transparent",
       },
     },
     defaultVariants: {
@@ -54,6 +56,27 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
         "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent",
         "data-active:bg-background data-active:text-foreground dark:data-active:border-input dark:data-active:bg-input/30 dark:data-active:text-foreground",
         "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
+        "group-data-[variant=indicator]/tabs-list:z-10 group-data-[variant=indicator]/tabs-list:bg-transparent group-data-[variant=indicator]/tabs-list:after:hidden group-data-[variant=indicator]/tabs-list:data-active:bg-transparent group-data-[variant=indicator]/tabs-list:data-active:shadow-none dark:group-data-[variant=indicator]/tabs-list:data-active:border-transparent dark:group-data-[variant=indicator]/tabs-list:data-active:bg-transparent",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+/**
+ * The sliding active-tab mark (R3, F11). Base UI positions it through the
+ * `--active-tab-left` / `--active-tab-width` variables it sets on the element
+ * (plus -top / -height for vertical lists); the slide is `motion-safe:` only.
+ * Pair with `TabsList variant="indicator"`, which drops the per-trigger
+ * underline so the strip has exactly one active mark.
+ */
+function TabsIndicator({ className, ...props }: TabsPrimitive.Indicator.Props) {
+  return (
+    <TabsPrimitive.Indicator
+      data-slot="tabs-indicator"
+      className={cn(
+        "bg-accent-game pointer-events-none absolute bottom-0 left-(--active-tab-left) z-0 h-0.5 w-(--active-tab-width) rounded-full motion-safe:transition-[left,width] motion-safe:duration-150 motion-safe:ease-out",
         className,
       )}
       {...props}
@@ -71,4 +94,4 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   );
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent, tabsListVariants };
+export { Tabs, TabsList, TabsTrigger, TabsIndicator, TabsContent, tabsListVariants };
