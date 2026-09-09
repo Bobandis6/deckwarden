@@ -11,6 +11,7 @@
  * Color filter semantics: exact color identity ("Azorius commanders", not
  * "commanders that include W or U") — the way players name the space.
  */
+import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -62,7 +63,8 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
       <Link href="/" className="text-muted-foreground text-sm hover:underline">
-        ← Deckwarden
+        <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+        Deckwarden
       </Link>
 
       <h1 className="mt-4 text-3xl font-bold tracking-tight">Commanders</h1>
@@ -136,14 +138,16 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
       <div className="mt-4 flex items-center justify-between text-sm">
         {page > 1 ? (
           <Link href={filterHref(activeLetters, page - 1)} className="underline">
-            ← Previous
+            <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+            Previous
           </Link>
         ) : (
           <span />
         )}
         {hasNext && (
           <Link href={filterHref(activeLetters, page + 1)} className="underline">
-            Next →
+            Next
+            <ArrowRightIcon aria-hidden className="ml-1 inline size-4 align-[-0.2em]" />
           </Link>
         )}
       </div>

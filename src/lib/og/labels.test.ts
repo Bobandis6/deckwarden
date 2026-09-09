@@ -9,6 +9,7 @@ describe("deckOgLabels", () => {
       kicker: "Commander deck",
       curveLabel: "Mana curve",
       fetchArt: true,
+      accent: "#b5a2ff",
     });
   });
 
@@ -17,6 +18,7 @@ describe("deckOgLabels", () => {
       kicker: "One Piece deck",
       curveLabel: "Cost curve",
       fetchArt: false,
+      accent: "#62d6c5",
     });
   });
 
@@ -25,6 +27,7 @@ describe("deckOgLabels", () => {
       kicker: "Deck",
       curveLabel: "Cost curve",
       fetchArt: false,
+      accent: "#a5b4fc",
     });
   });
 });

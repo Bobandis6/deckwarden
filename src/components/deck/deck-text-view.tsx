@@ -8,6 +8,7 @@
  * pages: omit onSetQty/onRemove for the read-only rendering (static counts,
  * no remove button).
  */
+import { XIcon } from "lucide-react";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
@@ -95,7 +96,7 @@ export function DeckTextView({
                       role="img"
                       aria-label="In your collection"
                       title="In your collection"
-                      className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400"
+                      className="shrink-0 text-xs text-emerald-700 dark:text-emerald-400"
                     >
                       ✓
                     </span>
@@ -110,7 +111,7 @@ export function DeckTextView({
                     className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
                     onClick={() => onRemove(entry.zone, entry.cardId)}
                   >
-                    ×
+                    <XIcon />
                   </Button>
                 )}
               </li>

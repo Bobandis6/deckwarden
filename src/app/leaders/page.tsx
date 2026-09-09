@@ -16,6 +16,7 @@
  * Color filter semantics: exact colors_mask ("Red/Green leaders", not
  * "leaders that include Red") — mirrors /commanders' exact-identity call.
  */
+import { ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -78,7 +79,8 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
       <Link href="/" className="text-muted-foreground text-sm hover:underline">
-        ← Deckwarden
+        <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+        Deckwarden
       </Link>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { SiteFooter } from "@/components/site-footer";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import { siteOrigin } from "@/lib/seo/site";
 
 const geistSans = Geist({
@@ -41,10 +42,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    // suppressHydrationWarning: next-themes sets the `dark` class (and
+    // color-scheme) on <html> from an inline script before React hydrates —
+    // the DOM is right, the server markup is not; React must accept the DOM.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
       <body className="min-h-full flex flex-col">
-        {children}
-        <SiteFooter />
+        <ThemeProvider>
+          {children}
+          <SiteFooter />
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -31,6 +31,7 @@
  * copies, so one click always takes exactly one card off the count. The
  * leader zone is never ranked.
  */
+import { ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -272,7 +273,7 @@ function CutRow({
             {cut.qty > 1 && <span className="text-muted-foreground font-normal"> ×{cut.qty}</span>}
           </span>
           {cut.inCompleteCombo && (
-            <span className="shrink-0 rounded-full border border-amber-600/40 px-1.5 text-xs leading-4 text-amber-600 dark:text-amber-400">
+            <span className="shrink-0 rounded-full border border-amber-600/40 px-1.5 text-xs leading-4 text-amber-700 dark:text-amber-400">
               in combo
             </span>
           )}
@@ -291,7 +292,7 @@ function CutRow({
       {/* The tradeoff leads even collapsed — never a bare "remove this". */}
       <p
         className={`mt-1 text-xs leading-relaxed ${expanded ? "" : "line-clamp-2"} ${
-          top.side === "keep" ? "text-amber-600 dark:text-amber-400" : ""
+          top.side === "keep" ? "text-amber-700 dark:text-amber-400" : ""
         }`}
       >
         {top.why}
@@ -315,7 +316,11 @@ function CutRow({
                       rel="noreferrer"
                       className="text-muted-foreground underline"
                     >
-                      {src.label} ↗
+                      {src.label}
+                      <ArrowUpRightIcon
+                        aria-hidden
+                        className="ml-0.5 inline size-3.5 align-[-0.15em]"
+                      />
                     </a>
                   ) : (
                     <span className="text-muted-foreground">{src.label}</span>
@@ -326,7 +331,7 @@ function CutRow({
                 {i > 0 && (
                   <p
                     className={`mt-0.5 leading-relaxed ${
-                      e.side === "keep" ? "text-amber-600 dark:text-amber-400" : ""
+                      e.side === "keep" ? "text-amber-700 dark:text-amber-400" : ""
                     }`}
                   >
                     {e.why}
@@ -359,7 +364,8 @@ function CutRow({
               target="_blank"
               className="text-muted-foreground hover:underline"
             >
-              Card page →
+              Card page
+              <ArrowRightIcon aria-hidden className="ml-1 inline size-3.5 align-[-0.15em]" />
             </Link>
           </p>
         </div>

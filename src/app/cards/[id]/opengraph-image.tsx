@@ -19,6 +19,7 @@ import {
   OgTitle,
 } from "@/lib/og/elements";
 import { fetchOgArt } from "@/lib/og/scryfall";
+import { ogAccent } from "@/lib/theme/tokens";
 
 export const revalidate = 86400;
 
@@ -45,6 +46,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   const isMtg = card.gameId === GAME_ID.mtg;
   const printingId = isMtg ? await loadDefaultPrintingId(card.id) : null;
   const art = printingId ? await fetchOgArt(printingId) : null;
+  const accent = ogAccent(card.gameId);
 
   const kicker = isMtg
     ? card.isLeaderCandidate
@@ -56,12 +58,13 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   return new ImageResponse(
     <OgFrame art={art}>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <OgKicker>{kicker}</OgKicker>
+        <OgKicker accent={accent}>{kicker}</OgKicker>
         <OgTitle>{card.name}</OgTitle>
         {card.typeLine && <OgSubtitle>{card.typeLine}</OgSubtitle>}
       </div>
       <OgFooter
         stats={[isMtg ? "Printings · prices · legality" : "Card text · printings · legality"]}
+        accent={accent}
       />
     </OgFrame>,
     size,

@@ -23,6 +23,7 @@ import {
   OgSubtitle,
   OgTitle,
 } from "@/lib/og/elements";
+import { ogAccent } from "@/lib/theme/tokens";
 
 export const revalidate = 86400;
 
@@ -45,6 +46,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   }
 
   const attrs = leader.attrs as OptcgAttrs;
+  const accent = ogAccent(GAME_ID.optcg);
   const colors = maskToOptcgColorNames(leader.colorsMask).join("/");
   const subtitle = [colors, attrs.life != null ? `${attrs.life} Life` : null]
     .filter(Boolean)
@@ -53,11 +55,11 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   return new ImageResponse(
     <OgFrame art={null}>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <OgKicker>One Piece Leader</OgKicker>
+        <OgKicker accent={accent}>One Piece Leader</OgKicker>
         <OgTitle>{leader.name}</OgTitle>
         <OgSubtitle>{`${leader.externalKey}${subtitle ? ` · ${subtitle}` : ""}`}</OgSubtitle>
       </div>
-      <OgFooter stats={["Leader profile · deck building"]} />
+      <OgFooter stats={["Leader profile · deck building"]} accent={accent} />
     </OgFrame>,
     size,
   );

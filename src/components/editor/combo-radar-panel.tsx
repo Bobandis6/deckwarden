@@ -20,6 +20,7 @@
  * deck row known, autosave settled, key changed) and useResolvedAdd
  * (resolve with the id guard → quiet add → autosave).
  */
+import { ArrowUpRightIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -212,7 +213,8 @@ export function ComboRadarPanel({
           {/* The honest bounds: source credit, the ingest floor, the scan cap. */}
           <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
             <a href={combosMeta.sourceHref} target="_blank" rel="noreferrer" className="underline">
-              Combos and deck counts from {combosMeta.sourceLabel} ↗
+              Combos and deck counts from {combosMeta.sourceLabel}
+              <ArrowUpRightIcon aria-hidden className="ml-0.5 inline size-3.5 align-[-0.15em]" />
             </a>{" "}
             — detection covers combos with recorded play there, plus unranked new ones.
             {data.truncated ? " Scan capped at the most-played matches for this deck." : ""}
@@ -250,7 +252,7 @@ function ComboRowDetails({
   const needs = alsoNeedsLine(combo.templates);
   return (
     <>
-      {needs && <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">{needs}</p>}
+      {needs && <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">{needs}</p>}
       {combo.results.length > 0 && (
         <p className="text-muted-foreground mt-0.5 text-xs">{combo.results.join(" · ")}</p>
       )}
@@ -265,7 +267,8 @@ function ComboRowDetails({
           rel="noreferrer"
           className="underline"
         >
-          How it works ↗
+          How it works
+          <ArrowUpRightIcon aria-hidden className="ml-0.5 inline size-3.5 align-[-0.15em]" />
         </a>
       </p>
     </>
@@ -289,8 +292,8 @@ function InDeckComboRow({
         <span
           className={`mt-0.5 shrink-0 rounded-full border px-1.5 text-xs leading-4 ${
             complete
-              ? "border-emerald-600/40 text-emerald-600 dark:text-emerald-400"
-              : "border-amber-600/40 text-amber-600 dark:text-amber-400"
+              ? "border-emerald-600/40 text-emerald-700 dark:text-emerald-400"
+              : "border-amber-600/40 text-amber-700 dark:text-amber-400"
           }`}
         >
           {complete ? "complete" : "incomplete"}

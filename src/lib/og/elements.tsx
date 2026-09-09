@@ -10,13 +10,17 @@
 import type { ReactNode } from "react";
 
 import type { OgArt } from "@/lib/og/scryfall";
+import { og, rgba } from "@/lib/theme/tokens";
 
 export const OG_SIZE = { width: 1200, height: 630 };
 
-const BG = "#101215";
-const FG = "#f4f4f5";
-const MUTED = "#9f9fa9";
-const ACCENT = "#8b5cf6";
+// One token source (R1a): the canvas is the site's dark theme, so unfurls and
+// the product read as one thing. The accent is per surface — the game accent
+// where the page has a game, the generic indigo elsewhere — passed explicitly
+// because satori renders no React context.
+const BG = og.bg;
+const FG = og.fg;
+const MUTED = og.muted;
 
 /** Root canvas: text column on the left, optional art panel on the right. */
 export function OgFrame({ art, children }: { art: OgArt | null; children: ReactNode }) {
@@ -60,7 +64,7 @@ export function OgFrame({ art, children }: { art: OgArt | null; children: ReactN
               width: 560,
               height: 630,
               display: "flex",
-              backgroundImage: `linear-gradient(to right, ${BG} 0%, rgba(16,18,21,0.45) 30%, rgba(16,18,21,0) 60%)`,
+              backgroundImage: `linear-gradient(to right, ${BG} 0%, ${rgba(BG, 0.45)} 30%, ${rgba(BG, 0)} 60%)`,
             }}
           />
           <OgAttribution artist={art.artist} />
@@ -106,8 +110,14 @@ function OgAttribution({ artist }: { artist: string }) {
   );
 }
 
-/** Small uppercase label above the title ("Commander deck", …). */
-export function OgKicker({ children }: { children: string }) {
+/** Small uppercase label above the title ("Commander deck", …), in the surface's accent. */
+export function OgKicker({
+  children,
+  accent = og.accentGeneric,
+}: {
+  children: string;
+  accent?: string;
+}) {
   return (
     <div
       style={{
@@ -115,7 +125,7 @@ export function OgKicker({ children }: { children: string }) {
         fontSize: 22,
         letterSpacing: 3,
         textTransform: "uppercase",
-        color: ACCENT,
+        color: accent,
         fontWeight: 700,
       }}
     >
@@ -158,8 +168,16 @@ export function OgSubtitle({ children }: { children: string }) {
   );
 }
 
-/** Mana-curve histogram: 8 bottom-aligned bars labeled 0–7+. */
-export function OgCurve({ buckets, label }: { buckets: number[]; label: string }) {
+/** Mana-curve histogram: 8 bottom-aligned bars labeled 0–7+, filled in the accent. */
+export function OgCurve({
+  buckets,
+  label,
+  accent = og.accentGeneric,
+}: {
+  buckets: number[];
+  label: string;
+  accent?: string;
+}) {
   const max = Math.max(...buckets, 1);
   return (
     <div style={{ display: "flex", flexDirection: "column", marginTop: 8 }}>
@@ -175,7 +193,7 @@ export function OgCurve({ buckets, label }: { buckets: number[]; label: string }
                 display: "flex",
                 width: 40,
                 height: Math.max(4, Math.round((value / max) * 110)),
-                backgroundColor: value > 0 ? ACCENT : "#2a2a33",
+                backgroundColor: value > 0 ? accent : og.raised,
                 borderRadius: 5,
               }}
             />
@@ -196,15 +214,21 @@ export function OgCurve({ buckets, label }: { buckets: number[]; label: string }
 export function OgGenericBody() {
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
-      <OgKicker>deckwarden.gg</OgKicker>
+      <OgKicker accent={og.accentGeneric}>deckwarden.gg</OgKicker>
       <OgTitle>Build, analyze & share Commander decks</OgTitle>
       <OgSubtitle>Free, fast, and no account needed.</OgSubtitle>
     </div>
   );
 }
 
-/** Bottom row: site wordmark left, optional stat chips right. */
-export function OgFooter({ stats }: { stats: string[] }) {
+/** Bottom row: site wordmark left (".gg" in the accent), optional stat chips right. */
+export function OgFooter({
+  stats,
+  accent = og.accentGeneric,
+}: {
+  stats: string[];
+  accent?: string;
+}) {
   return (
     <div
       style={{
@@ -216,7 +240,7 @@ export function OgFooter({ stats }: { stats: string[] }) {
     >
       <div style={{ display: "flex", alignItems: "baseline" }}>
         <div style={{ display: "flex", fontSize: 30, fontWeight: 700 }}>deckwarden</div>
-        <div style={{ display: "flex", fontSize: 30, fontWeight: 700, color: ACCENT }}>.gg</div>
+        <div style={{ display: "flex", fontSize: 30, fontWeight: 700, color: accent }}>.gg</div>
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         {stats.map((s) => (
@@ -226,7 +250,7 @@ export function OgFooter({ stats }: { stats: string[] }) {
               display: "flex",
               fontSize: 21,
               color: "#d4d4d8",
-              backgroundColor: "#1c1e24",
+              backgroundColor: og.panel,
               padding: "8px 16px",
               borderRadius: 999,
             }}

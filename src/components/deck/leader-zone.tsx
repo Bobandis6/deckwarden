@@ -7,6 +7,7 @@
  * nothing game-specific here. Shared with the P1.7 share pages: omit onRemove
  * for the read-only rendering (no remove button, no editing hint).
  */
+import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import type { ViewItem } from "@/lib/decks/view-model";
@@ -74,7 +75,7 @@ export function LeaderZone({ zone, items, severity, onRemove, onPreview }: Leade
                     aria-label={`Remove ${card.name}`}
                     onClick={() => onRemove(entry.zone, entry.cardId)}
                   >
-                    ×
+                    <XIcon />
                   </Button>
                 )}
               </span>

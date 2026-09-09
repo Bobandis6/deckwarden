@@ -103,7 +103,7 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
         </p>
         <ul className="space-y-1 text-xs">
           {state.outcome.warnings.map((w, i) => (
-            <li key={i} className="text-amber-600 dark:text-amber-400">
+            <li key={i} className="text-amber-700 dark:text-amber-400">
               {w}
             </li>
           ))}
@@ -130,7 +130,7 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
         </p>
 
         {state.parseWarnings.length > 0 && (
-          <ul className="space-y-0.5 text-xs text-amber-600 dark:text-amber-400">
+          <ul className="space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
             {state.parseWarnings.map((w, i) => (
               <li key={i}>{w}</li>
             ))}

@@ -18,6 +18,7 @@
  * username, no byline (choosing one is the publish opt-in).
  */
 import { and, desc, eq, ne } from "drizzle-orm";
+import { ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -67,7 +68,8 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
           The owner hasn&apos;t shared it. If it&apos;s yours, sign in to view it.
         </p>
         <Link href="/" className="text-muted-foreground text-sm hover:underline">
-          ← Back to Deckwarden
+          <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+          Back to Deckwarden
         </Link>
       </main>
     );
@@ -96,7 +98,8 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-12">
       <p>
         <Link href="/" className="text-muted-foreground text-sm hover:underline">
-          ← Deckwarden
+          <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+          Deckwarden
         </Link>
       </p>
 

@@ -9,6 +9,7 @@
  * rules text, stat line) comes through the adapter's display contract.
  */
 import { asc, desc, eq, isNull, and } from "drizzle-orm";
+import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -31,9 +32,9 @@ const { cardIdentities, cardPrintings, sets, formats, legalities } = schema;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const STATUS_STYLE: Record<string, string> = {
-  legal: "bg-green-500/15 text-green-600 dark:text-green-400",
-  banned: "bg-red-500/15 text-red-600 dark:text-red-400",
-  restricted: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  legal: "bg-green-500/15 text-green-700 dark:text-green-400",
+  banned: "bg-destructive/15 text-destructive",
+  restricted: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   not_legal: "bg-muted text-muted-foreground",
 };
 
@@ -136,7 +137,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
   const statusByFormat = new Map(legalityRows.map((l) => [l.formatId, l.status]));
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8" data-game={gameCode}>
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Cards", path: "/cards" },
@@ -144,7 +145,8 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
         ])}
       />
       <Link href="/cards" className="text-muted-foreground text-sm hover:underline">
-        ← Card search
+        <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+        Card search
       </Link>
 
       <div className="mt-4 flex flex-col gap-8 md:flex-row">
@@ -180,7 +182,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
             {statLine ? ` · ${statLine}` : ""}
           </p>
           {identity.isPreview && (
-            <p className="mt-2 inline-block rounded-md bg-amber-500/15 px-2 py-1 text-sm text-amber-600 dark:text-amber-400">
+            <p className="mt-2 inline-block rounded-md bg-amber-500/15 px-2 py-1 text-sm text-amber-700 dark:text-amber-400">
               Preview card — not legal until release
             </p>
           )}
@@ -192,11 +194,13 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
               {/* Hub roots are per game (hub/queries.ts routing decision). */}
               {gameCode === "optcg" ? (
                 <Link href={`/l/${identity.slug}`} className="text-sm underline">
-                  {adapter.display.leaderNoun} hub: profile & deck building →
+                  {adapter.display.leaderNoun} hub: profile & deck building
+                  <ArrowRightIcon aria-hidden className="ml-1 inline size-4 align-[-0.2em]" />
                 </Link>
               ) : (
                 <Link href={`/c/${identity.slug}`} className="text-sm underline">
-                  {adapter.display.leaderNoun} hub: staples, curve & budget picks →
+                  {adapter.display.leaderNoun} hub: staples, curve & budget picks
+                  <ArrowRightIcon aria-hidden className="ml-1 inline size-4 align-[-0.2em]" />
                 </Link>
               )}
             </p>

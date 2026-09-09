@@ -23,6 +23,7 @@ import {
   OgTitle,
 } from "@/lib/og/elements";
 import { fetchOgArt } from "@/lib/og/scryfall";
+import { ogAccent } from "@/lib/theme/tokens";
 
 export const revalidate = 86400;
 
@@ -51,6 +52,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   ]);
   const art = printing ? await fetchOgArt(printing.id) : null;
   const curveBlock = staplesCurveBlock(staples);
+  const accent = ogAccent(GAME_ID.mtg);
 
   // Cold-start honesty: chips only for shelves that actually have rows.
   const stats: string[] = [];
@@ -62,15 +64,19 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   return new ImageResponse(
     <OgFrame art={art}>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <OgKicker>Commander hub</OgKicker>
+        <OgKicker accent={accent}>Commander hub</OgKicker>
         <OgTitle>{leader.name}</OgTitle>
         <OgSubtitle>Staples, curve, budget picks & combos</OgSubtitle>
       </div>
       <div style={{ display: "flex", flexDirection: "column" }}>
         {curveBlock?.kind === "histogram" && (
-          <OgCurve buckets={curveBlock.buckets.map((b) => b.value)} label="Curve of staples" />
+          <OgCurve
+            buckets={curveBlock.buckets.map((b) => b.value)}
+            label="Curve of staples"
+            accent={accent}
+          />
         )}
-        <OgFooter stats={stats} />
+        <OgFooter stats={stats} accent={accent} />
       </div>
     </OgFrame>,
     size,

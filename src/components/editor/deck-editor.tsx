@@ -20,6 +20,7 @@
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
+import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -667,14 +668,15 @@ export function DeckEditor({
     // Mobile (<lg): panes stack and the page scrolls; the header wraps to two
     // rows (name input drops to its own line). Desktop keeps the app-like
     // fixed-viewport three-pane grid.
-    <div className="flex min-h-dvh flex-col lg:h-dvh">
+    <div className="flex min-h-dvh flex-col lg:h-dvh" data-game={load.adapter.id}>
       <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b px-4 py-2 lg:h-14 lg:flex-nowrap lg:py-0">
         <Link
           href="/"
           className="text-muted-foreground shrink-0 text-sm hover:underline"
           aria-label="Back to home"
         >
-          ← Deckwarden
+          <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+          Deckwarden
         </Link>
         <input
           value={deckName}

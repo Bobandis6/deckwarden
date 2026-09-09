@@ -63,15 +63,17 @@ export default async function Image({ params }: { params: Promise<{ publicId: st
   return new ImageResponse(
     <OgFrame art={art}>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <OgKicker>{labels.kicker}</OgKicker>
+        <OgKicker accent={labels.accent}>{labels.kicker}</OgKicker>
         <OgTitle>{deck.name}</OgTitle>
         {deck.commanderNames.length > 0 && (
           <OgSubtitle>{deck.commanderNames.join(" · ")}</OgSubtitle>
         )}
       </div>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        {hasCurve && <OgCurve buckets={deck.curve} label={labels.curveLabel} />}
-        <OgFooter stats={stats} />
+        {hasCurve && (
+          <OgCurve buckets={deck.curve} label={labels.curveLabel} accent={labels.accent} />
+        )}
+        <OgFooter stats={stats} accent={labels.accent} />
       </div>
     </OgFrame>,
     size,

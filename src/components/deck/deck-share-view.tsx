@@ -11,6 +11,7 @@
  * loading localStorage prefs during render would break SSR hydration, and a
  * share-page viewer doesn't need their reading preference remembered.
  */
+import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
@@ -180,10 +181,11 @@ export function DeckShareView({
   };
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6">
+    <main className="mx-auto w-full max-w-3xl px-4 py-6" data-game={adapter.id}>
       <p>
         <Link href="/" className="text-muted-foreground text-sm hover:underline">
-          ← Deckwarden
+          <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+          Deckwarden
         </Link>
       </p>
       <header className="mt-2">

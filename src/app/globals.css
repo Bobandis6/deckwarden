@@ -10,14 +10,6 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -39,6 +31,11 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* Brand + per-game accents (R1a): bg-brand, text-accent-mtg, ring-accent-game, … */
+  --color-brand: var(--brand);
+  --color-accent-mtg: var(--accent-mtg);
+  --color-accent-optcg: var(--accent-optcg);
+  --color-accent-game: var(--accent-game);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -48,73 +45,88 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Theme tokens — "Warden Studio" (R1a, REDESIGN.md §1). Hex on purpose:
+   src/lib/theme/tokens.ts carries the same strings for the OG images, and
+   src/lib/theme/tokens.test.ts parses THIS file and asserts the two blocks
+   below equal `light` / `dark` there, value for value. Edit both or the
+   test names the drift. :root is the light theme; .dark (the default —
+   next-themes sets the class before first paint) is the dark theme. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: #f7f7fb;
+  --foreground: #1b1d26;
+  --card: #ffffff;
+  --card-foreground: #1b1d26;
+  --popover: #ffffff;
+  --popover-foreground: #1b1d26;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #e8eaf2;
+  --secondary-foreground: #1b1d26;
+  --muted: #eeeff5;
+  --muted-foreground: #5f6775;
+  --accent: #e6e8f1;
+  --accent-foreground: #1b1d26;
+  --destructive: #b91c1c;
+  --border: #e2e4ec;
+  --input: #d8dbe6;
+  --ring: #4f46e5;
+  --chart-1: #4f46e5;
+  --chart-2: #6b7280;
+  --chart-3: #0f766e;
+  --chart-4: #5b50d6;
+  --chart-5: #5f6775;
+  --brand: #4338ca;
+  --accent-mtg: #5b50d6;
+  --accent-optcg: #0f766e;
+  --radius: 0.75rem;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #101218;
+  --foreground: #f3f4f8;
+  --card: #191d27;
+  --card-foreground: #f3f4f8;
+  --popover: #222837;
+  --popover-foreground: #f3f4f8;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #262d3c;
+  --secondary-foreground: #f3f4f8;
+  --muted: #222837;
+  --muted-foreground: #aab2c3;
+  --accent: #2b3345;
+  --accent-foreground: #f3f4f8;
+  --destructive: #f87171;
+  --border: #2a3040;
+  --input: #2a3040;
+  --ring: #818cf8;
+  --chart-1: #818cf8;
+  --chart-2: #8b93a5;
+  --chart-3: #62d6c5;
+  --chart-4: #b5a2ff;
+  --chart-5: #aab2c3;
+  --brand: #818cf8;
+  --accent-mtg: #b5a2ff;
+  --accent-optcg: #62d6c5;
+}
+
+/* Game accent (G1): surface roots — the editor, share-page main, the /c/
+   and /l/ hubs, card pages — carry data-game, and the accent variable
+   follows. Buttons read focus-visible:ring-ring/50 → --ring, so the one
+   override below recolors every focus ring on a game surface with no
+   component edits. Accents identify context, never card data: --mana-*
+   stays the same in both themes. */
+:root {
+  --accent-game: var(--brand);
+}
+[data-game="mtg"] {
+  --accent-game: var(--accent-mtg);
+}
+[data-game="optcg"] {
+  --accent-game: var(--accent-optcg);
+}
+[data-game] {
+  --ring: var(--accent-game);
 }
 
 @layer base {
@@ -126,6 +138,26 @@
   }
   html {
     @apply font-sans;
+  }
+
+  /* Motion policy (R1a, REDESIGN.md §1). Convention from here on: every
+     DECORATIVE animation or transition is authored with the `motion-safe:`
+     variant (Tailwind 4 has it), so it never exists for a reader who asked
+     for reduced motion. This block is the backstop for everything else —
+     the tw-animate-css enter/exit classes the shadcn primitives use, the
+     Button's transition-all, third-party motion — collapsing durations to
+     effectively zero rather than `none` so `animationend`/`transitionend`
+     listeners (Base UI waits on them to unmount popups) still fire.
+     Everything stays understandable without motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -175,5 +207,28 @@
   }
   .pip-g {
     background: var(--mana-g);
+  }
+
+  /* DON!! cost chip (C4) — the One Piece adapter's costHtml emits
+     <span class="don-cost">4</span>. A rounded SQUARE in foreground-on-
+     background so it reads in both themes and never resembles a mana pip
+     (round, pastel): pips are card data, this is a number. Same font scale
+     and baseline offset as .pip so the two align in mixed lists. */
+  .don-cost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5em;
+    height: 1.5em;
+    padding: 0 0.3em;
+    border-radius: 0.3em;
+    margin-right: 0.1em;
+    font-size: 0.72em;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    vertical-align: -0.1em;
+    background: var(--foreground);
+    color: var(--background);
   }
 }

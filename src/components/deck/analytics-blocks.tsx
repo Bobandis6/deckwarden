@@ -9,6 +9,7 @@
  * Plain CSS bars — no chart library. P1.7's share pages reuse AnalyticsBlocks
  * directly; AnalyticsPanel is the editor's collapsible wrapper around it.
  */
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useState } from "react";
 
 import type { AnalyticsBlock } from "@/lib/games/types";
@@ -73,8 +74,8 @@ function Breakdown({ block }: { block: Extract<AnalyticsBlock, { kind: "breakdow
 }
 
 const STAT_TONE = {
-  ok: "text-emerald-600 dark:text-emerald-400",
-  warn: "text-amber-600 dark:text-amber-400",
+  ok: "text-emerald-700 dark:text-emerald-400",
+  warn: "text-amber-700 dark:text-amber-400",
   bad: "text-destructive",
 } as const;
 
@@ -166,9 +167,11 @@ export function AnalyticsPanel({ blocks }: { blocks: AnalyticsBlock[] }) {
         className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded text-xs font-medium hover:underline"
       >
         Analytics
-        <span aria-hidden className="text-[0.65rem]">
-          {open ? "▲" : "▼"}
-        </span>
+        {open ? (
+          <ChevronUpIcon aria-hidden className="size-3.5" />
+        ) : (
+          <ChevronDownIcon aria-hidden className="size-3.5" />
+        )}
       </button>
       {open && (
         <div className="mt-2">

@@ -20,6 +20,7 @@
  * Caching intent: ISR, revalidate hourly — same reasoning as /c/[slug]:
  * card data changes once nightly, no per-viewer state, rendered on demand.
  */
+import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -121,7 +122,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
   const traits = attrs.traits ?? [];
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8" data-game="optcg">
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "One Piece Leaders", path: "/leaders" },
@@ -129,7 +130,8 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
         ])}
       />
       <Link href="/leaders" className="text-muted-foreground text-sm hover:underline">
-        ← One Piece Leaders
+        <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+        One Piece Leaders
       </Link>
 
       <div className="mt-4 flex flex-col gap-8 md:flex-row">
@@ -182,7 +184,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
               );
             })}
             {status !== "legal" && (
-              <span className="rounded-md bg-red-500/15 px-2 py-0.5 text-red-600 dark:text-red-400">
+              <span className="rounded-md bg-destructive/15 px-2 py-0.5 text-destructive">
                 {status.replace("_", " ")} in Standard
               </span>
             )}
@@ -203,7 +205,8 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
               Build with this leader
             </Button>
             <Link href={`/cards/${leader.id}`} className="text-sm underline">
-              Card details, printings & legality →
+              Card details, printings & legality
+              <ArrowRightIcon aria-hidden className="ml-1 inline size-4 align-[-0.2em]" />
             </Link>
           </div>
 
@@ -303,7 +306,11 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
                         rel="noreferrer"
                         target="_blank"
                       >
-                        {finish.eventName} ↗
+                        {finish.eventName}
+                        <ArrowUpRightIcon
+                          aria-hidden
+                          className="ml-0.5 inline size-3.5 align-[-0.15em]"
+                        />
                       </a>
                     </span>
                     <span className="text-muted-foreground block text-xs">
@@ -319,7 +326,11 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
                       rel="noreferrer nofollow"
                       target="_blank"
                     >
-                      Decklist ↗
+                      Decklist
+                      <ArrowUpRightIcon
+                        aria-hidden
+                        className="ml-0.5 inline size-3.5 align-[-0.15em]"
+                      />
                     </a>
                   )}
                 </li>

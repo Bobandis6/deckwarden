@@ -12,6 +12,7 @@
  * template (role tagging's minimal landing; editorial labels stay in the
  * adapter, nothing game-specific here).
  */
+import { ArrowRightIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -80,7 +81,8 @@ export function CardDetailPane({
       <p className="text-muted-foreground mt-3 flex items-center justify-between text-xs">
         <span>{card.cheapestUsd !== null ? `from $${card.cheapestUsd.toFixed(2)}` : ""}</span>
         <Link href={`/cards/${card.id}`} className="hover:underline" target="_blank">
-          Card page →
+          Card page
+          <ArrowRightIcon aria-hidden className="ml-1 inline size-3.5 align-[-0.15em]" />
         </Link>
       </p>
     </div>
@@ -117,7 +119,7 @@ function TagEditor({ adapter, tagging }: { adapter: GameAdapter; tagging: TagEdi
                 onClick={() => onSetTags(tags.filter((t) => t !== tag))}
                 className="text-muted-foreground hover:text-foreground cursor-pointer"
               >
-                ×
+                <XIcon aria-hidden className="size-3" />
               </button>
             </span>
           </li>

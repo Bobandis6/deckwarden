@@ -6,6 +6,7 @@
  * attribution and the step-by-step walkthrough we deliberately don't store
  * (lean rows — the Neon budget).
  */
+import { ArrowUpRightIcon } from "lucide-react";
 import Link from "next/link";
 
 import type { ComboView } from "@/lib/combos/queries";
@@ -56,7 +57,8 @@ export function ComboList({
               rel="noreferrer"
               target="_blank"
             >
-              How it works on {combosMeta.sourceLabel} ↗
+              How it works on {combosMeta.sourceLabel}
+              <ArrowUpRightIcon aria-hidden className="ml-0.5 inline size-3.5 align-[-0.15em]" />
             </a>
           </p>
         </li>

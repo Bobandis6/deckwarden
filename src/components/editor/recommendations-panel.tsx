@@ -29,6 +29,7 @@
  * hint. The server may still decline (session expired, collection wiped in
  * another tab) — its `owned.reason` is shown, never a silent empty list.
  */
+import { ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -261,9 +262,9 @@ export function RecommendationsPanel({
 export function ConfidenceChip({ level }: { level: Confidence }) {
   const tone =
     level === "high"
-      ? "border-emerald-600/40 text-emerald-600 dark:text-emerald-400"
+      ? "border-emerald-600/40 text-emerald-700 dark:text-emerald-400"
       : level === "medium"
-        ? "border-amber-600/40 text-amber-600 dark:text-amber-400"
+        ? "border-amber-600/40 text-amber-700 dark:text-amber-400"
         : "border-border text-muted-foreground";
   return (
     <span className={`shrink-0 rounded-full border px-1.5 text-xs leading-4 ${tone}`}>{level}</span>
@@ -347,7 +348,11 @@ function SuggestionRow({
                       rel="noreferrer"
                       className="text-muted-foreground underline"
                     >
-                      {src.label} ↗
+                      {src.label}
+                      <ArrowUpRightIcon
+                        aria-hidden
+                        className="ml-0.5 inline size-3.5 align-[-0.15em]"
+                      />
                     </a>
                   ) : (
                     <span className="text-muted-foreground">{src.label}</span>
@@ -383,7 +388,8 @@ function SuggestionRow({
               target="_blank"
               className="text-muted-foreground hover:underline"
             >
-              Card page →
+              Card page
+              <ArrowRightIcon aria-hidden className="ml-1 inline size-3.5 align-[-0.15em]" />
             </Link>
           </p>
         </div>

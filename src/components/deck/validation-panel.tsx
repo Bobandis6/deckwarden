@@ -6,6 +6,7 @@
  * detail pane. Game-ignorant: messages, severities, and card ids all come from
  * the adapter's validate output.
  */
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useState } from "react";
 
 import type { EditorCard } from "@/lib/decks/editor-state";
@@ -27,7 +28,7 @@ export function ValidationPanel({ formatLabel, issues, cards, onPreview }: Valid
 
   if (issues.length === 0) {
     return (
-      <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+      <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
         <span aria-hidden>✓</span> Legal {formatLabel} deck
       </p>
     );
@@ -47,7 +48,7 @@ export function ValidationPanel({ formatLabel, issues, cards, onPreview }: Valid
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={`flex items-center gap-1.5 rounded text-xs font-medium hover:underline ${
-          errors > 0 ? "text-destructive" : "text-amber-600 dark:text-amber-400"
+          errors > 0 ? "text-destructive" : "text-amber-700 dark:text-amber-400"
         }`}
       >
         <span
@@ -55,9 +56,11 @@ export function ValidationPanel({ formatLabel, issues, cards, onPreview }: Valid
           className={`size-1.5 rounded-full ${errors > 0 ? "bg-destructive" : "bg-amber-500"}`}
         />
         {summary}
-        <span aria-hidden className="text-[0.65rem]">
-          {open ? "▲" : "▼"}
-        </span>
+        {open ? (
+          <ChevronUpIcon aria-hidden className="size-3.5" />
+        ) : (
+          <ChevronDownIcon aria-hidden className="size-3.5" />
+        )}
       </button>
 
       {open && (

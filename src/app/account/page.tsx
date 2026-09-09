@@ -10,6 +10,7 @@
  * quota on externally hosted avatars).
  */
 import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
+import { ArrowLeftIcon, ArrowRightIcon, FolderIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -84,7 +85,8 @@ export default async function AccountPage() {
         </p>
         <SignInButtons />
         <Link href="/" className="text-muted-foreground text-sm hover:underline">
-          ← Back to Deckwarden
+          <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+          Back to Deckwarden
         </Link>
       </main>
     );
@@ -159,7 +161,8 @@ export default async function AccountPage() {
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-12">
       <div className="flex items-center justify-between gap-3">
         <Link href="/" className="text-muted-foreground text-sm hover:underline">
-          ← Deckwarden
+          <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+          Deckwarden
         </Link>
         <SignOutButton />
       </div>
@@ -197,7 +200,8 @@ export default async function AccountPage() {
         {profile?.username && (
           <p className="text-muted-foreground text-xs">
             <Link href={`/u/${profile.username}`} className="underline">
-              View your public profile →
+              View your public profile
+              <ArrowRightIcon aria-hidden className="ml-1 inline size-3.5 align-[-0.15em]" />
             </Link>
           </p>
         )}
@@ -219,7 +223,8 @@ export default async function AccountPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="min-w-0 text-sm font-semibold">
                   <Link href={`/f/${folder.publicId}`} className="hover:underline">
-                    📁 {folder.name}
+                    <FolderIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+                    {folder.name}
                   </Link>{" "}
                   <span className="text-muted-foreground text-xs font-normal tabular-nums">
                     {inFolder.length === 1 ? "1 deck" : `${inFolder.length} decks`}

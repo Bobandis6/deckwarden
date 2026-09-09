@@ -14,6 +14,7 @@
  * decks — the number a visitor will actually find on the folder page.
  */
 import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -98,7 +99,8 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-12">
       <p>
         <Link href="/" className="text-muted-foreground text-sm hover:underline">
-          ← Deckwarden
+          <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+          Deckwarden
         </Link>
       </p>
 

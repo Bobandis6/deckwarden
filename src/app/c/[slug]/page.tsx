@@ -12,6 +12,7 @@
  * state (the budget toggle filters client-side for exactly this reason).
  * Rendered on demand; ~4k leaders would bloat the build for nothing.
  */
+import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -114,7 +115,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
   const curve = staplesCurveBlock(staples);
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8" data-game="mtg">
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Commanders", path: "/commanders" },
@@ -122,7 +123,8 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
         ])}
       />
       <Link href="/commanders" className="text-muted-foreground text-sm hover:underline">
-        ← Commanders
+        <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
+        Commanders
       </Link>
 
       <div className="mt-4 flex flex-col gap-8 md:flex-row">
@@ -155,7 +157,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
             {leader.cheapestUsd !== null ? ` · from $${leader.cheapestUsd}` : ""}
           </p>
           {status !== "legal" && (
-            <p className="mt-2 inline-block rounded-md bg-red-500/15 px-2 py-1 text-sm text-red-600 dark:text-red-400">
+            <p className="mt-2 inline-block rounded-md bg-destructive/15 px-2 py-1 text-sm text-destructive">
               {status === "banned"
                 ? "Banned in Commander — shown for reference"
                 : "Not legal in Commander"}
@@ -166,7 +168,8 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           </div>
           <p className="mt-3">
             <Link href={`/cards/${leader.id}`} className="text-sm underline">
-              Card details, printings & prices →
+              Card details, printings & prices
+              <ArrowRightIcon aria-hidden className="ml-1 inline size-4 align-[-0.2em]" />
             </Link>
           </p>
 
@@ -287,7 +290,11 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
                         rel="noreferrer"
                         target="_blank"
                       >
-                        {finish.eventName} ↗
+                        {finish.eventName}
+                        <ArrowUpRightIcon
+                          aria-hidden
+                          className="ml-0.5 inline size-3.5 align-[-0.15em]"
+                        />
                       </a>
                     </span>
                     <span className="text-muted-foreground block text-xs">
@@ -304,7 +311,11 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
                       rel="noreferrer nofollow"
                       target="_blank"
                     >
-                      Decklist ↗
+                      Decklist
+                      <ArrowUpRightIcon
+                        aria-hidden
+                        className="ml-0.5 inline size-3.5 align-[-0.15em]"
+                      />
                     </a>
                   )}
                 </li>
