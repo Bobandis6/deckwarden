@@ -53,6 +53,13 @@ describe("SiteHeader", () => {
     expect(banner.innerHTML).not.toMatch(/href="\/c\//);
   });
 
+  it("the appearance menu carries the Background art switch on every (site) page (R2)", async () => {
+    render(<SiteHeader />);
+    open(screen.getByRole("button", { name: "Appearance" }));
+    const menu = await screen.findByRole("menu", { name: "Appearance" });
+    expect(within(menu).getByRole("menuitemcheckbox", { name: "Background art" })).toBeTruthy();
+  });
+
   it("Browse opens a menu of the three indexes as links", async () => {
     render(<SiteHeader />);
     open(screen.getByRole("button", { name: "Browse" }));

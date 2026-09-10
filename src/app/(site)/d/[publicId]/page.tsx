@@ -31,6 +31,7 @@ import { deckOwnership } from "@/lib/collection/ownership";
 import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
 import { viewerEngagement } from "@/lib/decks/engagement";
 import { forkCredit } from "@/lib/decks/forks";
+import { loadDeckLeaderArt } from "@/lib/decks/leader-art";
 import { deckFormat, loadDeckByPublicId } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { deckJsonLd, JsonLd } from "@/lib/seo/jsonld";
@@ -96,16 +97,22 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
     // without name or link, except to someone who can read it.
     forkCredit(deck, { token: null, userId: sessionUserId }),
   ]);
+  const fmt = deckFormat(deck);
   // "You own N/100 · missing ≈ $Y" (P3.7) — the signed-in viewer's OWN
   // collection against this deck, computed server-side like viewerEngagement
   // and rendered only when they have imported one. Signed out: nothing.
-  const ownedInfo = sessionUserId
-    ? await deckOwnedForViewer(
-        sessionUserId,
-        cards.map((c) => c.cardId),
-      )
-    : null;
-  const fmt = deckFormat(deck);
+  // Alongside it, the art leader's crop (R2): resolved here so the page
+  // ships with it and the client never asks; a game without ambient art
+  // (One Piece) resolves to null before any lookup.
+  const [ownedInfo, art] = await Promise.all([
+    sessionUserId
+      ? deckOwnedForViewer(
+          sessionUserId,
+          cards.map((c) => c.cardId),
+        )
+      : Promise.resolve(null),
+    fmt ? loadDeckLeaderArt(deck, cards, fmt) : Promise.resolve(null),
+  ]);
   const owned = ownedInfo?.hasCollection ? new Set(ownedInfo.owned) : undefined;
   const ownership =
     owned && fmt
@@ -135,6 +142,7 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
         forkedFrom={forkedFrom}
         ownership={ownership}
         owned={owned}
+        art={art}
       />
       {/* An OP deck's share page is a grid of Bandai card images — it needs
           the same posture line as /cards (P4.6); the walked funnel found it

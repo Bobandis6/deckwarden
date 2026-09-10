@@ -28,6 +28,12 @@ export const OPTCG_COLORS: readonly OptcgColorDef[] = [
   { name: "Yellow", bit: OPTCG_COLOR_BIT.Yellow, maskLetter: "W", hex: "#f9a825" },
 ];
 
+/**
+ * The ambient-gradient swatch for a colorless mask (R2, G7) — a neutral grey
+ * distinct from Black's blue-grey, so "no colors" never reads as Black.
+ */
+export const OPTCG_COLORLESS_HEX = "#9e9e9e";
+
 /** Mask → OP color names in display order ("Red/Green"). Empty array for mask 0. */
 export function maskToOptcgColorNames(mask: number): string[] {
   return OPTCG_COLORS.filter((c) => (mask & c.bit) !== 0).map((c) => c.name);

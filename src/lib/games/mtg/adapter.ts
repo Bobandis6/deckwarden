@@ -2,6 +2,7 @@
  * The MTG game adapter — pure functions only (build plan §3, Appendix B).
  * Commander first; other formats are LATER (legality model already supports them).
  */
+import { COLOR_BIT, maskToLetters } from "../colors";
 import type { CardData, GameAdapter, SearchFieldDef } from "../types";
 import type { MtgAttrs } from "./attrs";
 import { analyzeMtg } from "./analyze";
@@ -126,6 +127,16 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
       if (loyalty != null) return `Loyalty ${loyalty}`;
       return null;
     },
+    // Ambient fallback (R2, G7): the identity's colors as the shared
+    // `--mana-*` variables in WUBRG order; a colorless identity paints the
+    // neutral C pastel so a deck's identity is never invisible (the same
+    // rule ciPipsHtml applies to pips).
+    colorSwatches: (mask: number) => {
+      const letters = maskToLetters(mask & ~COLOR_BIT.C);
+      return letters.length > 0
+        ? letters.map((c) => `var(--mana-${c.toLowerCase()})`)
+        : ["var(--mana-c)"];
+    },
     defaultGroupBy: "primaryType",
     leaderNoun: "Commander",
     searchPlaceholder: "Add cards — try “4 Sol Ring”",
@@ -159,6 +170,9 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
   recommend: mtgRecommend,
 
   capabilities: {
+    // Ambient artwork (R2): Scryfall's art_crop with the artist credit
+    // beside it, resolved by printing id in src/lib/cards/art.ts.
+    ambientArt: { kind: "art_crop" },
     // Combo data: Commander Spellbook (P2.5 ingest; P3.3 Radar). Detection IO
     // is core (src/lib/combos/) — this is attribution + the walkthrough link,
     // matching the recommend.sources credit.

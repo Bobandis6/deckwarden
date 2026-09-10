@@ -9,6 +9,7 @@
  */
 import type { ReactNode } from "react";
 
+import { artCredit } from "@/lib/cards/art";
 import type { OgArt } from "@/lib/og/scryfall";
 import { og, rgba } from "@/lib/theme/tokens";
 
@@ -88,7 +89,8 @@ export function OgFrame({ art, children }: { art: OgArt | null; children: ReactN
 
 /**
  * The attribution line the art_crop hard rule requires INSIDE the image:
- * artist + © visible whenever cropped art renders.
+ * artist + © visible whenever cropped art renders — the same `artCredit`
+ * string the ambient layer's chip shows (R2), built in one place.
  */
 function OgAttribution({ artist }: { artist: string }) {
   return (
@@ -105,7 +107,7 @@ function OgAttribution({ artist }: { artist: string }) {
         fontSize: 17,
       }}
     >
-      {`Art: ${artist} · ™ & © Wizards of the Coast`}
+      {artCredit(artist)}
     </div>
   );
 }

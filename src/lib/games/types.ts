@@ -410,6 +410,14 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
      * detail pane, not to a hundred rows.
      */
     rowStats?(card: CardData<A>): string | null;
+    /**
+     * Ambient-fallback swatches (R2, G7): the CSS colors a color-identity
+     * mask paints behind the builder and the share page when no artwork is
+     * on screen — Magic's `--mana-*` variables, One Piece's frame hexes —
+     * in the game's display order and never empty (a colorless identity
+     * has a neutral of its own). Absent = no gradient for this game.
+     */
+    colorSwatches?(mask: number): string[];
     defaultGroupBy: "primaryType" | "costValue" | "tags";
     /** 'Commander' / 'Leader'. */
     leaderNoun: string;
@@ -445,6 +453,14 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
   recommend?: RecommendMeta;
 
   capabilities: {
+    /**
+     * Ambient artwork behind the builder and the share page (R2, REDESIGN.md
+     * §3). A declared kind resolves through src/lib/cards/art.ts —
+     * `art_crop` is Scryfall's crop with the artist credit beside it.
+     * Absent = the color-identity gradient only, and no art request is ever
+     * made for the game's cards (One Piece; §3 records why).
+     */
+    ambientArt?: { kind: "art_crop" | "full_card" };
     /**
      * Combo data exists for this game (MTG: Commander Spellbook, P2.5).
      * Declarative only — the tables are game-agnostic (combo_pieces →

@@ -55,6 +55,13 @@ describe("EditorHeader", () => {
     expect(screen.queryByRole("link", { name: "Build" })).toBeNull();
   });
 
+  it("the appearance menu carries the Background art switch (R2)", async () => {
+    render(header());
+    open(screen.getByRole("button", { name: "Appearance" }));
+    const menu = await screen.findByRole("menu", { name: "Appearance" });
+    expect(within(menu).getByRole("menuitemcheckbox", { name: "Background art" })).toBeTruthy();
+  });
+
   it("name edits flow through onNameChange", () => {
     const onNameChange = vi.fn();
     render(header({ onNameChange }));

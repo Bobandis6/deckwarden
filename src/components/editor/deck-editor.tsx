@@ -25,6 +25,12 @@
  * replace for max-1 zones, the tool pane on Base UI Tabs with every panel
  * kept mounted, and the `?` shortcut sheet.
  *
+ * R2 (REDESIGN.md §3): the ambient layer under the workspace — the art
+ * leader's crop (useLeaderArt: one request per leader change, never the
+ * preview) or the color-identity gradient — gated by the adapter's
+ * `ambientArt` and the reader's Background art preference. None of it
+ * touches deck state: no art event marks dirty or creates a deck.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
@@ -32,6 +38,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AmbientArt } from "@/components/deck/ambient-art";
 import { CardDetailPane } from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
 import { CutCoachPanel } from "@/components/editor/cut-coach-panel";
@@ -46,11 +53,14 @@ import { ShareDialog, type DeckVisibility } from "@/components/editor/share-dial
 import { ShortcutsSheet } from "@/components/editor/shortcuts-sheet";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { useEditorHotkeys } from "@/components/editor/use-editor-hotkeys";
+import { useLeaderArt } from "@/components/editor/use-leader-art";
 import { Button } from "@/components/ui/button";
 import { ModalFinalFocus } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast, Toaster } from "@/components/ui/toast";
 import { deckOwnership } from "@/lib/collection/ownership";
+import { leaderArtTarget, orderLeadersBy } from "@/lib/decks/ambient-art";
+import { leaderDenorm } from "@/lib/decks/cards";
 import {
   addCard,
   removeCard,
@@ -70,6 +80,7 @@ import type { ImportOutcome } from "@/lib/decks/import";
 import { getDeckToken, removeDeckToken, setDeckToken } from "@/lib/decks/token-store";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
+import { useAppearance } from "@/lib/theme/appearance";
 import type {
   AnalyticsBlock,
   FormatDef,
@@ -91,6 +102,8 @@ interface DeckResponse {
     isOwner: boolean;
     /** Fork credit (P3.6), resolved for this viewer; null = not a fork. */
     forkedFrom: ForkCredit | null;
+    /** The decks-row leader order (R2): keeps a partner deck's art leader stable across reloads. */
+    leaderIds: string[];
   };
   cards: {
     cardId: string;
@@ -311,13 +324,20 @@ export function DeckEditor({
     const format = adapter?.formats.find((f) => f.code === json.deck.format);
     if (!adapter || !format) throw new Error("This deck has an unknown game or format.");
 
-    const loadedEntries: EditorEntry[] = json.cards.map((c) => ({
-      cardId: c.cardId,
-      zone: c.zone,
-      qty: c.qty,
-      tags: c.tags,
-      ...(c.printingId ? { printingId: c.printingId } : {}),
-    }));
+    // The wire sorts by name within a zone; leaders take the decks-row
+    // order instead (R2) so the art leader of a partner deck is the same
+    // one before and after a reload, and the next save writes it back.
+    const loadedEntries: EditorEntry[] = orderLeadersBy(
+      json.cards.map((c) => ({
+        cardId: c.cardId,
+        zone: c.zone,
+        qty: c.qty,
+        tags: c.tags,
+        ...(c.printingId ? { printingId: c.printingId } : {}),
+      })),
+      format,
+      json.deck.leaderIds ?? [],
+    );
     entriesRef.current = loadedEntries;
     metaRef.current = {
       name: json.deck.name,
@@ -744,6 +764,32 @@ export function DeckEditor({
     [hasCollection, load, entries, cards, owned],
   );
 
+  // Ambient art (R2): the FIRST leader entry drives the one request — the
+  // preview card is never an input, and main-deck edits leave the key
+  // unchanged. Off (or an adapter without `ambientArt`) means no request;
+  // the reader's preference is unknown until hydration, and nothing paints
+  // before then.
+  const appearance = useAppearance();
+  const artTarget = format ? leaderArtTarget(entries, format) : null;
+  const leaderArt = useLeaderArt({
+    enabled:
+      adapter?.capabilities.ambientArt?.kind === "art_crop" && appearance?.backgroundArt === true,
+    cardId: artTarget?.cardId ?? null,
+    printingId: artTarget?.printingId ?? null,
+  });
+  // The gradient fallback (G7) from the leaders' combined identity — the
+  // same OR `leaderDenorm` writes to decks.ci_mask on save.
+  const swatches = useMemo(() => {
+    if (!format || !adapter?.display.colorSwatches) return null;
+    const ciByCard = new Map<string, number>();
+    for (const e of entries) {
+      const card = cards.get(e.cardId);
+      if (card) ciByCard.set(e.cardId, card.ciMask);
+    }
+    const { leaderIds, ciMask } = leaderDenorm(entries, format, ciByCard);
+    return leaderIds.length > 0 ? adapter.display.colorSwatches(ciMask) : null;
+  }, [format, adapter, entries, cards]);
+
   if (load.state !== "ready") {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
@@ -769,7 +815,7 @@ export function DeckEditor({
     // Mobile (<lg): panes stack and the page scrolls; the header wraps to two
     // rows (name input drops to its own line). Desktop keeps the app-like
     // fixed-viewport three-pane grid.
-    <div className="flex min-h-dvh flex-col lg:h-dvh" data-game={load.adapter.id}>
+    <div className="relative isolate flex min-h-dvh flex-col lg:h-dvh" data-game={load.adapter.id}>
       {/* One Toaster per surface (F3). The viewport is portaled outside this
           root, so it carries data-game itself: the Undo button's focus ring
           takes the game accent, not the brand fallback. */}
@@ -963,6 +1009,8 @@ export function DeckEditor({
           )}
         </section>
       </div>
+      {/* Last child on purpose: the credit chip's sticky row sits at the surface's end (R2). */}
+      <AmbientArt art={leaderArt} swatches={swatches} appearance={appearance} />
     </div>
   );
 }

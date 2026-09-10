@@ -8,6 +8,7 @@
  */
 import type { CardData, FormatDef, GameAdapter, SearchFieldDef } from "../types";
 import { analyzeOptcg } from "./analyze";
+import { OPTCG_COLORLESS_HEX, OPTCG_COLORS } from "./colors";
 import { limitlessEventUrl } from "./limitless-map";
 import { validateOptcg } from "./validate";
 
@@ -186,6 +187,13 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
       if (card.attrs.power_num != null) parts.push(String(card.attrs.power_num));
       if (card.attrs.counter_num != null) parts.push(`+${card.attrs.counter_num}`);
       return parts.length ? parts.join(" · ") : null;
+    },
+    // Ambient fallback (R2, G7): the frame hexes in Bandai's display order —
+    // the only ambient treatment One Piece gets while its adapter declares
+    // no `ambientArt` (REDESIGN.md §3).
+    colorSwatches: (mask: number) => {
+      const hexes = OPTCG_COLORS.filter((c) => (mask & c.bit) !== 0).map((c) => c.hex);
+      return hexes.length > 0 ? hexes : [OPTCG_COLORLESS_HEX];
     },
     defaultGroupBy: "costValue",
     leaderNoun: "Leader",

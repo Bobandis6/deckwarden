@@ -10,11 +10,20 @@
  * View toggles are deliberately not persisted here (unlike the editor):
  * loading localStorage prefs during render would break SSR hydration, and a
  * share-page viewer doesn't need their reading preference remembered.
+ *
+ * R2 (REDESIGN.md §3): the ambient layer behind <main> — the art the
+ * server page resolved (`art`; the client makes no art request of its own)
+ * or the color-identity gradient from `deck.ciMask` — under the reader's
+ * Background art preference, which IS read from localStorage, through
+ * useSyncExternalStore with a null server snapshot (nothing paints until
+ * hydration). The private-deck gate passes no `art`: its owner gets the
+ * gradient.
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 
+import { AmbientArt } from "@/components/deck/ambient-art";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
 import { DeckGridView } from "@/components/deck/deck-grid-view";
 import { DeckTextView } from "@/components/deck/deck-text-view";
@@ -25,7 +34,9 @@ import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { Button } from "@/components/ui/button";
+import type { CardArt } from "@/lib/cards/art";
 import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
+import { orderLeadersBy } from "@/lib/decks/ambient-art";
 import {
   deckSizeCount,
   toEditorCard,
@@ -45,6 +56,7 @@ import {
 import type { DeckViewMode } from "@/lib/decks/view-prefs";
 import { getAdapter } from "@/lib/games/registry";
 import type { GameId } from "@/lib/games/types";
+import { useAppearance } from "@/lib/theme/appearance";
 
 /** Structural subset of deckMetaJson / the GET /api/decks/[id] `deck` object. */
 export interface ShareDeckMeta {
@@ -58,6 +70,10 @@ export interface ShareDeckMeta {
   visibility: "public" | "unlisted" | "private";
   likesCount: number;
   updatedAt: string | Date;
+  /** Leader-zone card ids in the order of the last save (R2: the art leader is the first). */
+  leaderIds: string[];
+  /** OR of the leaders' color identity (R2: the gradient fallback). */
+  ciMask: number;
 }
 
 export interface ShareDeckCard {
@@ -85,6 +101,7 @@ export function DeckShareView({
   forkedFrom = null,
   ownership = null,
   owned,
+  art = null,
 }: {
   deck: ShareDeckMeta;
   cards: ShareDeckCard[];
@@ -97,8 +114,11 @@ export function DeckShareView({
   ownership?: OwnershipSummary | null;
   /** The viewer's owned card ids among this deck (P3.7) — drives the ✓ marks. */
   owned?: ReadonlySet<string>;
+  /** The art leader's crop, resolved by the server page (R2); null = gradient only. */
+  art?: CardArt | null;
 }) {
   const router = useRouter();
+  const appearance = useAppearance();
 
   // localStorage is client-only: null during SSR, the token after hydration.
   // useSyncExternalStore keeps the read out of render on the server pass.
@@ -118,17 +138,18 @@ export function DeckShareView({
   const [sortBy, setSortBy] = useState<SortKey>("name");
   const [copied, setCopied] = useState(false);
 
-  const entries = useMemo<EditorEntry[]>(
-    () =>
-      cards.map((c) => ({
-        cardId: c.cardId,
-        zone: c.zone,
-        qty: c.qty,
-        tags: c.tags,
-        ...(c.printingId ? { printingId: c.printingId } : {}),
-      })),
-    [cards],
-  );
+  // Leaders in the decks-row order (R2), the same reorder the editor's
+  // hydration applies, so the leader zone lists the art leader first.
+  const entries = useMemo<EditorEntry[]>(() => {
+    const mapped = cards.map((c) => ({
+      cardId: c.cardId,
+      zone: c.zone,
+      qty: c.qty,
+      tags: c.tags,
+      ...(c.printingId ? { printingId: c.printingId } : {}),
+    }));
+    return format ? orderLeadersBy(mapped, format, deck.leaderIds) : mapped;
+  }, [cards, format, deck.leaderIds]);
   const cardMap = useMemo<ReadonlyMap<string, EditorCard>>(
     () => new Map(cards.map((c) => [c.cardId, toEditorCard(c.card)])),
     [cards],
@@ -170,6 +191,8 @@ export function DeckShareView({
   const total = deckSizeCount(entries, format);
   const sizeLabel = format.deckSize.max !== null ? `${total} / ${format.deckSize.max}` : `${total}`;
   const updated = new Date(deck.updatedAt);
+  const swatches =
+    leader.length > 0 ? (adapter.display.colorSwatches?.(deck.ciMask) ?? null) : null;
 
   const onPreview = (card: EditorCard) => router.push(`/cards/${card.id}`);
 
@@ -180,7 +203,10 @@ export function DeckShareView({
   };
 
   return (
-    <main className="max-w-browse mx-auto w-full flex-1 px-4 py-6" data-game={adapter.id}>
+    <main
+      className="max-w-browse relative isolate mx-auto w-full flex-1 px-4 py-6"
+      data-game={adapter.id}
+    >
       <header>
         <h1 className="text-2xl font-semibold tracking-tight break-words">{deck.name}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
@@ -306,6 +332,8 @@ export function DeckShareView({
           </div>
         </section>
       )}
+      {/* Last child on purpose: the credit chip's sticky row sits at main's end (R2). */}
+      <AmbientArt art={art} swatches={swatches} appearance={appearance} />
     </main>
   );
 }
