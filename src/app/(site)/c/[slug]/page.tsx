@@ -23,11 +23,12 @@ import { cache } from "react";
 import { CardImage } from "@/components/cards/card-image";
 import { ComboList } from "@/components/combos/combo-list";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
+import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
 import { StaplesTable } from "@/components/hub/staples-table";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
 import { printingImageUrl } from "@/lib/cards/images";
 import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
-import { updatedLabel } from "@/lib/decks/display";
+import { rowPrinting, tileFromDeck } from "@/lib/decks/tiles";
 import { ciPipsHtml } from "@/lib/games/colors";
 import { getAdapter } from "@/lib/games/registry";
 import type { CardData } from "@/lib/games/types";
@@ -336,28 +337,15 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           <p className="text-muted-foreground mt-0.5 text-xs">
             Public Deckwarden decks running {leader.name}.
           </p>
-          <ul className="mt-2 divide-y rounded-lg border">
+          {/* R5a: the shared DeckTile (G5/G8) — no per-viewer state, so the hub stays ISR. */}
+          <DeckTileGrid className="mt-2 lg:grid-cols-2">
             {hubDecks.map((deck) => (
-              <li key={deck.publicId}>
-                <Link
-                  href={`/d/${deck.publicId}`}
-                  className="flex items-center justify-between gap-3 px-3 py-2 hover:underline"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">{deck.name}</span>
-                    <span className="text-muted-foreground block text-xs">
-                      Updated {updatedLabel(deck.updatedAt)}
-                    </span>
-                  </span>
-                  {deck.likesCount > 0 && (
-                    <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-                      ♥ {deck.likesCount}
-                    </span>
-                  )}
-                </Link>
-              </li>
+              <DeckTile
+                key={deck.publicId}
+                tile={tileFromDeck(deck, rowPrinting(deck), { href: `/d/${deck.publicId}` })}
+              />
             ))}
-          </ul>
+          </DeckTileGrid>
         </section>
       )}
 

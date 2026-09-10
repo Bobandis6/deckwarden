@@ -37,6 +37,7 @@
 import { useEffect, useState } from "react";
 
 import type { CardArt } from "@/lib/cards/art";
+import { ambientGradient } from "@/lib/decks/ambient-art";
 import type { Appearance } from "@/lib/theme/appearance";
 import { cn } from "@/lib/utils";
 
@@ -48,20 +49,9 @@ const CROSSFADE_MS = 300;
 
 const IMAGE_CLASS = "absolute inset-0 h-full w-full object-cover";
 
-/** Where each swatch pools; one color fills the middle, more spread around it. */
-const SPOTS = ["18% 22%", "82% 30%", "50% 80%", "20% 78%", "82% 82%", "50% 42%"];
-
-export function ambientGradient(swatches: readonly string[]): string {
-  if (swatches.length === 1) {
-    return `radial-gradient(ellipse 90% 80% at 50% 40%, ${swatches[0]} 0%, transparent 70%)`;
-  }
-  return swatches
-    .map(
-      (color, i) =>
-        `radial-gradient(ellipse 60% 55% at ${SPOTS[i % SPOTS.length]}, ${color} 0%, transparent 70%)`,
-    )
-    .join(", ");
-}
+// The gradient lives with the pure helpers (R5a: the deck tiles paint it
+// server-side, where a "use client" export would be a client reference).
+export { ambientGradient };
 
 interface Shown {
   current: CardArt | null;

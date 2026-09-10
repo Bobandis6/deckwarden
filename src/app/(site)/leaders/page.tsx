@@ -15,10 +15,16 @@
  *
  * Color filter semantics: exact colors_mask ("Red/Green leaders", not
  * "leaders that include Red") — mirrors /commanders' exact-identity call.
+ *
+ * R5a: the filter and the row dots are the shared ColorChip (C14), and the
+ * main carries `data-game="optcg"`. No List / Grid toggle here until LATER
+ * row 51 fires — 142 r2.dev images on one page is exactly the throttling
+ * the row warns about; the grid arrives with `img.deckwarden.gg`.
  */
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { chipClass, ColorChipLink, ColorChipList } from "@/components/color-chip";
 import { EmptyState } from "@/components/empty-state";
 import { GameSwitch } from "@/components/game-switch";
 import { Button } from "@/components/ui/button";
@@ -42,26 +48,6 @@ function filterHref(letters: string): string {
   return letters ? `/leaders?colors=${letters.toLowerCase()}` : "/leaders";
 }
 
-/** Small color dots + screen-reader text, shared by the index rows. */
-function ColorDots({ mask }: { mask: number }) {
-  const colors = OPTCG_COLORS.filter((c) => (mask & c.bit) !== 0);
-  if (colors.length === 0) return null;
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1">
-      {colors.map((c) => (
-        <span
-          key={c.name}
-          aria-hidden
-          title={c.name}
-          className="inline-block size-2.5 rounded-full"
-          style={{ backgroundColor: c.hex }}
-        />
-      ))}
-      <span className="sr-only">{colors.map((c) => c.name).join("/")}</span>
-    </span>
-  );
-}
-
 export default async function LeadersPage({ searchParams }: PageProps<"/leaders">) {
   const sp = await searchParams;
   const rawColors = typeof sp.colors === "string" ? sp.colors : "";
@@ -78,7 +64,7 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
   const leaders = await loadOpLeaderIndex({ colorsMask });
 
   return (
-    <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8">
+    <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="optcg">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">One Piece Leaders</h1>
         <Button nativeButton={false} render={<Link href="/decks/new?game=optcg" />}>
@@ -97,7 +83,7 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
         <Link
           href={filterHref("")}
           aria-current={colorsMask === null ? "page" : undefined}
-          className={`rounded-md border px-2 py-1 text-sm ${colorsMask === null ? "bg-foreground text-background" : "hover:underline"}`}
+          className={chipClass(colorsMask === null)}
         >
           All
         </Link>
@@ -107,14 +93,13 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
             ? activeLetters.replace(c.maskLetter, "")
             : activeLetters + c.maskLetter;
           return (
-            <Link
+            <ColorChipLink
               key={c.name}
+              game="optcg"
+              color={c.maskLetter}
               href={filterHref(next)}
-              aria-current={active ? "page" : undefined}
-              className={`rounded-md border px-2 py-1 text-sm ${active ? "bg-foreground text-background" : "hover:underline"}`}
-            >
-              {c.name}
-            </Link>
+              active={active}
+            />
           );
         })}
       </nav>
@@ -154,7 +139,7 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
                         </span>
                       )}
                     </span>
-                    <ColorDots mask={leader.colorsMask} />
+                    <ColorChipList game="optcg" mask={leader.colorsMask} className="text-xs" />
                   </Link>
                 </li>
               );

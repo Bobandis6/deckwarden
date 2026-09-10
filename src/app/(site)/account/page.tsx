@@ -7,7 +7,9 @@
  *
  * Caching intent: force-dynamic — everything on the page is session-shaped.
  * Avatar uses a plain <img> per house image rules (no Vercel optimization
- * quota on externally hosted avatars).
+ * quota on externally hosted avatars). R5a: the deck rows are DeckTiles
+ * inside today's folder sections and Unfiled bucket (one batched printing
+ * lookup for the images); everything else on the page is R5b's.
  */
 import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
 import { ArrowRightIcon, FolderIcon } from "lucide-react";
@@ -20,6 +22,7 @@ import { DeleteAccount } from "@/components/auth/delete-account";
 import { SignInButtons } from "@/components/auth/sign-in-buttons";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { CollectionImport } from "@/components/collection/collection-import";
+import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
 import { RemoveBookmarkButton } from "@/components/deck/engagement-buttons";
 import { EmptyState } from "@/components/empty-state";
 import { DeckFolderSelect, type FolderOption } from "@/components/folders/deck-folder-select";
@@ -31,6 +34,8 @@ import { getDb, schema } from "@/db";
 import { auth } from "@/lib/auth";
 import { collectionSummary } from "@/lib/collection/owned";
 import { formatLabel, updatedLabel } from "@/lib/decks/display";
+import { tileFromDeck } from "@/lib/decks/tiles";
+import { loadDefaultPrintings, type DefaultPrinting } from "@/lib/hub/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -43,34 +48,44 @@ export const metadata: Metadata = {
 
 type DeckRow = typeof schema.decks.$inferSelect;
 
-/** One deck row, shared by the folder sections and the unfiled bucket. */
-function DeckItem({ deck, folders }: { deck: DeckRow; folders: FolderOption[] }) {
+/**
+ * One deck, shared by the folder sections and the unfiled bucket — the
+ * shared DeckTile since R5a (G5/G8), keeping the edit link titled
+ * "Edit {name}", the visibility word, the folder select and the Share link.
+ */
+function DeckItem({
+  deck,
+  printing,
+  folders,
+}: {
+  deck: DeckRow;
+  printing: DefaultPrinting | null;
+  folders: FolderOption[];
+}) {
   return (
-    <li className="flex items-center gap-3 px-3 py-2">
-      <Link
-        href={`/decks/${deck.id}/edit`}
-        className="min-w-0 flex-1 hover:underline"
-        title={`Edit ${deck.name}`}
-      >
-        <span className="block truncate text-sm font-medium">{deck.name}</span>
-        <span className="text-muted-foreground block text-xs">
-          {formatLabel(deck.gameId, deck.formatId)} · {deck.visibility} · Updated{" "}
-          {updatedLabel(deck.updatedAt)}
-        </span>
-      </Link>
-      <DeckFolderSelect
-        deckId={deck.id}
-        deckName={deck.name}
-        currentFolderId={deck.folderId}
-        folders={folders}
-      />
-      <Link
-        href={`/d/${deck.publicId}`}
-        className="text-muted-foreground shrink-0 text-xs hover:underline"
-      >
-        Share page
-      </Link>
-    </li>
+    <DeckTile
+      tile={tileFromDeck(deck, printing, {
+        href: `/decks/${deck.id}/edit`,
+        showVisibility: true,
+      })}
+      linkTitle={`Edit ${deck.name}`}
+      actions={
+        <>
+          <DeckFolderSelect
+            deckId={deck.id}
+            deckName={deck.name}
+            currentFolderId={deck.folderId}
+            folders={folders}
+          />
+          <Link
+            href={`/d/${deck.publicId}`}
+            className="text-muted-foreground shrink-0 text-xs hover:underline"
+          >
+            Share page
+          </Link>
+        </>
+      }
+    />
   );
 }
 
@@ -142,6 +157,12 @@ export default async function AccountPage() {
     // Collection (P3.7): the import section's summary line.
     collectionSummary(session.user.id),
   ]);
+  // Tile images (R5a): the first leader's default printing, one batched query.
+  const printings = await loadDefaultPrintings(
+    decks.flatMap((deck) => (deck.leaderIds[0] ? [deck.leaderIds[0]] : [])),
+  );
+  const printingFor = (deck: DeckRow): DefaultPrinting | null =>
+    (deck.leaderIds[0] && printings.get(deck.leaderIds[0])) || null;
   const providers = [...new Set(linked.map((a) => a.providerId))]
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join(", ");
@@ -235,11 +256,16 @@ export default async function AccountPage() {
                   Empty — file a deck into it with the folder picker on any deck row.
                 </p>
               ) : (
-                <ul className="divide-y rounded-lg border">
+                <DeckTileGrid className="lg:grid-cols-2">
                   {inFolder.map((deck) => (
-                    <DeckItem key={deck.id} deck={deck} folders={folderOptions} />
+                    <DeckItem
+                      key={deck.id}
+                      deck={deck}
+                      printing={printingFor(deck)}
+                      folders={folderOptions}
+                    />
                   ))}
-                </ul>
+                </DeckTileGrid>
               )}
             </div>
           );
@@ -261,11 +287,16 @@ export default async function AccountPage() {
               }
             />
           ) : (
-            <ul className="divide-y rounded-lg border">
+            <DeckTileGrid className="lg:grid-cols-2">
               {unfiled.map((deck) => (
-                <DeckItem key={deck.id} deck={deck} folders={folderOptions} />
+                <DeckItem
+                  key={deck.id}
+                  deck={deck}
+                  printing={printingFor(deck)}
+                  folders={folderOptions}
+                />
               ))}
-            </ul>
+            </DeckTileGrid>
           )}
         </div>
       </section>

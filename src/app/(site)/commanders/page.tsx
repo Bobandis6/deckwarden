@@ -1,12 +1,16 @@
 /**
  * /commanders — the leader index (P2.4): browse commanders by color and
  * popularity. Rows come straight from card data (edhrec_rank order), so the
- * page is honest with zero users.
+ * page is honest with zero users. R5a: the color filter is the shared
+ * ColorChip (C14), the rows render through LeaderIndexView — the compact
+ * list in the server HTML, an image grid behind the List / Grid toggle
+ * persisted under `deckwarden:index-view` — and `data-game="mtg"` gives the
+ * chips and frames the Magic accent.
  *
  * Caching intent: force-dynamic — ?colors= / ?page= drive the query, and
- * one partial-indexed read (ci_leaders) per request is cheap; if this page
- * ever shows up in Neon compute, the upgrade path is ISR per filter
- * combination, not a rethink.
+ * one partial-indexed read (ci_leaders, now with the default printing
+ * joined) per request is cheap; if this page ever shows up in Neon compute,
+ * the upgrade path is ISR per filter combination, not a rethink.
  *
  * Color filter semantics: exact color identity ("Azorius commanders", not
  * "commanders that include W or U") — the way players name the space.
@@ -15,8 +19,11 @@ import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { chipClass, ColorChipLink } from "@/components/color-chip";
 import { GameSwitch } from "@/components/game-switch";
-import { ciPipsHtml, COLOR_ORDER, lettersToMask, maskToLetters } from "@/lib/games/colors";
+import { LeaderIndexView, type IndexLeader } from "@/components/hub/leader-index-view";
+import { leaderTileImage } from "@/lib/decks/tiles";
+import { COLOR_ORDER, lettersToMask, maskToLetters } from "@/lib/games/colors";
 import { LEADERS_PAGE_SIZE, loadLeaderIndex } from "@/lib/hub/queries";
 
 export const dynamic = "force-dynamic";
@@ -27,15 +34,6 @@ export const metadata: Metadata = {
   // Filter/page variants (?colors=, ?page=) canonicalize to the bare index —
   // hubs are the real landing pages; faceted lists shouldn't split them (P2.6).
   alternates: { canonical: "/commanders" },
-};
-
-const COLOR_LABEL: Record<string, string> = {
-  W: "White",
-  U: "Blue",
-  B: "Black",
-  R: "Red",
-  G: "Green",
-  C: "Colorless",
 };
 
 function filterHref(letters: string, page = 1): string {
@@ -60,9 +58,27 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
 
   const leaders = await loadLeaderIndex({ ciMask, page });
   const hasNext = leaders.length === LEADERS_PAGE_SIZE;
+  const rows: IndexLeader[] = leaders.flatMap((leader, i) =>
+    leader.slug === null
+      ? []
+      : [
+          {
+            id: leader.id,
+            name: leader.name,
+            slug: leader.slug,
+            rank: (page - 1) * LEADERS_PAGE_SIZE + i + 1,
+            ciMask: leader.ciMask,
+            image: leaderTileImage(
+              leader.printingId
+                ? { id: leader.printingId, imageOverride: leader.imageOverride }
+                : null,
+            ),
+          },
+        ],
+  );
 
   return (
-    <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8">
+    <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="mtg">
       <h1 className="text-3xl font-semibold tracking-tight">Commanders</h1>
       <p className="text-muted-foreground mt-1 text-sm">
         Ranked by how much each commander is actually played (EDHREC data via Scryfall).
@@ -75,7 +91,7 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
         <Link
           href={filterHref("")}
           aria-current={ciMask === null ? "page" : undefined}
-          className={`rounded-md border px-2 py-1 text-sm ${ciMask === null ? "bg-foreground text-background" : "hover:underline"}`}
+          className={chipClass(ciMask === null)}
         >
           All
         </Link>
@@ -91,19 +107,12 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
                 : activeLetters.replace("C", "") + c;
           const active = c === "C" ? activeLetters === "C" : activeLetters.includes(c);
           return (
-            <Link
-              key={c}
-              href={filterHref(next)}
-              aria-current={active ? "page" : undefined}
-              className={`rounded-md border px-2 py-1 text-sm ${active ? "bg-foreground text-background" : "hover:underline"}`}
-            >
-              {COLOR_LABEL[c]}
-            </Link>
+            <ColorChipLink key={c} game="mtg" color={c} href={filterHref(next)} active={active} />
           );
         })}
       </nav>
 
-      {leaders.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="text-muted-foreground mt-6 text-sm">
           No commanders match that exact color identity{page > 1 ? " on this page" : ""}.{" "}
           <Link href={filterHref(activeLetters)} className="underline">
@@ -111,27 +120,7 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
           </Link>
         </p>
       ) : (
-        <ul className="mt-6 divide-y rounded-lg border">
-          {leaders.map((leader, i) => (
-            <li key={leader.id}>
-              <Link
-                href={`/c/${leader.slug}`}
-                className="flex items-center justify-between gap-3 px-3 py-2 hover:underline"
-              >
-                <span className="min-w-0">
-                  <span className="text-muted-foreground mr-2 text-xs tabular-nums">
-                    {(page - 1) * LEADERS_PAGE_SIZE + i + 1}
-                  </span>
-                  <span className="text-sm font-medium">{leader.name}</span>
-                </span>
-                <span
-                  className="shrink-0"
-                  dangerouslySetInnerHTML={{ __html: ciPipsHtml(leader.ciMask) }}
-                />
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <LeaderIndexView leaders={rows} />
       )}
 
       <div className="mt-4 flex items-center justify-between text-sm">
@@ -152,7 +141,7 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
       </div>
 
       <p className="text-muted-foreground mt-12 text-xs">
-        Card data courtesy of{" "}
+        Card data and images courtesy of{" "}
         <a href="https://scryfall.com" className="underline" rel="noreferrer" target="_blank">
           Scryfall
         </a>

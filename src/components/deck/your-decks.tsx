@@ -1,34 +1,35 @@
 "use client";
 
 /**
- * Anonymous "your decks" list (P1.7): the token store's keys enumerate every
- * deck this browser owns; POST /api/decks/mine verifies them server-side and
- * returns meta (stale tokens for deleted decks silently drop out). No
- * account, nothing stored server-side — the list is derived from the claim
- * tokens in localStorage each visit.
+ * Continue building for a guest (P1.7's "your decks"; tiles since R5a): the
+ * token store's keys enumerate every deck this browser owns; POST
+ * /api/decks/mine verifies them server-side and returns meta (stale tokens
+ * for deleted decks silently drop out) plus, since R5a, `leaderImage` — the
+ * first leader's `small` rendition, null while a game's images are gated.
+ * No account, nothing stored server-side — the list is derived from the
+ * claim tokens in localStorage each visit, so it renders client-side after
+ * the fetch and the server HTML carries nothing (a signed-in visitor gets
+ * the server-rendered ContinueBuilding instead; the page picks one).
  */
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import type { DeckVisibility } from "@/components/editor/share-dialog";
+import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
+import type { DeckVisibility } from "@/db/schema";
+import { deckTileData } from "@/lib/decks/tiles";
 import { listDeckTokens } from "@/lib/decks/token-store";
-import { getAdapter } from "@/lib/games/registry";
-import type { GameId } from "@/lib/games/types";
 
 interface DeckMeta {
   id: string;
   publicId: string;
-  game: GameId | null;
+  game: string | null;
   format: string | null;
   name: string;
   visibility: DeckVisibility;
   updatedAt: string;
-}
-
-function formatLabel(deck: DeckMeta): string {
-  if (!deck.game) return deck.format ?? "";
-  const label = getAdapter(deck.game).formats.find((f) => f.code === deck.format)?.label;
-  return label ?? deck.format ?? "";
+  ciMask: number;
+  likesCount: number;
+  leaderImage: string | null;
 }
 
 export function YourDecks() {
@@ -64,36 +65,37 @@ export function YourDecks() {
 
   // id: the site header's guest "My decks" link (/#your-decks) lands here (R1b).
   return (
-    <section id="your-decks" aria-label="Your decks" className="w-full max-w-md">
+    <section id="your-decks" aria-label="Continue building" className="w-full space-y-3">
       <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-        Your decks on this browser
+        Continue building
       </h2>
-      <ul className="mt-2 divide-y rounded-lg border">
+      <DeckTileGrid>
         {decks.map((deck) => (
-          <li key={deck.id} className="flex items-center gap-3 px-3 py-2">
-            <Link
-              href={`/decks/${deck.id}/edit`}
-              className="min-w-0 flex-1 hover:underline"
-              title={`Edit ${deck.name}`}
-            >
-              <span className="block truncate text-sm font-medium">{deck.name}</span>
-              <span className="text-muted-foreground block text-xs">
-                {formatLabel(deck)} · Updated{" "}
-                {new Date(deck.updatedAt).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                })}
-              </span>
-            </Link>
-            <Link
-              href={`/d/${deck.publicId}`}
-              className="text-muted-foreground shrink-0 text-xs hover:underline"
-            >
-              Share page
-            </Link>
-          </li>
+          <DeckTile
+            key={deck.id}
+            tile={deckTileData({
+              href: `/decks/${deck.id}/edit`,
+              name: deck.name,
+              game: deck.game,
+              formatCode: deck.format,
+              visibility: deck.visibility,
+              updatedAt: deck.updatedAt,
+              likesCount: deck.likesCount,
+              ciMask: deck.ciMask,
+              leaderImage: deck.leaderImage,
+            })}
+            linkTitle={`Edit ${deck.name}`}
+            actions={
+              <Link
+                href={`/d/${deck.publicId}`}
+                className="text-muted-foreground text-xs hover:underline"
+              >
+                Share page
+              </Link>
+            }
+          />
         ))}
-      </ul>
+      </DeckTileGrid>
     </section>
   );
 }

@@ -17,12 +17,17 @@
  * lands (Forest is not advice), preview/removed cards, and anything with a
  * current unconditional banned/not_legal row for the leader format.
  */
-import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
+import {
+  deckCollectionSelect,
+  defaultPrintingJoin,
+  type DeckCollectionRow,
+} from "@/lib/decks/collections";
 
-const { cardIdentities, cardPrintings, decks, legalities } = schema;
+const { cardIdentities, cardPrintings, decks, legalities, users } = schema;
 
 export type LeaderRow = typeof schema.cardIdentities.$inferSelect;
 
@@ -53,6 +58,33 @@ export async function loadDefaultPrinting(cardIdentityId: string) {
     .where(and(eq(cardPrintings.cardIdentityId, cardIdentityId), eq(cardPrintings.isDefault, true)))
     .limit(1);
   return printing ?? null;
+}
+
+export type DefaultPrinting = NonNullable<Awaited<ReturnType<typeof loadDefaultPrinting>>>;
+
+/**
+ * Default printings for many identities in ONE query (R5a) — the batched
+ * sibling for callers that already hold full deck rows (/account, the mine
+ * route); the collection queries join the printing instead. Ids the
+ * database does not know are simply absent from the map.
+ */
+export async function loadDefaultPrintings(
+  cardIdentityIds: readonly string[],
+): Promise<Map<string, DefaultPrinting>> {
+  const ids = [...new Set(cardIdentityIds)];
+  const map = new Map<string, DefaultPrinting>();
+  if (ids.length === 0) return map;
+  const rows = await getDb()
+    .select({
+      cardIdentityId: cardPrintings.cardIdentityId,
+      id: cardPrintings.id,
+      imageOverride: cardPrintings.imageOverride,
+    })
+    .from(cardPrintings)
+    .where(and(inArray(cardPrintings.cardIdentityId, ids), eq(cardPrintings.isDefault, true)));
+  for (const row of rows)
+    map.set(row.cardIdentityId, { id: row.id, imageOverride: row.imageOverride });
+  return map;
 }
 
 /** The leader's own current unconditional status in the given format ('legal' when no row). */
@@ -118,12 +150,8 @@ export async function loadStaples(leader: { id: string; ciMask: number }): Promi
     .limit(STAPLES_LIMIT);
 }
 
-export interface HubDeckRow {
-  publicId: string;
-  name: string;
-  likesCount: number;
-  updatedAt: Date;
-}
+/** The tile row (R5a): the collection shape, so the shelf renders the same DeckTile as home. */
+export type HubDeckRow = DeckCollectionRow;
 
 export const HUB_DECKS_LIMIT = 10;
 
@@ -132,17 +160,16 @@ export const HUB_DECKS_LIMIT = 10;
  * Public decks whose command zone contains this leader, most-liked first,
  * recency as the tiebreak. Cold-start rule: callers render the shelf only
  * when this returns rows — an empty shelf is padding, not honesty. Community
- * data, but still zero per-viewer state, so hub ISR is untouched.
+ * data, but still zero per-viewer state, so hub ISR is untouched. Since R5a
+ * the row carries the tile fields, the byline and the first leader's
+ * default printing (one LEFT JOIN each, still one statement).
  */
 export async function loadHubDecks(leaderId: string): Promise<HubDeckRow[]> {
   return getDb()
-    .select({
-      publicId: decks.publicId,
-      name: decks.name,
-      likesCount: decks.likesCount,
-      updatedAt: decks.updatedAt,
-    })
+    .select(deckCollectionSelect)
     .from(decks)
+    .leftJoin(users, eq(decks.userId, users.id))
+    .leftJoin(cardPrintings, defaultPrintingJoin)
     .where(
       and(
         eq(decks.visibility, "public"),
@@ -162,6 +189,9 @@ export interface LeaderIndexRow {
   costValue: number | null;
   popularity: number | null;
   cheapestUsd: string | null;
+  /** The default printing (R5a): the image behind the index grid and the home shelf; null = none. */
+  printingId: string | null;
+  imageOverride: unknown;
 }
 
 export const LEADERS_PAGE_SIZE = 60;
@@ -170,11 +200,15 @@ export const LEADERS_PAGE_SIZE = 60;
  * Leader index page: popularity order (edhrec_rank asc = most played first;
  * unranked leaders sort last), optional exact color-identity filter.
  * MTG-only by construction — popularity is an MTG signal (EDHREC), and the
- * OP index below deliberately doesn't pretend to have one.
+ * OP index below deliberately doesn't pretend to have one. Since R5a the
+ * default printing rides along (LEFT JOIN on cp_default_one — one row per
+ * identity, still one statement) and `limit` lets the homepage shelf take
+ * page 1's top six.
  */
 export async function loadLeaderIndex(opts: {
   ciMask: number | null;
   page: number;
+  limit?: number;
 }): Promise<LeaderIndexRow[]> {
   const conditions = [
     eq(cardIdentities.gameId, GAME_ID.mtg),
@@ -192,12 +226,23 @@ export async function loadLeaderIndex(opts: {
       costValue: cardIdentities.costValue,
       popularity: cardIdentities.popularity,
       cheapestUsd: cardIdentities.cheapestUsd,
+      printingId: cardPrintings.id,
+      imageOverride: cardPrintings.imageOverride,
     })
     .from(cardIdentities)
+    .leftJoin(
+      cardPrintings,
+      and(eq(cardPrintings.cardIdentityId, cardIdentities.id), eq(cardPrintings.isDefault, true)),
+    )
     .where(and(...conditions))
     .orderBy(sql`${cardIdentities.popularity} ASC NULLS LAST`, asc(cardIdentities.name))
-    .limit(LEADERS_PAGE_SIZE)
+    .limit(opts.limit ?? LEADERS_PAGE_SIZE)
     .offset((opts.page - 1) * LEADERS_PAGE_SIZE);
+}
+
+/** The homepage's Magic shelf (R5a): page 1's most-played commanders with their printings. */
+export function loadTopCommanders(limit: number): Promise<LeaderIndexRow[]> {
+  return loadLeaderIndex({ ciMask: null, page: 1, limit });
 }
 
 export interface OpLeaderIndexRow {

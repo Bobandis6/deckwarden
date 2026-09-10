@@ -246,6 +246,21 @@ async function main() {
       homePublic.status === 200 && homePublic.text.includes(`Engage Smoke ${run}`),
     );
     check("rail shows the like count", homePublic.text.includes("♥"), "no ♥ in home HTML");
+    // Continue building (R5a): the account's decks are server-rendered for a
+    // session — the owner's edit link is the tell (the rail links /d/ only) —
+    // and never for a guest, whose section is client-rendered from tokens.
+    const homeSignedIn = await api("GET", "/", { cookie: alice.cookie });
+    check(
+      "signed-in home renders Continue building with the account's deck",
+      homeSignedIn.status === 200 &&
+        homeSignedIn.text.includes("Continue building") &&
+        homeSignedIn.text.includes(`/decks/${deck.id}/edit`),
+    );
+    check(
+      "signed-out home HTML carries no Continue building section",
+      !homePublic.text.includes("Continue building") &&
+        !homePublic.text.includes(`/decks/${deck.id}/edit`),
+    );
 
     await api("PATCH", `/api/decks/${deck.id}`, {
       cookie: alice.cookie,

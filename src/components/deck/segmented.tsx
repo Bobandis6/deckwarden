@@ -37,11 +37,14 @@ export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 /** A labeled single-value toggle group with a sliding active background. */
 export function Segmented<T extends string>({
   label,
+  ariaLabel,
   options,
   value,
   onChange,
 }: {
   label: string;
+  /** The group's accessible name when the visible label is too terse for it (R5a: "Index view"). */
+  ariaLabel?: string;
   options: { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
@@ -54,7 +57,7 @@ export function Segmented<T extends string>({
     <div className="flex items-center gap-1">
       <span className="text-muted-foreground text-xs">{label}</span>
       <ToggleGroup
-        aria-label={label}
+        aria-label={ariaLabel ?? label}
         value={[value]}
         onValueChange={(next: unknown[]) => {
           const picked = next[0];

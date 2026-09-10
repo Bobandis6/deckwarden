@@ -498,7 +498,8 @@ async function main() {
       "home description names both games",
       home.text.includes("Magic: The Gathering Commander and One Piece Card Game decks"),
     );
-    check("home hero is game-neutral", home.text.includes("Build a legal deck, fast."));
+    // R5a's hero (REDESIGN.md §2) — game-neutral, updated in the same commit as the copy.
+    check("home hero is game-neutral", home.text.includes("Your next great deck starts here."));
     // The template holds: per-page MTG titles must NOT pick up the widening.
     check(
       "MTG hub page title untouched by the two-game default (template pages keep their own)",

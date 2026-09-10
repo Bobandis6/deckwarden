@@ -4,6 +4,8 @@
  *
  * Serverless note: one connection per function instance is plenty; Neon's pooled
  * (`-pooler`) endpoint handles fan-out. Keep `max` small so cold starts stay cheap.
+ *
+ * `DB_LOG=1` (dev only) logs every statement — see createDb.
  */
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -21,7 +23,16 @@ export function databaseUrl(): string {
 }
 
 export function createDb(url = databaseUrl()) {
-  const client = postgres(url, { max: 1, prepare: false });
+  const client = postgres(url, {
+    max: 1,
+    prepare: false,
+    // Dev-only statement log (R5a): `DB_LOG=1 pnpm dev` prints one line per
+    // statement so a page's query budget is counted, not estimated. Unset
+    // (every deploy) leaves `debug` undefined and postgres.js installs no hook.
+    debug: process.env.DB_LOG
+      ? (_connection, query) => console.log(`[db] ${query.replace(/\s+/g, " ").trim()}`)
+      : undefined,
+  });
   return { client, db: drizzle(client, { schema }) };
 }
 

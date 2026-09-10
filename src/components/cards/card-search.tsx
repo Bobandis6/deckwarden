@@ -9,7 +9,8 @@
  *
  * Per-game wiring the adapter defs force: MTG filters color identity
  * (ci=within:), OP filters printed color (color=within: — OP has no CI
- * concept, punk-map). OP adds sort=name explicitly — the route's default
+ * concept, punk-map). The color toggles are the shared ColorChip since R5a
+ * (C14) — the params and the group labels are unchanged. OP adds sort=name explicitly — the route's default
  * sort is popularity, which is all-NULL for OP and would order arbitrarily;
  * MTG keeps it. The trait typeahead renders only when the page passes
  * `distinctField` (OP traits — 171 values, resolved via /api/cards/options;
@@ -20,17 +21,11 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
+import { ColorChipButton, colorChipDefs } from "@/components/color-chip";
 import { Button } from "@/components/ui/button";
 import { getAdapter } from "@/lib/games/registry";
-import { OPTCG_COLORS } from "@/lib/games/optcg/colors";
 
 const PAGE_SIZE = 60;
-
-/** Per-game color toggles: mask letter (colorset grammar) + visible label. */
-const COLOR_TOGGLES: Record<string, Array<{ letter: string; label: string }>> = {
-  mtg: ["W", "U", "B", "R", "G", "C"].map((c) => ({ letter: c, label: c })),
-  optcg: OPTCG_COLORS.map((c) => ({ letter: c.maskLetter, label: c.name })),
-};
 
 interface SearchResult {
   id: string;
@@ -73,7 +68,7 @@ export function CardSearch({
   const [colors, setColors] = useState<string[]>(() => {
     // Accept both "within:RU" (hub links) and bare "RU".
     const letters = initialColors.includes(":") ? initialColors.split(":", 2)[1] : initialColors;
-    const known = COLOR_TOGGLES[game].map((c) => c.letter);
+    const known = colorChipDefs(game).map((c) => c.key);
     return [
       ...new Set(
         letters
@@ -178,16 +173,17 @@ export function CardSearch({
           role="group"
           aria-label={game === "mtg" ? "Color identity (within)" : "Color (within)"}
         >
-          {COLOR_TOGGLES[game].map(({ letter, label }) => (
-            <Button
-              key={letter}
-              variant={colors.includes(letter) ? "default" : "outline"}
-              size={game === "mtg" ? "icon-xs" : "xs"}
-              aria-pressed={colors.includes(letter)}
-              onClick={() => toggleColor(letter)}
-            >
-              {label}
-            </Button>
+          {/* R5a (C14): the shared ColorChip — Magic pips keep the compact letter look with the
+              color's name for screen readers; One Piece shows the names as before. */}
+          {colorChipDefs(game).map((def) => (
+            <ColorChipButton
+              key={def.key}
+              game={game}
+              color={def.key}
+              pressed={colors.includes(def.key)}
+              onClick={() => toggleColor(def.key)}
+              showLabel={game === "optcg"}
+            />
           ))}
         </div>
         {distinctField && (

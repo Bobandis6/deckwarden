@@ -13,10 +13,31 @@
  * with the deck's `leaderIds` first, so the choice survives reloads,
  * imports and restores as the contract asks.
  *
- * No IO, importable from client and server alike.
+ * No IO, importable from client and server alike (tiles.ts and the
+ * ambient layer both take `ambientGradient` from here).
  */
 import { splitLeaderEntries } from "@/lib/decks/view-model";
 import type { FormatDef } from "@/lib/games/types";
+
+/** Where each swatch pools; one color fills the middle, more spread around it. */
+const SPOTS = ["18% 22%", "82% 30%", "50% 80%", "20% 78%", "82% 82%", "50% 42%"];
+
+/**
+ * The color-identity gradient (R2, G7) — the ambient layer's fallback paint
+ * and, since R5a, the deck tiles' and leader shelves' image-slot paint for
+ * games whose images are gated (LATER row 51). Pure CSS string.
+ */
+export function ambientGradient(swatches: readonly string[]): string {
+  if (swatches.length === 1) {
+    return `radial-gradient(ellipse 90% 80% at 50% 40%, ${swatches[0]} 0%, transparent 70%)`;
+  }
+  return swatches
+    .map(
+      (color, i) =>
+        `radial-gradient(ellipse 60% 55% at ${SPOTS[i % SPOTS.length]}, ${color} 0%, transparent 70%)`,
+    )
+    .join(", ");
+}
 
 export interface LeaderArtTarget {
   cardId: string;
