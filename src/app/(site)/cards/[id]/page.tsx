@@ -9,6 +9,10 @@
  *
  * Game-agnostic by construction: everything game-flavored (cost pips, subtitle,
  * rules text, stat line) comes through the adapter's display contract.
+ *
+ * R5b (G3): the accent band above the hero card — the gradient only, no
+ * art: the full card IS the art here, a crop above it would be redundant,
+ * and 35k card pages must not each pay a Scryfall call.
  */
 import { asc, desc, eq, isNull, and } from "drizzle-orm";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
@@ -20,6 +24,7 @@ import { cache as reactCache } from "react";
 import { CardImage } from "@/components/cards/card-image";
 import { ComboList } from "@/components/combos/combo-list";
 import { OptcgPostureLine } from "@/components/optcg-posture-line";
+import { SurfaceHeader } from "@/components/surface-header";
 import { getDb, schema } from "@/db";
 import { GAME_ID, GAMES } from "@/db/seed-data";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
@@ -161,8 +166,10 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
         Card search
       </Link>
 
-      <div className="mt-4 flex flex-col gap-8 md:flex-row">
-        <div className="shrink-0">
+      {/* The accent band (R5b, G3) — gradient only; the card overlaps its lower edge. */}
+      <SurfaceHeader className="mt-4 h-28 sm:h-36 md:h-44" />
+      <div className="flex flex-col gap-6 md:flex-row md:gap-8">
+        <div className="relative -mt-20 shrink-0 md:-mt-24">
           <CardImage
             src={imageUrl}
             alt={identity.name}
@@ -174,7 +181,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
           />
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 md:pt-4">
           <div className="flex flex-wrap items-baseline gap-3">
             <h1 className="text-3xl font-semibold tracking-tight">{identity.name}</h1>
             <span

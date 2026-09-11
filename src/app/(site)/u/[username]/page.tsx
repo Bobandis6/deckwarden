@@ -12,6 +12,10 @@
  * Visibility rules: decks listed only when public (unlisted = not browsable);
  * folders only when public, and their deck counts count only non-private
  * decks — the number a visitor will actually find on the folder page.
+ *
+ * R5b: the deck rows are R5a's DeckTiles, read through the joined collection
+ * select (one statement, the tile printings aboard) — no byline, the page
+ * is the author's. Folders stay rows (folders are not decks).
  */
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { Metadata } from "next";
@@ -20,9 +24,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
+import { EmptyState } from "@/components/empty-state";
 import { getDb, schema } from "@/db";
 import { getSessionUserId } from "@/lib/auth";
-import { formatLabel, joinedLabel, updatedLabel } from "@/lib/decks/display";
+import { deckCollection } from "@/lib/decks/collections";
+import { joinedLabel } from "@/lib/decks/display";
+import { rowPrinting, tileFromDeck } from "@/lib/decks/tiles";
 import { isUsernameShaped } from "@/lib/profile/username";
 
 export const dynamic = "force-dynamic";
@@ -66,9 +74,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
 
   const db = getDb();
   const [decks, folders, sessionUserId] = await Promise.all([
-    db
-      .select()
-      .from(schema.decks)
+    deckCollection()
       .where(and(eq(schema.decks.userId, user.id), eq(schema.decks.visibility, "public")))
       .orderBy(desc(schema.decks.updatedAt))
       .limit(100),
@@ -161,21 +167,19 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
           Public decks
         </h2>
         {decks.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No public decks yet.</p>
+          <EmptyState mark title="No public decks yet." />
         ) : (
-          <ul className="divide-y rounded-lg border">
+          <DeckTileGrid className="lg:grid-cols-2">
             {decks.map((deck) => (
-              <li key={deck.id}>
-                <Link href={`/d/${deck.publicId}`} className="block px-3 py-2 hover:underline">
-                  <span className="block truncate text-sm font-medium">{deck.name}</span>
-                  <span className="text-muted-foreground block text-xs">
-                    {formatLabel(deck.gameId, deck.formatId)} · Updated{" "}
-                    {updatedLabel(deck.updatedAt)}
-                  </span>
-                </Link>
-              </li>
+              <DeckTile
+                key={deck.id}
+                tile={tileFromDeck(deck, rowPrinting(deck), {
+                  href: `/d/${deck.publicId}`,
+                  byline: false,
+                })}
+              />
             ))}
-          </ul>
+          </DeckTileGrid>
         )}
       </section>
     </main>

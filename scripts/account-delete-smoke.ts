@@ -131,9 +131,15 @@ async function main() {
     check("precondition: bob's deck likes_count = 1", Number(bobLikesBefore) === 1, bobLikesBefore);
 
     // ---- contract gates ---------------------------------------------------
+    const accountHtml = (await api("GET", "/account", { cookie: alice.cookie })).text;
+    check("signed-in /account renders the danger zone", accountHtml.includes("Danger zone"));
+    // Account sections (R5b): the in-page nav and its three targets.
     check(
-      "signed-in /account renders the danger zone",
-      (await api("GET", "/account", { cookie: alice.cookie })).text.includes("Danger zone"),
+      "signed-in /account renders the section nav and its three targets",
+      accountHtml.includes('aria-label="Account sections"') &&
+        accountHtml.includes('id="decks"') &&
+        accountHtml.includes('id="collection"') &&
+        accountHtml.includes('id="settings"'),
     );
     check("DELETE signed out → 401", (await api("DELETE", "/api/account")).status === 401);
     const badConfirm = await api("DELETE", "/api/account", {

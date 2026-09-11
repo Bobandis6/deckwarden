@@ -2,8 +2,10 @@
  * POST /api/cards/resolve — decklist-import name → card resolution (P1.6).
  *
  * Core's half of the adapter contract: adapters only TOKENIZE decklists;
- * resolution happens here via the one shared normalizer. Three passes, all
- * served by the ci_name_trgm index:
+ * resolution happens here via the one shared normalizer. An id pass, then
+ * three name passes served by the ci_name_trgm index:
+ *   0. exact external_key match for id-shaped tokens — One Piece card ids
+ *      (P4.1 / P4.6) and, since R5b, Magic oracle-id uuids (the /c/ CTA)
  *   1. exact name_norm match (ties → most popular, non-preview first)
  *   2. double-faced front-face match ("Fable of the Mirror-Breaker" pastes
  *      resolve to "… // Reflection of Kiki-Jiki")
@@ -22,6 +24,7 @@ import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { normalizeCardName } from "@/lib/cards/normalize";
+import { classifyResolveToken, isBareIdToken } from "@/lib/cards/resolve-token";
 import { clientIp } from "@/lib/decks/access";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import type { LegalityEntry } from "@/lib/games/types";
@@ -122,34 +125,30 @@ export async function POST(request: NextRequest) {
 
   const norms = [...new Set(names.map(normalizeCardName))].filter(Boolean);
 
-  // Pass 0 (optcg only, P4.1): exact card-id match on external_key. OP
-  // identity IS the card id ("OP01-025" — 1,615 duplicate names upstream),
+  // Pass 0: exact external_key match for id-shaped tokens. One Piece
+  // identity IS the card id ("OP01-025" — 1,615 duplicate names upstream)
   // and the adapter's parseDecklist emits id tokens, so id-first resolution
-  // is the real import path. MTG external keys are oracle uuids nobody
-  // pastes, so the pass is skipped there. Keyed by name_norm of the pasted
-  // token so the shared per-name lookup below just works.
-  //
-  // P4.6: a token may also CARRY its id — Limitless's Copy-to-Clipboard
-  // export writes "4 Charlotte Pudding (OP12-071)", and the walked funnel
-  // resolved 0/17 of those by name (the parenthetical breaks name_norm).
-  // The trailing parenthesized id is authoritative when present.
+  // is the real import path (P4.1); a Limitless export's trailing
+  // "(OP12-071)" is authoritative when present (P4.6). Since R5b the pass
+  // also takes Magic ORACLE-id uuids — the /c/ hub's "Build with this
+  // commander" CTA seeds a commander through the same ?leader= seam /l/
+  // has used since P4.6 — and a uuid can never be a card name, so the
+  // Magic branch has no false positives. The classifier
+  // (src/lib/cards/resolve-token.ts) owns the shapes; keyed by name_norm of
+  // the pasted token so the shared per-name lookup below just works.
   const matchByNorm = new Map<string, WireRow>();
-  if (game === "optcg") {
-    const idOf = (input: string): string | null => {
-      const bare = input.trim().toUpperCase();
-      if (/^[A-Z]+\d*-\d+$/.test(bare)) return bare;
-      const trailing = /\(([A-Za-z]+\d*-\d+)\)\s*$/.exec(input.trim());
-      return trailing ? trailing[1].toUpperCase() : null;
-    };
-    const idTokens = [...new Set(names.map(idOf).filter((n): n is string => n !== null))];
-    if (idTokens.length > 0) {
-      const rows = await wireSelect(db).where(and(gameCond, inArray(ci.externalKey, idTokens)));
-      const byKey = new Map(rows.map((r) => [r.externalKey, r]));
-      for (const input of names) {
-        const key = idOf(input);
-        const row = key ? byKey.get(key) : undefined;
-        if (row) matchByNorm.set(normalizeCardName(input), row);
-      }
+  const idTokens = [
+    ...new Set(
+      names.map((n) => classifyResolveToken(game, n)).filter((k): k is string => k !== null),
+    ),
+  ];
+  if (idTokens.length > 0) {
+    const rows = await wireSelect(db).where(and(gameCond, inArray(ci.externalKey, idTokens)));
+    const byKey = new Map(rows.map((r) => [r.externalKey, r]));
+    for (const input of names) {
+      const key = classifyResolveToken(game, input);
+      const row = key ? byKey.get(key) : undefined;
+      if (row) matchByNorm.set(normalizeCardName(input), row);
     }
   }
 
@@ -190,18 +189,24 @@ export async function POST(request: NextRequest) {
   }
 
   // Pass 3: fuzzy suggestions for what's left — review-UI food, never auto-picked.
+  // A bare id that matched nothing stays a plain miss (R5b): an id is not a
+  // misspelled name, and trgm against "c983338d ae6b …" would only surface junk.
+  const bareIdNorms = new Set(names.filter((n) => isBareIdToken(game, n)).map(normalizeCardName));
   const suggestionsByNorm = new Map<string, WireRow[]>();
   await Promise.all(
-    misses.slice(0, FUZZY_LIMIT).map(async (miss) => {
-      const rows = await wireSelect(db)
-        .where(and(gameCond, sql`${ci.nameNorm} % ${miss}`))
-        .orderBy(
-          sql`similarity(${ci.nameNorm}, ${miss}) DESC`,
-          sql`${ci.popularity} ASC NULLS LAST`,
-        )
-        .limit(SUGGESTIONS_PER_NAME);
-      if (rows.length > 0) suggestionsByNorm.set(miss, rows);
-    }),
+    misses
+      .filter((miss) => !bareIdNorms.has(miss))
+      .slice(0, FUZZY_LIMIT)
+      .map(async (miss) => {
+        const rows = await wireSelect(db)
+          .where(and(gameCond, sql`${ci.nameNorm} % ${miss}`))
+          .orderBy(
+            sql`similarity(${ci.nameNorm}, ${miss}) DESC`,
+            sql`${ci.popularity} ASC NULLS LAST`,
+          )
+          .limit(SUGGESTIONS_PER_NAME);
+        if (rows.length > 0) suggestionsByNorm.set(miss, rows);
+      }),
   );
 
   const allIds = [

@@ -4,9 +4,11 @@
  * — not on a mount at zero (the share page), not on unrelated re-renders —
  * and it plays again after issues return and clear once more.
  */
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
+import type { EditorCard } from "@/lib/decks/editor-state";
+import { card } from "@/lib/games/mtg/test-fixtures";
 import type { ValidationIssue } from "@/lib/games/types";
 import { ValidationPanel } from "./validation-panel";
 
@@ -68,5 +70,36 @@ describe("ValidationPanel — the Warden line", () => {
     const second = screen.getByRole("status").querySelector("svg");
     expect(second).not.toBe(first);
     expect(screen.getByRole("status").hasAttribute("data-settled")).toBe(true);
+  });
+});
+
+describe("ValidationPanel — F5 previews (share pages)", () => {
+  it("with `preview`, an issue's card chips are hover-card triggers that still call onPreview on click", () => {
+    const sol: EditorCard = {
+      ...card({ name: "Sol Ring", primaryType: "Artifact", costValue: 1 }),
+      image: "https://cards.scryfall.io/normal/s.jpg",
+    };
+    const onPreview = vi.fn();
+    render(
+      <ValidationPanel
+        formatLabel="Commander"
+        issues={[
+          {
+            code: "COPY_LIMIT",
+            severity: "error",
+            message: "Too many copies of a card.",
+            cardIds: [sol.id],
+          },
+        ]}
+        cards={new Map([[sol.id, sol]])}
+        onPreview={onPreview}
+        preview
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /1 problem/ }));
+    const chip = screen.getByRole("button", { name: "Sol Ring" });
+    expect(chip.dataset.slot).toBe("hover-card-trigger");
+    fireEvent.click(chip);
+    expect(onPreview).toHaveBeenCalledWith(sol);
   });
 });

@@ -4,13 +4,17 @@
  * Last-resort error boundary (P1.8): catches failures in the root layout
  * itself. Replaces the whole document, so it declares its own <html>/<body>
  * and imports global styles explicitly (they don't cascade in here). Kept
- * dependency-light on purpose — if this is rendering, something core broke.
+ * dependency-light on purpose — if this is rendering, something core broke:
+ * no site header here (R5b gave the root 404 and error pages the shell; this
+ * one gets the inline shield mark only — a dependency-free SVG).
  */
 import "./globals.css";
 
 import * as Sentry from "@sentry/nextjs";
 import Link from "next/link";
 import { useEffect } from "react";
+
+import { BrandMark } from "@/components/brand-mark";
 
 export default function GlobalError({
   error,
@@ -27,6 +31,7 @@ export default function GlobalError({
     <html lang="en">
       <body className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 antialiased">
         <title>Something went wrong · Deckwarden</title>
+        <BrandMark className="size-14" />
         <p className="text-muted-foreground font-mono text-sm">500</p>
         <h1 className="text-3xl font-semibold tracking-tight">Something went wrong</h1>
         <p className="text-muted-foreground max-w-md text-center">

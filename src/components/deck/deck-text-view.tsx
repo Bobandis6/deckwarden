@@ -16,9 +16,14 @@
  * headers stick inside the editor's scrolling pane (`stickyHeaders` — the
  * share page scrolls the document and keeps them plain); and the one row
  * whose quantity just grew pops its badge (`pop`, keyed so it plays once).
+ *
+ * R5b (F5): `preview` wraps each name button in the share page's hover
+ * and focus card preview — the button, its classes and its click stay as
+ * they are; the editor passes nothing (its detail pane already previews).
  */
 import { XIcon } from "lucide-react";
 
+import { CardNamePreview } from "@/components/deck/card-name-preview";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
@@ -51,6 +56,8 @@ interface DeckTextViewProps {
   stickyHeaders?: boolean;
   /** The row ("zone:cardId") whose quantity badge pops, with a nonce so each pop remounts (F3). */
   pop?: { key: string; nonce: number } | null;
+  /** Share pages: hover / focus card previews on the name buttons (F5). */
+  preview?: boolean;
 }
 
 export function DeckTextView({
@@ -63,6 +70,7 @@ export function DeckTextView({
   owned,
   stickyHeaders = false,
   pop = null,
+  preview = false,
 }: DeckTextViewProps) {
   return (
     <>
@@ -78,6 +86,42 @@ export function DeckTextView({
               const popping = pop !== null && pop.key === rowKey;
               const badge = adapter.display.idBadge?.(card);
               const stats = adapter.display.rowStats?.(card);
+              const nameButton = (
+                <button
+                  type="button"
+                  onClick={() => onPreview(card)}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 text-left hover:underline"
+                >
+                  {severity.has(card.id) && (
+                    <span
+                      aria-label={severity.get(card.id) === "error" ? "Has a problem" : "Warning"}
+                      className={`size-1.5 shrink-0 rounded-full ${
+                        severity.get(card.id) === "error" ? "bg-destructive" : "bg-amber-500"
+                      }`}
+                    />
+                  )}
+                  <span className="truncate">{card.name}</span>
+                  {/* Owned mark (P3.7): inside the truncating name button, so it
+                            never shifts the row's steppers or pips. */}
+                  {owned?.has(card.id) && (
+                    <span
+                      role="img"
+                      aria-label="In your collection"
+                      title="In your collection"
+                      className="shrink-0 text-xs text-emerald-700 dark:text-emerald-400"
+                    >
+                      ✓
+                    </span>
+                  )}
+                  {/* Printed id (C13) and the row stats (C15) — One Piece; Magic declares neither. */}
+                  {badge && <span className="text-muted-foreground shrink-0 text-xs">{badge}</span>}
+                  {stats && (
+                    <span className="text-muted-foreground shrink-0 font-mono text-xs">
+                      {stats}
+                    </span>
+                  )}
+                </button>
+              );
               return (
                 <li
                   key={rowKey}
@@ -120,42 +164,11 @@ export function DeckTextView({
                       {entry.qty}
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onPreview(card)}
-                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 text-left hover:underline"
-                  >
-                    {severity.has(card.id) && (
-                      <span
-                        aria-label={severity.get(card.id) === "error" ? "Has a problem" : "Warning"}
-                        className={`size-1.5 shrink-0 rounded-full ${
-                          severity.get(card.id) === "error" ? "bg-destructive" : "bg-amber-500"
-                        }`}
-                      />
-                    )}
-                    <span className="truncate">{card.name}</span>
-                    {/* Owned mark (P3.7): inside the truncating name button, so it
-                        never shifts the row's steppers or pips. */}
-                    {owned?.has(card.id) && (
-                      <span
-                        role="img"
-                        aria-label="In your collection"
-                        title="In your collection"
-                        className="shrink-0 text-xs text-emerald-700 dark:text-emerald-400"
-                      >
-                        ✓
-                      </span>
-                    )}
-                    {/* Printed id (C13) and the row stats (C15) — One Piece; Magic declares neither. */}
-                    {badge && (
-                      <span className="text-muted-foreground shrink-0 text-xs">{badge}</span>
-                    )}
-                    {stats && (
-                      <span className="text-muted-foreground shrink-0 font-mono text-xs">
-                        {stats}
-                      </span>
-                    )}
-                  </button>
+                  {preview ? (
+                    <CardNamePreview card={card}>{nameButton}</CardNamePreview>
+                  ) : (
+                    nameButton
+                  )}
                   {/* Fixed pip column (C12): min-w-20 fits the fixtures' widest six-pip costs; a wider cost extends rather than wraps. */}
                   <span data-slot="pips" className="inline-flex min-w-20 shrink-0 justify-end">
                     <CostPips html={adapter.display.costHtml(card)} className="text-xs" />

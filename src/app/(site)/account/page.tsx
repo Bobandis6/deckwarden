@@ -7,9 +7,14 @@
  *
  * Caching intent: force-dynamic — everything on the page is session-shaped.
  * Avatar uses a plain <img> per house image rules (no Vercel optimization
- * quota on externally hosted avatars). R5a: the deck rows are DeckTiles
- * inside today's folder sections and Unfiled bucket (one batched printing
- * lookup for the images); everything else on the page is R5b's.
+ * quota on externally hosted avatars). R5a: the deck rows are DeckTiles.
+ *
+ * R5b (REDESIGN.md §2 "Account"): three sections with in-page navigation —
+ * Decks (claimed decks, folders, tiles, Unfiled, and Bookmarks as a
+ * sub-block: bookmarks are decks you keep) · Collection import · Settings
+ * (public profile, the signed-in identity with Sign out, and the Danger zone
+ * LAST). Every control keeps its label; "Danger zone" and "No bookmarks
+ * yet" are smoke-pinned and unchanged. The signed-out page is untouched.
  */
 import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
 import { ArrowRightIcon, FolderIcon } from "lucide-react";
@@ -17,6 +22,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 
+import { AccountNav } from "@/components/account/account-nav";
 import { ClaimDecks } from "@/components/auth/claim-decks";
 import { DeleteAccount } from "@/components/auth/delete-account";
 import { SignInButtons } from "@/components/auth/sign-in-buttons";
@@ -47,6 +53,9 @@ export const metadata: Metadata = {
 };
 
 type DeckRow = typeof schema.decks.$inferSelect;
+
+const SECTION_TITLE_CLASS = "text-lg font-semibold";
+const EYEBROW_CLASS = "text-muted-foreground text-xs font-medium tracking-wide uppercase";
 
 /**
  * One deck, shared by the folder sections and the unfiled bucket — the
@@ -178,11 +187,7 @@ export default async function AccountPage() {
 
   return (
     <main className="max-w-reading mx-auto w-full flex-1 px-4 py-12">
-      <div className="flex justify-end">
-        <SignOutButton />
-      </div>
-
-      <section className="mt-4 flex items-center gap-4">
+      <section className="flex items-center gap-4">
         {session.user.image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -204,30 +209,17 @@ export default async function AccountPage() {
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-semibold tracking-tight">{session.user.name}</h1>
           <p className="text-muted-foreground truncate text-sm">
-            {session.user.email}
-            {providers ? ` · via ${providers}` : ""}
+            {profile?.username ? `@${profile.username}` : "No username yet — pick one in Settings"}
           </p>
         </div>
       </section>
 
-      <section aria-label="Public profile" className="mt-6 space-y-2 rounded-lg border p-3">
-        <UsernameForm current={profile?.username ?? null} />
-        {profile?.username && (
-          <p className="text-muted-foreground text-xs">
-            <Link href={`/u/${profile.username}`} className="underline">
-              View your public profile
-              <ArrowRightIcon aria-hidden className="ml-1 inline size-3.5 align-[-0.15em]" />
-            </Link>
-          </p>
-        )}
-      </section>
+      <AccountNav className="mt-6" />
 
-      <section aria-label="Your decks" className="mt-8 space-y-4">
+      <section id="decks" aria-label="Decks" className="mt-8 scroll-mt-6 space-y-4">
         <ClaimDecks />
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-            Your decks
-          </h2>
+          <h2 className={SECTION_TITLE_CLASS}>Decks</h2>
           <NewFolderForm />
         </div>
 
@@ -299,55 +291,84 @@ export default async function AccountPage() {
             </DeckTileGrid>
           )}
         </div>
-      </section>
 
-      <section aria-label="Bookmarks" className="mt-8 space-y-3">
-        <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-          Bookmarks
-        </h2>
-        {bookmarks.length === 0 ? (
-          <EmptyState
-            title="No bookmarks yet"
-            hint="The Bookmark button on any shared deck saves it here."
-          />
-        ) : (
-          <ul className="divide-y rounded-lg border">
-            {bookmarks.map((b) => (
-              <li key={b.deckId} className="flex items-center gap-3 px-3 py-2">
-                <Link href={`/d/${b.publicId}`} className="min-w-0 flex-1 hover:underline">
-                  <span className="block truncate text-sm font-medium">{b.name}</span>
-                  <span className="text-muted-foreground block text-xs">
-                    {formatLabel(b.gameId, b.formatId)}
-                    {b.authorUsername ? ` · by ${b.authorName}` : ""} · Updated{" "}
-                    {updatedLabel(b.updatedAt)}
-                  </span>
-                </Link>
-                <RemoveBookmarkButton deckId={b.deckId} deckName={b.name} />
-              </li>
-            ))}
-          </ul>
-        )}
+        {/* Bookmarks (P2.3) live under Decks since R5b — decks you keep. */}
+        <section aria-label="Bookmarks" className="space-y-3 pt-2">
+          <h3 className={EYEBROW_CLASS}>Bookmarks</h3>
+          {bookmarks.length === 0 ? (
+            <EmptyState
+              title="No bookmarks yet"
+              hint="The Bookmark button on any shared deck saves it here."
+            />
+          ) : (
+            <ul className="divide-y rounded-lg border">
+              {bookmarks.map((b) => (
+                <li key={b.deckId} className="flex items-center gap-3 px-3 py-2">
+                  <Link href={`/d/${b.publicId}`} className="min-w-0 flex-1 hover:underline">
+                    <span className="block truncate text-sm font-medium">{b.name}</span>
+                    <span className="text-muted-foreground block text-xs">
+                      {formatLabel(b.gameId, b.formatId)}
+                      {b.authorUsername ? ` · by ${b.authorName}` : ""} · Updated{" "}
+                      {updatedLabel(b.updatedAt)}
+                    </span>
+                  </Link>
+                  <RemoveBookmarkButton deckId={b.deckId} deckName={b.name} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </section>
 
       {/* Collection import (P3.7): ManaBox / Moxfield CSV → owned badges. */}
-      <section aria-label="Collection" className="mt-8 space-y-3">
-        <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-          Collection
-        </h2>
+      <section
+        id="collection"
+        aria-label="Collection import"
+        className="mt-10 scroll-mt-6 space-y-3"
+      >
+        <h2 className={SECTION_TITLE_CLASS}>Collection import</h2>
         <CollectionImport summary={collection} />
       </section>
 
-      {/* Self-serve deletion (P2.8) — the privacy page points here now. */}
-      <section
-        aria-label="Danger zone"
-        className="border-destructive/40 mt-10 rounded-lg border p-3"
-      >
-        <h2 className="text-destructive text-xs font-medium tracking-wide uppercase">
-          Danger zone
-        </h2>
-        <div className="mt-2">
-          <DeleteAccount />
-        </div>
+      <section id="settings" aria-label="Settings" className="mt-10 scroll-mt-6 space-y-4">
+        <h2 className={SECTION_TITLE_CLASS}>Settings</h2>
+
+        <section aria-label="Public profile" className="space-y-2 rounded-lg border p-3">
+          <h3 className={EYEBROW_CLASS}>Public profile</h3>
+          <UsernameForm current={profile?.username ?? null} />
+          {profile?.username && (
+            <p className="text-muted-foreground text-xs">
+              <Link href={`/u/${profile.username}`} className="underline">
+                View your public profile
+                <ArrowRightIcon aria-hidden className="ml-1 inline size-3.5 align-[-0.15em]" />
+              </Link>
+            </p>
+          )}
+        </section>
+
+        <section
+          aria-label="Signed-in account"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"
+        >
+          <div className="min-w-0">
+            <h3 className={EYEBROW_CLASS}>Account</h3>
+            <p className="text-muted-foreground mt-1 truncate text-sm">
+              {session.user.email}
+              {providers ? ` · via ${providers}` : ""}
+            </p>
+          </div>
+          <SignOutButton />
+        </section>
+
+        {/* Self-serve deletion (P2.8) — the privacy page points here now. Last on purpose. */}
+        <section aria-label="Danger zone" className="border-destructive/40 rounded-lg border p-3">
+          <h3 className="text-destructive text-xs font-medium tracking-wide uppercase">
+            Danger zone
+          </h3>
+          <div className="mt-2">
+            <DeleteAccount />
+          </div>
+        </section>
       </section>
     </main>
   );

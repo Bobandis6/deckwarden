@@ -5,8 +5,8 @@
  * suffix, and pop the one badge that grew; share rows have none of the
  * controls; headers stick only when asked.
  */
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import { card } from "@/lib/games/mtg/test-fixtures";
@@ -146,5 +146,48 @@ describe("DeckTextView", () => {
     const [solQty, forestQty] = document.querySelectorAll('[data-slot="qty"]');
     expect(solQty.className).toContain("motion-safe:animate-in");
     expect(forestQty.className).not.toContain("animate-in");
+  });
+});
+
+describe("DeckTextView — F5 previews (share pages)", () => {
+  it("with `preview`, the name button is the hover-card trigger and opens the image on focus; without it, a plain button", () => {
+    vi.useFakeTimers();
+    const onPreview = vi.fn();
+    const { unmount } = render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: { ...sol, image: "https://cards.scryfall.io/normal/s.jpg" } }])}
+        severity={new Map()}
+        onPreview={onPreview}
+        preview
+      />,
+    );
+    const name = screen.getByRole("button", { name: "Sol Ring" });
+    expect(name.dataset.slot).toBe("hover-card-trigger");
+    expect(name.className).toContain("hover:underline");
+    act(() => {
+      name.focus();
+    });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    const popup = document.querySelector("[data-slot=hover-card-content]");
+    expect(popup?.querySelector("img")?.getAttribute("src")).toBe(
+      "https://cards.scryfall.io/normal/s.jpg",
+    );
+    fireEvent.click(name);
+    expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({ name: "Sol Ring" }));
+    unmount();
+    vi.useRealTimers();
+
+    render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol }])}
+        severity={new Map()}
+        onPreview={onPreview}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Sol Ring" }).dataset.slot).toBeUndefined();
   });
 });

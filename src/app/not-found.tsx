@@ -1,29 +1,23 @@
 /**
- * Custom 404 (P1.8) — renders for notFound() calls AND any unmatched URL
- * (root not-found convention). Static by nature; no data fetching.
+ * Root 404 (P1.8; the Warden page since R5b, F8) — renders for every
+ * unmatched URL, inside the root layout ALONE: this file sits outside the
+ * (site) group, so it carries the site header itself (a lost visitor needs
+ * somewhere to go). A `notFound()` thrown inside the group takes
+ * `(site)/not-found.tsx` instead, which renders the same body under the
+ * group layout's own header. Static by nature; no data fetching (the
+ * header's account slot reads the session client-side, as everywhere).
+ * HTTP status stays 404 — Next sets it for this file.
  */
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
+import { SiteHeader } from "@/components/site-header";
+import { WardenNotFound } from "@/components/warden-not-found";
 
 export const metadata = { title: "Page not found" };
 
 export default function NotFound() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
-      <p className="text-muted-foreground font-mono text-sm">404</p>
-      <h1 className="text-3xl font-semibold tracking-tight">This page doesn&apos;t exist</h1>
-      <p className="text-muted-foreground max-w-md text-center">
-        The card may have been removed, the deck deleted, or the link mistyped.
-      </p>
-      <div className="flex gap-3">
-        <Button nativeButton={false} render={<Link href="/" />}>
-          Back to Deckwarden
-        </Button>
-        <Button nativeButton={false} variant="outline" render={<Link href="/cards" />}>
-          Search cards
-        </Button>
-      </div>
-    </main>
+    <>
+      <SiteHeader />
+      <WardenNotFound />
+    </>
   );
 }

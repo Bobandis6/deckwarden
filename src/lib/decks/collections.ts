@@ -9,9 +9,14 @@
  * lookup per collection. The first leader is the art leader (R2 —
  * `leaderDenorm` writes entries order).
  *
- * Caching intent: callers decide — home and /account are force-dynamic,
- * /c/ is ISR; nothing here reads per-viewer state except the user id
- * `loadOwnerDecks` is handed.
+ * R5b: `/u/[username]` and `/f/[publicId]` read through the same joined
+ * select (`deckCollection()` plus their own where), so each stays one
+ * statement with the tile printings aboard.
+ *
+ * Caching intent: callers decide — home, /account, /u and /f are
+ * force-dynamic, /c/ is ISR; nothing here reads per-viewer state except
+ * the user id `loadOwnerDecks` is handed and the filters the profile and
+ * folder pages add.
  */
 import { desc, eq, sql } from "drizzle-orm";
 
@@ -45,7 +50,8 @@ export const deckCollectionSelect = {
 /** The first leader's default printing — Postgres arrays are 1-based. */
 export const defaultPrintingJoin = sql`${cardPrintings.cardIdentityId} = ${decks.leaderIds}[1] AND ${cardPrintings.isDefault}`;
 
-function collection() {
+/** The joined collection select — add a where / order / limit for one statement per collection. */
+export function deckCollection() {
   return getDb()
     .select(deckCollectionSelect)
     .from(decks)
@@ -57,7 +63,7 @@ export type DeckCollectionRow = Awaited<ReturnType<typeof loadRecentPublicDecks>
 
 /** Public decks, newest activity first (updated_at moves on real edits, never on likes). */
 export async function loadRecentPublicDecks(limit = RECENT_PUBLIC_LIMIT) {
-  return collection()
+  return deckCollection()
     .where(eq(decks.visibility, "public"))
     .orderBy(desc(decks.updatedAt))
     .limit(limit);
@@ -65,5 +71,8 @@ export async function loadRecentPublicDecks(limit = RECENT_PUBLIC_LIMIT) {
 
 /** An account's decks, newest first, capped — the decks_owner index. Every visibility: they are the owner's. */
 export async function loadOwnerDecks(userId: string, limit = CONTINUE_BUILDING_LIMIT) {
-  return collection().where(eq(decks.userId, userId)).orderBy(desc(decks.updatedAt)).limit(limit);
+  return deckCollection()
+    .where(eq(decks.userId, userId))
+    .orderBy(desc(decks.updatedAt))
+    .limit(limit);
 }

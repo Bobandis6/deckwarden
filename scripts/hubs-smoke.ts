@@ -40,7 +40,7 @@ async function main() {
   try {
     // ---- fixtures from the live DB ---------------------------------------
     const [top] = await sql`
-      SELECT name, slug FROM card_identities
+      SELECT name, slug, external_key FROM card_identities
       WHERE game_id = 1 AND is_leader_candidate AND slug IS NOT NULL AND NOT is_removed
       ORDER BY popularity ASC NULLS LAST LIMIT 1`;
     const [monoW] = await sql`
@@ -97,6 +97,21 @@ async function main() {
       "hub credits Scryfall + EDHREC",
       hub.text.includes("Scryfall") && hub.text.includes("EDHREC"),
     );
+    // Build with this commander (R5b — LATER's /c/ CTA row): the words and the
+    // ?leader= oracle-id href, mirroring seo-smoke's /l/ pin. A banned
+    // most-played commander would carry the banner instead of the action.
+    check(
+      "hub build CTA seeds the commander by oracle id (R5b)",
+      hub.text.includes("Banned in Commander") ||
+        (hub.text.includes("Build with this commander") &&
+          (hub.text.includes(`/decks/new?game=mtg&amp;leader=${top.external_key as string}`) ||
+            hub.text.includes(`/decks/new?game=mtg&leader=${top.external_key as string}`))),
+    );
+    // The artwork header (R5b, G3): the crop banner is never unattributed.
+    check(
+      "hub art banner, when present, carries the visible artist / © credit",
+      !hub.text.includes("art_crop") || hub.text.includes("Wizards of the Coast"),
+    );
 
     const monoWhiteHub = await page(`/c/${monoW.slug as string}`);
     check(
@@ -113,7 +128,19 @@ async function main() {
       );
     }
 
-    check("unknown slug → 404", (await page("/c/zz-no-such-commander-zz")).status === 404);
+    const missing = await page("/c/zz-no-such-commander-zz");
+    check("unknown slug → 404", missing.status === 404);
+    // The Warden 404 (R5b, F8) carries the site header so a lost visitor can
+    // navigate. A notFound() inside an ISR route streams the not-found subtree
+    // as an RSC fallback (NEXT_HTTP_ERROR_FALLBACK;404) that hydrates client-
+    // side, so the header's props reach the HTML flight-encoded — accept both.
+    check(
+      "404 page renders the Warden line, the site header and the Search cards action",
+      missing.text.includes("The Warden finds no such page.") &&
+        missing.text.includes("Search cards") &&
+        (missing.text.includes('aria-label="Deckwarden"') ||
+          missing.text.includes('\\"aria-label\\":\\"Deckwarden\\"')),
+    );
     check("malformed slug → 404", (await page("/c/Not%20A%20Slug!")).status === 404);
 
     // ---- Top finishes shelf (P3.5) ----------------------------------------

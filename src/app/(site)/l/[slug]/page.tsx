@@ -21,6 +21,13 @@
  * card data changes once nightly, no per-viewer state, rendered on first
  * request then cached (generateStaticParams [] makes the revalidate real —
  * LATER row 69).
+ *
+ * R5b (REDESIGN.md §2 "Hubs", G3): the accent band above the hero card. The
+ * art goes through R2's adapter gate, which answers null for One Piece
+ * before any network (§3: off until Bandai answers) — the gradient alone,
+ * zero art requests; flipping the adapter flag later lights the banner
+ * with no change here. The build CTA, its words and its href are
+ * smoke-pinned and unchanged.
  */
 import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import type { Metadata } from "next";
@@ -29,13 +36,16 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
+import { chipsForMask, ColorChip } from "@/components/color-chip";
+import { SurfaceHeader } from "@/components/surface-header";
 import { Button } from "@/components/ui/button";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
+import { resolveCardArt } from "@/lib/cards/art";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { getAdapter } from "@/lib/games/registry";
 import type { CardData } from "@/lib/games/types";
 import type { OptcgAttrs } from "@/lib/games/optcg/adapter";
-import { maskToOptcgColorNames, maskToOptcgLetters, OPTCG_COLORS } from "@/lib/games/optcg/colors";
+import { maskToOptcgColorNames, maskToOptcgLetters } from "@/lib/games/optcg/colors";
 import { MIN_EVENT_PLAYERS, TOP_PLACEMENT } from "@/lib/games/optcg/limitless-map";
 import {
   loadDefaultPrinting,
@@ -102,14 +112,18 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
   const leader = await getLeader(slug);
   if (!leader) notFound();
 
-  const [printing, status, siblings, topFinishes] = await Promise.all([
-    loadDefaultPrinting(leader.id),
+  const adapter = getAdapter("optcg");
+  const [[printing, art], status, siblings, topFinishes] = await Promise.all([
+    // The banner's art through the adapter gate (R5b): null for One Piece
+    // before any lookup — the gradient alone, no request.
+    loadDefaultPrinting(leader.id).then(
+      async (p) => [p, p ? await resolveCardArt(adapter, p.id) : null] as const,
+    ),
     loadLeaderStatus(FORMAT_ID.optcgStandard, leader.id),
     loadOpLeaderSiblings(leader.name, leader.id),
     loadTopFinishes(GAME_ID.optcg, leader.id),
   ]);
 
-  const adapter = getAdapter("optcg");
   const tournamentsMeta = adapter.capabilities.tournaments;
   const card: CardData = {
     id: leader.id,
@@ -146,8 +160,10 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
         One Piece Leaders
       </Link>
 
-      <div className="mt-4 flex flex-col gap-8 md:flex-row">
-        <div className="shrink-0">
+      {/* The accent band (R5b, G3); the hero card overlaps its lower edge. */}
+      <SurfaceHeader art={art} className="mt-4" />
+      <div className="flex flex-col gap-6 md:flex-row md:gap-8">
+        <div className="relative -mt-24 shrink-0 md:-mt-28">
           <CardImage
             src={imageUrl}
             alt={leader.name}
@@ -159,7 +175,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
           />
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 md:pt-4">
           <div className="flex flex-wrap items-baseline gap-3">
             <h1 className="text-3xl font-semibold tracking-tight">{leader.name}</h1>
             <span className="text-muted-foreground text-lg tabular-nums uppercase">
@@ -172,22 +188,16 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
           </p>
 
           <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-            {colorNames.map((name) => {
-              const def = OPTCG_COLORS.find((c) => c.name === name);
-              return (
-                <span
-                  key={name}
-                  className="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5"
-                >
-                  <span
-                    aria-hidden
-                    className="inline-block size-2.5 rounded-full"
-                    style={{ backgroundColor: def?.hex }}
-                  />
-                  {name}
-                </span>
-              );
-            })}
+            {/* R5b: the shared ColorChip (C14) replaces the hand-rolled dots. */}
+            {chipsForMask("optcg", leader.colorsMask).map((def) => (
+              <ColorChip
+                key={def.key}
+                game="optcg"
+                color={def.key}
+                showLabel
+                className="rounded-md border px-2 py-0.5"
+              />
+            ))}
             {status !== "legal" && (
               <span className="rounded-md bg-destructive/15 px-2 py-0.5 text-destructive">
                 {status.replace("_", " ")} in Standard

@@ -18,10 +18,27 @@
  * useSyncExternalStore with a null server snapshot (nothing paints until
  * hydration). The private-deck gate passes no `art`: its owner gets the
  * gradient.
+ *
+ * R5b (REDESIGN.md §2 "Public decks", G3 / F5 / F12): the artwork header —
+ * the accent band with the SAME resolved `art` as a banner and its visible
+ * credit (zero new requests; One Piece and the private gate get the
+ * gradient), the name at the page-title step, the leaders line through the
+ * adapter (`leaderLine` — partners in `leaderIds` order), author, format
+ * and count, the legality line (the Warden line for zero issues, the
+ * expandable panel otherwise), the share actions, then description, fork
+ * credit and ownership as before. Two credits on purpose when a crop is
+ * on screen: the banner's in the header and the ambient chip riding the
+ * viewport as the reader scrolls past — the ambient crop stays on screen
+ * after the header does, and the hard rule wants a credit beside it.
+ * Card names in the text view and the validation chips carry the hover /
+ * focus preview (`preview`); Copy decklist confirms in a status slot with
+ * a check that plays once and resets; the leader cards carry the accent
+ * ring (in LeaderZone's read-only shape).
  */
+import { CheckIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { AmbientArt } from "@/components/deck/ambient-art";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
@@ -33,6 +50,8 @@ import { LeaderZone } from "@/components/deck/leader-zone";
 import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
+import { EmptyState } from "@/components/empty-state";
+import { SurfaceHeader } from "@/components/surface-header";
 import { Button } from "@/components/ui/button";
 import type { CardArt } from "@/lib/cards/art";
 import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
@@ -45,6 +64,7 @@ import {
   type EditorEntry,
 } from "@/lib/decks/editor-state";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
+import { leaderLine } from "@/lib/decks/leader-caption";
 import { getDeckToken } from "@/lib/decks/token-store";
 import { issueSeverityByCard, toDeckSnapshot } from "@/lib/decks/validation";
 import {
@@ -91,6 +111,11 @@ export interface ShareDeckAuthor {
   username: string;
 }
 
+/** The Copy decklist confirmation clears after this (F12). */
+export const COPY_RESET_MS = 1800;
+
+type CopyState = "idle" | "copied" | "failed";
+
 const noopSubscribe = () => () => {};
 
 export function DeckShareView({
@@ -136,7 +161,20 @@ export function DeckShareView({
     adapter?.display.defaultGroupBy ?? "primaryType",
   );
   const [sortBy, setSortBy] = useState<SortKey>("name");
-  const [copied, setCopied] = useState(false);
+  // The Copy confirmation (F12): a nonce so a second copy replays the check
+  // and restarts the reset timer.
+  const [copy, setCopy] = useState<{ state: CopyState; nonce: number }>({
+    state: "idle",
+    nonce: 0,
+  });
+  useEffect(() => {
+    if (copy.state === "idle") return;
+    const timer = setTimeout(
+      () => setCopy((current) => ({ state: "idle", nonce: current.nonce })),
+      COPY_RESET_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [copy]);
 
   // Leaders in the decks-row order (R2), the same reorder the editor's
   // hydration applies, so the leader zone lists the art leader first.
@@ -187,6 +225,10 @@ export function DeckShareView({
     const card = cardMap.get(entry.cardId);
     return card ? [{ entry, card }] : [];
   });
+  const leaders = leaderLine(
+    adapter,
+    leaderItems.map((item) => item.card),
+  );
 
   const total = deckSizeCount(entries, format);
   const sizeLabel = format.deckSize.max !== null ? `${total} / ${format.deckSize.max}` : `${total}`;
@@ -197,9 +239,18 @@ export function DeckShareView({
   const onPreview = (card: EditorCard) => router.push(`/cards/${card.id}`);
 
   const copyDecklist = () => {
-    void navigator.clipboard
-      .writeText(adapter.serializeDecklist(snapshot, cardMap))
-      .then(() => setCopied(true));
+    const text = adapter.serializeDecklist(snapshot, cardMap);
+    const settle = (state: CopyState) =>
+      setCopy((current) => ({ state, nonce: current.nonce + 1 }));
+    try {
+      navigator.clipboard.writeText(text).then(
+        () => settle("copied"),
+        () => settle("failed"),
+      );
+    } catch {
+      // No clipboard API (an insecure context): say so instead of nothing.
+      settle("failed");
+    }
   };
 
   return (
@@ -208,7 +259,15 @@ export function DeckShareView({
       data-game={adapter.id}
     >
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight break-words">{deck.name}</h1>
+        {/* The artwork header (R5b, G3): the resolved crop as the banner with
+            its visible credit, or the accent gradient. */}
+        <SurfaceHeader art={art} className="h-32 sm:h-40 md:h-48" />
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight break-words">{deck.name}</h1>
+        {leaderZoneDef && leaders && (
+          <p data-slot="leader-line" className="mt-1 text-sm break-words">
+            <span className="text-muted-foreground">{leaderZoneDef.label}</span> {leaders}
+          </p>
+        )}
         <p className="text-muted-foreground mt-1 text-sm">
           {author && (
             <>
@@ -230,6 +289,49 @@ export function DeckShareView({
             timeZone: "UTC",
           })}
         </p>
+
+        {/* The legality line (F1's Warden line at zero issues; the expandable panel otherwise). */}
+        <ValidationPanel
+          formatLabel={format.label}
+          issues={issues}
+          cards={cardMap}
+          onPreview={onPreview}
+          preview
+        />
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <EngagementButtons deckId={deck.id} likesCount={deck.likesCount} viewer={viewer} />
+          <ForkButton deckId={deck.id} signedIn={viewer !== null} />
+          <Button variant="outline" size="sm" onClick={copyDecklist}>
+            Copy decklist
+          </Button>
+          {editToken !== null && (
+            <Button
+              nativeButton={false}
+              variant="outline"
+              size="sm"
+              render={<Link href={`/decks/${deck.id}/edit`} />}
+            >
+              Open in editor
+            </Button>
+          )}
+          {/* Copy confirmation (F12): a live slot at the row's end — the check
+              plays once (keyed by nonce) and the slot clears after COPY_RESET_MS. */}
+          <span role="status" data-slot="copy-status" className="text-xs">
+            {copy.state === "copied" && (
+              <span
+                key={copy.nonce}
+                className="inline-flex items-center gap-1 text-emerald-700 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-200 dark:text-emerald-400"
+              >
+                <CheckIcon aria-hidden className="size-3.5" />
+                Copied
+              </span>
+            )}
+            {copy.state === "failed" && <span className="text-destructive">Copy failed</span>}
+          </span>
+        </div>
+
+        {deck.description && <p className="mt-3 text-sm whitespace-pre-wrap">{deck.description}</p>}
         {forkedFrom && (
           <p className="mt-1">
             <ForkCreditLine credit={forkedFrom} className="text-sm" />
@@ -246,32 +348,7 @@ export function DeckShareView({
             {ownershipLine(ownership)}
           </p>
         )}
-        {deck.description && <p className="mt-2 text-sm whitespace-pre-wrap">{deck.description}</p>}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <EngagementButtons deckId={deck.id} likesCount={deck.likesCount} viewer={viewer} />
-          <ForkButton deckId={deck.id} signedIn={viewer !== null} />
-          <Button variant="outline" size="sm" onClick={copyDecklist}>
-            {copied ? "Copied ✓" : "Copy decklist"}
-          </Button>
-          {editToken !== null && (
-            <Button
-              nativeButton={false}
-              variant="outline"
-              size="sm"
-              render={<Link href={`/decks/${deck.id}/edit`} />}
-            >
-              Open in editor
-            </Button>
-          )}
-        </div>
       </header>
-
-      <ValidationPanel
-        formatLabel={format.label}
-        issues={issues}
-        cards={cardMap}
-        onPreview={onPreview}
-      />
 
       {leaderZoneDef && (
         <LeaderZone
@@ -290,7 +367,7 @@ export function DeckShareView({
       </div>
 
       {rest.length === 0 ? (
-        <p className="text-muted-foreground mt-4 text-xs">This deck has no cards yet.</p>
+        <EmptyState mark className="mt-4" title="This deck has no cards yet." />
       ) : view === "text" ? (
         <DeckTextView
           adapter={adapter}
@@ -298,6 +375,7 @@ export function DeckShareView({
           severity={severity}
           onPreview={onPreview}
           owned={owned}
+          preview
         />
       ) : (
         <DeckGridView

@@ -13,6 +13,12 @@
  * Rendered on first request, then cached: generateStaticParams returns []
  * (~4k leaders would bloat the build for nothing), and that empty export
  * is what makes the revalidate real (LATER row 69).
+ *
+ * R5b (REDESIGN.md §2 "Hubs", G3): the accent band with the commander's
+ * art-crop banner and its visible credit (R2's resolver — one Scryfall call
+ * per printing per day, no database statement, nothing per viewer, so the
+ * page stays ISR), the hero card overlapping it, and "Build with this
+ * commander" (LATER's /c/ CTA row, fired) through the ?leader= seam.
  */
 import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import type { Metadata } from "next";
@@ -25,7 +31,10 @@ import { ComboList } from "@/components/combos/combo-list";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
 import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
 import { StaplesTable } from "@/components/hub/staples-table";
+import { SurfaceHeader } from "@/components/surface-header";
+import { Button } from "@/components/ui/button";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
+import { resolveCardArt } from "@/lib/cards/art";
 import { printingImageUrl } from "@/lib/cards/images";
 import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
 import { rowPrinting, tileFromDeck } from "@/lib/decks/tiles";
@@ -98,8 +107,13 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
   const leader = await getLeader(slug);
   if (!leader) notFound();
 
-  const [printing, status, staples, combosData, hubDecks, topFinishes] = await Promise.all([
-    loadDefaultPrinting(leader.id),
+  const adapter = getAdapter("mtg");
+  const [[printing, art], status, staples, combosData, hubDecks, topFinishes] = await Promise.all([
+    // The banner's art (R5b): the default printing's crop through R2's
+    // resolver, resolved alongside the reads — null without an artist.
+    loadDefaultPrinting(leader.id).then(
+      async (p) => [p, p ? await resolveCardArt(adapter, p.id) : null] as const,
+    ),
     loadLeaderStatus(FORMAT_ID.commander, leader.id),
     loadStaples(leader),
     // Only combos a deck with THIS commander could actually run (CI fit).
@@ -108,7 +122,6 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
     loadTopFinishes(GAME_ID.mtg, leader.id),
   ]);
 
-  const adapter = getAdapter("mtg");
   const tournamentsMeta = adapter.capabilities.tournaments;
   const card: CardData = {
     id: leader.id,
@@ -140,8 +153,11 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
         Commanders
       </Link>
 
-      <div className="mt-4 flex flex-col gap-8 md:flex-row">
-        <div className="shrink-0">
+      {/* The artwork header (R5b, G3): the accent band with the crop banner
+          and its visible credit; the hero card overlaps its lower edge. */}
+      <SurfaceHeader art={art} className="mt-4" />
+      <div className="flex flex-col gap-6 md:flex-row md:gap-8">
+        <div className="relative -mt-24 shrink-0 md:-mt-28">
           <CardImage
             src={printing ? printingImageUrl(printing, "normal") : null}
             alt={leader.name}
@@ -153,7 +169,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           />
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 md:pt-4">
           <div className="flex flex-wrap items-baseline gap-3">
             <h1 className="text-3xl font-semibold tracking-tight">{leader.name}</h1>
             <span dangerouslySetInnerHTML={{ __html: ciPipsHtml(leader.ciMask) }} />
@@ -172,12 +188,25 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           <div className="mt-4 text-[0.95rem] leading-relaxed whitespace-pre-wrap">
             {adapter.display.bodyText(card)}
           </div>
-          <p className="mt-3">
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            {/* Build with this commander (R5b — LATER's /c/ CTA row, fired):
+                ?leader= carries the oracle id (external_key); resolve's pass 0
+                seeds it into the draft's leader zone as state only, through
+                the seam /l/ has used since P4.6. A banned or not-legal
+                commander is shown for reference and gets no build action. */}
+            {status === "legal" && (
+              <Button
+                nativeButton={false}
+                render={<Link href={`/decks/new?game=mtg&leader=${leader.externalKey}`} />}
+              >
+                Build with this commander
+              </Button>
+            )}
             <Link href={`/cards/${leader.id}`} className="text-sm underline">
               Card details, printings & prices
               <ArrowRightIcon aria-hidden className="ml-1 inline size-4 align-[-0.2em]" />
             </Link>
-          </p>
+          </div>
 
           {adapter.hub && (
             <section aria-label="Deck template" className="mt-8">

@@ -13,6 +13,15 @@
  * gains "Choose commander / leader" when `onChooseLeader` is set (the
  * editor's — it focuses search); the share page passes nothing and keeps
  * the plain EmptyState.
+ *
+ * R5b (F12): in the read-only shape (no `onRemove` — the share page) each
+ * card carries a persistent ring in the game accent, so the leader reads
+ * as the deck's anchor; a validation ring still wins. The ring sits
+ * outside the frame by construction (a box-shadow), never over the
+ * artist / © line inside it. No mount-time glow: the image loads lazily
+ * after hydration, so a glow would fire on an empty frame. The caption
+ * comes from the shared `leaderCaption` (the artwork header reads the
+ * same helper).
  */
 import { XIcon } from "lucide-react";
 
@@ -20,8 +29,10 @@ import { CardImage } from "@/components/cards/card-image";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
+import { leaderCaption } from "@/lib/decks/leader-caption";
 import type { ViewItem } from "@/lib/decks/view-model";
 import type { GameAdapter, ZoneDef } from "@/lib/games/types";
+import { cn } from "@/lib/utils";
 
 interface LeaderZoneProps {
   zone: ZoneDef;
@@ -47,6 +58,7 @@ export function LeaderZone({
   adapter,
 }: LeaderZoneProps) {
   const noun = zone.label.toLowerCase();
+  const readOnly = !onRemove;
   return (
     <section className="mt-4">
       <h3 className="text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase">
@@ -69,22 +81,21 @@ export function LeaderZone({
       ) : (
         <ul className="mt-2 flex flex-wrap gap-3">
           {items.map(({ entry, card }) => {
-            const caption = [adapter?.display.idBadge?.(card), adapter?.display.statLine?.(card)]
-              .filter(Boolean)
-              .join(" · ");
+            const caption = leaderCaption(adapter, card);
             return (
               <li key={entry.cardId} className="w-40 max-w-[45%]">
                 <button
                   type="button"
                   onClick={() => onPreview(card)}
                   aria-label={`Show ${card.name}`}
-                  className={`focus-visible:ring-ring/50 block w-full rounded-[4.75%/3.5%] outline-none focus-visible:ring-3 ${
+                  className={cn(
+                    "focus-visible:ring-ring/50 block w-full rounded-[4.75%/3.5%] outline-none focus-visible:ring-3",
                     severity.get(card.id) === "error"
                       ? "ring-destructive ring-2"
                       : severity.get(card.id) === "warning"
                         ? "ring-2 ring-amber-500"
-                        : ""
-                  }`}
+                        : readOnly && "ring-accent-game ring-2",
+                  )}
                 >
                   <CardImage
                     src={card.image}

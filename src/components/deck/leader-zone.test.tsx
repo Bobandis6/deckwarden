@@ -74,3 +74,41 @@ describe("LeaderZone", () => {
     expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
   });
 });
+
+describe("LeaderZone — the accent ring (R5b, F12)", () => {
+  const item = { entry: { cardId: enel.id, zone: "leader", qty: 1, tags: [] }, card: enel };
+
+  it("share page (read-only): the card carries the persistent accent ring; a validation ring wins", () => {
+    const { rerender } = render(
+      <LeaderZone zone={leaderZone} items={[item]} severity={new Map()} onPreview={() => {}} />,
+    );
+    const button = screen.getByRole("button", { name: "Show Enel" });
+    expect(button.className).toContain("ring-accent-game");
+    expect(button.className).toContain("ring-2");
+    rerender(
+      <LeaderZone
+        zone={leaderZone}
+        items={[item]}
+        severity={new Map([[enel.id, "error" as const]])}
+        onPreview={() => {}}
+      />,
+    );
+    expect(button.className).toContain("ring-destructive");
+    expect(button.className).not.toContain("ring-accent-game");
+  });
+
+  it("editor (onRemove present): no persistent ring", () => {
+    render(
+      <LeaderZone
+        zone={leaderZone}
+        items={[item]}
+        severity={new Map()}
+        onRemove={() => {}}
+        onPreview={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Show Enel" }).className).not.toContain(
+      "ring-accent-game",
+    );
+  });
+});

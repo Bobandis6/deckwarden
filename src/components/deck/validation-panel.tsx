@@ -14,11 +14,16 @@
  * toggle or a theme switch re-render with the same `zero`, and the
  * previous-render comparison below stays false. An empty deck never gets
  * the line at all: both adapters emit DECK_SIZE under the minimum.
+ *
+ * R5b (F5): `preview` wraps each card-name chip in the share page's hover
+ * and focus card preview; the editor's instance passes nothing and keeps
+ * plain chips (its detail pane already previews).
  */
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
+import { CardNamePreview } from "@/components/deck/card-name-preview";
 import type { EditorCard } from "@/lib/decks/editor-state";
 import { countIssues } from "@/lib/decks/validation";
 import type { ValidationIssue } from "@/lib/games/types";
@@ -31,9 +36,17 @@ interface ValidationPanelProps {
   issues: ValidationIssue[];
   cards: ReadonlyMap<string, EditorCard>;
   onPreview: (card: EditorCard) => void;
+  /** Share pages: hover / focus card previews on the name chips (F5). */
+  preview?: boolean;
 }
 
-export function ValidationPanel({ formatLabel, issues, cards, onPreview }: ValidationPanelProps) {
+export function ValidationPanel({
+  formatLabel,
+  issues,
+  cards,
+  onPreview,
+  preview = false,
+}: ValidationPanelProps) {
   const [open, setOpen] = useState(false);
   const zero = issues.length === 0;
   // "Storing information from previous renders" (react.dev): the settle key
@@ -129,7 +142,7 @@ export function ValidationPanel({ formatLabel, issues, cards, onPreview }: Valid
                   {issue.cardIds.slice(0, CHIP_LIMIT).map((cardId) => {
                     const card = cards.get(cardId);
                     if (!card) return null;
-                    return (
+                    const chip = (
                       <button
                         key={cardId}
                         type="button"
@@ -138,6 +151,13 @@ export function ValidationPanel({ formatLabel, issues, cards, onPreview }: Valid
                       >
                         {card.name}
                       </button>
+                    );
+                    return preview ? (
+                      <CardNamePreview key={cardId} card={card}>
+                        {chip}
+                      </CardNamePreview>
+                    ) : (
+                      chip
                     );
                   })}
                   {issue.cardIds.length > CHIP_LIMIT && (

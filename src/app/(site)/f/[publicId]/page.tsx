@@ -16,6 +16,11 @@
  * visibility spelled out so the page can't silently lie to them about what
  * others see. Attribution goes through the owner's username only — no
  * username, no byline (choosing one is the publish opt-in).
+ *
+ * R5b: the deck rows are R5a's DeckTiles through the joined collection
+ * select (one statement); the owner's non-public decks still SAY their
+ * visibility (the tile's visibility word), everyone else's tiles carry none;
+ * no byline — the folder header names the author.
  */
 import { and, desc, eq, ne } from "drizzle-orm";
 import type { Metadata } from "next";
@@ -24,10 +29,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
+import { EmptyState } from "@/components/empty-state";
 import { getDb, schema } from "@/db";
 import { getSessionUserId } from "@/lib/auth";
-import { formatLabel, updatedLabel } from "@/lib/decks/display";
+import { deckCollection } from "@/lib/decks/collections";
 import { isFolderOwner, loadFolderByPublicId } from "@/lib/decks/folders";
+import { rowPrinting, tileFromDeck } from "@/lib/decks/tiles";
 
 export const dynamic = "force-dynamic";
 
@@ -72,9 +80,7 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
 
   const db = getDb();
   const [decks, [owner]] = await Promise.all([
-    db
-      .select()
-      .from(schema.decks)
+    deckCollection()
       .where(
         and(
           eq(schema.decks.folderId, folder.id),
@@ -129,23 +135,21 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
 
       <section aria-label="Decks in this folder" className="mt-6">
         {decks.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Nothing in this folder yet.</p>
+          <EmptyState mark title="Nothing in this folder yet." />
         ) : (
-          <ul className="divide-y rounded-lg border">
+          <DeckTileGrid className="lg:grid-cols-2">
             {decks.map((deck) => (
-              <li key={deck.id}>
-                <Link href={`/d/${deck.publicId}`} className="block px-3 py-2 hover:underline">
-                  <span className="block truncate text-sm font-medium">{deck.name}</span>
-                  <span className="text-muted-foreground block text-xs">
-                    {formatLabel(deck.gameId, deck.formatId)}
-                    {/* Visibility spelled out for the owner: rows others can't see must say so. */}
-                    {isOwner && deck.visibility !== "public" ? ` · ${deck.visibility}` : ""} ·
-                    Updated {updatedLabel(deck.updatedAt)}
-                  </span>
-                </Link>
-              </li>
+              <DeckTile
+                key={deck.id}
+                tile={tileFromDeck(deck, rowPrinting(deck), {
+                  href: `/d/${deck.publicId}`,
+                  // Visibility spelled out for the owner: rows others can't see must say so.
+                  showVisibility: isOwner && deck.visibility !== "public",
+                  byline: false,
+                })}
+              />
             ))}
-          </ul>
+          </DeckTileGrid>
         )}
       </section>
     </main>
