@@ -128,6 +128,8 @@ export function AmbientArt({
             key={shown.previous.url}
             src={shown.previous.url}
             alt=""
+            width={626}
+            height={457}
             decoding="async"
             fetchPriority="low"
             data-slot="ambient-crop"
@@ -145,6 +147,8 @@ export function AmbientArt({
             key={current.url}
             src={current.url}
             alt=""
+            width={626}
+            height={457}
             decoding="async"
             fetchPriority="low"
             data-slot="ambient-crop"

@@ -19,7 +19,6 @@ import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { cache } from "react";
 
 import { DeckShareView } from "@/components/deck/deck-share-view";
 import { OptcgPostureLine } from "@/components/optcg-posture-line";
@@ -32,14 +31,14 @@ import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
 import { viewerEngagement } from "@/lib/decks/engagement";
 import { forkCredit } from "@/lib/decks/forks";
 import { loadDeckLeaderArt } from "@/lib/decks/leader-art";
-import { deckFormat, loadDeckByPublicId } from "@/lib/decks/route-helpers";
+import { deckFormat } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { deckJsonLd, JsonLd } from "@/lib/seo/jsonld";
 
 export const dynamic = "force-dynamic";
 
-// One DB lookup shared by generateMetadata and the page render.
-const getDeck = cache(loadDeckByPublicId);
+// One DB lookup shared by the layout (the 404 gate, R6), generateMetadata and the page render.
+import { getDeck } from "./deck";
 
 /**
  * Indexing policy (P2.6): only PUBLIC decks are indexable. Unlisted decks

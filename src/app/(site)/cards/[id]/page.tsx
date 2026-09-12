@@ -14,24 +14,25 @@
  * art: the full card IS the art here, a crop above it would be redundant,
  * and 35k card pages must not each pay a Scryfall call.
  */
-import { asc, desc, eq, isNull, and } from "drizzle-orm";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cache as reactCache } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { ComboList } from "@/components/combos/combo-list";
 import { OptcgPostureLine } from "@/components/optcg-posture-line";
-import { SurfaceHeader } from "@/components/surface-header";
-import { getDb, schema } from "@/db";
+import { SURFACE_BAND, SurfaceHeader } from "@/components/surface-header";
 import { GAME_ID, GAMES } from "@/db/seed-data";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
 import { getAdapter } from "@/lib/games/registry";
 import type { CardData } from "@/lib/games/types";
 import { breadcrumbJsonLd, JsonLd } from "@/lib/seo/jsonld";
+import { cn } from "@/lib/utils";
+
+// The 404 gate lives in ./layout.tsx (R6): one cached lookup, three readers.
+import { getCard } from "./card";
 
 export const revalidate = 3600;
 
@@ -44,61 +45,15 @@ export function generateStaticParams() {
   return [];
 }
 
-const { cardIdentities, cardPrintings, sets, formats, legalities } = schema;
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
+// Light tints take the 800 shade (R6 contrast audit): the 700s measured
+// 4.22:1 (amber) and 4.08:1 (green) on their /15 tints in the light theme;
+// the 800s read 5.95:1 and 5.88:1. Dark keeps the 400s (8.3:1+).
 const STATUS_STYLE: Record<string, string> = {
-  legal: "bg-green-500/15 text-green-700 dark:text-green-400",
+  legal: "bg-green-500/15 text-green-800 dark:text-green-400",
   banned: "bg-destructive/15 text-destructive",
-  restricted: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  restricted: "bg-amber-500/15 text-amber-800 dark:text-amber-400",
   not_legal: "bg-muted text-muted-foreground",
 };
-
-async function loadCard(id: string) {
-  if (!UUID_RE.test(id)) return null;
-  const db = getDb();
-  const [identity] = await db.select().from(cardIdentities).where(eq(cardIdentities.id, id));
-  if (!identity) return null;
-
-  const [printings, formatRows, legalityRows] = await Promise.all([
-    db
-      .select({
-        id: cardPrintings.id,
-        setCode: sets.code,
-        setName: sets.name,
-        collectorNumber: cardPrintings.collectorNumber,
-        rarity: cardPrintings.rarity,
-        releasedAt: cardPrintings.releasedAt,
-        isDefault: cardPrintings.isDefault,
-        prices: cardPrintings.prices,
-        imageOverride: cardPrintings.imageOverride,
-        isRemoved: cardPrintings.isRemoved,
-      })
-      .from(cardPrintings)
-      .innerJoin(sets, eq(sets.id, cardPrintings.setId))
-      .where(eq(cardPrintings.cardIdentityId, id))
-      .orderBy(desc(cardPrintings.releasedAt)),
-    db.select().from(formats).where(eq(formats.gameId, identity.gameId)).orderBy(asc(formats.id)),
-    db
-      .select({ formatId: legalities.formatId, status: legalities.status })
-      .from(legalities)
-      .where(
-        and(
-          eq(legalities.cardIdentityId, id),
-          isNull(legalities.effectiveTo),
-          isNull(legalities.condition),
-        ),
-      ),
-  ]);
-
-  // Default (displayed) printing first; stable sort keeps release order within groups.
-  printings.sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
-  return { identity, printings, formatRows, legalityRows };
-}
-
-// One DB lookup shared by generateMetadata and the page render (P2.6).
-const getCard = reactCache(loadCard);
 
 export async function generateMetadata({ params }: PageProps<"/cards/[id]">): Promise<Metadata> {
   const { id } = await params;
@@ -167,7 +122,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
       </Link>
 
       {/* The accent band (R5b, G3) — gradient only; the card overlaps its lower edge. */}
-      <SurfaceHeader className="mt-4 h-28 sm:h-36 md:h-44" />
+      <SurfaceHeader className={cn("mt-4", SURFACE_BAND.card)} />
       <div className="flex flex-col gap-6 md:flex-row md:gap-8">
         <div className="relative -mt-20 shrink-0 md:-mt-24">
           <CardImage
@@ -194,7 +149,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
             {statLine ? ` · ${statLine}` : ""}
           </p>
           {identity.isPreview && (
-            <p className="mt-2 inline-block rounded-md bg-amber-500/15 px-2 py-1 text-sm text-amber-700 dark:text-amber-400">
+            <p className="mt-2 inline-block rounded-md bg-amber-500/15 px-2 py-1 text-sm text-amber-800 dark:text-amber-400">
               Preview card — not legal until release
             </p>
           )}

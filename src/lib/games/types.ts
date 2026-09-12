@@ -133,6 +133,14 @@ export type AnalyticsBlock =
       id: string;
       title: string;
       buckets: { label: string; value: number; colorVar?: string }[];
+      /**
+       * Optional editorial target per bucket (R6, G9): drawn as an outline
+       * behind the bars — same length and order as `buckets`, scaled on the
+       * same max so a target never overflows a small deck's track — and
+       * named by `label` in a visible legend. Computed in-process by the
+       * adapter like the rest of the block; never on the wire.
+       */
+      target?: { label: string; values: readonly number[] };
     }
   | {
       kind: "breakdown";

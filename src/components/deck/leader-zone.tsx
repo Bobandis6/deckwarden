@@ -24,6 +24,7 @@
  * same helper).
  */
 import { XIcon } from "lucide-react";
+import { useId } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { EmptyState } from "@/components/empty-state";
@@ -59,6 +60,9 @@ export function LeaderZone({
 }: LeaderZoneProps) {
   const noun = zone.label.toLowerCase();
   const readOnly = !onRemove;
+  // R6 (status never color-only): the validation ring's severity as text,
+  // described onto the card button — the name stays "Show {name}".
+  const idPrefix = useId();
   return (
     <section className="mt-4">
       <h3 className="text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase">
@@ -87,17 +91,20 @@ export function LeaderZone({
         <ul className="mt-2 flex flex-wrap gap-3">
           {items.map(({ entry, card }) => {
             const caption = leaderCaption(adapter, card);
+            const level = severity.get(card.id);
+            const levelId = level ? `${idPrefix}-${entry.cardId}` : undefined;
             return (
               <li key={entry.cardId} className="w-40 max-w-[45%]">
                 <button
                   type="button"
                   onClick={() => onPreview(card)}
                   aria-label={`Show ${card.name}`}
+                  aria-describedby={levelId}
                   className={cn(
                     "focus-visible:ring-ring/50 block w-full rounded-[4.75%/3.5%] outline-none focus-visible:ring-3",
-                    severity.get(card.id) === "error"
+                    level === "error"
                       ? "ring-destructive ring-2"
-                      : severity.get(card.id) === "warning"
+                      : level === "warning"
                         ? "ring-2 ring-amber-500"
                         : readOnly && "ring-accent-game ring-2",
                   )}
@@ -111,6 +118,11 @@ export function LeaderZone({
                     className="w-full text-xs shadow-md"
                   />
                 </button>
+                {level && (
+                  <span id={levelId} data-slot="severity" className="sr-only">
+                    {level === "error" ? "Has a problem" : "Warning"}
+                  </span>
+                )}
                 <span className="mt-1 flex items-center gap-1">
                   <span className="min-w-0 flex-1 truncate text-xs">{card.name}</span>
                   {onRemove && (

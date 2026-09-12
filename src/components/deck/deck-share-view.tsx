@@ -51,7 +51,7 @@ import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { EmptyState } from "@/components/empty-state";
-import { SurfaceHeader } from "@/components/surface-header";
+import { SURFACE_BAND, SurfaceHeader } from "@/components/surface-header";
 import { Button } from "@/components/ui/button";
 import type { CardArt } from "@/lib/cards/art";
 import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
@@ -261,7 +261,7 @@ export function DeckShareView({
       <header>
         {/* The artwork header (R5b, G3): the resolved crop as the banner with
             its visible credit, or the accent gradient. */}
-        <SurfaceHeader art={art} className="h-32 sm:h-40 md:h-48" />
+        <SurfaceHeader art={art} className={SURFACE_BAND.deck} />
         <h1 className="mt-4 text-3xl font-semibold tracking-tight break-words">{deck.name}</h1>
         {leaderZoneDef && leaders && (
           <p data-slot="leader-line" className="mt-1 text-sm break-words">

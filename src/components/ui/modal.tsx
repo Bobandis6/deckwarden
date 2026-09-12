@@ -53,7 +53,8 @@ export function Modal({
           wide ? "sm:max-w-2xl" : "sm:max-w-lg",
         )}
       >
-        <DialogHeader>
+        {/* The close control is 44 px on a coarse pointer (R6): keep the title clear of it. */}
+        <DialogHeader className="pointer-coarse:pr-10">
           <DialogTitle className="text-sm font-semibold">{label}</DialogTitle>
         </DialogHeader>
         {children}

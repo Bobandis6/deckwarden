@@ -22,6 +22,12 @@
  * because the hub hero card overlaps the band's bottom-left, and C13's
  * corner rule keeps badges in the top corners.
  *
+ * Credit recipe (R6 contrast audit): `text-foreground bg-background/85`.
+ * The ambient chip's muted recipe (`text-muted-foreground bg-background/80`)
+ * is fine over 4–8 % art but measured 3.4:1 in the light theme over a dark
+ * crop at full opacity; the foreground on a denser pill reads ≥ 11:1 over
+ * white, black and mid grey in both themes.
+ *
  * Layout: the band has an EXPLICIT height (the default below, or the
  * caller's `h-*`), so the page reserves it before the banner loads and
  * nothing shifts; the banner is `alt=""` (decorative — the credit is the
@@ -33,6 +39,18 @@
  */
 import type { CardArt } from "@/lib/cards/art";
 import { cn } from "@/lib/utils";
+
+/**
+ * The band heights per surface (R5b's numbers), exported so the pages, the
+ * client share view and the C9 loading shells (`SurfaceSkeleton`, R6) all
+ * read ONE string per surface — a skeleton can never drift from the band
+ * it stands in for. `hub` is the default below.
+ */
+export const SURFACE_BAND = {
+  hub: "h-36 sm:h-44 md:h-56",
+  card: "h-28 sm:h-36 md:h-44",
+  deck: "h-32 sm:h-40 md:h-48",
+} as const;
 
 export function SurfaceHeader({
   art = null,
@@ -47,7 +65,7 @@ export function SurfaceHeader({
     <div
       data-slot="surface-header"
       data-banner={art ? "art_crop" : "gradient"}
-      className={cn("relative h-36 overflow-hidden rounded-2xl sm:h-44 md:h-56", className)}
+      className={cn("relative overflow-hidden rounded-2xl", SURFACE_BAND.hub, className)}
     >
       <div
         aria-hidden
@@ -60,6 +78,11 @@ export function SurfaceHeader({
           <img
             src={art.url}
             alt=""
+            // Scryfall's art_crop nominal size. Inert for layout — the band's
+            // height is explicit and the image is absolutely sized to it — but
+            // every image in the product is sized (R6's `img:not([width])` audit).
+            width={626}
+            height={457}
             decoding="async"
             loading="eager"
             fetchPriority="low"
@@ -73,7 +96,7 @@ export function SurfaceHeader({
           />
           <p
             data-slot="art-credit"
-            className="text-muted-foreground bg-background/80 absolute top-2 right-3 max-w-[calc(100%-1.5rem)] rounded-md px-1.5 py-0.5 text-right text-[0.65rem] leading-4"
+            className="text-foreground bg-background/85 absolute top-2 right-3 max-w-[calc(100%-1.5rem)] rounded-md px-1.5 py-0.5 text-right text-[0.65rem] leading-4"
           >
             {art.credit}
           </p>

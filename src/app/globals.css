@@ -163,6 +163,13 @@
   html {
     @apply font-sans;
   }
+  /* Placeholders (R6 contrast audit): preflight paints them as the text
+     color at 50 % alpha, which measured 3.22:1 in the light theme (4.94:1 in
+     dark). The muted foreground token is the placeholder color in both
+     themes (5.34:1 light, 8.79:1 dark on the background). */
+  ::placeholder {
+    color: var(--muted-foreground);
+  }
 
   /* Motion policy (R1a, REDESIGN.md §1). Convention from here on: every
      DECORATIVE animation or transition is authored with the `motion-safe:`

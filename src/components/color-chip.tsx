@@ -120,7 +120,7 @@ export function ColorSwatch({
 /** The interactive chip shell — shared with the filters' "All" pill so the row reads as one control set. */
 export function chipClass(active: boolean, className?: string): string {
   return cn(
-    "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm leading-none whitespace-nowrap outline-none",
+    "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm leading-none whitespace-nowrap outline-none pointer-coarse:min-h-11 pointer-coarse:px-3",
     "focus-visible:outline-accent-game focus-visible:outline-2 focus-visible:outline-offset-2",
     active ? "bg-muted ring-accent-game font-medium ring-2" : "hover:bg-muted",
     className,

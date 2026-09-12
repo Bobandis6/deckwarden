@@ -11,7 +11,14 @@
  * the frame's bottom carries the artist / © line (Magic) or Bandai's text
  * (One Piece). `stickyHeaders` mirrors the text view's editor-only sticky
  * group headers.
+ *
+ * R6 (status never color-only): a card with a validation issue carries the
+ * severity as text — an sr-only "Has a problem" / "Warning" (the text
+ * view's words) wired through `aria-describedby`, so the button's name
+ * stays "Show {name}" and the ring's hue is no longer the only channel.
  */
+import { useId } from "react";
+
 import { CardImage } from "@/components/cards/card-image";
 import { GROUP_HEADER_CLASS, STICKY_HEADER_CLASS } from "@/components/deck/deck-text-view";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
@@ -43,6 +50,7 @@ export function DeckGridView({
   adapter,
   stickyHeaders = false,
 }: DeckGridViewProps) {
+  const idPrefix = useId();
   return (
     <>
       {groups.map((group) => (
@@ -54,16 +62,19 @@ export function DeckGridView({
           <ul className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2">
             {group.items.map(({ entry, card }) => {
               const badge = adapter?.display.idBadge?.(card);
+              const level = severity.get(card.id);
+              const levelId = level ? `${idPrefix}-${entry.zone}-${card.id}` : undefined;
               return (
                 <li key={`${entry.zone}:${entry.cardId}`} className="relative">
                   <button
                     type="button"
                     onClick={() => onPreview(card)}
                     aria-label={`Show ${card.name}`}
+                    aria-describedby={levelId}
                     className={`focus-visible:ring-ring/50 block w-full rounded-[4.75%/3.5%] outline-none focus-visible:ring-3 ${
-                      severity.get(card.id) === "error"
+                      level === "error"
                         ? "ring-destructive ring-2"
-                        : severity.get(card.id) === "warning"
+                        : level === "warning"
                           ? "ring-2 ring-amber-500"
                           : ""
                     }`}
@@ -77,6 +88,11 @@ export function DeckGridView({
                       className="w-full text-xs shadow-sm"
                     />
                   </button>
+                  {level && (
+                    <span id={levelId} data-slot="severity" className="sr-only">
+                      {level === "error" ? "Has a problem" : "Warning"}
+                    </span>
+                  )}
                   <span
                     aria-label={`${entry.qty} in deck`}
                     className={cn(BADGE_CLASS, "absolute top-1 right-1")}

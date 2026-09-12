@@ -11,7 +11,11 @@
  * Contrast (WCAG, measured 2026-09-08): foreground 17.0:1 dark / 15.7:1
  * light; secondary text 8.8:1 / 5.3:1; brand text 6.3:1 / 7.4:1; Magic
  * accent 8.5:1 / 5.5:1; One Piece accent 10.7:1 / 5.1:1; destructive
- * 6.8:1 / 6.1:1. Every pair is AA on its theme's background.
+ * 6.8:1 / 6.1:1. Every pair is AA on its theme's background. R6
+ * (2026-09-12) re-measured every pair in the browser — the same numbers
+ * (light secondary 5.34:1 on the background, 5.70:1 on white panels; brand
+ * 7.40:1 light) — and moved placeholders and the inactive tab trigger onto
+ * the muted token; the full table is in REDESIGN.md §6.
  */
 import { GAME_ID } from "@/db/seed-data";
 

@@ -5,6 +5,7 @@
  */
 import type { AnalyticsBlock, CardData, DeckSnapshot } from "../types";
 import type { MtgAttrs } from "./attrs";
+import { MTG_CURVE_TEMPLATE } from "./recommend";
 
 type MtgCard = CardData<MtgAttrs>;
 
@@ -92,6 +93,11 @@ export function analyzeMtg(
       id: "mana-curve",
       title: "Mana curve",
       buckets: curve.map((value, mv) => ({ label: mv === 7 ? "7+" : String(mv), value })),
+      // G9 (R6): the editorial target curve as a ghost outline behind the
+      // bars — the same template the Cut Coach reads (recommend.ts), one
+      // import between two pure adapter modules; labeled as a template, never
+      // as community data (cold-start rule).
+      target: { label: "Curve template", values: MTG_CURVE_TEMPLATE },
     },
     {
       kind: "breakdown",

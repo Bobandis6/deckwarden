@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { mtgAdapter } from "./adapter";
 import { analyzeMtg } from "./analyze";
+import { MTG_CURVE_TEMPLATE } from "./recommend";
 import {
   atraxa,
   card,
@@ -33,6 +35,17 @@ describe("analyzeMtg", () => {
     // MV 1: Sol Ring + Bolt; MV 4: Atraxa; 30 Islands excluded.
     expect(curve.buckets.map((b) => b.value)).toEqual([0, 2, 0, 0, 1, 0, 0, 0]);
     expect(curve.buckets[7].label).toBe("7+");
+  });
+
+  it("the mana curve carries the editorial curve template as its target (R6, G9)", () => {
+    const curve = block(blocks, "mana-curve");
+    if (curve.kind !== "histogram") throw new Error("wrong kind");
+    expect(curve.target).toEqual({ label: "Curve template", values: MTG_CURVE_TEMPLATE });
+    expect(curve.target!.values).toHaveLength(curve.buckets.length);
+    // The same skeleton the Cut Coach reads — one template, two views.
+    expect(curve.target!.values).toBe(mtgAdapter.recommend!.curve!.buckets);
+    // No other block carries a target.
+    for (const b of blocks) if (b.id !== "mana-curve") expect("target" in b).toBe(false);
   });
 
   it("computes average mana value over nonland cards", () => {

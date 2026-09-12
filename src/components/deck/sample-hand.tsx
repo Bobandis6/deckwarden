@@ -9,10 +9,22 @@
  * bottoming is the goldfish playtester's job (LATER.md), not this widget's.
  *
  * Images: the small CDN rendition through CardImage (R1b — lazy, sized; the
- * CDN and attribution rules live in its docblock). No frame here: F4 (R6)
- * restyles the dealt hand. R3 wraps the section in a labelled Collapsible
- * (open by default — the Draw button is the content; state not persisted),
- * the only change the widget takes this package.
+ * CDN and attribution rules live in its docblock). R3 wraps the section in a
+ * labelled Collapsible (open by default — the Draw button is the content;
+ * state not persisted).
+ *
+ * R6 (F4, REDESIGN.md §4 "Dealt hands"): the hand is DEALT — each card
+ * enters with a stagger (`animation-delay` climbing per slot, the whole
+ * deal under 400 ms, `fill-mode-backwards` so a card is invisible until its
+ * turn, every class `motion-safe:`; under reduced motion no delay is
+ * written and the cards simply appear) — and the controls read as a game
+ * prompt: "Keep this hand?" with **Keep** and **Mulligan**. The state
+ * machine is `none → dealt → kept`: Keep freezes the hand and says so in
+ * the live region (no game state beyond that — no draw-next, LATER's
+ * goldfish row stays); Mulligan redraws seven and counts; "New hand" (from
+ * a kept hand) restarts at zero mulligans. Every deal bumps a nonce that
+ * keys the list, so a new hand or a mulligan replays the deal. The draw
+ * itself (`drawHand` / `buildLibrary`) is untouched.
  */
 import { ChevronDownIcon } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -24,6 +36,17 @@ import { toSmallImage } from "@/lib/cards/images";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import { buildLibrary, drawHand } from "@/lib/decks/sample-hand";
 import type { FormatDef } from "@/lib/games/types";
+import { prefersReducedMotion } from "@/lib/theme/motion";
+
+/** Per-slot delay of the deal; the last of seven cards starts at 180 ms. */
+export const DEAL_STAGGER_MS = 30;
+/** Each card's own entrance; the whole seven-card deal ends at 380 ms (≤ 400, §1). */
+export const DEAL_CARD_MS = 200;
+/** The dealt card's entrance classes — motion-safe only, backwards-filled so it waits for its delay. */
+export const DEAL_CARD_MOTION_CLASS =
+  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-backwards motion-safe:duration-200";
+
+type Phase = "none" | "dealt" | "kept";
 
 export function SampleHand({
   entries,
@@ -39,18 +62,40 @@ export function SampleHand({
   const library = useMemo(() => buildLibrary(entries, format), [entries, format]);
   const [hand, setHand] = useState<string[] | null>(null);
   const [mulligans, setMulligans] = useState(0);
+  const [phase, setPhase] = useState<Phase>("none");
+  // The deal nonce keys the list so every deal remounts it and the stagger
+  // replays; `staggered` is the reduced-motion read taken AT the deal (an
+  // event handler, never render), so a reduced-motion reader gets no delay.
+  const [deal, setDeal] = useState(0);
+  const [staggered, setStaggered] = useState(false);
 
   if (library.length === 0) return null;
 
   const draw = (mullCount: number) => {
     setHand(drawHand(library, format.openingHandSize));
     setMulligans(mullCount);
+    setPhase("dealt");
+    setDeal((n) => n + 1);
+    setStaggered(!prefersReducedMotion());
   };
+
+  const mulliganNote =
+    mulligans > 0 ? `after ${mulligans} mulligan${mulligans === 1 ? "" : "s"}` : "";
+  const shortNote =
+    hand !== null && hand.length < format.openingHandSize
+      ? ` (only ${hand.length} cards in the library)`
+      : "";
+  const status =
+    phase === "kept"
+      ? `Hand kept${mulliganNote ? ` ${mulliganNote}` : ""}.${shortNote}`
+      : phase === "dealt"
+        ? `${mulliganNote ? `After ${mulligans} mulligan${mulligans === 1 ? "" : "s"}` : ""}${shortNote}`
+        : "";
 
   return (
     <Collapsible defaultOpen className="mt-6" render={<section />}>
       <h2 className="border-b pb-1">
-        <CollapsibleTrigger className="group/trigger text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded text-xs font-medium tracking-wide uppercase hover:underline">
+        <CollapsibleTrigger className="group/trigger text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded text-xs font-medium tracking-wide uppercase hover:underline pointer-coarse:min-h-11">
           Sample hand
           <ChevronDownIcon
             aria-hidden
@@ -59,29 +104,47 @@ export function SampleHand({
         </CollapsibleTrigger>
       </h2>
       <CollapsibleContent>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {hand === null ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2" data-phase={phase}>
+          {phase === "none" && (
             <Button variant="outline" size="sm" onClick={() => draw(0)}>
               Draw sample hand
             </Button>
-          ) : (
-            <>
-              <Button variant="outline" size="sm" onClick={() => draw(0)}>
-                New hand
+          )}
+          {phase === "dealt" && (
+            <span
+              role="group"
+              aria-label="Keep this hand?"
+              className="flex flex-wrap items-center gap-2"
+            >
+              <span className="text-sm font-medium">Keep this hand?</span>
+              <Button size="sm" onClick={() => setPhase("kept")}>
+                Keep
               </Button>
               <Button variant="outline" size="sm" onClick={() => draw(mulligans + 1)}>
                 Mulligan
               </Button>
-              <span aria-live="polite" className="text-muted-foreground text-xs tabular-nums">
-                {mulligans > 0 && `After ${mulligans} mulligan${mulligans === 1 ? "" : "s"}`}
-                {hand.length < format.openingHandSize &&
-                  ` (only ${hand.length} cards in the library)`}
-              </span>
-            </>
+            </span>
           )}
+          {phase === "kept" && (
+            <Button variant="outline" size="sm" onClick={() => draw(0)}>
+              New hand
+            </Button>
+          )}
+          <span
+            aria-live="polite"
+            data-slot="hand-status"
+            className="text-muted-foreground text-xs tabular-nums"
+          >
+            {status}
+          </span>
         </div>
         {hand !== null && (
-          <ul className="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-7">
+          <ul
+            key={deal}
+            data-slot="dealt-hand"
+            data-kept={phase === "kept" || undefined}
+            className="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-7"
+          >
             {hand.map((cardId, i) => {
               const card = cards.get(cardId);
               if (!card) return null;
@@ -97,7 +160,11 @@ export function SampleHand({
               );
               return (
                 // Duplicates (30 Islands) are legal hands — key must include the slot.
-                <li key={`${cardId}-${i}`}>
+                <li
+                  key={`${cardId}-${i}`}
+                  className={DEAL_CARD_MOTION_CLASS}
+                  style={staggered ? { animationDelay: `${i * DEAL_STAGGER_MS}ms` } : undefined}
+                >
                   {onPreview ? (
                     <button
                       type="button"

@@ -295,6 +295,12 @@ describe("analyzeOptcg", () => {
     expect(curve.buckets.map((x) => x.value)).toEqual([2, 5, 2, 1, 0, 0, 0, 0, 2]);
   });
 
+  it("the DON!! curve carries no target — One Piece declares no curve template (R6, G9)", () => {
+    const curve = block(blocks, "don-curve");
+    if (curve.kind !== "histogram") throw new Error("wrong kind");
+    expect("target" in curve).toBe(false);
+  });
+
   it("counts counters by denomination, sums them, and counts counterless characters only", () => {
     expect(block(blocks, "counter-1k")).toMatchObject({ value: "5" }); // 4×a + Uta
     expect(block(blocks, "counter-2k")).toMatchObject({ value: "2" });

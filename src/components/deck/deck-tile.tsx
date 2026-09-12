@@ -46,7 +46,7 @@ export function DeckTile({
       data-slot="deck-tile"
       data-game={tile.game ?? undefined}
       className={cn(
-        "bg-card hover:bg-muted/40 relative flex gap-3 overflow-hidden rounded-lg border p-3 pt-4 transition-colors",
+        "bg-card hover:bg-muted/40 relative flex gap-3 overflow-hidden rounded-lg border p-3 pt-4 motion-safe:transition-colors",
         "has-[[data-slot=tile-link]:focus-visible]:ring-ring/50 has-[[data-slot=tile-link]:focus-visible]:ring-2",
         className,
       )}

@@ -9,6 +9,17 @@
  * Plain CSS bars — no chart library. P1.7's share pages reuse AnalyticsBlocks
  * directly; AnalyticsPanel is the editor's collapsible wrapper around it
  * (on the Collapsible primitive since R3).
+ *
+ * R6 (G6): each histogram bar grows in from the baseline on mount — a
+ * `motion-safe:` transition from an `@starting-style` state (Tailwind's
+ * `starting:` variant), so the deal plays without JavaScript, on the
+ * server-rendered share page and the hub's staples curve alike, and never
+ * exists for a reduced-motion reader; the value label above each bar is
+ * unchanged. (G9): a histogram block may carry an editorial `target` —
+ * drawn as a dashed outline behind each bar, scaled on the same max as the
+ * bars, `aria-hidden`, and named by ONE visible legend line — so the
+ * renderer draws whatever target a block hands it and still knows nothing
+ * about which game or template produced it.
  */
 import { ChevronDownIcon } from "lucide-react";
 
@@ -19,31 +30,63 @@ function barColor(colorVar?: string): string {
   return colorVar ? `var(${colorVar})` : "var(--chart-2)";
 }
 
+/** The bar's grow-in (G6): from `scale-y-0` at first style to full height, ≤ 400 ms, motion-safe only. */
+export const HISTOGRAM_BAR_MOTION_CLASS =
+  "origin-bottom scale-y-100 motion-safe:transition-transform motion-safe:duration-400 motion-safe:ease-out motion-safe:starting:scale-y-0";
+
+/** The dashed outline that draws a target bucket and the legend's swatch (G9). */
+const TARGET_OUTLINE_CLASS =
+  "border-muted-foreground/60 rounded-t-sm border border-b-0 border-dashed";
+
 function Histogram({ block }: { block: Extract<AnalyticsBlock, { kind: "histogram" }> }) {
-  const max = Math.max(...block.buckets.map((b) => b.value), 1);
+  const target = block.target;
+  // One scale for bars AND target, so a template bucket never overflows the
+  // track while the deck is small.
+  const max = Math.max(...block.buckets.map((b) => b.value), ...(target?.values ?? []), 1);
   return (
     <div>
       <h3 className="text-muted-foreground text-xs font-medium">{block.title}</h3>
       <div className="mt-1 flex items-stretch gap-1">
-        {block.buckets.map((bucket) => (
-          <div key={bucket.label} className="min-w-0 flex-1 text-center">
-            <div className="text-muted-foreground text-[0.65rem] tabular-nums">
-              {bucket.value > 0 ? bucket.value : " "}
+        {block.buckets.map((bucket, i) => {
+          const ghost = target?.values[i] ?? 0;
+          return (
+            <div key={bucket.label} className="min-w-0 flex-1 text-center">
+              <div className="text-muted-foreground text-[0.65rem] tabular-nums">
+                {bucket.value > 0 ? bucket.value : " "}
+              </div>
+              <div className="border-border relative flex h-16 items-end border-b">
+                {ghost > 0 && (
+                  <div
+                    aria-hidden
+                    data-slot="histogram-target"
+                    className={`pointer-events-none absolute inset-x-0 bottom-0 ${TARGET_OUTLINE_CLASS}`}
+                    style={{ height: `${(ghost / max) * 100}%` }}
+                  />
+                )}
+                <div
+                  data-slot="histogram-bar"
+                  className={`relative w-full rounded-t-sm ${HISTOGRAM_BAR_MOTION_CLASS}`}
+                  style={{
+                    // Nonzero buckets stay visible even next to a tall max.
+                    height: bucket.value > 0 ? `${Math.max((bucket.value / max) * 100, 5)}%` : 0,
+                    background: barColor(bucket.colorVar),
+                  }}
+                />
+              </div>
+              <div className="text-muted-foreground mt-0.5 text-[0.65rem]">{bucket.label}</div>
             </div>
-            <div className="border-border flex h-16 items-end border-b">
-              <div
-                className="w-full rounded-t-sm"
-                style={{
-                  // Nonzero buckets stay visible even next to a tall max.
-                  height: bucket.value > 0 ? `${Math.max((bucket.value / max) * 100, 5)}%` : 0,
-                  background: barColor(bucket.colorVar),
-                }}
-              />
-            </div>
-            <div className="text-muted-foreground mt-0.5 text-[0.65rem]">{bucket.label}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+      {target && (
+        <p
+          data-slot="histogram-legend"
+          className="text-muted-foreground mt-1 flex items-center gap-1.5 text-[0.65rem]"
+        >
+          <span aria-hidden className={`inline-block h-2.5 w-3 ${TARGET_OUTLINE_CLASS}`} />
+          {target.label}
+        </p>
+      )}
     </div>
   );
 }
@@ -80,6 +123,13 @@ const STAT_TONE = {
   bad: "text-destructive",
 } as const;
 
+/**
+ * The tone's word (R6, status never color-only): a stat's tone used to be a
+ * hue on its number alone; now a small visible word rides beside it — the
+ * validation vocabulary, so "Problem" here means what it means there.
+ */
+export const STAT_TONE_WORD = { ok: "OK", warn: "Warning", bad: "Problem" } as const;
+
 function Stat({ block }: { block: Extract<AnalyticsBlock, { kind: "stat" }> }) {
   return (
     <div>
@@ -88,6 +138,11 @@ function Stat({ block }: { block: Extract<AnalyticsBlock, { kind: "stat" }> }) {
         className={`text-sm font-semibold tabular-nums ${block.tone ? STAT_TONE[block.tone] : ""}`}
       >
         {block.value}
+        {block.tone && (
+          <span data-slot="stat-tone" className="ml-1.5 text-[0.65rem] font-medium">
+            {STAT_TONE_WORD[block.tone]}
+          </span>
+        )}
       </p>
       {block.hint && <p className="text-muted-foreground text-[0.65rem]">{block.hint}</p>}
     </div>

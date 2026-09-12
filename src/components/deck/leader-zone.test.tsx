@@ -112,3 +112,48 @@ describe("LeaderZone — the accent ring (R5b, F12)", () => {
     );
   });
 });
+
+describe("LeaderZone — severity as text (R6)", () => {
+  const item = {
+    entry: { cardId: enel.id, zone: leaderZone.id, qty: 1, tags: [] },
+    card: enel,
+  };
+
+  it("a card with a problem is described as such; the button's name stays Show {name}", () => {
+    render(
+      <LeaderZone
+        zone={leaderZone}
+        items={[item]}
+        severity={new Map([[enel.id, "error" as const]])}
+        onPreview={() => {}}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Show Enel" });
+    const description = document.getElementById(button.getAttribute("aria-describedby")!)!;
+    expect(description.textContent).toBe("Has a problem");
+    expect(description.className).toContain("sr-only");
+    expect(button.className).toContain("ring-destructive");
+  });
+
+  it("a warning reads Warning; a clean card is described by nothing", () => {
+    const { rerender } = render(
+      <LeaderZone
+        zone={leaderZone}
+        items={[item]}
+        severity={new Map([[enel.id, "warning" as const]])}
+        onPreview={() => {}}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Show Enel" });
+    expect(document.getElementById(button.getAttribute("aria-describedby")!)!.textContent).toBe(
+      "Warning",
+    );
+    rerender(
+      <LeaderZone zone={leaderZone} items={[item]} severity={new Map()} onPreview={() => {}} />,
+    );
+    expect(screen.getByRole("button", { name: "Show Enel" }).hasAttribute("aria-describedby")).toBe(
+      false,
+    );
+    expect(document.querySelector("[data-slot=severity]")).toBeNull();
+  });
+});

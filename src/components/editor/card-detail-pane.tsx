@@ -106,13 +106,13 @@ function TagEditor({ adapter, tagging }: { adapter: GameAdapter; tagging: TagEdi
       <ul className="mt-1.5 flex flex-wrap gap-1">
         {tags.map((tag) => (
           <li key={tag}>
-            <span className="bg-muted inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs">
+            <span className="bg-muted inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs pointer-coarse:min-h-11 pointer-coarse:pr-0">
               {tag}
               <button
                 type="button"
                 aria-label={`Remove tag ${tag}`}
                 onClick={() => onSetTags(tags.filter((t) => t !== tag))}
-                className="text-muted-foreground hover:text-foreground cursor-pointer"
+                className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center justify-center pointer-coarse:size-11"
               >
                 <XIcon aria-hidden className="size-3" />
               </button>
@@ -135,7 +135,7 @@ function TagEditor({ adapter, tagging }: { adapter: GameAdapter; tagging: TagEdi
               aria-label="Add tag"
               maxLength={MAX_TAG_LENGTH}
               size={8}
-              className="focus-visible:ring-ring/50 rounded-full border border-dashed px-2 py-0.5 text-xs outline-none focus-visible:ring-2"
+              className="focus-visible:ring-ring/50 rounded-full border border-dashed px-2 py-0.5 text-xs outline-none focus-visible:ring-2 pointer-coarse:min-h-11 pointer-coarse:px-3"
             />
           </li>
         )}
@@ -147,7 +147,7 @@ function TagEditor({ adapter, tagging }: { adapter: GameAdapter; tagging: TagEdi
               key={label}
               type="button"
               onClick={() => add(label)}
-              className="text-muted-foreground hover:text-foreground cursor-pointer rounded-full border px-2 py-0.5 text-xs"
+              className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center rounded-full border px-2 py-0.5 text-xs pointer-coarse:min-h-11 pointer-coarse:px-3"
             >
               + {label}
             </button>

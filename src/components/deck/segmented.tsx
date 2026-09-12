@@ -12,7 +12,9 @@
  * `label / options / value / onChange` contract is unchanged, so neither
  * call site moved. Deselecting the pressed item is ignored: a view always
  * has a value. `touch` (R4, the editor) grows the items to 44 px on coarse
- * pointers; the share page passes nothing.
+ * pointers; R6 turns it on by default — every Segmented is a control, the
+ * rule is inert on a fine pointer, and the share page and the index view
+ * had been the two left at 28 px on a phone.
  */
 import type { CSSProperties } from "react";
 
@@ -43,7 +45,7 @@ export function Segmented<T extends string>({
   options,
   value,
   onChange,
-  touch = false,
+  touch = true,
 }: {
   label: string;
   /** The group's accessible name when the visible label is too terse for it (R5a: "Index view"). */
@@ -51,7 +53,7 @@ export function Segmented<T extends string>({
   options: { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
-  /** 44 px items on coarse pointers (the editor). */
+  /** 44 px items on coarse pointers; on by default since R6. */
   touch?: boolean;
 }) {
   const index = Math.max(

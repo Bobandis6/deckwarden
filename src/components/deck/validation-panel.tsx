@@ -103,7 +103,7 @@ export function ValidationPanel({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 rounded text-xs font-medium hover:underline ${
+        className={`flex items-center gap-1.5 rounded text-xs font-medium hover:underline pointer-coarse:min-h-11 ${
           errors > 0 ? "text-destructive" : "text-amber-700 dark:text-amber-400"
         }`}
       >
@@ -147,7 +147,7 @@ export function ValidationPanel({
                         key={cardId}
                         type="button"
                         onClick={() => onPreview(card)}
-                        className="bg-muted hover:bg-muted/70 rounded px-1.5 py-0.5 hover:underline"
+                        className="bg-muted hover:bg-muted/70 inline-flex items-center rounded px-1.5 py-0.5 hover:underline pointer-coarse:min-h-11 pointer-coarse:px-3"
                       >
                         {card.name}
                       </button>

@@ -40,7 +40,7 @@ export function GameSwitch({
             key={game}
             href={hrefs[game]}
             aria-current={isActive ? "page" : undefined}
-            className={`rounded-md border px-2 py-1 text-sm ${isActive ? "bg-foreground text-background" : "hover:underline"}`}
+            className={`inline-flex items-center rounded-md border px-2 py-1 text-sm pointer-coarse:min-h-11 pointer-coarse:px-3 ${isActive ? "bg-foreground text-background" : "hover:underline"}`}
           >
             {GAME_SWITCH_LABELS[game]}
           </Link>

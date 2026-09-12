@@ -5,4 +5,4 @@
  * values, on the server side.
  */
 export const navLinkClass =
-  "text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 inline-flex h-8 items-center rounded-md px-2 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 aria-expanded:bg-muted aria-expanded:text-foreground";
+  "text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 inline-flex h-8 items-center rounded-md px-2 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 aria-expanded:bg-muted aria-expanded:text-foreground pointer-coarse:h-11 pointer-coarse:px-3";

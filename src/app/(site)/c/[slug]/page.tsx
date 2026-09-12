@@ -24,7 +24,6 @@ import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cache } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { ComboList } from "@/components/combos/combo-list";
@@ -46,7 +45,6 @@ import { staplesCurveBlock } from "@/lib/hub/curve";
 import {
   loadDefaultPrinting,
   loadHubDecks,
-  loadLeaderBySlug,
   loadLeaderStatus,
   loadStaples,
   STAPLES_LIMIT,
@@ -85,7 +83,8 @@ export function generateStaticParams() {
   return [];
 }
 
-const getLeader = cache((slug: string) => loadLeaderBySlug(GAME_ID.mtg, slug));
+// The 404 gate lives in ./layout.tsx (R6): one cached lookup, three readers.
+import { getLeader } from "./leader";
 
 export async function generateMetadata({ params }: PageProps<"/c/[slug]">): Promise<Metadata> {
   const { slug } = await params;

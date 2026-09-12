@@ -33,7 +33,6 @@ import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cache } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { chipsForMask, ColorChip } from "@/components/color-chip";
@@ -47,12 +46,7 @@ import type { CardData } from "@/lib/games/types";
 import type { OptcgAttrs } from "@/lib/games/optcg/adapter";
 import { maskToOptcgColorNames, maskToOptcgLetters } from "@/lib/games/optcg/colors";
 import { MIN_EVENT_PLAYERS, TOP_PLACEMENT } from "@/lib/games/optcg/limitless-map";
-import {
-  loadDefaultPrinting,
-  loadLeaderBySlug,
-  loadLeaderStatus,
-  loadOpLeaderSiblings,
-} from "@/lib/hub/queries";
+import { loadDefaultPrinting, loadLeaderStatus, loadOpLeaderSiblings } from "@/lib/hub/queries";
 import { breadcrumbJsonLd, JsonLd } from "@/lib/seo/jsonld";
 import { loadTopFinishes, TOP_FINISHES_SHOWN } from "@/lib/tournaments/queries";
 
@@ -87,7 +81,8 @@ export function generateStaticParams() {
   return [];
 }
 
-const getLeader = cache((slug: string) => loadLeaderBySlug(GAME_ID.optcg, slug));
+// The 404 gate lives in ./layout.tsx (R6): one cached lookup, three readers.
+import { getLeader } from "./leader";
 
 export async function generateMetadata({ params }: PageProps<"/l/[slug]">): Promise<Metadata> {
   const { slug } = await params;
