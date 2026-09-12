@@ -241,7 +241,7 @@ The visual redesign runs as its own numbered packages, governed by [REDESIGN.md]
 | R4 Responsive builder | `wide:` three panes, tablet tools drawer, phone Deck / Search / Tools tabs, card sheet, keyboard-safe drawers | repeated adds on a phone without tab switching; state survives tab changes; no deck created by tab changes |
 | R6 Polish + accessibility | skeletons, analytics grow-in, dealt sample hand, audit at five widths in both themes | motion, focus, contrast, touch-target, and performance checks pass |
 
-Sanctioned by §10's brand hook (dark default, per-game accent, the Warden persona, shield-and-card mark). Fires LATER row 47 (R1a) and row 63 (R5b); does not fire row 62. One Piece ambient art stays off until Bandai answers (owner decision 2026-09-08). Hard rules unchanged: attribution, no image optimizer, no stored image URLs, the cold-start rule, keyboard-first.
+**Status (2026-09-12): the R-series is complete — R1a `8f69064` → R1b `d0b25de` → R3 `d05a957` → R2 `096df3b` → R5a `02b4b6a` → R5b `15fa66f` → R4 `e77ff0f` → R6 `fe0fa40`; `REDESIGN.md` §6 is the record.** Sanctioned by §10's brand hook (dark default, per-game accent, the Warden persona, shield-and-card mark). Fires LATER row 47 (R1a) and row 63 (R5b); does not fire row 62. One Piece ambient art stays off until Bandai answers (owner decision 2026-09-08). Hard rules unchanged: attribution, no image optimizer, no stored image URLs, the cold-start rule, keyboard-first.
 
 ## 7. Feature Additions Beyond the Original Doc
 
