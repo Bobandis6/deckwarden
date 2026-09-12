@@ -41,6 +41,10 @@
   --container-reading: 42rem;
   --container-browse: 64rem;
   --container-wide: 80rem;
+  /* The builder's three-pane threshold (R4, REDESIGN.md §1 Breakpoints): a
+     `wide:` variant at 1200 px beside Tailwind's defaults — `md:` (768) is
+     the two-pane tier, `wide:` the three-pane one; nothing else uses it. */
+  --breakpoint-wide: 75rem;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

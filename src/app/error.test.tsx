@@ -20,6 +20,8 @@ describe("Error", () => {
     const error = Object.assign(new Error("boom"), { digest: "abc123" });
     render(<ErrorPage error={error} retry={retry} />);
     expect(screen.getByRole("banner")).toBeTruthy();
+    // R4: the root layout no longer renders the footer — this boundary does.
+    expect(screen.getByRole("contentinfo").textContent).toContain("Scryfall");
     const main = screen.getByRole("main");
     expect(main.querySelector("svg[aria-hidden]")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Something went wrong");

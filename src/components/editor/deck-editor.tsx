@@ -31,20 +31,40 @@
  * `ambientArt` and the reader's Background art preference. None of it
  * touches deck state: no art event marks dirty or creates a deck.
  *
+ * R4 (REDESIGN.md §2 "Responsive structure"): the same editor in three
+ * tiers through EditorLayout — three panes at `wide:`, search · deck with
+ * the tools in a Drawer at `md:`, one pane under Deck / Search / Tools
+ * tabs on phones — with every pane kept mounted, so the query, the
+ * preview, the tool tab and the panels' fetched results survive a tab
+ * change or a resize (only a tier crossing remounts the tools content). A
+ * PASSIVE preview (typing, arrows, adds) never opens anything; an EXPLICIT
+ * inspection (a click or tap on a card) opens the phone's card sheet or
+ * the md drawer. A tab change, a drawer, a sheet or a resize never creates
+ * a deck or marks it dirty — only applyEdit, the name and the details do.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { AmbientArt } from "@/components/deck/ambient-art";
+import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
+import { SampleHand } from "@/components/deck/sample-hand";
 import { CardDetailPane } from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
 import { CutCoachPanel } from "@/components/editor/cut-coach-panel";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
 import { DetailsDialog, type DeckDetails } from "@/components/editor/details-dialog";
+import { EditorAttribution } from "@/components/editor/editor-attribution";
 import { EditorHeader, type EditorDialog } from "@/components/editor/editor-header";
+import {
+  EDITOR_CREDIT_INSET,
+  EDITOR_TOAST_VIEWPORT_CLASS,
+  EditorLayout,
+  type EditorPane,
+} from "@/components/editor/editor-layout";
 import { HistoryDialog } from "@/components/editor/history-dialog";
 import { ExportDialog, ImportDialog } from "@/components/editor/import-export";
 import { RecommendationsPanel } from "@/components/editor/recommendations-panel";
@@ -54,6 +74,7 @@ import { ShortcutsSheet } from "@/components/editor/shortcuts-sheet";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { useEditorHotkeys } from "@/components/editor/use-editor-hotkeys";
 import { useLeaderArt } from "@/components/editor/use-leader-art";
+import { useTier } from "@/components/editor/use-tier";
 import { Button } from "@/components/ui/button";
 import { ModalFinalFocus } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -63,6 +84,7 @@ import { leaderArtTarget, orderLeadersBy } from "@/lib/decks/ambient-art";
 import { leaderDenorm } from "@/lib/decks/cards";
 import {
   addCard,
+  deckSizeCount,
   removeCard,
   replaceLeader,
   setQty,
@@ -205,8 +227,14 @@ export function DeckEditor({
   // the panels re-render when draft mode's first save mints the row.
   const [rightTab, setRightTab] = useState<RightTab>("card");
   const [liveDeckId, setLiveDeckId] = useState<string | null>(initialDeckId);
-  const rightPaneRef = useRef<HTMLElement | null>(null);
   const searchRef = useRef<SearchPaneHandle>(null);
+  // Layout state (R4): the tier is the viewport's (matchMedia); the rest is
+  // session state — the phone's active pane, the md tools drawer, the phone
+  // card sheet. None of it is persisted and none of it touches the deck.
+  const tier = useTier();
+  const [activePane, setActivePane] = useState<EditorPane>("deck");
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // Refs mirror the state the save callback needs, so an autosave always
   // serializes the latest edits regardless of when the debounce fires. The
@@ -511,7 +539,24 @@ export function DeckEditor({
   // The editor's global keys (R3, C5): ONE listener, off while any dialog is
   // open. `/` focuses search through the pane's handle — the same handle the
   // leader zone's "Choose commander / leader" uses; `?` opens the sheet.
-  const focusSearch = useCallback(() => searchRef.current?.focus(), []);
+  // On a phone the box may sit in a hidden pane: switch to Search first and
+  // focus once the pane is on screen (the layout effect below) — still inside
+  // the user's gesture, so the software keyboard may open. "Add cards" and
+  // "Choose commander / leader" come through here too.
+  const focusAfterSwitchRef = useRef(false);
+  const focusSearch = useCallback(() => {
+    if (tier === "phone" && activePane !== "search") {
+      focusAfterSwitchRef.current = true;
+      setActivePane("search");
+      return;
+    }
+    searchRef.current?.focus();
+  }, [tier, activePane]);
+  useLayoutEffect(() => {
+    if (!focusAfterSwitchRef.current || activePane !== "search") return;
+    focusAfterSwitchRef.current = false;
+    searchRef.current?.focus();
+  }, [activePane]);
   const openShortcuts = useCallback(() => {
     setDialogFromMenu(false);
     setDialog("shortcuts");
@@ -551,12 +596,23 @@ export function DeckEditor({
     });
   }, []);
 
-  // Explicit card interactions (search preview/add, deck-row clicks) show the
-  // card — including flipping the right pane back to the Card tab (P3.2).
-  const showCard = useCallback((card: EditorCard) => {
-    setPreview(card);
-    setRightTab("card");
-  }, []);
+  // Showing a card flips the tool pane back to Card (P3.2). Two channels
+  // since R4: PASSIVE (search responses and arrow moves, adds) updates the
+  // preview silently at every tier; EXPLICIT (a click or tap on a search
+  // row, a deck row, a grid card, the leader, a validation chip, a dealt
+  // card) also opens the phone's card sheet or the md tools drawer — the
+  // only ways either ever opens. Nothing here touches the deck.
+  const showCard = useCallback(
+    (card: EditorCard, explicit = false) => {
+      setPreview(card);
+      setRightTab("card");
+      if (!explicit) return;
+      if (tier === "phone") setSheetOpen(true);
+      else if (tier === "md") setToolsOpen(true);
+    },
+    [tier],
+  );
+  const inspectCard = useCallback((card: EditorCard) => showCard(card, true), [showCard]);
 
   const handleAdd = useCallback(
     (card: EditorCard, zoneId: string, qty: number): string | undefined => {
@@ -623,11 +679,14 @@ export function DeckEditor({
   );
 
   // The deck-list header's over-limit CTA (P3.4): flip to the Cut Coach tab
-  // and, on stacked mobile, bring the right pane into view.
+  // and bring it on screen — the Tools pane on a phone, the drawer on md; at
+  // wide the strip is always in view (R4 retired the stacked page's
+  // scrollIntoView with the stacked page).
   const openCuts = useCallback(() => {
     setRightTab("cuts");
-    rightPaneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+    if (tier === "phone") setActivePane("tools");
+    else if (tier === "md") setToolsOpen(true);
+  }, [tier]);
 
   const handleRemove = useCallback(
     (zoneId: string, cardId: string) => {
@@ -811,206 +870,248 @@ export function DeckEditor({
   const leaderZone = load.format.zones.find((z) => z.isLeaderZone);
   const tabbed = Boolean(load.adapter.recommend || load.adapter.capabilities.combos);
 
-  return (
-    // Mobile (<lg): panes stack and the page scrolls; the header wraps to two
-    // rows (name input drops to its own line). Desktop keeps the app-like
-    // fixed-viewport three-pane grid.
-    <div className="relative isolate flex min-h-dvh flex-col lg:h-dvh" data-game={load.adapter.id}>
-      {/* One Toaster per surface (F3). The viewport is portaled outside this
-          root, so it carries data-game itself: the Undo button's focus ring
-          takes the game accent, not the brand fallback. */}
-      <Toaster timeout={TOAST_MS} viewportProps={{ "data-game": load.adapter.id }} />
-      <EditorHeader
-        adapter={load.adapter}
-        format={load.format}
-        deckName={deckName}
-        onNameChange={handleNameChange}
-        forkedFrom={forkedFrom}
-        saveStatus={autosave.status}
-        onRetry={() => void autosave.flush()}
-        canShare={share !== null}
-        canHistory={liveDeckId !== null}
-        onOpen={openFromHeader}
-        moreRef={moreRef}
-      />
-
-      <ModalFinalFocus.Provider value={dialogFromMenu ? moreRef : undefined}>
-        {dialog === "details" && (
-          <DetailsDialog
-            details={details}
-            deckName={deckName}
-            onChange={handleDetailsChange}
-            onDelete={handleDeleteDeck}
-            onClose={() => setDialog(null)}
-          />
-        )}
-        {dialog === "import" && (
-          <ImportDialog
-            adapter={load.adapter}
-            format={load.format}
-            entries={entries}
-            onApply={handleImport}
-            onClose={() => setDialog(null)}
-          />
-        )}
-        {dialog === "export" && snapshot && (
-          <ExportDialog
-            text={load.adapter.serializeDecklist(snapshot, cards)}
-            onClose={() => setDialog(null)}
-          />
-        )}
-        {dialog === "history" && liveDeckId && (
-          <HistoryDialog
-            deckId={liveDeckId}
-            format={load.format}
+  // The tools content (R4): one tree, mounted wherever the tier puts it —
+  // the third pane at wide, the drawer at md, the Tools tab on phones. The
+  // phone tab also hosts the analytics and the sample hand (the contract's
+  // Tools composition; the deck pane drops them there through `extras`), so
+  // a 768 px crossing remounts both and a dealt hand resets. The compact
+  // attribution ends the content at every tier — the site footer no longer
+  // renders on the editor routes.
+  const toolsContent = (
+    <>
+      {tier === "phone" && (
+        <div className="px-3">
+          <AnalyticsPanel blocks={analytics} />
+          <SampleHand
             entries={entries}
             cards={cards}
-            forkedFrom={forkedFrom}
-            onBeforeRestore={beforeRestore}
-            onRestored={afterRestore}
-            onClose={() => setDialog(null)}
-          />
-        )}
-        {dialog === "share" && share && (
-          <ShareDialog
-            publicId={share.publicId}
-            visibility={share.visibility}
-            onSetVisibility={setVisibility}
-            onClose={() => setDialog(null)}
-          />
-        )}
-        {dialog === "shortcuts" && (
-          <ShortcutsSheet
-            mainZoneLabel={mainZone?.label ?? "the deck"}
-            leaderNoun={leaderZone ? load.adapter.display.leaderNoun : undefined}
-            onClose={() => setDialog(null)}
-          />
-        )}
-      </ModalFinalFocus.Provider>
-
-      <div className="min-h-0 flex-1 gap-0 lg:grid lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)_minmax(16rem,22rem)]">
-        <section
-          aria-label="Card search"
-          className="min-h-0 border-b lg:overflow-y-auto lg:border-r lg:border-b-0"
-        >
-          <SearchPane
-            ref={searchRef}
-            adapter={load.adapter}
             format={load.format}
-            inDeckQty={inDeckQty}
-            onAdd={handleAdd}
-            onPreview={showCard}
+            onPreview={inspectCard}
           />
-        </section>
-        <section
-          aria-label="Deck list"
-          className="min-h-0 border-b lg:overflow-y-auto lg:border-b-0"
+        </div>
+      )}
+      {tabbed ? (
+        // Base UI Tabs (F11): controlled by rightTab so showCard / openCuts
+        // still drive it; every panel keepMounted so results survive a
+        // switch — each panel's `active` prop gates its fetching.
+        <Tabs
+          value={rightTab}
+          onValueChange={(value) => setRightTab(value as RightTab)}
+          className="gap-0"
         >
-          <DeckListPane
-            adapter={load.adapter}
-            format={load.format}
-            entries={entries}
-            cards={cards}
-            issues={issues}
-            analytics={analytics}
-            onSetQty={handleSetQty}
-            onRemove={handleRemove}
-            onPreview={showCard}
-            onOpenCuts={load.adapter.recommend?.cuts ? openCuts : undefined}
-            onChooseLeader={focusSearch}
-            owned={hasCollection ? owned : undefined}
-            ownership={ownership}
-          />
-        </section>
-        <section
-          ref={rightPaneRef}
-          aria-label="Card detail and suggestions"
-          className="min-h-0 lg:overflow-y-auto lg:border-l"
-        >
-          {tabbed ? (
-            // Base UI Tabs (F11): controlled by rightTab so showCard / openCuts
-            // still drive it; every panel keepMounted so results survive a
-            // switch — each panel's `active` prop gates its fetching.
-            <Tabs
-              value={rightTab}
-              onValueChange={(value) => setRightTab(value as RightTab)}
-              className="gap-0"
+          {/* Coarse pointers (R4): a 56 px row with a 48 px list and no list
+              padding, so each trigger (list height − 1px) clears 44 px. */}
+          <div className="flex h-10 shrink-0 items-center border-b px-2 pointer-coarse:h-14">
+            <TabsList
+              variant="indicator"
+              aria-label="Right pane view"
+              className="pointer-coarse:p-0 pointer-coarse:group-data-horizontal/tabs:h-12"
             >
-              <div className="flex h-10 shrink-0 items-center border-b px-2">
-                <TabsList variant="indicator" aria-label="Right pane view">
-                  <TabsIndicator />
-                  <TabsTrigger value="card">Card</TabsTrigger>
-                  {load.adapter.recommend && <TabsTrigger value="suggest">Suggestions</TabsTrigger>}
-                  {load.adapter.capabilities.combos && (
-                    <TabsTrigger value="combos">Combos</TabsTrigger>
-                  )}
-                  {/* Always-on when declared (P3.4): no layout shift at the
-                      limit — the under-limit state says nothing needs cutting. */}
-                  {load.adapter.recommend?.cuts && <TabsTrigger value="cuts">Cuts</TabsTrigger>}
-                </TabsList>
-              </div>
-              <TabsContent value="card" keepMounted>
-                <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
-              </TabsContent>
-              {load.adapter.recommend && (
-                <TabsContent value="suggest" keepMounted>
-                  <RecommendationsPanel
-                    adapter={load.adapter}
-                    format={load.format}
-                    deckId={liveDeckId}
-                    entries={entries}
-                    inDeckQty={inDeckQty}
-                    saveStatus={autosave.status}
-                    active={rightTab === "suggest"}
-                    onAdd={handlePanelAdd}
-                    ownedAvailable={hasCollection}
-                  />
-                </TabsContent>
-              )}
-              {load.adapter.capabilities.combos && (
-                <TabsContent value="combos" keepMounted>
-                  <ComboRadarPanel
-                    adapter={load.adapter}
-                    format={load.format}
-                    deckId={liveDeckId}
-                    entries={entries}
-                    inDeckQty={inDeckQty}
-                    saveStatus={autosave.status}
-                    active={rightTab === "combos"}
-                    onAdd={handlePanelAdd}
-                  />
-                </TabsContent>
-              )}
-              {load.adapter.recommend?.cuts && (
-                <TabsContent value="cuts" keepMounted>
-                  <CutCoachPanel
-                    adapter={load.adapter}
-                    format={load.format}
-                    deckId={liveDeckId}
-                    entries={entries}
-                    cards={cards}
-                    saveStatus={autosave.status}
-                    active={rightTab === "cuts"}
-                    onSetQty={handleSetQty}
-                  />
-                </TabsContent>
-              )}
-            </Tabs>
-          ) : (
-            // One Piece declares neither recommend nor combos: a single panel
-            // under a plain "Card" heading at the tablist's row height, so both
-            // games' panes align (R3 builder fix).
-            <>
-              <div className="flex h-10 shrink-0 items-center border-b px-3">
-                <h2 className="text-sm font-medium">Card</h2>
-              </div>
-              <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
-            </>
+              <TabsIndicator />
+              <TabsTrigger value="card">Card</TabsTrigger>
+              {load.adapter.recommend && <TabsTrigger value="suggest">Suggestions</TabsTrigger>}
+              {load.adapter.capabilities.combos && <TabsTrigger value="combos">Combos</TabsTrigger>}
+              {/* Always-on when declared (P3.4): no layout shift at the
+                  limit — the under-limit state says nothing needs cutting. */}
+              {load.adapter.recommend?.cuts && <TabsTrigger value="cuts">Cuts</TabsTrigger>}
+            </TabsList>
+          </div>
+          <TabsContent value="card" keepMounted>
+            <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
+          </TabsContent>
+          {load.adapter.recommend && (
+            <TabsContent value="suggest" keepMounted>
+              <RecommendationsPanel
+                adapter={load.adapter}
+                format={load.format}
+                deckId={liveDeckId}
+                entries={entries}
+                inDeckQty={inDeckQty}
+                saveStatus={autosave.status}
+                active={rightTab === "suggest"}
+                onAdd={handlePanelAdd}
+                ownedAvailable={hasCollection}
+              />
+            </TabsContent>
           )}
-        </section>
-      </div>
-      {/* Last child on purpose: the credit chip's sticky row sits at the surface's end (R2). */}
-      <AmbientArt art={leaderArt} swatches={swatches} appearance={appearance} />
-    </div>
+          {load.adapter.capabilities.combos && (
+            <TabsContent value="combos" keepMounted>
+              <ComboRadarPanel
+                adapter={load.adapter}
+                format={load.format}
+                deckId={liveDeckId}
+                entries={entries}
+                inDeckQty={inDeckQty}
+                saveStatus={autosave.status}
+                active={rightTab === "combos"}
+                onAdd={handlePanelAdd}
+              />
+            </TabsContent>
+          )}
+          {load.adapter.recommend?.cuts && (
+            <TabsContent value="cuts" keepMounted>
+              <CutCoachPanel
+                adapter={load.adapter}
+                format={load.format}
+                deckId={liveDeckId}
+                entries={entries}
+                cards={cards}
+                saveStatus={autosave.status}
+                active={rightTab === "cuts"}
+                onSetQty={handleSetQty}
+              />
+            </TabsContent>
+          )}
+        </Tabs>
+      ) : (
+        // One Piece declares neither recommend nor combos: a single panel
+        // under a plain "Card" heading at the tablist's row height, so both
+        // games' panes align (R3 builder fix).
+        <>
+          <div className="flex h-10 shrink-0 items-center border-b px-3 pointer-coarse:h-14">
+            <h2 className="text-sm font-medium">Card</h2>
+          </div>
+          <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
+        </>
+      )}
+      <EditorAttribution adapter={load.adapter} />
+    </>
+  );
+
+  return (
+    <EditorLayout
+      tier={tier}
+      gameId={load.adapter.id}
+      activePane={activePane}
+      onActivePaneChange={setActivePane}
+      toolsOpen={toolsOpen}
+      onToolsOpenChange={setToolsOpen}
+      sheetOpen={sheetOpen}
+      onSheetOpenChange={setSheetOpen}
+      deckCount={deckSizeCount(entries, load.format)}
+      header={
+        <>
+          {/* One Toaster per surface (F3). The viewport is portaled outside this
+              root, so it carries data-game itself (the Undo button's focus ring
+              takes the game accent) and its own bottom inset (above the phone's
+              tab bar, R4). */}
+          <Toaster
+            timeout={TOAST_MS}
+            viewportProps={{ "data-game": load.adapter.id, className: EDITOR_TOAST_VIEWPORT_CLASS }}
+          />
+          <EditorHeader
+            adapter={load.adapter}
+            format={load.format}
+            deckName={deckName}
+            onNameChange={handleNameChange}
+            forkedFrom={forkedFrom}
+            saveStatus={autosave.status}
+            onRetry={() => void autosave.flush()}
+            canShare={share !== null}
+            canHistory={liveDeckId !== null}
+            onOpen={openFromHeader}
+            moreRef={moreRef}
+            onOpenTools={() => setToolsOpen(true)}
+          />
+        </>
+      }
+      dialogs={
+        <ModalFinalFocus.Provider value={dialogFromMenu ? moreRef : undefined}>
+          {dialog === "details" && (
+            <DetailsDialog
+              details={details}
+              deckName={deckName}
+              onChange={handleDetailsChange}
+              onDelete={handleDeleteDeck}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {dialog === "import" && (
+            <ImportDialog
+              adapter={load.adapter}
+              format={load.format}
+              entries={entries}
+              onApply={handleImport}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {dialog === "export" && snapshot && (
+            <ExportDialog
+              text={load.adapter.serializeDecklist(snapshot, cards)}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {dialog === "history" && liveDeckId && (
+            <HistoryDialog
+              deckId={liveDeckId}
+              format={load.format}
+              entries={entries}
+              cards={cards}
+              forkedFrom={forkedFrom}
+              onBeforeRestore={beforeRestore}
+              onRestored={afterRestore}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {dialog === "share" && share && (
+            <ShareDialog
+              publicId={share.publicId}
+              visibility={share.visibility}
+              onSetVisibility={setVisibility}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {dialog === "shortcuts" && (
+            <ShortcutsSheet
+              mainZoneLabel={mainZone?.label ?? "the deck"}
+              leaderNoun={leaderZone ? load.adapter.display.leaderNoun : undefined}
+              onClose={() => setDialog(null)}
+            />
+          )}
+        </ModalFinalFocus.Provider>
+      }
+      search={
+        <SearchPane
+          ref={searchRef}
+          adapter={load.adapter}
+          format={load.format}
+          inDeckQty={inDeckQty}
+          onAdd={handleAdd}
+          onPreview={showCard}
+          onInspect={inspectCard}
+        />
+      }
+      deck={
+        <DeckListPane
+          adapter={load.adapter}
+          format={load.format}
+          entries={entries}
+          cards={cards}
+          issues={issues}
+          analytics={analytics}
+          onSetQty={handleSetQty}
+          onRemove={handleRemove}
+          onPreview={inspectCard}
+          onOpenCuts={load.adapter.recommend?.cuts ? openCuts : undefined}
+          onChooseLeader={focusSearch}
+          onAddCards={focusSearch}
+          extras={tier !== "phone"}
+          owned={hasCollection ? owned : undefined}
+          ownership={ownership}
+        />
+      }
+      tools={toolsContent}
+      sheet={<CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />}
+      sheetTitle={preview?.name ?? null}
+      ambient={
+        // Last child of the layout on purpose: the credit chip's sticky row sits at the surface's end (R2).
+        <AmbientArt
+          art={leaderArt}
+          swatches={swatches}
+          appearance={appearance}
+          creditInset={EDITOR_CREDIT_INSET}
+        />
+      }
+    />
   );
 }

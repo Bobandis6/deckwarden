@@ -5,8 +5,9 @@
  * render/data errors below the root layout. Reported to Sentry client-side
  * (server errors already flow through instrumentation's onRequestError);
  * `retry()` re-fetches and re-renders. The boundary replaces the (site)
- * layout's subtree, so it renders the site header itself (a client file may
- * import the server shell — it has no server-only reads). Shield mark only,
+ * layout's subtree, so it renders the site header — and the footer, since
+ * R4 — itself (a client file may import the server shell — it has no
+ * server-only reads). Shield mark only,
  * one line of Warden voice.
  */
 import * as Sentry from "@sentry/nextjs";
@@ -14,6 +15,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
+import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { WARDEN_COPY } from "@/lib/warden-copy";
@@ -46,6 +48,7 @@ export default function Error({
         </div>
         {error.digest && <p className="text-muted-foreground font-mono text-xs">{error.digest}</p>}
       </main>
+      <SiteFooter />
     </>
   );
 }

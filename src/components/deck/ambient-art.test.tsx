@@ -182,3 +182,26 @@ describe("AmbientArt", () => {
     expect(ambientGradient(["#d32f2f", "#f9a825"]).split("radial-gradient")).toHaveLength(3);
   });
 });
+
+describe("AmbientArt creditInset (R4)", () => {
+  it("lifts the chip by the given length; nothing inline without it", () => {
+    const { rerender } = render(
+      <AmbientArt art={art("https://cards.scryfall.io/a.jpg")} swatches={MANA} appearance={ON} />,
+    );
+    fireEvent.load(crops()[0]);
+    const plain = chip() as HTMLElement;
+    expect(plain.style.bottom).toBe("");
+    expect(plain.className).toContain("bottom-2");
+    rerender(
+      <AmbientArt
+        art={art("https://cards.scryfall.io/a.jpg")}
+        swatches={MANA}
+        appearance={ON}
+        creditInset="calc(var(--editor-bottom-inset, 0px) + 0.5rem)"
+      />,
+    );
+    expect((chip() as HTMLElement).style.bottom).toBe(
+      "calc(var(--editor-bottom-inset, 0px) + 0.5rem)",
+    );
+  });
+});

@@ -11,13 +11,15 @@
  * segments (`motion-safe:` only; two CSS variables, nothing measured). The
  * `label / options / value / onChange` contract is unchanged, so neither
  * call site moved. Deselecting the pressed item is ignored: a view always
- * has a value.
+ * has a value. `touch` (R4, the editor) grows the items to 44 px on coarse
+ * pointers; the share page passes nothing.
  */
 import type { CSSProperties } from "react";
 
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { GroupKey, SortKey } from "@/lib/decks/view-model";
 import type { DeckViewMode } from "@/lib/decks/view-prefs";
+import { cn } from "@/lib/utils";
 
 export const VIEW_OPTIONS: { value: DeckViewMode; label: string }[] = [
   { value: "text", label: "Text" },
@@ -41,6 +43,7 @@ export function Segmented<T extends string>({
   options,
   value,
   onChange,
+  touch = false,
 }: {
   label: string;
   /** The group's accessible name when the visible label is too terse for it (R5a: "Index view"). */
@@ -48,6 +51,8 @@ export function Segmented<T extends string>({
   options: { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
+  /** 44 px items on coarse pointers (the editor). */
+  touch?: boolean;
 }) {
   const index = Math.max(
     0,
@@ -83,7 +88,10 @@ export function Segmented<T extends string>({
             key={option.value}
             value={option.value}
             size="sm"
-            className="text-muted-foreground hover:text-foreground h-auto min-w-0 rounded-none px-2 py-0.5 text-xs font-normal hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-accent-foreground data-[state=on]:bg-transparent"
+            className={cn(
+              "text-muted-foreground hover:text-foreground h-auto min-w-0 rounded-none px-2 py-0.5 text-xs font-normal hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-accent-foreground data-[state=on]:bg-transparent",
+              touch && "pointer-coarse:min-h-11 pointer-coarse:px-3",
+            )}
           >
             {option.label}
           </ToggleGroupItem>

@@ -3,7 +3,9 @@
  * the editor routes (/decks/new, /decks/[id]/edit) stands in this shell,
  * which adds the site header above each page. URLs are unchanged — a route
  * group is invisible — and the root layout still wraps everything (theme,
- * fonts, footer), so there is one root layout and no full-page reloads.
+ * fonts), so there is one root layout and no full-page reloads. The site
+ * footer renders HERE since R4 (below every page in the group), not in the
+ * root layout, so the editor routes — outside the group — go without it.
  *
  * Plain and synchronous ON PURPOSE. Nothing here may read request data —
  * no headers(), cookies(), searchParams, connection() or noStore(): /c/,
@@ -15,6 +17,7 @@
  * Caching intent: inert — each page keeps its own mode (static, ISR, or
  * force-dynamic).
  */
+import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
 // Typed as "/": next typegen folds a route group into its URL path, so this
@@ -24,6 +27,7 @@ export default function SiteLayout({ children }: LayoutProps<"/">) {
     <>
       <SiteHeader />
       {children}
+      <SiteFooter />
     </>
   );
 }

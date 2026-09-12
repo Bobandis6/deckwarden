@@ -72,7 +72,12 @@ export function LeaderZone({
           hint={onRemove ? "Ctrl+Enter on a search result adds one." : undefined}
           action={
             onChooseLeader ? (
-              <Button variant="outline" size="sm" onClick={onChooseLeader}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="pointer-coarse:min-h-11"
+                onClick={onChooseLeader}
+              >
                 Choose {noun}
               </Button>
             ) : undefined
@@ -112,6 +117,7 @@ export function LeaderZone({
                     <Button
                       variant="ghost"
                       size="icon-xs"
+                      className="pointer-coarse:size-11"
                       aria-label={`Remove ${card.name}`}
                       onClick={() => onRemove(entry.zone, entry.cardId)}
                     >

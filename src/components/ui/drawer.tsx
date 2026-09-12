@@ -90,12 +90,20 @@ function DrawerSwipeHandle({ className, ...props }: React.ComponentProps<"div">)
   );
 }
 
-function DrawerContent({ className, children, ...props }: DrawerPrimitive.Popup.Props) {
+function DrawerContent({
+  className,
+  children,
+  keepMounted,
+  ...props
+}: DrawerPrimitive.Popup.Props & {
+  /** Keep the popup in the DOM while closed (R4: the editor's tools drawer keeps its panels' state). */
+  keepMounted?: boolean;
+}) {
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection } = useDrawer();
   const swipeAxis = swipeDirection === "down" || swipeDirection === "up" ? "y" : "x";
 
   return (
-    <DrawerPortal data-slot="drawer-portal">
+    <DrawerPortal data-slot="drawer-portal" keepMounted={keepMounted}>
       {modal === true && <DrawerOverlay data-snap-points={hasSnapPoints ? "" : undefined} />}
       <DrawerPrimitive.Viewport
         data-slot="drawer-viewport"

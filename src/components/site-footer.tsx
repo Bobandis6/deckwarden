@@ -1,9 +1,12 @@
 /**
  * Site-wide footer (P1.8 gate): attribution + disclaimer + legal/privacy/
- * contact links. Rendered from the root layout on EVERY page — attribution
- * is site-wide; on app-like full-height pages (the editor) it sits below
- * the fold, which is intentional. The appearance menu it hosted in R1a
- * moved into the site header (R1b) and the editor's own header (R3).
+ * contact links. Rendered by the (site) layout on every public page and by
+ * the three headerless shells outside the group (the new-deck picker, the
+ * root 404, the error page) — NOT on the editor routes since R4, where a
+ * fixed-viewport workspace has no below-the-fold; the editor's tools
+ * content ends with a compact per-game attribution instead
+ * (EditorAttribution). The appearance menu it hosted in R1a moved into the
+ * site header (R1b) and the editor's own header (R3).
  */
 import Link from "next/link";
 

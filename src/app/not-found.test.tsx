@@ -37,6 +37,9 @@ describe("NotFound (root — unmatched URLs)", () => {
     expect(screen.getByRole("banner")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Deckwarden" }).getAttribute("href")).toBe("/");
     expect(container.querySelectorAll("header")).toHaveLength(1);
+    // R4: the root layout no longer renders the footer — this file does.
+    expect(container.querySelectorAll("footer")).toHaveLength(1);
+    expect(screen.getByRole("contentinfo").textContent).toContain("Scryfall");
     expectWardenBody();
     expect(metadata.title).toBe("Page not found");
   });
@@ -46,6 +49,7 @@ describe("SiteNotFound ((site) group — notFound() calls)", () => {
   it("renders the Warden body with no header of its own (the group layout has one)", () => {
     const { container } = render(<SiteNotFound />);
     expect(container.querySelector("header")).toBeNull();
+    expect(container.querySelector("footer")).toBeNull();
     expectWardenBody();
     expect(siteMetadata.title).toBe("Page not found");
   });

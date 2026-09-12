@@ -62,6 +62,7 @@ export function AmbientArt({
   art,
   swatches,
   appearance,
+  creditInset,
 }: {
   /** The resolved crop, or null for every artless state. */
   art: CardArt | null;
@@ -69,6 +70,12 @@ export function AmbientArt({
   swatches: readonly string[] | null;
   /** The reader's preference; null until hydration. */
   appearance: Appearance | null;
+  /**
+   * The credit chip's bottom offset (a CSS length; R4) — the editor lifts
+   * it above the phone's tab bar; the share page passes nothing and keeps
+   * the chip's own 0.5rem.
+   */
+  creditInset?: string;
 }) {
   const wanted = appearance?.backgroundArt ? art : null;
   // Previous-render pattern: a change of crop keeps the old one for its
@@ -167,6 +174,7 @@ export function AmbientArt({
         <div className="pointer-events-none sticky bottom-0 z-20 h-0">
           <p
             data-slot="art-credit"
+            style={creditInset ? { bottom: creditInset } : undefined}
             className="text-muted-foreground bg-background/80 absolute bottom-2 left-3 rounded-md px-1.5 py-0.5 text-[0.65rem] leading-4 whitespace-nowrap"
           >
             {current.credit}

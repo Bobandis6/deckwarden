@@ -19,6 +19,14 @@
  * rejections. The `/` and `?` keys live in DeckEditor's useEditorHotkeys —
  * the editor focuses this pane through its ref.
  *
+ * R4: two preview channels. Responses and arrow moves are PASSIVE
+ * (`onPreview` — the detail pane updates silently, on a phone too); a
+ * click or tap on a row is an EXPLICIT inspection (`onInspect`, falling
+ * back to `onPreview`), which the editor turns into the phone's card sheet
+ * or the md drawer. Add never opens anything, and after a successful add
+ * the box takes focus back — the repeated-adds flow at every tier. Rows
+ * and their actions grow to 44 px on coarse pointers (`pointer-coarse:`).
+ *
  * Game knowledge (zone ids/labels, leader noun, pips, subtitles) comes off the
  * adapter — this component never mentions a specific game.
  */
@@ -49,12 +57,23 @@ interface SearchPaneProps {
   inDeckQty: ReadonlyMap<string, number>;
   /** Returns an error message when the add is rejected (e.g. zone full). */
   onAdd: (card: EditorCard, zoneId: string, qty: number) => string | undefined;
+  /** Passive: the first result of a response, the row under the arrow keys. */
   onPreview: (card: EditorCard) => void;
+  /** Explicit: a click or tap on a row (R4); defaults to `onPreview`. */
+  onInspect?: (card: EditorCard) => void;
   /** The editor's handle: `/` and "Choose commander" focus the box through it. */
   ref?: Ref<SearchPaneHandle>;
 }
 
-export function SearchPane({ adapter, format, inDeckQty, onAdd, onPreview, ref }: SearchPaneProps) {
+export function SearchPane({
+  adapter,
+  format,
+  inDeckQty,
+  onAdd,
+  onPreview,
+  onInspect,
+  ref,
+}: SearchPaneProps) {
   const [state, dispatch] = useReducer(searchReducer, INITIAL_SEARCH_STATE);
   const { status, raw, query, qty, results, sel, notice, requestId } = state;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -201,12 +220,12 @@ export function SearchPane({ adapter, format, inDeckQty, onAdd, onPreview, ref }
               role="option"
               aria-selected={i === sel}
               className={cn(
-                "group/row flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm",
+                "group/row flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm pointer-coarse:min-h-11",
                 i === sel ? "bg-accent text-accent-foreground" : "hover:bg-muted/60",
               )}
               onClick={() => {
                 dispatch({ type: "select", index: i });
-                onPreview(card);
+                (onInspect ?? onPreview)(card);
               }}
               onDoubleClick={() => add(card, mainZone?.id, qty)}
             >
@@ -245,6 +264,7 @@ export function SearchPane({ adapter, format, inDeckQty, onAdd, onPreview, ref }
                   <Button
                     size="xs"
                     variant="secondary"
+                    className="pointer-coarse:h-11 pointer-coarse:px-3"
                     aria-label={`Add ${card.name} to ${mainZone.label}`}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -258,6 +278,7 @@ export function SearchPane({ adapter, format, inDeckQty, onAdd, onPreview, ref }
                   <Button
                     size="xs"
                     variant="secondary"
+                    className="pointer-coarse:h-11 pointer-coarse:px-3"
                     aria-label={`Add ${card.name} as ${leaderNoun}`}
                     onClick={(e) => {
                       e.stopPropagation();

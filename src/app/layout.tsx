@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-import { SiteFooter } from "@/components/site-footer";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { siteOrigin } from "@/lib/seo/site";
 
@@ -51,10 +50,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>
-          {children}
-          <SiteFooter />
-        </ThemeProvider>
+        {/* No footer here since R4: the (site) layout renders it for every
+            public page, the headerless shells outside the group (the new-deck
+            picker, the root 404, the error page) render it themselves, and
+            the editor routes carry a compact attribution line instead. */}
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

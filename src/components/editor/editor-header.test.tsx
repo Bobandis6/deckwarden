@@ -42,6 +42,17 @@ function open(trigger: HTMLElement) {
 }
 
 describe("EditorHeader", () => {
+  it("the md-only Tools button renders only with onOpenTools and opens the drawer (R4)", () => {
+    const onOpenTools = vi.fn();
+    const { rerender } = render(header());
+    expect(screen.queryByRole("button", { name: "Tools" })).toBeNull();
+    rerender(header({ onOpenTools }));
+    const tools = screen.getByRole("button", { name: "Tools" });
+    expect(tools.className).toContain("hidden md:inline-flex wide:hidden");
+    fireEvent.click(tools);
+    expect(onOpenTools).toHaveBeenCalledTimes(1);
+  });
+
   it("mark → home, the chip, the name input, one appearance control, no site nav", () => {
     render(header());
     expect(screen.getByRole("link", { name: "Deckwarden" }).getAttribute("href")).toBe("/");

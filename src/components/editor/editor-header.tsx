@@ -11,12 +11,19 @@
  * menu. That last one retires R1b's AppearanceRow: exactly one appearance
  * control per page, and on the editor routes it is this one.
  *
+ * R4: a "Tools" button between Share and More on the `md` tier only
+ * (`hidden md:inline-flex wide:hidden`) opens the tools drawer — phones
+ * reach the tools through the Tools tab, `wide:` shows them inline. The
+ * row still wraps below `lg` (the name input takes its own line): at 768 px
+ * the mark, chip, save slot, Share, Tools, More and appearance already fill
+ * the width, so the one-row form stays `lg:`.
+ *
  * `data-game` stays on the editor root — the chip is inert. The site header
  * is never rendered on the editor (a workspace has no room for site nav),
  * and the `← Deckwarden` text link is gone: the mark is the way home, with
  * the same F13 tilt as the site header's.
  */
-import { CheckIcon, EllipsisIcon } from "lucide-react";
+import { CheckIcon, EllipsisIcon, PanelRightIcon } from "lucide-react";
 import Link from "next/link";
 import type { Ref } from "react";
 
@@ -52,6 +59,7 @@ export function EditorHeader({
   canHistory,
   onOpen,
   moreRef,
+  onOpenTools,
 }: {
   adapter: GameAdapter;
   format: FormatDef;
@@ -67,6 +75,8 @@ export function EditorHeader({
   onOpen: (dialog: EditorDialog) => void;
   /** The More trigger — the editor returns focus here when a menu-opened dialog closes. */
   moreRef?: Ref<HTMLButtonElement>;
+  /** Opens the md tier's tools drawer (R4); the button renders only when given. */
+  onOpenTools?: () => void;
 }) {
   return (
     <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2 lg:h-14 lg:flex-nowrap lg:py-0">
@@ -100,6 +110,17 @@ export function EditorHeader({
         {canShare && (
           <Button size="sm" onClick={() => onOpen("share")}>
             Share
+          </Button>
+        )}
+        {onOpenTools && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden md:inline-flex wide:hidden"
+            onClick={onOpenTools}
+          >
+            <PanelRightIcon aria-hidden />
+            Tools
           </Button>
         )}
         <DropdownMenu>

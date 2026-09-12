@@ -6,7 +6,7 @@
  * because ownership proof (the claim token) lives in the browser's
  * localStorage and never reaches the server render.
  */
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import { DeckEditor } from "@/components/editor/deck-editor";
 
@@ -16,6 +16,14 @@ export const metadata: Metadata = {
   title: "Deck editor",
   // Belt-and-suspenders with robots.txt's /decks/ disallow (P2.6).
   robots: { index: false },
+};
+
+// The editor's viewport (R4) — the same export as /decks/new; see it for why.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
 };
 
 export default async function DeckEditPage({ params }: PageProps<"/decks/[id]/edit">) {

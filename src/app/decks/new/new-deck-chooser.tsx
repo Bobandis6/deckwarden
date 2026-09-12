@@ -16,6 +16,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { DeckEditor } from "@/components/editor/deck-editor";
+import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { listAdapters } from "@/lib/games/registry";
 import type { GameId } from "@/lib/games/types";
@@ -53,8 +54,8 @@ export function NewDeckChooser() {
   return (
     <>
       {/* The picker is a site page (REDESIGN.md §2) and renders the shell
-          itself: /decks/new stands outside the (site) group for the editor
-          branch's sake. */}
+          itself — header and footer (R4) — because /decks/new stands outside
+          the (site) group for the editor branch's sake. */}
       <SiteHeader />
       <main className="max-w-reading mx-auto flex w-full flex-1 flex-col items-center justify-center gap-8 px-4 py-12">
         <div className="text-center">
@@ -88,6 +89,7 @@ export function NewDeckChooser() {
           })}
         </div>
       </main>
+      <SiteFooter />
     </>
   );
 }

@@ -165,7 +165,7 @@ export function AnalyticsPanel({ blocks }: { blocks: AnalyticsBlock[] }) {
   if (blocks.length === 0) return null;
   return (
     <Collapsible className="mt-4">
-      <CollapsibleTrigger className="group/trigger text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded text-xs font-medium tracking-wide uppercase hover:underline">
+      <CollapsibleTrigger className="group/trigger text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded text-xs font-medium tracking-wide uppercase hover:underline pointer-coarse:min-h-11">
         Analytics
         <ChevronDownIcon
           aria-hidden

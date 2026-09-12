@@ -13,7 +13,14 @@
  * action) · validation (the Warden line F1) · leader zone (with "Choose
  * commander / leader") · view controls · card groups (sticky headers, the
  * badge pop F3) · analytics and the sample hand as labelled collapsibles.
+ *
+ * R4: "Add cards" beside the heading on phones (`md:hidden`) and as the
+ * empty state's action at every tier — the phone's obvious way into Search;
+ * `extras` false drops the analytics and sample hand (the phone's Tools tab
+ * hosts them); the segmented controls, rows and steppers grow to 44 px on
+ * coarse pointers.
  */
+import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 
 import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
@@ -26,6 +33,7 @@ import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/componen
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { useCountUp } from "@/components/editor/use-count-up";
 import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
 import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
 import {
   deckSizeCount,
@@ -61,6 +69,14 @@ interface DeckListPaneProps {
   owned?: ReadonlySet<string>;
   /** "You own N/100 · missing ≈ $Y" (P3.7); null = no collection imported, nothing shown. */
   ownership?: OwnershipSummary | null;
+  /**
+   * "Add cards" (R4): the phone's way into Search — the summary row's
+   * primary action (phones only) and the empty state's action (every tier;
+   * it focuses the search box the way "Choose commander" does).
+   */
+  onAddCards?: () => void;
+  /** Analytics and the sample hand below the list; false on phones (R4: the Tools tab hosts them). */
+  extras?: boolean;
 }
 
 export function DeckListPane({
@@ -77,6 +93,8 @@ export function DeckListPane({
   onChooseLeader,
   owned,
   ownership = null,
+  onAddCards,
+  extras = true,
 }: DeckListPaneProps) {
   // Stored preference wins; absent fields fall back (group to the adapter's
   // default). Read once — this pane only mounts client-side, after deck load.
@@ -125,7 +143,15 @@ export function DeckListPane({
     <div className="p-3">
       {/* Summary (R3): count · ring · ownership · the over-limit action. */}
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Deck</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold">Deck</h2>
+          {onAddCards && (
+            <Button size="sm" className="pointer-coarse:min-h-11 md:hidden" onClick={onAddCards}>
+              <PlusIcon aria-hidden />
+              Add cards
+            </Button>
+          )}
+        </div>
         <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
           {/* The over-limit pain point (the DECK_SIZE error's always-visible
               face) links straight to the Cut Coach (P3.4). */}
@@ -176,6 +202,7 @@ export function DeckListPane({
       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
         <Segmented
           label="View"
+          touch
           options={VIEW_OPTIONS}
           value={view}
           onChange={(v) => {
@@ -185,6 +212,7 @@ export function DeckListPane({
         />
         <Segmented
           label="Group"
+          touch
           options={GROUP_OPTIONS}
           value={groupBy}
           onChange={(v) => {
@@ -194,6 +222,7 @@ export function DeckListPane({
         />
         <Segmented
           label="Sort"
+          touch
           options={SORT_OPTIONS}
           value={sortBy}
           onChange={(v) => {
@@ -211,7 +240,24 @@ export function DeckListPane({
 
       {rest.length === 0 ? (
         // C8 copy fix (R1b): a phone has no "left" — R4 puts Search in a tab.
-        <EmptyState className="mt-4" title="No cards yet" hint="Add them from Search." mark />
+        <EmptyState
+          className="mt-4"
+          title="No cards yet"
+          hint="Add them from Search."
+          mark
+          action={
+            onAddCards ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="pointer-coarse:min-h-11"
+                onClick={onAddCards}
+              >
+                Add cards
+              </Button>
+            ) : undefined
+          }
+        />
       ) : view === "text" ? (
         <DeckTextView
           adapter={adapter}
@@ -235,11 +281,14 @@ export function DeckListPane({
         />
       )}
 
-      <AnalyticsPanel blocks={analytics} />
-
-      {/* P2.7: same widget as the share page — pure client state, below the
-          list so drawing a hand never shoves the deck out of view. */}
-      <SampleHand entries={entries} cards={cards} format={format} onPreview={onPreview} />
+      {extras && (
+        <>
+          <AnalyticsPanel blocks={analytics} />
+          {/* P2.7: same widget as the share page — pure client state, below the
+              list so drawing a hand never shoves the deck out of view. */}
+          <SampleHand entries={entries} cards={cards} format={format} onPreview={onPreview} />
+        </>
+      )}
     </div>
   );
 }

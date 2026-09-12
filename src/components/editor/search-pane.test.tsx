@@ -179,6 +179,59 @@ describe("SearchPane", () => {
     expect(screen.getAllByRole("option")).toHaveLength(1);
   });
 
+  it("a row click is an explicit inspection (onInspect), the response a passive preview (R4)", async () => {
+    const onPreview = vi.fn();
+    const onInspect = vi.fn();
+    render(
+      <SearchPane
+        adapter={mtg}
+        format={COMMANDER}
+        inDeckQty={new Map()}
+        onAdd={vi.fn()}
+        onPreview={onPreview}
+        onInspect={onInspect}
+      />,
+    );
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    respond([sol, signet]);
+    type(input, "s");
+    await settle();
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    expect(onInspect).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(onPreview).toHaveBeenCalledTimes(2);
+    expect(onInspect).not.toHaveBeenCalled();
+    const row = screen.getByRole("option", { name: /Sol Ring/ });
+    fireEvent.click(row);
+    expect(onInspect).toHaveBeenCalledTimes(1);
+    expect(onInspect.mock.calls[0][0].name).toBe("Sol Ring");
+    expect(onPreview).toHaveBeenCalledTimes(2);
+    // Touch: 44 px rows and actions on coarse pointers only.
+    expect(row.className).toContain("pointer-coarse:min-h-11");
+    expect(screen.getByRole("button", { name: "Add Sol Ring to Main deck" }).className).toContain(
+      "pointer-coarse:h-11",
+    );
+  });
+
+  it("without onInspect a row click falls back to onPreview", async () => {
+    const onPreview = vi.fn();
+    render(
+      <SearchPane
+        adapter={mtg}
+        format={COMMANDER}
+        inDeckQty={new Map()}
+        onAdd={vi.fn()}
+        onPreview={onPreview}
+      />,
+    );
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    respond([sol]);
+    type(input, "sol");
+    await settle();
+    fireEvent.click(screen.getByRole("option", { name: /Sol Ring/ }));
+    expect(onPreview).toHaveBeenCalledTimes(2);
+  });
+
   it("Escape clears the box and the results", async () => {
     const { input } = renderPane();
     respond([sol]);

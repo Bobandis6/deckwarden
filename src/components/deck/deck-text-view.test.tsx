@@ -191,3 +191,40 @@ describe("DeckTextView — F5 previews (share pages)", () => {
     expect(screen.getByRole("button", { name: "Sol Ring" }).dataset.slot).toBeUndefined();
   });
 });
+
+describe("DeckTextView touch targets (R4)", () => {
+  it("editable rows, steppers, remove and the pip column carry pointer-coarse rules; share rows do not", () => {
+    const { unmount } = render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol }])}
+        severity={new Map()}
+        onSetQty={vi.fn()}
+        onRemove={vi.fn()}
+        onPreview={vi.fn()}
+      />,
+    );
+    const row = screen.getByRole("listitem");
+    expect(row.className).toContain("pointer-coarse:min-h-11");
+    expect(screen.getByRole("button", { name: "One more Sol Ring" }).className).toContain(
+      "pointer-coarse:size-11",
+    );
+    expect(screen.getByRole("button", { name: "Remove Sol Ring" }).className).toContain(
+      "pointer-coarse:opacity-100",
+    );
+    expect(document.querySelector("[data-slot=pips]")?.className).toContain(
+      "pointer-coarse:min-w-12",
+    );
+    unmount();
+    render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol }])}
+        severity={new Map()}
+        onPreview={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("listitem").className).not.toContain("pointer-coarse");
+    expect(document.querySelector("[data-slot=pips]")?.className).not.toContain("pointer-coarse");
+  });
+});

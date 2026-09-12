@@ -20,6 +20,11 @@
  * R5b (F5): `preview` wraps each name button in the share page's hover
  * and focus card preview — the button, its classes and its click stay as
  * they are; the editor passes nothing (its detail pane already previews).
+ *
+ * R4: on coarse pointers the EDITABLE rows (`onSetQty`) grow to 44 px and
+ * the steppers and remove become 44 px and always visible — a finger has
+ * no hover — while the pip column narrows to make room; mouse rows keep
+ * today's density, and the read-only share page changes nothing.
  */
 import { XIcon } from "lucide-react";
 
@@ -36,9 +41,9 @@ export const GROUP_HEADER_CLASS =
 /** Sticks to the top of the nearest scroll container (the editor's deck section on lg). */
 export const STICKY_HEADER_CLASS = "bg-background sticky top-0 z-10";
 
-/** Reveal-on-hover/focus for the per-row controls; the quantity itself never hides. */
+/** Reveal-on-hover/focus for the per-row controls; the quantity itself never hides. On coarse pointers: always shown, 44 px. */
 const REVEAL_CLASS =
-  "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100";
+  "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 pointer-coarse:size-11 pointer-coarse:opacity-100";
 
 interface DeckTextViewProps {
   adapter: GameAdapter;
@@ -125,7 +130,10 @@ export function DeckTextView({
               return (
                 <li
                   key={rowKey}
-                  className="group/row hover:bg-muted/60 flex items-center gap-1 rounded-md px-1 py-0.5 text-sm"
+                  className={cn(
+                    "group/row hover:bg-muted/60 flex items-center gap-1 rounded-md px-1 py-0.5 text-sm",
+                    onSetQty && "pointer-coarse:min-h-11",
+                  )}
                 >
                   {onSetQty ? (
                     <span className="flex shrink-0 items-center">
@@ -170,7 +178,13 @@ export function DeckTextView({
                     nameButton
                   )}
                   {/* Fixed pip column (C12): min-w-20 fits the fixtures' widest six-pip costs; a wider cost extends rather than wraps. */}
-                  <span data-slot="pips" className="inline-flex min-w-20 shrink-0 justify-end">
+                  <span
+                    data-slot="pips"
+                    className={cn(
+                      "inline-flex min-w-20 shrink-0 justify-end",
+                      onSetQty && "pointer-coarse:min-w-12",
+                    )}
+                  >
                     <CostPips html={adapter.display.costHtml(card)} className="text-xs" />
                   </span>
                   {onRemove && (
