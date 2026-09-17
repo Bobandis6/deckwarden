@@ -170,6 +170,77 @@ async function main() {
       check("no tournament rows → no Top finishes shelf", !hub.text.includes("Top finishes"));
     }
 
+    // ---- Meta Lens table (P3.10) ------------------------------------------
+    // Both states pinned, fixtures from live aggregate rows: the leader with
+    // the largest union of settled lists renders the section, the top card's
+    // exact "n of N" share literal and the ranked-by-lists wording; a leader
+    // whose union sits under the disclosed ≥5-list floor — and one with no
+    // aggregate rows at all — renders NO section (honest absence, never
+    // padding).
+    const [rich] = await sql`
+      WITH per_leader AS (
+        SELECT l.leader_id, sum(cs.lists)::int AS total
+        FROM commander_stats cs, LATERAL unnest(cs.leader_ids) AS l(leader_id)
+        GROUP BY l.leader_id)
+      SELECT ci.id, ci.name, ci.slug, p.total
+      FROM per_leader p JOIN card_identities ci ON ci.id = p.leader_id
+      WHERE ci.game_id = 1 AND ci.slug IS NOT NULL
+      ORDER BY p.total DESC LIMIT 1`;
+    if (rich) {
+      const [topCard] = await sql`
+        SELECT sum(ccs.lists)::int AS lists
+        FROM commander_card_stats ccs
+        WHERE ccs.leader_ids IN (
+          SELECT cs.leader_ids FROM commander_stats cs
+          WHERE cs.leader_ids @> ARRAY[${rich.id as string}]::uuid[])
+        GROUP BY ccs.card_identity_id ORDER BY 1 DESC LIMIT 1`;
+      const richHub = await page(`/c/${rich.slug as string}`);
+      check(
+        `Meta Lens renders for "${rich.name as string}" (${rich.total} union lists)`,
+        richHub.status === 200 &&
+          richHub.text.includes("Most played with") &&
+          richHub.text.includes("ranked by lists played"),
+      );
+      check(
+        "Meta Lens top row carries the literal n-of-N share",
+        richHub.text.includes(`${topCard.lists} of ${rich.total}`),
+      );
+      check("Meta Lens page carries the Topdeck.gg credit", richHub.text.includes("Topdeck.gg"));
+      const [underFloor] = await sql`
+        WITH per_leader AS (
+          SELECT l.leader_id, sum(cs.lists)::int AS total
+          FROM commander_stats cs, LATERAL unnest(cs.leader_ids) AS l(leader_id)
+          GROUP BY l.leader_id)
+        SELECT ci.name, ci.slug, p.total
+        FROM per_leader p JOIN card_identities ci ON ci.id = p.leader_id
+        WHERE ci.game_id = 1 AND ci.slug IS NOT NULL AND p.total < 5
+        ORDER BY p.total DESC LIMIT 1`;
+      if (underFloor) {
+        const floorHub = await page(`/c/${underFloor.slug as string}`);
+        check(
+          `under-floor leader ("${underFloor.name as string}", ${underFloor.total} lists) hides Meta Lens`,
+          floorHub.status === 200 && !floorHub.text.includes("Most played with"),
+        );
+      }
+      const [noRows] = await sql`
+        SELECT ci.name, ci.slug FROM card_identities ci
+        WHERE ci.game_id = 1 AND ci.is_leader_candidate AND NOT ci.is_removed
+          AND ci.slug IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM commander_stats cs WHERE cs.leader_ids @> ARRAY[ci.id])
+        ORDER BY ci.popularity ASC NULLS LAST LIMIT 1`;
+      if (noRows) {
+        const quietHub2 = await page(`/c/${noRows.slug as string}`);
+        check(
+          `no-aggregate leader ("${noRows.name as string}") hides Meta Lens`,
+          quietHub2.status === 200 && !quietHub2.text.includes("Most played with"),
+        );
+      }
+    } else {
+      console.log("  (no commander aggregate rows yet — asserting Meta Lens stays hidden)");
+      check("no aggregate rows → no Meta Lens section", !hub.text.includes("Most played with"));
+    }
+
     // ---- OP Top finishes shelf on /l/ (P4.5) ------------------------------
     // The /c/ block above, mirrored for the Limitless pipeline. Both states
     // pinned: the busiest OP finisher's hub renders the shelf + the required

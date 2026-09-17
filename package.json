@@ -37,6 +37,7 @@
     "smoke:optcg": "tsx scripts/optcg-smoke.ts",
     "smoke:optcg-deck": "tsx scripts/optcg-deck-smoke.ts",
     "search:canned": "tsx scripts/canned-searches.ts",
+    "counters:reset": "tsx scripts/reset-dev-counters.ts",
     "db:size": "tsx scripts/db-size.ts"
   },
   "dependencies": {

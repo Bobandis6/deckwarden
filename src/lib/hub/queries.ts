@@ -26,8 +26,17 @@ import {
   defaultPrintingJoin,
   type DeckCollectionRow,
 } from "@/lib/decks/collections";
+import { META_LENS_LIMIT, META_LENS_MIN_LISTS, type MetaLens } from "@/lib/hub/meta-lens";
 
-const { cardIdentities, cardPrintings, decks, legalities, users } = schema;
+const {
+  cardIdentities,
+  cardPrintings,
+  commanderCardStats,
+  commanderStats,
+  decks,
+  legalities,
+  users,
+} = schema;
 
 export type LeaderRow = typeof schema.cardIdentities.$inferSelect;
 
@@ -179,6 +188,58 @@ export async function loadHubDecks(leaderId: string): Promise<HubDeckRow[]> {
     )
     .orderBy(desc(decks.likesCount), desc(decks.updatedAt))
     .limit(HUB_DECKS_LIMIT);
+}
+
+/** postgres.js row shape (snake_case); the index signature is drizzle's execute<T> constraint. */
+type MetaLensRaw = Record<string, unknown> & {
+  id: string;
+  name: string;
+  lists: number;
+  top4: number;
+  total_lists: number;
+  set_count: number;
+  since: string;
+};
+
+/**
+ * "Most played with this commander" (P3.10, LATER row 34): the top cards by
+ * settled top-16 lists, unioned across every commander set CONTAINING this
+ * leader — a partner's pairings all count; a solo commander collapses to its
+ * exact set. MTG-only by construction: commander_card_stats is the Topdeck
+ * aggregate (P3.8), and commanders are excluded from their own lists at
+ * ingest, so the leader never ranks itself. Query shape measured 2026-09-17:
+ * the ~970-row commander_stats scan feeding the pair PK prefix (1.2ms / 286
+ * buffers) beats a single @> scan over the 168k pair rows (21ms / 2507) —
+ * one statement, once per hourly ISR render. Null when the union denominator
+ * sits under META_LENS_MIN_LISTS: the section renders honest absence, never
+ * a noisy share.
+ */
+export async function loadCommanderMetaLens(leaderId: string): Promise<MetaLens | null> {
+  const rows = await getDb().execute<MetaLensRaw>(sql`
+    WITH sets AS (
+      SELECT leader_ids, lists, first_seen FROM ${commanderStats}
+      WHERE leader_ids @> ARRAY[${leaderId}]::uuid[])
+    SELECT ci.id, ci.name,
+           sum(ccs.lists)::int AS lists, sum(ccs.top4)::int AS top4,
+           (SELECT sum(lists)::int FROM sets) AS total_lists,
+           (SELECT count(*)::int FROM sets) AS set_count,
+           (SELECT min(first_seen)::text FROM sets) AS since
+    FROM ${commanderCardStats} ccs
+    JOIN sets s ON s.leader_ids = ccs.leader_ids
+    JOIN ${cardIdentities} ci ON ci.id = ccs.card_identity_id
+    GROUP BY ci.id, ci.name
+    ORDER BY sum(ccs.lists) DESC, ci.name ASC
+    LIMIT ${META_LENS_LIMIT}`);
+  const list = [...rows];
+  if (list.length === 0) return null;
+  const { total_lists, set_count, since } = list[0];
+  if (total_lists < META_LENS_MIN_LISTS) return null;
+  return {
+    rows: list.map((r) => ({ id: r.id, name: r.name, lists: r.lists, top4: r.top4 })),
+    totalLists: total_lists,
+    setCount: set_count,
+    since,
+  };
 }
 
 export interface LeaderIndexRow {

@@ -29,6 +29,7 @@ import { CardImage } from "@/components/cards/card-image";
 import { ComboList } from "@/components/combos/combo-list";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
 import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
+import { MetaLensTable } from "@/components/hub/meta-lens-table";
 import { StaplesTable } from "@/components/hub/staples-table";
 import { SurfaceHeader } from "@/components/surface-header";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,9 @@ import { getAdapter } from "@/lib/games/registry";
 import type { CardData } from "@/lib/games/types";
 import { MIN_EVENT_PLAYERS, TOP_PLACEMENT } from "@/lib/games/mtg/topdeck-map";
 import { staplesCurveBlock } from "@/lib/hub/curve";
+import { sinceLabel } from "@/lib/hub/meta-lens";
 import {
+  loadCommanderMetaLens,
   loadDefaultPrinting,
   loadHubDecks,
   loadLeaderStatus,
@@ -107,19 +110,21 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
   if (!leader) notFound();
 
   const adapter = getAdapter("mtg");
-  const [[printing, art], status, staples, combosData, hubDecks, topFinishes] = await Promise.all([
-    // The banner's art (R5b): the default printing's crop through R2's
-    // resolver, resolved alongside the reads — null without an artist.
-    loadDefaultPrinting(leader.id).then(
-      async (p) => [p, p ? await resolveCardArt(adapter, p.id) : null] as const,
-    ),
-    loadLeaderStatus(FORMAT_ID.commander, leader.id),
-    loadStaples(leader),
-    // Only combos a deck with THIS commander could actually run (CI fit).
-    loadCombosForCard(leader.id, { fitCiMask: leader.ciMask }),
-    loadHubDecks(leader.id),
-    loadTopFinishes(GAME_ID.mtg, leader.id),
-  ]);
+  const [[printing, art], status, staples, combosData, hubDecks, topFinishes, metaLens] =
+    await Promise.all([
+      // The banner's art (R5b): the default printing's crop through R2's
+      // resolver, resolved alongside the reads — null without an artist.
+      loadDefaultPrinting(leader.id).then(
+        async (p) => [p, p ? await resolveCardArt(adapter, p.id) : null] as const,
+      ),
+      loadLeaderStatus(FORMAT_ID.commander, leader.id),
+      loadStaples(leader),
+      // Only combos a deck with THIS commander could actually run (CI fit).
+      loadCombosForCard(leader.id, { fitCiMask: leader.ciMask }),
+      loadHubDecks(leader.id),
+      loadTopFinishes(GAME_ID.mtg, leader.id),
+      loadCommanderMetaLens(leader.id),
+    ]);
 
   const tournamentsMeta = adapter.capabilities.tournaments;
   const card: CardData = {
@@ -257,6 +262,36 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       {curve && (
         <section aria-label="Staples curve" className="mt-8 max-w-xl">
           <AnalyticsBlocks blocks={[curve]} />
+        </section>
+      )}
+
+      {/* Meta Lens (P3.10): directly after staples + curve so the two card
+          tables read generic → specific — color-identity staples by EDHREC
+          rank, then THIS commander's measured tournament play. (Grouping
+          with Top finishes was the alternative; rejected because the Topdeck
+          attribution already rides this section itself, and the finishes
+          shelf is event-level, not card-level.) Gated on real aggregate rows
+          past the disclosed floor — cold-start honest absence. */}
+      {tournamentsMeta && metaLens && (
+        <section aria-label="Most played with this commander" className="mt-10">
+          <h2 className="text-lg font-semibold">Most played with {leader.name}</h2>
+          <p className="text-muted-foreground mt-0.5 text-xs">
+            The {metaLens.rows.length} most-played cards in {metaLens.totalLists} settled top-
+            {TOP_PLACEMENT} lists running {leader.name}
+            {metaLens.setCount > 1 ? " (any pairing)" : ""} at {MIN_EVENT_PLAYERS}+ player events
+            since {sinceLabel(metaLens.since)}, ranked by lists played — top-4 counts shown for
+            context. Results from{" "}
+            <a
+              href={tournamentsMeta.sourceHref}
+              className="underline"
+              rel="noreferrer"
+              target="_blank"
+            >
+              {tournamentsMeta.sourceLabel}
+            </a>
+            .
+          </p>
+          <MetaLensTable rows={metaLens.rows} totalLists={metaLens.totalLists} />
         </section>
       )}
 
@@ -398,7 +433,8 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
             .
           </>
         )}
-        {tournamentsMeta && topFinishes.total > 0 && (
+        {/* P3.10: the credit conditions on EITHER Topdeck-fed section. */}
+        {tournamentsMeta && (topFinishes.total > 0 || metaLens !== null) && (
           <>
             {" "}
             Tournament results courtesy of{" "}
