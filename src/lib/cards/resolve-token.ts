@@ -17,6 +17,10 @@
  * NO fuzzy suggestions: an id is not a misspelled name, and trgm
  * similarity against "c983338d ae6b …" would only ever surface junk. A
  * name carrying a trailing id keeps its name for the fuzzy pass.
+ *
+ * Second consumer (P4.8): GET /api/cards/search's quick-add id pass uses
+ * searchIdPrefix below — the same id shapes, widened to from-the-hyphen
+ * prefixes so the box browses card numbers ("OP01-02" → the ten OP01-02x).
  */
 export type ResolveGame = "mtg" | "optcg";
 
@@ -40,4 +44,22 @@ export function classifyResolveToken(game: ResolveGame, input: string): string |
 export function isBareIdToken(game: ResolveGame, input: string): boolean {
   const bare = input.trim();
   return game === "optcg" ? OPTCG_ID.test(bare.toUpperCase()) : UUID_RE.test(bare);
+}
+
+const OPTCG_ID_PREFIX = /^[A-Z]+\d*-\d*$/;
+
+/**
+ * The external-key PREFIX an id-shaped SEARCH query names (P4.8), or null
+ * for a plain name. One Piece only: a full id ("OP01-025") or a prefix from
+ * the hyphen on ("OP01-02", "OP01-"), uppercased. No hyphen → null, so
+ * "OP" / "ST" / "P" alone stay name searches. The charset is [A-Z0-9-]
+ * only, so a LIKE built from the result needs no %/_ escaping — anything
+ * else (including the trailing-"(CODE)" import shape, which nobody types
+ * into a search box) is a name. Magic returns null: oracle-id uuids are
+ * pasted into imports and CTAs, never typed into search.
+ */
+export function searchIdPrefix(game: ResolveGame, input: string): string | null {
+  if (game !== "optcg") return null;
+  const upper = input.trim().toUpperCase();
+  return OPTCG_ID_PREFIX.test(upper) ? upper : null;
 }

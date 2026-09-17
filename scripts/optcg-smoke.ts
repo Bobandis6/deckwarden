@@ -29,9 +29,11 @@ function check(label: string, ok: boolean, detail?: unknown) {
 interface SearchResult {
   id: string;
   name: string;
+  externalKey: string;
   attrs: Record<string, unknown>;
   image: string | null;
   isLeaderCandidate: boolean;
+  legality?: unknown[];
 }
 
 async function getJson(path: string): Promise<{ status: number; json: unknown }> {
@@ -64,6 +66,49 @@ async function main() {
           !r.image.includes("onepiece-cardgame.com")),
     ),
     nameResults[0]?.image,
+  );
+
+  // Quick-add id pass (P4.8): an id-shaped `name` searches external_key —
+  // exact, case-folded, prefix-browsing, honest empty miss, legality intact.
+  const byId = await getJson("/api/cards/search?game=optcg&name=OP01-025");
+  const idBody = byId.json as { results?: SearchResult[]; total?: number };
+  check(
+    "search?name=OP01-025 → the one exact row",
+    byId.status === 200 && idBody.results?.length === 1 && idBody.total === 1,
+    idBody.total,
+  );
+  check(
+    "…and it IS Roronoa Zoro / OP01-025",
+    idBody.results?.[0]?.name === "Roronoa Zoro" && idBody.results?.[0]?.externalKey === "OP01-025",
+    idBody.results?.[0],
+  );
+  const byIdLower = await getJson("/api/cards/search?game=optcg&name=op01-025");
+  check(
+    "…lowercase op01-025 finds the same row",
+    (byIdLower.json as { results?: SearchResult[] }).results?.[0]?.externalKey === "OP01-025",
+  );
+  const byPrefix = await getJson("/api/cards/search?game=optcg&name=OP01-02&limit=20");
+  const prefixRows = (byPrefix.json as { results?: SearchResult[] }).results ?? [];
+  check(
+    "…prefix OP01-02 browses the ten OP01-02x in ascending key order",
+    prefixRows.length === 10 &&
+      prefixRows.every((row) => row.externalKey.startsWith("OP01-02")) &&
+      prefixRows.every((row, i) => i === 0 || prefixRows[i - 1].externalKey < row.externalKey),
+    prefixRows.map((row) => row.externalKey),
+  );
+  const byMiss = await getJson("/api/cards/search?game=optcg&name=OP99-999");
+  const missBody = byMiss.json as { results?: SearchResult[]; total?: number };
+  check(
+    "…an id-shaped miss is honestly empty (no trgm junk)",
+    missBody.results?.length === 0 && missBody.total === 0,
+    missBody,
+  );
+  const bannedById = await getJson("/api/cards/search?game=optcg&format=standard&name=OP06-116");
+  const bannedRow = (bannedById.json as { results?: SearchResult[] }).results?.[0];
+  check(
+    "…format=standard&name=OP06-116 carries its banlist legality (P4.2 overlay)",
+    Array.isArray(bannedRow?.legality) && bannedRow.legality.length > 0,
+    bannedRow?.legality,
   );
 
   // FTS over the type_line/oracle_text keys punk-map writes.

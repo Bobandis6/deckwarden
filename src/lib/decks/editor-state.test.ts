@@ -34,6 +34,17 @@ describe("parseQuickAdd", () => {
   it("accepts an x after the count (`4x sol ring`, `10X forest`)", () => {
     expect(parseQuickAdd("4x sol ring")).toEqual({ qty: 4, query: "sol ring" });
     expect(parseQuickAdd("10X forest")).toEqual({ qty: 10, query: "forest" });
+    expect(parseQuickAdd("4 x Sol Ring")).toEqual({ qty: 4, query: "Sol Ring" });
+  });
+
+  it("accepts the sim-style spaceless `4xOP01-025` without eating names that start with x (P4.8)", () => {
+    // The One Piece sim-export token: qty, an x, no space, the card number.
+    expect(parseQuickAdd("4xOP01-025")).toEqual({ qty: 4, query: "OP01-025" });
+    // A name after a plain space keeps its leading x — never "enagos".
+    expect(parseQuickAdd("4 xenagos")).toEqual({ qty: 4, query: "xenagos" });
+    // Known, disclosed edge: "4xenagos" (no space, name starting with x) is
+    // not a promised syntax and parses as qty 4 / "enagos".
+    expect(parseQuickAdd("4xenagos")).toEqual({ qty: 4, query: "enagos" });
   });
 
   it("treats plain text as qty 1", () => {

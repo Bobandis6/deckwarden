@@ -40,11 +40,14 @@ export const MAX_QTY = 99;
 
 /**
  * The `4 Sol Ring` quantity-prefix syntax (build plan §7): a 1–2 digit count,
- * optional "x", then the search query. Anything else is a plain query at qty 1
- * — 3+ digit prefixes stay literal so names like "1996 World Champion" search.
+ * then a spaced "x", an attached "x" ("4x…", including the sim-style
+ * spaceless "4xOP01-025" — P4.8), or plain whitespace, then the search
+ * query. "4 xenagos" keeps its x (the space wins); the unpromised "4xenagos"
+ * parses as "enagos". Anything else is a plain query at qty 1 — 3+ digit
+ * prefixes stay literal so names like "1996 World Champion" search.
  */
 export function parseQuickAdd(input: string): { qty: number; query: string } {
-  const m = /^\s*(\d{1,2})\s*[xX]?\s+(.*\S)[\s]*$/.exec(input);
+  const m = /^\s*(\d{1,2})(?:\s+[xX]\s+|[xX]\s*|\s+)(.*\S)\s*$/.exec(input);
   if (m) return { qty: Math.min(Math.max(Number(m[1]), 1), MAX_QTY), query: m[2] };
   return { qty: 1, query: input.trim() };
 }

@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { classifyResolveToken, isBareIdToken } from "./resolve-token";
+import { classifyResolveToken, isBareIdToken, searchIdPrefix } from "./resolve-token";
 
 const QUEZA = "c983338d-ae6b-4a15-9931-daa20fca8269";
 
@@ -37,5 +37,37 @@ describe("isBareIdToken", () => {
     expect(isBareIdToken("optcg", "OP01-025")).toBe(true);
     expect(isBareIdToken("optcg", "Charlotte Pudding (OP12-071)")).toBe(false);
     expect(isBareIdToken("optcg", QUEZA)).toBe(false);
+  });
+});
+
+describe("searchIdPrefix — the quick-add id pass in /api/cards/search (P4.8)", () => {
+  it("One Piece: a full id or a from-the-hyphen prefix, uppercased", () => {
+    expect(searchIdPrefix("optcg", "OP01-025")).toBe("OP01-025");
+    expect(searchIdPrefix("optcg", "op01-025")).toBe("OP01-025");
+    expect(searchIdPrefix("optcg", "OP01-02")).toBe("OP01-02");
+    expect(searchIdPrefix("optcg", "OP01-")).toBe("OP01-");
+    expect(searchIdPrefix("optcg", " st01-001 ")).toBe("ST01-001");
+    expect(searchIdPrefix("optcg", "PRB01-")).toBe("PRB01-");
+    expect(searchIdPrefix("optcg", "P-1")).toBe("P-1");
+  });
+
+  it("no hyphen means a name search — 'OP', 'ST', 'P' alone stay null", () => {
+    expect(searchIdPrefix("optcg", "OP")).toBeNull();
+    expect(searchIdPrefix("optcg", "ST01")).toBeNull();
+    expect(searchIdPrefix("optcg", "p")).toBeNull();
+  });
+
+  it("anything outside the id charset is a name — no LIKE escaping ever needed", () => {
+    expect(searchIdPrefix("optcg", "OP01-02%")).toBeNull();
+    expect(searchIdPrefix("optcg", "OP01_025")).toBeNull();
+    expect(searchIdPrefix("optcg", "Monkey.D.Luffy")).toBeNull();
+    expect(searchIdPrefix("optcg", "zoro")).toBeNull();
+    // The trailing-(CODE) import shape is not a search-box shape — name path.
+    expect(searchIdPrefix("optcg", "Charlotte Pudding (OP12-071)")).toBeNull();
+  });
+
+  it("Magic always null — uuids are not typed into the search box", () => {
+    expect(searchIdPrefix("mtg", QUEZA)).toBeNull();
+    expect(searchIdPrefix("mtg", "OP01-025")).toBeNull();
   });
 });

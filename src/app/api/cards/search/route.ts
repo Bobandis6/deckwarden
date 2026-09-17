@@ -9,6 +9,18 @@
  * src/lib/search/translate.ts). Framework params: game, sort, dir, limit, offset.
  * The route knows nothing game-specific — it asks the registry for the adapter
  * and hands its searchFields to the translator (build plan §3).
+ *
+ * Quick-add id pass (P4.8): a `name` that is an id-shaped token or prefix
+ * (searchIdPrefix — One Piece card numbers; Magic never) skips the translator
+ * and runs the SAME select over `external_key LIKE '<prefix>%'`, ordered by
+ * external_key (`sort`/`dir` are ignored on this path — card-number order IS
+ * the order; the (game_id, external_key) unique index range-scans it under
+ * C.UTF-8). A miss returns empty with no trgm arm: an id is not a misspelled
+ * name (the resolve route's R5b rule). This is deliberately NOT a declarative
+ * `external_key` search field: that would widen the FieldTarget whitelist,
+ * grow a fourth match kind for prefixes, and push classification into two
+ * clients — the classifier is core and game-branched by `game`, exactly like
+ * the resolve route's pass 0 (P4.1's precedent).
  */
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
@@ -17,6 +29,7 @@ import { z } from "zod";
 import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
+import { searchIdPrefix } from "@/lib/cards/resolve-token";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import { getAdapter } from "@/lib/games/registry";
 import { translateSearch } from "@/lib/search/translate";
@@ -52,7 +65,14 @@ export async function GET(request: NextRequest) {
   }
 
   const adapter = getAdapter(game);
-  const { conditions, rank, warnings } = translateSearch(adapter.searchFields, params);
+  // The id pass (docblock above): an id-shaped `name` replaces the
+  // translator's conditions with one bound-parameter prefix LIKE. The
+  // helper admits only [A-Z0-9-], so the pattern needs no escaping.
+  const idPrefix = searchIdPrefix(game, params.name ?? "");
+  const { conditions, rank, warnings } =
+    idPrefix !== null
+      ? { conditions: [sql`${ci.externalKey} LIKE ${idPrefix + "%"}`], rank: null, warnings: [] }
+      : translateSearch(adapter.searchFields, params);
 
   const orderKey = sort ?? (rank ? "relevance" : "pop");
   const direction = dir ?? (orderKey === "relevance" ? "desc" : "asc");
@@ -64,7 +84,7 @@ export async function GET(request: NextRequest) {
     price: sql`${ci.cheapestUsd} ${dirSql} NULLS LAST`,
     pop: sql`${ci.popularity} ${dirSql} NULLS LAST`,
   };
-  const orderBy = ORDERS[orderKey];
+  const orderBy = idPrefix !== null ? sql`${ci.externalKey} ASC` : ORDERS[orderKey];
 
   const db = getDb();
   const rows = await db

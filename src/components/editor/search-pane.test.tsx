@@ -114,6 +114,18 @@ describe("SearchPane", () => {
     expect(document.activeElement).toBe(input);
   });
 
+  it("the placeholder's promise end to end: '4 OP01-025' reaches the wire as name=OP01-025, qty 4 (P4.8)", async () => {
+    // The pane never classifies — the id pass lives in the route. This pins
+    // that the id-shaped query survives parseQuickAdd and the fetch effect.
+    const { input, onAdd } = renderPane();
+    respond([sol]);
+    type(input, "4 OP01-025");
+    await settle();
+    expect(String(fetchMock.mock.calls[0][0])).toContain("name=OP01-025");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onAdd).toHaveBeenCalledWith(expect.anything(), "main", 4);
+  });
+
   it("Ctrl+Enter targets the leader zone; a rejection lands on the live line and clears on input", async () => {
     const onAdd = vi.fn<(...args: unknown[]) => string | undefined>((_c, zone) =>
       zone === "commander" ? "Commander is full (max 2 cards)" : undefined,
