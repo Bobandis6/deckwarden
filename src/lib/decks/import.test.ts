@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { CardWire } from "@/lib/decks/editor-state";
 import { applyImport, buildImportItems, defaultZoneId, type Resolution } from "@/lib/decks/import";
+import { mtgAdapter } from "@/lib/games/mtg/adapter";
+import { parseMtgDecklist } from "@/lib/games/mtg/decklist";
+import { mtgImportLeaderGuess } from "@/lib/games/mtg/import-guess";
 import { COMMANDER } from "@/lib/games/mtg/formats";
+import { MOXFIELD_TLA_PASTE } from "@/lib/games/mtg/test-fixtures";
 import { optcgAdapter } from "@/lib/games/optcg/adapter";
 
 const OP_STANDARD = optcgAdapter.formats[0];
@@ -199,6 +203,25 @@ describe("applyImport", () => {
     expect(warnings).toEqual(["Deck is full — Extra puts it over"]);
   });
 
+  it("collapses a multi-card spill into ONE grouped warning — the P2.8b wall fix", () => {
+    // The owner's dry-run workaround: a typed "Commander" header latches
+    // every following line into the commander zone. Toph and Aang fill the
+    // max-2 zone; the other 78 lines spill — as one warning, not 78.
+    const parsed = parseMtgDecklist("Commander\n" + MOXFIELD_TLA_PASTE).lines;
+    expect(parsed.every((l) => l.zoneHint === "commander")).toBe(true);
+    const items = buildImportItems(
+      COMMANDER,
+      parsed,
+      resolutions(parsed.map((l) => [l.rawName, wire(l.rawName)])),
+    );
+    const { entries, warnings } = applyImport([], items, COMMANDER, "replace");
+    expect(entries.filter((e) => e.zone === "commander")).toHaveLength(2);
+    expect(entries.reduce((s, e) => s + e.qty, 0)).toBe(100);
+    expect(warnings).toEqual([
+      "Commander is full — moved 78 cards to Main deck (Abandoned Air Temple, Airbending Lesson, Appa, Steadfast Guardian, …)",
+    ]);
+  });
+
   it("reports unresolved and zoneless lines as skipped warnings", () => {
     const partial = buildImportItems(
       COMMANDER,
@@ -218,5 +241,83 @@ describe("applyImport", () => {
       'Not found: "Not A Real Card" — skipped',
       'No "sideboard" zone in Commander — skipped Sol Ring',
     ]);
+  });
+});
+
+describe("the Moxfield commander guess at import level (P2.8b)", () => {
+  const toph = { ...wire("Toph, the First Metalbender"), isLeaderCandidate: true };
+  /** The owner's paste through the real tokenizer + the real MTG hook. */
+  function pasteItems() {
+    const lines = parseMtgDecklist(MOXFIELD_TLA_PASTE).lines;
+    return buildImportItems(
+      COMMANDER,
+      lines,
+      resolutions(lines.map((l) => [l.rawName, l.rawName === toph.name ? toph : wire(l.rawName)])),
+      undefined,
+      mtgImportLeaderGuess,
+    );
+  }
+
+  it("routes Toph to the commander zone, flagged guessed; the other 79 lines untouched", () => {
+    // pasteItems passes mtgImportLeaderGuess directly (the test's adapter is
+    // the typed GameAdapter<MtgAttrs>; the dialog holds the erased GameAdapter
+    // and binds it) — pin that it IS the adapter's wired hook.
+    expect(mtgAdapter.importLeaderGuess).toBe(mtgImportLeaderGuess);
+    const items = pasteItems();
+    expect(items[0].line.rawName).toBe(toph.name);
+    expect(items[0].zone).toBe("commander");
+    expect(items[0].guessed).toBe(true);
+    expect(items.slice(1).every((i) => i.zone === "main" && !i.guessed)).toBe(true);
+    expect(items.every((i) => i.card)).toBe(true);
+  });
+
+  it("replace mode applies the guess: Toph commands, 99 in the main deck, no warnings", () => {
+    const { entries, warnings } = applyImport([], pasteItems(), COMMANDER, "replace");
+    expect(warnings).toEqual([]);
+    const commanders = entries.filter((e) => e.zone === "commander");
+    expect(commanders).toEqual([{ cardId: toph.id, zone: "commander", qty: 1, tags: [] }]);
+    expect(entries.filter((e) => e.zone === "main").reduce((s, e) => s + e.qty, 0)).toBe(99);
+  });
+
+  it("add mode into an empty deck applies the guess — the fresh-draft import path", () => {
+    const { entries, warnings } = applyImport([], pasteItems(), COMMANDER, "add");
+    expect(warnings).toEqual([]);
+    expect(entries.filter((e) => e.zone === "commander").map((e) => e.cardId)).toEqual([toph.id]);
+  });
+
+  it("add mode: a guessed leader yields to a DIFFERENT occupant — default zone, no warning", () => {
+    const existing = [{ cardId: atraxa.id, zone: "commander", qty: 1, tags: [] }];
+    const { entries, warnings } = applyImport(existing, pasteItems(), COMMANDER, "add");
+    expect(warnings).toEqual([]);
+    expect(entries.filter((e) => e.zone === "commander")).toEqual(existing);
+    expect(entries.find((e) => e.cardId === toph.id)?.zone).toBe("main");
+  });
+
+  it("add mode: the guessed card already commanding stays the idempotent silent skip", () => {
+    const existing = [{ cardId: toph.id, zone: "commander", qty: 1, tags: [] }];
+    const { entries, warnings } = applyImport(existing, pasteItems(), COMMANDER, "add");
+    expect(warnings).toEqual([]);
+    expect(entries.filter((e) => e.zone === "commander")).toEqual(existing);
+    expect(entries.filter((e) => e.cardId === toph.id)).toHaveLength(1);
+  });
+
+  it("a leader-zone hint anywhere in the paste disables the guess at core level", () => {
+    const hook = vi.fn(() => [1]);
+    const items = buildImportItems(
+      COMMANDER,
+      [
+        { rawName: "Atraxa, Praetors' Voice", qty: 1, zoneHint: "commander" },
+        { rawName: "Sol Ring", qty: 1 },
+      ],
+      resolutions([
+        ["Atraxa, Praetors' Voice", atraxa],
+        ["Sol Ring", solRing],
+      ]),
+      undefined,
+      hook,
+    );
+    expect(hook).not.toHaveBeenCalled();
+    expect(items[1].zone).toBe("main");
+    expect(items[1].guessed).toBeUndefined();
   });
 });

@@ -42,11 +42,17 @@ export function copyLimit(card: MtgCard): number {
   return 1;
 }
 
-function frontName(card: MtgCard): string {
+function frontName(card: { name: string }): string {
   return card.name.split(" // ")[0];
 }
 
-function isEligibleCommander(card: MtgCard): boolean {
+/**
+ * The one commander-eligibility rule (validation AND the P2.8b import guess —
+ * never duplicate the exception set). Structural param: the import dialog
+ * holds legality-free CardWire, validation holds full MtgCard; eligibility
+ * needs only the flag and the front-face name.
+ */
+export function isEligibleCommander(card: { name: string; isLeaderCandidate: boolean }): boolean {
   return card.isLeaderCandidate || COMMANDER_EXCEPTION_NAMES.has(frontName(card).toLowerCase());
 }
 

@@ -343,3 +343,56 @@ describe("DeckEditor (a loaded deck) — openCuts by tier", () => {
     expect(posts()).toBe(0);
   });
 });
+
+describe("DeckEditor — a commander add returns the phone to the Deck pane (P2.8b)", () => {
+  /** Draft editor with "sol" typed and both results on screen. */
+  async function withResults(width: number) {
+    stubViewport(width);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+    if (width < 768) fireEvent.click(screen.getAllByRole("button", { name: "Add cards" })[0]);
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    fireEvent.change(input, { target: { value: "sol" } });
+    await settle();
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+  }
+
+  it("phone: the row's Commander button adds and switches to the Deck pane — one create", async () => {
+    await withResults(375);
+    fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring as Commander" }));
+    expect(screen.getByRole("tab", { name: /^Deck/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: "Search" }).getAttribute("aria-selected")).toBe("false");
+    expect(screen.getByRole("tab", { name: /^Deck/ }).textContent).toBe("Deck · 1");
+    expect(screen.getByText("Added Sol Ring as Commander")).toBeTruthy();
+    expect(sheetPopup()).toBeNull();
+    await settle(1100);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+  });
+
+  it("phone: a plain Add stays on Search so repeated adds keep working", async () => {
+    await withResults(375);
+    fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring to Main deck" }));
+    expect(screen.getByRole("tab", { name: "Search" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: /^Deck/ }).getAttribute("aria-selected")).toBe("false");
+    await settle(1100);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+  });
+
+  it("md: a commander add opens no drawer — the deck is already on screen", async () => {
+    await withResults(1024);
+    fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring as Commander" }));
+    await act(async () => {});
+    expect(screen.queryByRole("dialog", { name: "Tools" })).toBeNull();
+    expect(within(section("Deck list")).getByText("Sol Ring")).toBeTruthy();
+  });
+
+  it("wide: a commander add changes nothing but the deck", async () => {
+    await withResults(1440);
+    fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring as Commander" }));
+    // The success toast is the one legitimate popup; no Tools drawer, no sheet.
+    expect(screen.queryByRole("dialog", { name: "Tools" })).toBeNull();
+    expect(sheetPopup()).toBeNull();
+    expect(within(section("Deck list")).getByText("Sol Ring")).toBeTruthy();
+  });
+});

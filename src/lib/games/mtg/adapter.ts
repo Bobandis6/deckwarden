@@ -8,6 +8,7 @@ import type { MtgAttrs } from "./attrs";
 import { analyzeMtg } from "./analyze";
 import { parseMtgDecklist, serializeMtgDecklist } from "./decklist";
 import { MTG_FORMATS } from "./formats";
+import { mtgImportLeaderGuess } from "./import-guess";
 import { mtgRecommend } from "./recommend";
 import { validateMtg } from "./validate";
 
@@ -115,6 +116,8 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
 
   parseDecklist: parseMtgDecklist,
   serializeDecklist: serializeMtgDecklist,
+  // Positional Moxfield-shape guess (P2.8b) — never per-card promotion.
+  importLeaderGuess: mtgImportLeaderGuess,
 
   display: {
     costHtml: (card: MtgCard) => manaCostHtml(card.attrs.mana_cost),

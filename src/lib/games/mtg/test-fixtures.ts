@@ -206,6 +206,96 @@ export function fillers(n: number): MtgCard[] {
   );
 }
 
+/**
+ * The owner's real Moxfield "Plain text" export (2026-09-14 phone dry run,
+ * P2.8b) — verbatim, never edit. The shape under test: the commander is the
+ * FIRST line, unmarked; the other 79 follow under Moxfield's locale collation
+ * ("Sokka, Swordmaster" before "Sokka's Charge" — a code-unit comparator
+ * inverts that pair, the canary); "The Legend of Kyoshi / Avatar Kyoshi" is
+ * Moxfield's single-slash double-faced spelling.
+ */
+export const MOXFIELD_TLA_PASTE = `1 Toph, the First Metalbender (TLA) 247
+1 Aang, Airbending Master (TLE) 74
+1 Abandoned Air Temple (TLA) 263
+1 Airbending Lesson (TLA) 8
+1 Appa, Steadfast Guardian (TLA) 10
+1 Arcane Signet (ZNC) 106
+1 Avatar Kyoshi, Earthbender (TLE) 130
+1 Avatar's Wrath (TLA) 12
+1 Ba Sing Se (TLA) 266
+1 Badgermole (TLA) 166
+1 Badgermole Cub (TLA) 167
+1 Beastmaster Ascension (PLST) CMA-92
+1 Bender's Waterskin (TLA) 255
+1 Bitter Work (TLA) 210
+1 Blasphemous Act (CM2) 85
+1 Bumi, Eclectic Earthbender (TLE) 248
+1 Bumi, Unleashed (TLA) 211
+1 Command Tower (ELD) 333
+1 Cycle of Renewal (TLA) 170
+1 Earth Kingdom General (TLA) 173
+1 Earth Rumble (TLA) 174
+1 Earthbender Ascension (TLA) 175
+1 Earthbending Lesson (TLA) 176
+1 Earthbending Student (TLE) 249 *F*
+1 Earthshape (TLE) 67
+1 Elemental Bond (C19) 163
+1 Enter the Avatar State (TLA) 18
+1 Evolution Sage (WAR) 159
+1 Explore (JMP) 393
+1 Fabled Passage (EOC) 60
+1 Fire Nation Palace (TLA) 268
+1 Flopsie, Bumi's Buddy (TLA) 179
+10 Forest (J25) 95
+1 Great Divide Guide (TLA) 181
+1 Hakoda, Selfless Commander (TLA) 23
+1 Haru, Hidden Talent (TLA) 182
+1 Heroic Intervention (MAR) 78
+1 Hour of Revelation (HOU) 15
+1 Inspiring Call (ZNC) 70
+1 Jasmine Dragon Tea Shop (TLA) 270
+1 Katara, Heroic Healer (TLE) 269
+1 Kyoshi Village (TLA) 271
+1 Meteor Sword (TLA) 258
+1 Momo, Playful Pet (TLA) 30
+6 Mountain (J25) 90
+1 Omashu City (TLA) 275
+1 Origin of Metalbending (TLA) 187
+7 Plains (J25) 81
+1 Planetarium of Wan Shi Tong (TLA) 259
+1 Return of the Wildspeaker (PLST) ELD-172
+1 Rumble Arena (TLA) 277
+1 Sandbenders' Storm (TLA) 34
+1 Secret Tunnel (TLA) 278
+1 Seismic Sense (TLA) 195
+1 Seismic Tutelage (TLE) 254
+1 Sokka, Swordmaster (TLE) 83
+1 Sokka's Charge (TLE) 66
+1 Sol Ring (C18) 222
+1 Solid Ground (TLE) 142
+1 Suki, Kyoshi Warrior (TLA) 243
+1 Sun-Blessed Peak (TLA) 280
+1 Sunbaked Canyon (WHO) 309
+1 Swiftfoot Boots (C13) 263
+1 Tale of Katara and Toph (TLE) 143
+1 Terrasymbiosis (EOE) 210
+1 The Boulder, Ready to Rumble (TLA) 168
+1 The Cabbage Merchant (TLE) 134
+1 The Earth King (TLA) 172
+1 The Great Henge (PELD) 161p
+1 The Legend of Kyoshi / Avatar Kyoshi (TLA) 186
+1 The Walls of Ba Sing Se (TLA) 261
+1 Toph, Earthbending Master (TLE) 145
+1 Toph, Greatest Earthbender (TLE) 70
+1 Toph, Hardheaded Teacher (TLA) 246
+1 Toph, the Blind Bandit (TLA) 198
+1 Treetop Village (DDR) 30
+1 Trusty Boomerang (TLA) 260
+1 Uncle Iroh (TLA) 248
+1 White Lotus Tile (TLA) 262
+1 Zuko, Exiled Prince (TLA) 163
+`;
+
 export function cardMap(cards: MtgCard[]): Map<string, MtgCard> {
   return new Map(cards.map((c) => [c.id, c]));
 }

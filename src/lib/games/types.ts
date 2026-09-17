@@ -396,11 +396,30 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
    * text alone (P4.6): OP Leader-category cards are only ever legal in the
    * leader zone, so a pasted leader line lands there instead of the default
    * zone. Return null to keep the default routing. Absent = default routing
-   * (MTG: a legendary creature in the 99 is normal — never auto-promoted).
-   * Takes the legality-free wire shape — routing is card flavor, not format
-   * legality, and the import dialog holds CardWire.
+   * (MTG: a card ALONE never promotes — a legendary creature in the 99 is
+   * normal; the positional, shape-gated Moxfield guess is importLeaderGuess
+   * below, never this per-card hook). Takes the legality-free wire shape —
+   * routing is card flavor, not format legality, and the import dialog holds
+   * CardWire.
    */
   importZoneFor?(card: Omit<CardData<A>, "legality">): string | null;
+
+  /**
+   * Guess leader-zone lines from a paste's SHAPE when no text marks one
+   * (P2.8b): Moxfield's plain-text export puts the commander(s) first,
+   * unmarked, with the rest alphabetized — return the indexes of the lines
+   * to route to the leader zone (usually [] — the guess must be positional
+   * AND shape-gated, never card-alone). The core calls it only when no line
+   * carries a leader-zone hint, flags the routed items `guessed`, and the
+   * review step discloses them before apply; in add mode a guess yields to
+   * a deck whose leader zone is already occupied. Cards align with lines
+   * (null = unresolved). Absent = no guess (One Piece leaders already route
+   * by category via importZoneFor).
+   */
+  importLeaderGuess?(
+    lines: readonly { rawName: string; qty: number; zoneHint?: string; setHint?: string }[],
+    cards: readonly (Omit<CardData<A>, "legality"> | null)[],
+  ): number[];
 
   display: {
     /** Mana pips / DON!! cost / IKZ — an HTML string, rendered by the core. */

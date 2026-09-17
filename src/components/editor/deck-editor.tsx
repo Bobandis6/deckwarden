@@ -642,17 +642,22 @@ export function DeckEditor({
             applyEdit(replaceLeader(entriesRef.current, format, zoneId, previousId)),
           );
         }
+        // A leader add is a destination, not a step in a streak (P2.8b): a
+        // phone returns to the Deck pane to show the result. Zone-based, so
+        // OP's Leader button behaves the same; plain adds never switch.
+        if (tier === "phone") setActivePane("deck");
         return undefined;
       }
       const error = applyEdit(addCard(before, format, zoneId, card.id, qty));
       if (error) return error;
+      if (zone.isLeaderZone && tier === "phone") setActivePane("deck");
       const where = zone.isLeaderZone ? ` as ${adapter.display.leaderNoun}` : "";
       notify(`Added ${qty > 1 ? `${qty}× ` : ""}${card.name}${where}`, () =>
         applyEdit(setQty(entriesRef.current, format, zoneId, card.id, previousQty)),
       );
       return undefined;
     },
-    [format, adapter, cards, applyEdit, showCard, notify],
+    [format, adapter, cards, applyEdit, showCard, notify, tier],
   );
 
   // Adds from the right-pane panels (Suggestions P3.2, Combo Radar P3.3):

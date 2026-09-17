@@ -64,7 +64,13 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
       const json: { results: Resolution[] } = await res.json();
       setState({
         step: "review",
-        items: buildImportItems(format, lines, json.results, adapter.importZoneFor?.bind(adapter)),
+        items: buildImportItems(
+          format,
+          lines,
+          json.results,
+          adapter.importZoneFor?.bind(adapter),
+          adapter.importLeaderGuess?.bind(adapter),
+        ),
         parseWarnings: warnings,
       });
     } catch (err) {
@@ -121,6 +127,7 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
     const unresolved = state.items.filter((i) => !i.card);
     const zoneless = state.items.filter((i) => i.card && !i.zone);
     const ready = state.items.filter((i) => i.card && i.zone);
+    const guessed = state.items.filter((i) => i.guessed && i.card);
     return (
       <Modal label="Import decklist" onClose={onClose}>
         <p className="text-muted-foreground text-xs">
@@ -175,6 +182,16 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
               )}
             </ul>
           </div>
+        )}
+
+        {/* The positional guess, disclosed before apply (P2.8b): a wrong
+            read is caught here, not discovered in the deck. */}
+        {guessed.length > 0 && (
+          <p className="text-xs">
+            <span className="font-medium">{adapter.display.leaderNoun}:</span>{" "}
+            {guessed.map((i) => i.card!.name).join(", ")} — from the first line
+            {guessed.length > 1 ? "s" : ""} of the list
+          </p>
         )}
 
         <div className="mt-1 flex flex-wrap justify-end gap-2">

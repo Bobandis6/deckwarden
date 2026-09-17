@@ -5,6 +5,9 @@
  * Arena/Moxfield ("1 Sol Ring (C21) 263 *F*"), bare names, "1x" quantities,
  * section headers ("Commander:", "Deck", "Sideboard"), *CMDR* markers,
  * Archidekt "[Category]"/"^Flag^" annotations, Deckstats "# !Commander".
+ * Moxfield writes double-faced names with ONE slash ("The Legend of Kyoshi /
+ * Avatar Kyoshi"); stored names use " // ", so that spelling is widened here
+ * (P2.8b) — resolution never sees the single-slash form.
  */
 import type { CardData, DeckSnapshot } from "../types";
 import type { MtgAttrs } from "./attrs";
@@ -59,6 +62,9 @@ export function parseMtgDecklist(text: string): { lines: ParsedLine[]; warnings:
     }
     // Deckstats marks commanders as a trailing "# !Commander" comment.
     if (/#\s*!?commander\b/i.test(rest)) zoneHint = "commander";
+    // Archidekt marks the commander as a category — "[Commander{top}]" on a
+    // live export (verified 2026-09-16) — read it before the strip below.
+    if (/\[\s*commander/i.test(rest)) zoneHint = "commander";
     rest = rest.replace(/\*[A-Za-z]+\*/g, " "); // *F* foil etc.
     rest = rest.replace(/\[[^\]]*\]/g, " "); // Archidekt "[Ramp]" categories
     rest = rest.replace(/\^[^^]*\^/g, " "); // Archidekt "^Have,#aabbcc^" flags
@@ -71,6 +77,11 @@ export function parseMtgDecklist(text: string): { lines: ParsedLine[]; warnings:
       rest = setMatch[1];
       setHint = setMatch[2].toLowerCase();
     }
+
+    // Moxfield's single-slash DFC spelling → the stored " // " form. The
+    // pattern needs whitespace on BOTH sides of one slash, so a real
+    // " // " (adjacent slashes) can never match and passes through as-is.
+    rest = rest.replace(/\s+\/\s+/g, " // ");
 
     const rawName = rest.replace(/\s+/g, " ").trim();
     if (!rawName || qty < 1) {

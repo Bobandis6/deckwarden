@@ -54,6 +54,18 @@ describe("parseMtgDecklist", () => {
     expect(lines[0].rawName).toBe("Fable of the Mirror-Breaker // Reflection of Kiki-Jiki");
   });
 
+  it("widens Moxfield's single-slash double-faced spelling to // (P2.8b)", () => {
+    // Moxfield's text export writes DFC names with ONE slash; stored names
+    // use " // ", so the resolve route's exact pass misses the single-slash
+    // form. Widen at tokenize time — adjacent slashes can't match the
+    // pattern, so real "//" names pass through untouched.
+    const { lines } = parseMtgDecklist("1 The Legend of Kyoshi / Avatar Kyoshi (TLA) 186");
+    expect(lines).toEqual([
+      { rawName: "The Legend of Kyoshi // Avatar Kyoshi", qty: 1, setHint: "tla" },
+    ]);
+    expect(parseMtgDecklist("1 Fire // Ice").lines[0].rawName).toBe("Fire // Ice");
+  });
+
   it("strips Archidekt category/flag annotations", () => {
     const { lines, warnings } = parseMtgDecklist(
       "1x Sol Ring (c21) 263 [Ramp]\n1x Arcane Signet (afc) 95 *F* [Ramp,Artifact]\n1x Command Tower (afc) 175 ^Have,#7fdb8a^",
@@ -63,6 +75,18 @@ describe("parseMtgDecklist", () => {
       { rawName: "Sol Ring", qty: 1, setHint: "c21" },
       { rawName: "Arcane Signet", qty: 1, setHint: "afc" },
       { rawName: "Command Tower", qty: 1, setHint: "afc" },
+    ]);
+  });
+
+  it("reads an Archidekt Commander category as a commander hint (P2.8b)", () => {
+    // Verbatim from a live archidekt.com text export (2026-09-16): the
+    // category must START with "Commander" — "[Ramp,Commander]" stays plain.
+    const { lines } = parseMtgDecklist(
+      "1x Xyris, the Writhing Storm (dmc) 175 [Commander{top}]\n1x Sol Ring (c21) 263 [Ramp,Commander]",
+    );
+    expect(lines).toEqual([
+      { rawName: "Xyris, the Writhing Storm", qty: 1, zoneHint: "commander", setHint: "dmc" },
+      { rawName: "Sol Ring", qty: 1, setHint: "c21" },
     ]);
   });
 
@@ -89,6 +113,10 @@ describe("parseMtgDecklist against real paste shapes", () => {
     commanders: string[];
   }[] = [
     {
+      // commanders: [] is correct at TOKENIZER level — no text marks the
+      // first line. The commander guess is positional and happens at import
+      // time with resolutions in hand: see mtgImportLeaderGuess and its pins
+      // in import-guess.test.ts (P2.8b).
       site: "Moxfield text export",
       text: [
         "1 Atraxa, Praetors' Voice (2X2) 190 *F*",
@@ -135,7 +163,8 @@ describe("parseMtgDecklist against real paste shapes", () => {
         "1x Cultivate (c21) 178 ^Have^ [Ramp]",
       ].join("\n"),
       cardLines: 3,
-      commanders: [],
+      // The Commander category is a real hint since P2.8b (live-verified).
+      commanders: ["Atraxa, Praetors' Voice"],
     },
     {
       site: "TappedOut",
