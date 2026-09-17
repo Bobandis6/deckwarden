@@ -52,6 +52,7 @@ import { settledCutoffIso } from "../../src/lib/tournaments/aggregate";
 import {
   aggregateSettledTournaments,
   listCardResolver,
+  loadLeaderResolver,
   loadListCardMaps,
   TRAILING_REFETCH_DAYS,
   type AggregateInput,
@@ -264,21 +265,13 @@ async function main() {
     };
     console.log(`window: ${stats.window.start} → ${stats.window.end} (${windowDays}d)`);
 
-    // Commander resolution map: LEADER CANDIDATES only, by exact name_norm.
-    // Leaders-only is product-correct (a standing must join a hub to render)
-    // and blocks garbage resolutions; popularity order makes the rare
-    // duplicate-name collision deterministic (most-played identity wins).
-    const leaderRows = await sql<{ name_norm: string; id: string }[]>`
-      SELECT name_norm, id::text AS id FROM card_identities
-      WHERE game_id = ${GAME_ID.mtg} AND is_leader_candidate AND NOT is_removed
-      ORDER BY popularity ASC NULLS LAST`;
-    const byNameNorm = new Map<string, string>();
-    for (const r of leaderRows) {
-      if (byNameNorm.has(r.name_norm)) stats.name_norm_collisions++;
-      else byNameNorm.set(r.name_norm, r.id);
-    }
-    stats.name_map_size = byNameNorm.size;
-    console.log(`leader map loaded: ${byNameNorm.size} candidates`);
+    // Commander resolution map: leaders-only, full names + DFC faces (P3.9)
+    // — semantics in buildLeaderResolver, SQL in the shared loader. Both
+    // stats now count the whole map (full-name AND face entries).
+    const leader = await loadLeaderResolver(sql);
+    stats.name_map_size = leader.size;
+    stats.name_norm_collisions = leader.collisions;
+    console.log(`leader map loaded: ${leader.size} names`);
 
     // Full-identity resolver maps for mainboard cards (P3.8 aggregate) —
     // oracle id → exact name → face name, unresolved counted, never trgm.
@@ -317,7 +310,7 @@ async function main() {
         // future-dated test event) is the API ignoring its own filter.
         const mapped = mapTournament(
           t,
-          (norm) => byNameNorm.get(norm),
+          leader.resolve,
           {
             minStartSeconds: windowStartS - DAY_S,
             maxStartSeconds: endS + DAY_S,

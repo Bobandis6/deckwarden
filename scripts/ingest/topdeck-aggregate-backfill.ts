@@ -36,7 +36,6 @@ import path from "node:path";
 
 import postgres from "postgres";
 
-import { GAME_ID } from "../../src/db/seed-data";
 import {
   mapTournament,
   type StandingSkip,
@@ -47,6 +46,7 @@ import { rollUpLists, settledCutoffIso, type DatedList } from "../../src/lib/tou
 import {
   aggregateSettledTournaments,
   listCardResolver,
+  loadLeaderResolver,
   loadListCardMaps,
   TRAILING_REFETCH_DAYS,
   type AggregateInput,
@@ -85,15 +85,12 @@ async function main() {
       INSERT INTO ingest_runs (source, status) VALUES ('topdeck-aggregate', 'running') RETURNING id`;
     runId = run.id;
 
-    // Same leader map as the ingest (leaders only, exact, popularity order).
-    const leaderRows = await sql<{ name_norm: string; id: string }[]>`
-      SELECT name_norm, id::text AS id FROM card_identities
-      WHERE game_id = ${GAME_ID.mtg} AND is_leader_candidate AND NOT is_removed
-      ORDER BY popularity ASC NULLS LAST`;
-    const byNameNorm = new Map<string, string>();
-    for (const r of leaderRows) if (!byNameNorm.has(r.name_norm)) byNameNorm.set(r.name_norm, r.id);
+    // Same leader map as the ingest (leaders only, full names + DFC faces —
+    // P3.9): a rebuild resolves front-face commanders the nightly once
+    // skipped, healing history the trailing window can't reach.
+    const leader = await loadLeaderResolver(sql);
     const resolveListCard = listCardResolver(await loadListCardMaps(sql));
-    console.log(`maps loaded: ${byNameNorm.size} leader candidates`);
+    console.log(`maps loaded: ${leader.size} leader names`);
 
     const stats = {
       files: files.length,
@@ -126,7 +123,7 @@ async function main() {
         const tid = typeof t.TID === "string" ? t.TID : undefined;
         if (tid && inputs.has(tid)) continue; // chunk-boundary overlap — first wins
         stats.tournaments_seen++;
-        const mapped = mapTournament(t, (norm) => byNameNorm.get(norm), undefined, resolveListCard);
+        const mapped = mapTournament(t, leader.resolve, undefined, resolveListCard);
         if (!mapped.ok) {
           stats.tournament_skips[mapped.skip] = (stats.tournament_skips[mapped.skip] ?? 0) + 1;
           continue;

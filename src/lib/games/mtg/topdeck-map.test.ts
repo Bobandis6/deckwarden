@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildLeaderResolver,
   commanderNamesFrom,
   hasCardList,
   mainboardEntries,
@@ -369,5 +370,75 @@ describe("mapTournament list extraction (P3.8 aggregate)", () => {
     });
     // legacy bare-number values (the defensive shape) carry no oracle id
     expect(entries!.find((e) => e.name === "Card 0")).toEqual({ name: "Card 0" });
+  });
+});
+
+describe("buildLeaderResolver (P3.9 — DFC commanders arrive as their front face)", () => {
+  // Rows as the ingest loads them: popularity ASC (most-played first), norms
+  // pre-normalized by the loader (normalizeCardName folds " // " to a space).
+  const ral = {
+    name_norm: "ral, monsoon mage ral, leyline prodigy",
+    face_norms: ["ral, monsoon mage", "ral, leyline prodigy"],
+    id: "id-ral",
+  };
+
+  it("resolves a front-face commander to the DFC identity through mapTournament", () => {
+    const { resolve: resolveLeader } = buildLeaderResolver([ral]);
+    const frontFace = standing({
+      standing: 1,
+      deckObj: { Commanders: { "Ral, Monsoon Mage": 1 } },
+    });
+    const fullName = Array.from({ length: MIN_EVENT_PLAYERS - 1 }, (_, i) =>
+      standing({
+        standing: i + 2,
+        deckObj: { Commanders: { "Ral, Monsoon Mage // Ral, Leyline Prodigy": 1 } },
+      }),
+    );
+    const res = mapTournament(tournament({ standings: [frontFace, ...fullName] }), resolveLeader);
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.standingSkips.unresolved_commander).toBeUndefined();
+    expect(res.standings[0].leader_ids).toEqual(["id-ral"]); // front face
+    expect(res.standings[1].leader_ids).toEqual(["id-ral"]); // full name, same map
+  });
+
+  it("a full name beats a colliding face name even when the face is more played", () => {
+    const dfc = { name_norm: "alpha omega", face_norms: ["alpha", "omega"], id: "id-dfc" };
+    const mono = { name_norm: "alpha", face_norms: [], id: "id-mono" };
+    // dfc listed first = more played; its face must still lose to mono's full name
+    const { resolve, size, collisions } = buildLeaderResolver([dfc, mono]);
+    expect(resolve("alpha")).toBe("id-mono");
+    expect(resolve("omega")).toBe("id-dfc");
+    expect(resolve("alpha omega")).toBe("id-dfc");
+    expect(size).toBe(3);
+    expect(collisions).toBe(1); // the contested "alpha" is counted
+  });
+
+  it("face-vs-face collisions go to the more-played identity, first-wins", () => {
+    const a = { name_norm: "x shared", face_norms: ["x", "shared"], id: "id-a" };
+    const b = { name_norm: "z shared", face_norms: ["z", "shared"], id: "id-b" };
+    const { resolve, collisions } = buildLeaderResolver([a, b]);
+    expect(resolve("shared")).toBe("id-a");
+    expect(collisions).toBe(1);
+  });
+
+  it("a reversible card's identical face names are one entry, not a collision", () => {
+    const rev = {
+      name_norm: "zndrsplt, eye of wisdom",
+      face_norms: ["zndrsplt, eye of wisdom", "zndrsplt, eye of wisdom"],
+      id: "id-znd",
+    };
+    const { resolve, size, collisions } = buildLeaderResolver([rev]);
+    expect(resolve("zndrsplt, eye of wisdom")).toBe("id-znd");
+    expect(size).toBe(1);
+    expect(collisions).toBe(0);
+  });
+
+  it("a name outside the leader rows still misses — the map never widens", () => {
+    const { resolve } = buildLeaderResolver([ral]);
+    // e.g. a non-leader split card: neither its face nor its full name is in
+    // the rows, so neither may resolve
+    expect(resolve("fire")).toBeUndefined();
+    expect(resolve("fire ice")).toBeUndefined();
+    expect(resolve("")).toBeUndefined();
   });
 });

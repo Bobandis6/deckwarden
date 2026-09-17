@@ -12,8 +12,10 @@
  * ≤ TOP_PLACEMENT ("top-16 lists" — the plan's top-X phrase at EDHTop16's
  * conventional X).
  *
- * Commander names resolve via normalizeCardName against name_norm EXACTLY —
- * never trgm-fuzzy: a wrong-card match would poison every shelf silently.
+ * Commander names resolve via normalizeCardName against the leader map
+ * EXACTLY (full identity names + per-face names — Topdeck writes DFC
+ * commanders as their front face; see buildLeaderResolver) — never
+ * trgm-fuzzy: a wrong-card match would poison every shelf silently.
  * Unresolved names skip the standing (counted), spellbook's unknown_card
  * pattern. Names come from `deckObj` ("Commanders" section keys — returned
  * when `decklist` is requested and structured data exists) or, failing that,
@@ -207,6 +209,52 @@ export function hasCardList(s: TopdeckStanding): boolean {
   return mainboardEntries(s) !== null;
 }
 
+// --- Leader resolution map ------------------------------------------------------
+
+/** One leader candidate's map inputs (norms pre-normalized, popularity order). */
+export interface LeaderRow {
+  name_norm: string;
+  face_norms: string[];
+  id: string;
+}
+
+/**
+ * Build the commander-name resolver the ingest injects as `resolveName`.
+ *
+ * Exact full names populate first, then per-face names: Topdeck writes
+ * double-faced commanders as their FRONT face ("Ral, Monsoon Mage"), which
+ * exact-full-name lookup can never hit — while a face name may also be some
+ * other identity's full name, so the full-name pass always wins the key.
+ * Rows must be leader candidates only, in popularity order (most-played
+ * first): first-wins makes duplicate-name collisions deterministic, and
+ * leaders-only is product-correct (a standing must join a hub to render)
+ * and blocks garbage resolutions — never widen to all identities.
+ *
+ * `collisions` counts keys contested by different identities; same-id
+ * repeats (a reversible card's identical face names) are not collisions.
+ */
+export function buildLeaderResolver(rows: LeaderRow[]): {
+  resolve: (nameNorm: string) => string | undefined;
+  size: number;
+  collisions: number;
+} {
+  const map = new Map<string, string>();
+  let collisions = 0;
+  for (const r of rows) {
+    if (map.has(r.name_norm)) collisions++;
+    else map.set(r.name_norm, r.id);
+  }
+  for (const r of rows) {
+    for (const norm of r.face_norms) {
+      if (!norm) continue;
+      const existing = map.get(norm);
+      if (existing === undefined) map.set(norm, r.id);
+      else if (existing !== r.id) collisions++;
+    }
+  }
+  return { resolve: (nameNorm) => map.get(nameNorm), size: map.size, collisions };
+}
+
 // --- Field coercion helpers ----------------------------------------------------
 
 function smallintOrNull(v: unknown): number | null {
@@ -225,8 +273,9 @@ function textOrNull(v: unknown, maxLen: number): string | null {
 
 /**
  * Map one bulk-response tournament. `resolveName` looks a NORMALIZED name up
- * in card_identities.name_norm (exact — the IO script passes a Map lookup);
- * `window` re-checks the fetch window's own promise (see WindowBounds).
+ * in the leader map (exact — the IO scripts pass buildLeaderResolver's
+ * lookup); `window` re-checks the fetch window's own promise (see
+ * WindowBounds).
  * `resolveListCard` (P3.8) resolves one mainboard entry to an identity id —
  * layering (oracle id, then exact name, then face name; never trgm) is the
  * caller's (src/lib/tournaments/aggregate.ts) — and turns on the `lists`

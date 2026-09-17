@@ -22,7 +22,7 @@ import {
   type DatedList,
   type ListCardMaps,
 } from "../../src/lib/tournaments/aggregate";
-import type { StandingListCards } from "../../src/lib/games/mtg/topdeck-map";
+import { buildLeaderResolver, type StandingListCards } from "../../src/lib/games/mtg/topdeck-map";
 import { GAME_ID } from "../../src/db/seed-data";
 
 /**
@@ -73,6 +73,33 @@ export async function loadListCardMaps(sql: postgres.Sql): Promise<ListCardMaps>
 /** Composed entry resolver (id → exact name → face name, never trgm). */
 export function listCardResolver(maps: ListCardMaps) {
   return makeListCardResolver(maps, normalizeCardName);
+}
+
+/**
+ * Commander resolution map shared by the nightly ingest and the archive
+ * backfill: LEADER CANDIDATES only (never widen — a standing must join a hub
+ * to render), exact full name first, then per-face names, because Topdeck
+ * writes double-faced commanders as their FRONT face (row 39b). Precedence
+ * and collision semantics live in buildLeaderResolver (unit-tested); this
+ * wrapper owns the SQL: popularity order (most-played wins first-wins) and
+ * the same attrs.faces extraction as loadListCardMaps.
+ */
+export async function loadLeaderResolver(sql: postgres.Sql) {
+  const rows = await sql<{ name_norm: string; id: string; face_names: string[] | null }[]>`
+    SELECT name_norm, id::text AS id,
+           CASE WHEN jsonb_typeof(attrs->'faces') = 'array'
+                THEN ARRAY(SELECT jsonb_array_elements(attrs->'faces')->>'name')
+                ELSE ARRAY[]::text[] END AS face_names
+    FROM card_identities
+    WHERE game_id = ${GAME_ID.mtg} AND is_leader_candidate AND NOT is_removed
+    ORDER BY popularity ASC NULLS LAST`;
+  return buildLeaderResolver(
+    rows.map((r) => ({
+      name_norm: r.name_norm,
+      face_norms: (r.face_names ?? []).filter(Boolean).map(normalizeCardName),
+      id: r.id,
+    })),
+  );
 }
 
 /** One mapped tournament's aggregate-relevant slice, as either script collects it. */
