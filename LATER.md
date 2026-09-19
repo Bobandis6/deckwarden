@@ -84,6 +84,7 @@ with one line on when it earns its way back. Nothing on this list is a "no" — 
 | Bulk multi-select on `/account`: one-at-a-time (W3's ⋯ menu) covers today's deck counts (cap 100). | A user manages dozens of decks. |
 | Hand-written precon blurbs: generated factual summaries ship first (W8); WotC marketing copy is never copied. | The owner wants editorial voice on the newest products. |
 | Maskable manifest icons (`purpose: "maskable"`): W2 ships 192/512 with `purpose: "any"` only — declaring maskable promises an 80 % safe zone nobody verified on a device (the shield sits at 65.6 % of the canvas, likely fine, unproven). Same qlmanage pipeline, one padding tweak + a device/Lighthouse pass. | An Android install shows a cropped shield, or Lighthouse PWA audit is run in anger. |
+| ⋯ deck actions on the home "Your decks" rail: W3 scoped the quick-actions island to `/account` (the contract's call, recorded 2026-09-19) — home-rail tiles gain nothing until `AccountDeckTile` wraps them too, and the rail mixes guest decks (no PATCH rights without the claim token wired through). | The owner reaches for a home-rail tile's actions and finds none, or a beta user asks. |
 
 ## Deferred infrastructure
 
