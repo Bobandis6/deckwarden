@@ -15,12 +15,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const session = vi.hoisted(() => ({
   current: null as null | { user: { name: string; image: string | null } },
+  signOut: vi.fn(),
+  refresh: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
     useSession: () => ({ data: session.current, isPending: false, error: null }),
+    signOut: session.signOut,
   },
+}));
+
+// The account menu's sign-out hook refreshes through the app router.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: session.refresh, push: vi.fn() }),
 }));
 
 import { SiteHeader } from "./site-header";
@@ -35,6 +43,8 @@ function open(trigger: HTMLElement) {
 describe("SiteHeader", () => {
   beforeEach(() => {
     session.current = null;
+    session.signOut.mockReset();
+    session.refresh.mockReset();
   });
 
   it("is a banner with the mark, Build, Browse, My decks, Sign in, and one appearance control", () => {
@@ -74,13 +84,53 @@ describe("SiteHeader", () => {
     ]);
   });
 
-  it("signed in: avatar + name link to /account, My decks goes there too, no Sign in", () => {
+  it("signed in: the slot is a menu button named after the user, My decks goes to /account, no Sign in", () => {
     session.current = { user: { name: "Bobandis6", image: null } };
     render(<SiteHeader />);
-    expect(screen.getByRole("link", { name: "Bobandis6" }).getAttribute("href")).toBe("/account");
+    // W3 (WAVE2.md D1): the slot became a real <button> menu trigger.
+    const trigger = screen.getByRole("button", { name: "Bobandis6" });
+    expect(trigger.tagName).toBe("BUTTON");
     expect(screen.getByRole("link", { name: "My decks" }).getAttribute("href")).toBe("/account");
     expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
     expect(screen.getByText("B")).toBeTruthy(); // the initial fallback
+  });
+
+  it("the account menu lists the four /account sections as links, then Sign out (D1)", async () => {
+    session.current = { user: { name: "Bobandis6", image: null } };
+    render(<SiteHeader />);
+    open(screen.getByRole("button", { name: "Bobandis6" }));
+    // Base UI names the popup after its trigger — the user's name.
+    const menu = await screen.findByRole("menu", { name: "Bobandis6" });
+    const items = within(menu)
+      .getAllByRole("menuitem")
+      .map((item) => [item.textContent, item.getAttribute("href")]);
+    expect(items).toEqual([
+      ["My decks", "/account#decks"],
+      ["Bookmarks", "/account#bookmarks"],
+      ["Collection", "/account#collection"],
+      ["Profile & settings", "/account#settings"],
+      ["Sign out", null],
+    ]);
+  });
+
+  it("Sign out signs out and refreshes; a failure keeps the menu open with the retry copy", async () => {
+    session.current = { user: { name: "Bobandis6", image: null } };
+    // First click fails (the menu must stay open), second succeeds.
+    session.signOut
+      .mockResolvedValueOnce({ data: null, error: { status: 500 } })
+      .mockResolvedValueOnce({ data: { success: true }, error: null });
+    render(<SiteHeader />);
+    open(screen.getByRole("button", { name: "Bobandis6" }));
+    const menu = await screen.findByRole("menu", { name: "Bobandis6" });
+
+    open(within(menu).getByRole("menuitem", { name: "Sign out" }));
+    await screen.findByRole("menuitem", { name: "Couldn't sign out — try again" });
+    expect(screen.getByRole("menu", { name: "Bobandis6" })).toBeTruthy();
+    expect(session.refresh).not.toHaveBeenCalled();
+
+    open(screen.getByRole("menuitem", { name: "Couldn't sign out — try again" }));
+    await waitFor(() => expect(session.refresh).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole("menu", { name: "Bobandis6" })).toBeNull());
   });
 
   it("the phone menu lists every nav link, Escape closes it and focus returns to the trigger", async () => {

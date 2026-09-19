@@ -22,7 +22,7 @@
  * shifts when an image lands.
  */
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { badgeVariants } from "@/components/ui/badge";
@@ -34,15 +34,20 @@ export function DeckTile({
   linkTitle,
   actions,
   className,
+  ...rest
 }: {
   tile: DeckTileData;
   /** Owner surfaces: "Edit {name}" (the /account contract). */
   linkTitle?: string;
   actions?: ReactNode;
   className?: string;
-}) {
+} & ComponentProps<"li">) {
   return (
+    // The rest spread (W3) lets `ContextMenuTrigger render={<DeckTile/>}`
+    // merge its handlers and ref into the <li> itself, keeping `ul > li`
+    // valid; the tile stays directive-free.
     <li
+      {...rest}
       data-slot="deck-tile"
       data-game={tile.game ?? undefined}
       className={cn(

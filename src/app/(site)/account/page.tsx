@@ -22,20 +22,22 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 
+import { AccountDeckTile } from "@/components/account/account-deck-tile";
 import { AccountNav } from "@/components/account/account-nav";
+import { type FolderOption } from "@/components/account/deck-action-items";
 import { ClaimDecks } from "@/components/auth/claim-decks";
 import { DeleteAccount } from "@/components/auth/delete-account";
 import { SignInButtons } from "@/components/auth/sign-in-buttons";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { CollectionImport } from "@/components/collection/collection-import";
-import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
+import { DeckTileGrid } from "@/components/deck/deck-tile";
 import { RemoveBookmarkButton } from "@/components/deck/engagement-buttons";
 import { EmptyState } from "@/components/empty-state";
-import { DeckFolderSelect, type FolderOption } from "@/components/folders/deck-folder-select";
 import { FolderControls } from "@/components/folders/folder-controls";
 import { NewFolderForm } from "@/components/folders/new-folder-form";
 import { UsernameForm } from "@/components/profile/username-form";
 import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/toast";
 import { getDb, schema } from "@/db";
 import { auth } from "@/lib/auth";
 import { collectionSummary } from "@/lib/collection/owned";
@@ -59,8 +61,9 @@ const EYEBROW_CLASS = "text-muted-foreground text-xs font-medium tracking-wide u
 
 /**
  * One deck, shared by the folder sections and the unfiled bucket — the
- * shared DeckTile since R5a (G5/G8), keeping the edit link titled
- * "Edit {name}", the visibility word, the folder select and the Share link.
+ * shared DeckTile since R5a (G5/G8), wrapped by the W3 quick-actions
+ * island (⋯ + right-click; the folder select became the menu's submenu).
+ * The tile is computed here on the server and crosses as plain data.
  */
 function DeckItem({
   deck,
@@ -72,28 +75,19 @@ function DeckItem({
   folders: FolderOption[];
 }) {
   return (
-    <DeckTile
+    <AccountDeckTile
       tile={tileFromDeck(deck, printing, {
         href: `/decks/${deck.id}/edit`,
         showVisibility: true,
       })}
-      linkTitle={`Edit ${deck.name}`}
-      actions={
-        <>
-          <DeckFolderSelect
-            deckId={deck.id}
-            deckName={deck.name}
-            currentFolderId={deck.folderId}
-            folders={folders}
-          />
-          <Link
-            href={`/d/${deck.publicId}`}
-            className="text-muted-foreground shrink-0 text-xs hover:underline"
-          >
-            Share page
-          </Link>
-        </>
-      }
+      deck={{
+        id: deck.id,
+        publicId: deck.publicId,
+        name: deck.name,
+        visibility: deck.visibility,
+        folderId: deck.folderId,
+      }}
+      folders={folders}
     />
   );
 }
@@ -294,8 +288,11 @@ export default async function AccountPage() {
           )}
         </div>
 
-        {/* Bookmarks (P2.3) live under Decks since R5b — decks you keep. */}
-        <section aria-label="Bookmarks" className="space-y-3 pt-2">
+        {/* Bookmarks (P2.3) live under Decks since R5b — decks you keep.
+            id="bookmarks" (W3) is the header account menu's anchor; it must
+            never assume deck ownership (W8 precons are bookmarkable,
+            ownerless). */}
+        <section id="bookmarks" aria-label="Bookmarks" className="scroll-mt-6 space-y-3 pt-2">
           <h3 className={EYEBROW_CLASS}>Bookmarks</h3>
           {bookmarks.length === 0 ? (
             <EmptyState
@@ -372,6 +369,10 @@ export default async function AccountPage() {
           </div>
         </section>
       </section>
+
+      {/* The page's one toast mount (W3): the deck quick actions report
+          through the module-level manager (ui/toast.tsx). */}
+      <Toaster />
     </main>
   );
 }
