@@ -39,6 +39,10 @@ import {
   deckCurve,
   maxConfidence,
   popularityScore,
+  TOURNAMENT_SHRINK_K,
+  tournamentConfidence,
+  type TournamentContext,
+  type TournamentSignal,
 } from "./rank";
 import type { Confidence, RecommendationEvidence } from "./types";
 
@@ -79,15 +83,40 @@ export interface CutComboInput extends DeckComboLike {
 }
 
 /**
+ * The combos route's additive tournament block (P3.11), JSON-safe: the
+ * commander set's context plus a Record entry per MEASURED in-deck card.
+ * Presence is the honesty contract: an id in `byCard` was measured against
+ * the set's aggregate and its `lists` may honestly be 0 (the "0 of N" cut
+ * line); an id absent from `byCard` was NOT in the measured snapshot — a
+ * mid-edit add, or the leaders themselves (commanders are excluded from
+ * their own lists at ingest, so a zero there would be fabricated) — and
+ * gets no tournament evidence at all.
+ */
+export interface TournamentCutSignals {
+  context: TournamentContext | null;
+  byCard: Record<string, TournamentSignal>;
+}
+
+/**
  * Signal weights (sum 1) for the cut-side score. Popularity leads (the
  * broadest measured signal — "a rank-40k card is more cuttable than a
- * staple"); curve and role overloads are editorial-template comparisons;
+ * staple"); tournaments sit just under it (P3.11 — measured play with the
+ * deck's EXACT commander set is deck-specific where edhrec_rank is global,
+ * but only ~990 commander sets have data: rank.ts's rebalance reasoning,
+ * cut side); curve and role overloads are editorial-template comparisons;
  * price trails because it only ever compounds weak popularity. Combo
  * membership deliberately has NO weight: it is an ordering rule (members
  * last), not a scalar to tune — no weight drift can make a combo piece an
- * ordinary cut.
+ * ordinary cut. (P3.4 shipped without tournaments at .45/.25/.2/.1; the
+ * P3.11 seat takes mostly from popularity, a sliver from curve and role.)
  */
-export const CUT_WEIGHTS = { popularity: 0.45, curve: 0.25, role: 0.2, price: 0.1 } as const;
+export const CUT_WEIGHTS = {
+  popularity: 0.3,
+  tournaments: 0.25,
+  curve: 0.2,
+  role: 0.15,
+  price: 0.1,
+} as const;
 
 /** Price at which the price signal saturates (contribution caps at 1). */
 export const PRICE_SATURATION_USD = 50;
@@ -112,8 +141,9 @@ export interface CutCandidate {
   /**
    * Non-empty, in presentation order — the lead line is WHY the card ranks
    * where it does: combo warnings first (the tradeoff that matters most),
-   * then the cut-side lines (popularity, curve, role, price), then any
-   * non-combo keep line ("widely played") as the trailing cost.
+   * then the cut-side lines (popularity, tournaments, curve, role, price),
+   * then any non-combo keep line ("widely played", a measured tournament
+   * staple) as the trailing cost.
    */
   evidence: CutEvidence[];
 }
@@ -128,6 +158,15 @@ export interface RankCutsInput {
   excludedZones: ReadonlySet<string>;
   /** Complete-combo membership by card id (completeCombosByCard). Empty = no signal. */
   completeCombosByCard: ReadonlyMap<string, readonly CardCompleteCombo[]>;
+  /**
+   * Tournament play per MEASURED in-deck card id (P3.11 — see
+   * TournamentCutSignals for the presence semantics: a present id with
+   * lists 0 is real "0 of N" data, an absent id was never measured and gets
+   * no evidence). Both absent/null when the deck's commander set has no
+   * aggregated lists — rank.ts's honest-absence contract, cut side.
+   */
+  tournamentsByCard?: ReadonlyMap<string, TournamentSignal>;
+  tournamentContext?: TournamentContext | null;
 }
 
 export interface RankCutsResult {
@@ -251,6 +290,39 @@ export function rankCuts(input: RankCutsInput): RankCutsResult {
         side,
       });
       score += CUT_WEIGHTS.popularity * (1 - popularityScore(card.popularity));
+    }
+
+    // Tournament share with the deck's EXACT commander set (P3.11): the cut
+    // side of rank.ts's signal — same shrink, same denominator-based
+    // confidence. The contribution RISES as the measured share falls ("0 of
+    // 94 top-16 lists" is the strongest measured cut argument), while which
+    // side the words argue is the adapter's tier call: a staple's share is
+    // a keep warning stashed for the tail, like popularity above. Only
+    // cards PRESENT in tournamentsByCard were measured — absence (a
+    // mid-edit add, the leader, or no aggregated set at all) contributes
+    // nothing, never a fabricated zero.
+    const tCtx = input.tournamentContext;
+    const tSignal = input.tournamentsByCard?.get(card.id);
+    if (meta.tournaments && cuts.tournaments && tSignal && tCtx && tCtx.lists > 0) {
+      const share = Math.min(1, tSignal.lists / tCtx.lists);
+      const { why, howOften, side } = cuts.tournaments.evidence({
+        commanderNames: tCtx.commanderNames,
+        lists: tSignal.lists,
+        ofLists: tCtx.lists,
+        share,
+        top4: tSignal.top4,
+        since: tCtx.since,
+      });
+      (side === "keep" ? keepTail : evidence).push({
+        source: meta.tournaments.source,
+        why,
+        with: [],
+        howOften,
+        confidence: tournamentConfidence(tCtx.lists),
+        side,
+      });
+      score +=
+        CUT_WEIGHTS.tournaments * (1 - share) * (tCtx.lists / (tCtx.lists + TOURNAMENT_SHRINK_K));
     }
 
     // Curve overload: cards in a bucket over its editorial target are

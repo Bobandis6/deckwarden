@@ -264,6 +264,25 @@ export interface CutsMeta {
     };
   };
   /**
+   * Tournament-share tradeoff phrasing over the sibling `tournaments`
+   * declaration (P3.11 — the cut side of the same aggregate, same evidence
+   * input). `side` is the adapter's share-tier call: a meaningful share is
+   * a keep warning (the play record is what cutting costs), a thin one
+   * argues the slot is cheap by measured play. The machine fires it only
+   * for cards MEASURED against the set's aggregate — a missing signal
+   * stays missing, never a fabricated zero.
+   */
+  tournaments?: {
+    evidence(i: {
+      commanderNames: string[];
+      lists: number;
+      ofLists: number;
+      share: number;
+      top4: number;
+      since: string | null;
+    }): { why: string; howOften: string; side: CutSide };
+  };
+  /**
    * Price-vs-contribution phrasing. The machine fires it only when the
    * card's popularity evidence came back side "cut" (measured weak play)
    * AND cheapestUsd ≥ minUsd — a price with nothing to weigh it against is

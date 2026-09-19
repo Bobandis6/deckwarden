@@ -27,6 +27,12 @@
  * Also covers the Combo Radar route (P3.3) on the same fixture deck:
  * Basalt Monolith alone → the Rings combo in oneAway with the add target
  * named; Rings added → the pair in inDeck with no missing pieces.
+ *
+ * P3.11: the radar response's additive `tournaments` block (the Cut
+ * Coach's signals, same fetch) — Talrand's set answers the honest empty
+ * shape (null context, empty byCard); the Kinnan deck answers a measured
+ * context whose byCard covers the main-deck card (lists may be 0 — real
+ * data) and NEVER the commander (no self-rows at ingest).
  */
 export {}; // import-free file: stay a module so `main` doesn't collide with other scripts
 
@@ -109,6 +115,10 @@ interface RadarBody {
   inDeck?: DeckCombo[];
   oneAway?: DeckCombo[];
   truncated?: boolean;
+  tournaments?: {
+    context: { commanderNames: string[]; lists: number; since: string | null } | null;
+    byCard: Record<string, { lists: number; top4: number }>;
+  };
 }
 
 const SOURCES = new Set(["edhrec_rank", "spellbook", "curve-template", "topdeck-top16"]);
@@ -255,6 +265,13 @@ async function main() {
       "radar wire shape (inDeck / oneAway / truncated)",
       Array.isArray(r1.inDeck) && Array.isArray(r1.oneAway) && typeof r1.truncated === "boolean",
     );
+    check(
+      "radar carries the additive tournaments block; Talrand's set → null context, empty byCard",
+      r1.tournaments !== undefined &&
+        r1.tournaments.context === null &&
+        Object.keys(r1.tournaments.byCard ?? {}).length === 0,
+      r1.tournaments,
+    );
     const oneAway = r1.oneAway ?? [];
     check(
       "one-away rows: exactly one missing piece, an external key, honest popularity",
@@ -336,9 +353,14 @@ async function main() {
       try {
         const kPut = await api("PUT", `/api/decks/${kDeckId}/cards`, {
           token: kToken,
-          body: { cards: [{ cardId: kinnan.id, zone: "commander", qty: 1, tags: [] }] },
+          body: {
+            cards: [
+              { cardId: kinnan.id, zone: "commander", qty: 1, tags: [] },
+              { cardId: monolith.id, zone: "main", qty: 1, tags: [] },
+            ],
+          },
         });
-        check("Kinnan set as commander", kPut.status === 200, kPut.json);
+        check("Kinnan set as commander (+ a main-deck card)", kPut.status === 200, kPut.json);
 
         const kRes = await api("GET", `/api/decks/${kDeckId}/recommendations`);
         const kRecs = (kRes.json as { recommendations?: Rec[] })?.recommendations ?? [];
@@ -371,6 +393,28 @@ async function main() {
         check(
           "tournament evidence carries a machine confidence",
           tEvidence.every((e) => CONFIDENCES.has(e.confidence)),
+        );
+
+        // --- P3.11: the radar's tournaments block on a measured set ---------
+        const kRadar = await api("GET", `/api/decks/${kDeckId}/combos`);
+        const kT = (kRadar.json as RadarBody).tournaments;
+        check(
+          "Kinnan radar → measured context naming the commander, real denominator",
+          kRadar.status === 200 &&
+            kT !== undefined &&
+            kT.context !== null &&
+            kT.context.lists > 0 &&
+            kT.context.commanderNames.includes("Kinnan, Bonder Prodigy"),
+          kT?.context,
+        );
+        const mono = kT?.byCard[monolith.id];
+        check(
+          "byCard measures the main-deck card (lists ≥ 0, top4 ≤ lists), never the commander",
+          mono !== undefined &&
+            mono.lists >= 0 &&
+            mono.top4 <= mono.lists &&
+            kT?.byCard[kinnan.id] === undefined,
+          kT?.byCard,
         );
       } finally {
         const kDel = await api("DELETE", `/api/decks/${kDeckId}`, { token: kToken });

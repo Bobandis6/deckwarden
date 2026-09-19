@@ -33,6 +33,13 @@ const META: RecommendMeta = {
     source: "combo",
     evidence: () => ({ why: "add-combo", howOften: null }),
   },
+  tournaments: {
+    source: "topdeck",
+    evidence: ({ lists, ofLists }) => ({
+      why: `add-t ${lists}/${ofLists}`,
+      howOften: `${lists}/${ofLists}`,
+    }),
+  },
   cuts: {
     popularity: {
       evidence: (rank) =>
@@ -58,6 +65,15 @@ const META: RecommendMeta = {
       source: "price",
       minUsd: 10,
       evidence: ({ usd }) => ({ why: `pricey $${usd}` }),
+    },
+    tournaments: {
+      // Tier boundary at share 0.5 (side flips) — MTG's real tiers are
+      // pinned in games/mtg/recommend.test.ts, not here.
+      evidence: ({ lists, ofLists, share }) => ({
+        why: share >= 0.5 ? `t-proven ${lists}/${ofLists}` : `t-thin ${lists}/${ofLists}`,
+        howOften: `${lists} of ${ofLists}`,
+        side: share >= 0.5 ? "keep" : "cut",
+      }),
     },
   },
 };
@@ -282,6 +298,138 @@ describe("complete-combo membership", () => {
       ]),
     });
     expect(byId(result, "piece").evidence[0]).toMatchObject({ side: "keep", confidence: "low" });
+  });
+});
+
+describe("tournament share (P3.11)", () => {
+  const ctx = { commanderNames: ["Cmd"], lists: 94, since: "2026-03-01" };
+  const shrink = (n: number) => n / (n + 10); // TOURNAMENT_SHRINK_K, spelled out
+
+  it("argues cut for a measured zero, scoring the full shrunk weight", () => {
+    // popularity null → the tournament line is the card's ONLY evidence:
+    // a measured 0-of-N both ranks the card and prices its slot as cheap.
+    const result = rank({
+      entries: [entry({ id: "ghost", popularity: null })],
+      tournamentsByCard: new Map([["ghost", { lists: 0, top4: 0 }]]),
+      tournamentContext: ctx,
+    });
+    const ghost = byId(result, "ghost");
+    expect(ghost.evidence).toHaveLength(1);
+    expect(ghost.evidence[0]).toMatchObject({
+      source: "topdeck",
+      side: "cut",
+      why: "t-thin 0/94",
+      howOften: "0 of 94",
+      confidence: "high", // denominator ≥ 20
+    });
+    expect(ghost.score).toBeCloseTo(CUT_WEIGHTS.tournaments * 1 * shrink(94), 10);
+  });
+
+  it("trails a keep-side share behind the cut lines and scores it near zero", () => {
+    const result = rank({
+      entries: [
+        entry({ id: "meta-staple", popularity: 40000 }),
+        entry({ id: "ghost", popularity: 40000 }),
+      ],
+      tournamentsByCard: new Map([
+        ["meta-staple", { lists: 85, top4: 12 }],
+        ["ghost", { lists: 0, top4: 0 }],
+      ]),
+      tournamentContext: ctx,
+    });
+    // Same popularity; the measured zero out-scores the measured staple.
+    expect(result.cuts.map((c) => c.cardId)).toEqual(["ghost", "meta-staple"]);
+    const staple = byId(result, "meta-staple");
+    expect(staple.evidence.map((e) => [e.source, e.side])).toEqual([
+      ["pop", "cut"],
+      ["topdeck", "keep"],
+    ]);
+    expect(byId(result, "ghost").score - staple.score).toBeCloseTo(
+      CUT_WEIGHTS.tournaments * (85 / 94) * shrink(94),
+      10,
+    );
+  });
+
+  it("emits nothing without context, for unmeasured cards, or without the phrasing block", () => {
+    // No context: signals alone are never used (whose denominator would they have?).
+    const noCtx = rank({
+      entries: [entry({ id: "a", popularity: null })],
+      tournamentsByCard: new Map([["a", { lists: 0, top4: 0 }]]),
+    });
+    expect(noCtx.cuts).toEqual([]);
+    expect(noCtx.unranked).toBe(1);
+
+    // Context present but the card absent from byCard — a mid-edit add was
+    // never measured: no evidence, never a fabricated "0 of 94".
+    const unmeasured = rank({
+      entries: [entry({ id: "fresh", popularity: null })],
+      tournamentsByCard: new Map(),
+      tournamentContext: ctx,
+    });
+    expect(unmeasured.cuts).toEqual([]);
+    expect(unmeasured.unranked).toBe(1);
+
+    // cuts.tournaments not declared → the sibling data alone fires nothing.
+    const noPhrasing: RecommendMeta = {
+      ...META,
+      cuts: { ...META.cuts, tournaments: undefined },
+    };
+    const gated = rank({
+      meta: noPhrasing,
+      entries: [entry({ id: "b", popularity: null })],
+      tournamentsByCard: new Map([["b", { lists: 0, top4: 0 }]]),
+      tournamentContext: ctx,
+    });
+    expect(gated.cuts).toEqual([]);
+  });
+
+  it("shrinks a tiny denominator and degrades its confidence", () => {
+    const result = rank({
+      entries: [entry({ id: "a", popularity: null })],
+      tournamentsByCard: new Map([["a", { lists: 0, top4: 0 }]]),
+      tournamentContext: { commanderNames: ["Cmd"], lists: 2, since: null },
+    });
+    const a = byId(result, "a");
+    expect(a.evidence[0].confidence).toBe("low");
+    expect(a.score).toBeCloseTo(CUT_WEIGHTS.tournaments * 1 * shrink(2), 10);
+  });
+
+  it("keeps a measured-zero combo piece after every non-member (the ordering rule holds)", () => {
+    const result = rank({
+      entries: [
+        entry({ id: "piece", popularity: 40000, cheapestUsd: 40 }),
+        entry({ id: "plain", popularity: 20000 }),
+      ],
+      completeCombosByCard: new Map([
+        [
+          "piece",
+          [
+            {
+              withPieces: [{ cardId: "partner", name: "Partner Piece" }],
+              results: [],
+              popularity: 4000,
+            },
+          ],
+        ],
+      ]),
+      tournamentsByCard: new Map([["piece", { lists: 0, top4: 0 }]]),
+      tournamentContext: ctx,
+    });
+    // Max cut signals on the piece (deep rank + price + measured zero) —
+    // membership still wins, and the break warning still leads.
+    expect(result.cuts.map((c) => c.cardId)).toEqual(["plain", "piece"]);
+    expect(byId(result, "piece").evidence[0].source).toBe("combo");
+  });
+
+  it("weights sum to 1 with tournaments seated (the P3.11 rebalance)", () => {
+    expect(CUT_WEIGHTS).toEqual({
+      popularity: 0.3,
+      tournaments: 0.25,
+      curve: 0.2,
+      role: 0.15,
+      price: 0.1,
+    });
+    expect(Object.values(CUT_WEIGHTS).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
   });
 });
 

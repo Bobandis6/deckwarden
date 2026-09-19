@@ -6,6 +6,8 @@ import {
   mtgCurveBucketOf,
   mtgRecommend,
   STAPLE_RANK,
+  TOURNAMENT_PLAYED_SHARE,
+  TOURNAMENT_STAPLE_SHARE,
   WIDELY_PLAYED_RANK,
 } from "./recommend";
 
@@ -167,6 +169,51 @@ describe("cut phrasing (P3.4 — the tradeoff in the deck's own terms)", () => {
     ).toBeNull();
   });
 
+  it("phrases the tournament tradeoff by share tier, exact-set in every sentence (P3.11)", () => {
+    const at = (lists: number, ofLists: number, top4 = 0) =>
+      cuts.tournaments!.evidence({
+        commanderNames: ["Kinnan, Bonder Prodigy"],
+        lists,
+        ofLists,
+        share: lists / ofLists,
+        top4,
+        since: "2026-03-07",
+      });
+
+    // The row's headline: a measured zero argues cut, raw numbers up front.
+    const zero = at(0, 94);
+    expect(zero.side).toBe("cut");
+    expect(zero.why).toBe("Played in 0 of 94 top-16 lists with Kinnan, Bonder Prodigy");
+    expect(zero.howOften).toBe(
+      "0 of 94 top-16 lists at 16+ player events on Topdeck.gg, settled events since 2026-03",
+    );
+
+    // Thin play stays a cut argument; top4 is DISCLOSED in howOften, never ranked on.
+    const thin = at(3, 94, 1);
+    expect(thin.side).toBe("cut");
+    expect(thin.why).toBe("Played in 3 of 94 top-16 lists with Kinnan, Bonder Prodigy");
+    expect(thin.howOften).toContain("; 1 placed top 4");
+
+    // At the played tier the record is a keep warning; at the staple tier it names the cost.
+    const played = at(Math.ceil(TOURNAMENT_PLAYED_SHARE * 94), 94);
+    expect(played.side).toBe("keep");
+    expect(played.why).toContain("sees real measured play");
+    const staple = at(58, 94, 17);
+    expect(58 / 94).toBeGreaterThanOrEqual(TOURNAMENT_STAPLE_SHARE);
+    expect(staple.side).toBe("keep");
+    expect(staple.why).toBe(
+      "Played in 62% of top-16 lists with Kinnan, Bonder Prodigy — cutting it gives up a measured staple",
+    );
+    expect(staple.howOften).toBe(
+      "58 of 94 top-16 lists at 16+ player events on Topdeck.gg, settled events since 2026-03; 17 placed top 4",
+    );
+
+    // Percentage honesty (the P3.10 shareLabel rule): 187 of 188 is 99%,
+    // never a false 100% — and a real 100% may say so.
+    expect(at(187, 188).why).toContain("99%");
+    expect(at(94, 94).why).toContain("100%");
+  });
+
   it("prices against the play-data tier it compounds, above a real floor", () => {
     expect(cuts.price?.minUsd).toBe(10);
     const { why } = cuts.price!.evidence({ usd: "42.50" });
@@ -175,9 +222,16 @@ describe("cut phrasing (P3.4 — the tradeoff in the deck's own terms)", () => {
   });
 
   it("declares display metadata for every cut evidence source", () => {
-    // Curve/popularity/combo reuse the sibling slugs; roles and price add
-    // their own — all must render with a human label in the panel.
-    for (const slug of ["edhrec_rank", "curve-template", "spellbook", "role-template", "price"]) {
+    // Curve/popularity/combo/tournaments reuse the sibling slugs; roles and
+    // price add their own — all must render with a human label in the panel.
+    for (const slug of [
+      "edhrec_rank",
+      "curve-template",
+      "spellbook",
+      "role-template",
+      "price",
+      "topdeck-top16",
+    ]) {
       expect(mtgRecommend.sources?.[slug]?.label).toBeTruthy();
     }
   });

@@ -11,7 +11,11 @@
  * vs the recommendations route's ~6 plus ranking. Both panels fetch only
  * while their tab is active and once per settled autosave burst, so adding
  * this route does NOT double the per-edit combo scan: at most one of the
- * two runs per edit. Same rate-limit stance, own bucket.
+ * two runs per edit. Same rate-limit stance, own bucket. P3.11 adds up to
+ * 3 aggregate reads (a commander_stats PK hit; the name + pair-row reads
+ * only when the set has data) for games whose recommend meta declares
+ * tournaments — the Cut Coach's signals ride THIS response so the
+ * one-fetch-per-edit policy holds instead of growing a second route.
  *
  * No query params by design: the Radar has no tunables (no budget/limit —
  * detection is what it is), so there is nothing to zod. Read access mirrors
@@ -26,7 +30,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { loadCombosNearDeck, loadDeckCardIds } from "@/lib/combos/queries";
 import { deckComboStatus } from "@/lib/combos/view";
 import { clientIp } from "@/lib/decks/access";
-import { requireReadableDeck } from "@/lib/decks/route-helpers";
+import { deckFormat, requireReadableDeck } from "@/lib/decks/route-helpers";
+import type { TournamentCutSignals } from "@/lib/recommend/cuts";
+import { loadTournamentSignals } from "@/lib/recommend/queries";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -51,8 +57,29 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   const inDeck = found.combos.filter((c) => deckComboStatus(c) !== "one-away");
   const oneAway = found.combos.filter((c) => deckComboStatus(c) === "one-away");
 
+  // Additive tournament block (P3.11), over the SAME card ids the combo
+  // scan used. byCard carries an entry per measured card — lists may
+  // honestly be 0, the Cut Coach's "0 of N" line — EXCEPT the leaders:
+  // commanders are excluded from their own lists at ingest (no self-rows),
+  // so a zero there would be fabricated, and the Coach never ranks the
+  // leader zone anyway. Games without tournaments meta (OP) skip the reads
+  // entirely and answer the honest empty shape.
+  const meta = deckFormat(deck)?.adapter.recommend;
+  let tournaments: TournamentCutSignals = { context: null, byCard: {} };
+  if (meta?.tournaments) {
+    const signals = await loadTournamentSignals(deck.leaderIds, cardIds);
+    if (signals.context) {
+      const leaderSet = new Set(deck.leaderIds);
+      const byCard: TournamentCutSignals["byCard"] = {};
+      for (const id of cardIds) {
+        if (!leaderSet.has(id)) byCard[id] = signals.byCandidate.get(id) ?? { lists: 0, top4: 0 };
+      }
+      tournaments = { context: signals.context, byCard };
+    }
+  }
+
   return NextResponse.json(
-    { deckId: deck.id, inDeck, oneAway, truncated: found.truncated },
+    { deckId: deck.id, inDeck, oneAway, truncated: found.truncated, tournaments },
     { headers: NO_STORE },
   );
 }

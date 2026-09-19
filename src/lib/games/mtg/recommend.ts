@@ -39,6 +39,34 @@ const fmt = (n: number) => n.toLocaleString("en-US");
 export const STAPLE_RANK = 2000;
 export const WIDELY_PLAYED_RANK = 10000;
 
+/**
+ * Share tiers for the tournament cut side (P3.11) — the tournament twin of
+ * the rank boundaries above, over the P3.8 aggregate: at or above
+ * TOURNAMENT_STAPLE_SHARE of the set's measured lists, cutting gives up a
+ * measured staple (keep); at or above TOURNAMENT_PLAYED_SHARE the card
+ * still sees real measured play (keep); below, the thin record argues the
+ * slot is cheap (cut). Editorial boundaries — the sentences carry the raw
+ * numbers so the tier word never outruns the data.
+ */
+export const TOURNAMENT_STAPLE_SHARE = 0.5;
+export const TOURNAMENT_PLAYED_SHARE = 0.15;
+
+/**
+ * The one Topdeck scope sentence, both directions (P3.8 add / P3.11 cut):
+ * raw numbers, the event floor, the source, the settling date, top-4s
+ * disclosed — extracted so the two evidence builders can't drift.
+ */
+function topdeckHowOften(
+  lists: number,
+  ofLists: number,
+  since: string | null,
+  top4: number,
+): string {
+  const sinceText = since ? `, settled events since ${since.slice(0, 7)}` : "";
+  const top4Text = top4 > 0 ? `; ${fmt(top4)} placed top 4` : "";
+  return `${fmt(lists)} of ${fmt(ofLists)} top-16 lists at 16+ player events on Topdeck.gg${sinceText}${top4Text}`;
+}
+
 export const mtgRecommend: RecommendMeta = {
   popularity: {
     source: "edhrec_rank",
@@ -76,11 +104,9 @@ export const mtgRecommend: RecommendMeta = {
     evidence({ commanderNames, lists, ofLists, share, top4, since }) {
       const cmd = commanderNames.join(" + ");
       const pct = Math.round(share * 100);
-      const sinceText = since ? `, settled events since ${since.slice(0, 7)}` : "";
-      const top4Text = top4 > 0 ? `; ${fmt(top4)} placed top 4` : "";
       return {
         why: `Played in ${pct}% of top-16 lists with ${cmd}`,
-        howOften: `${fmt(lists)} of ${fmt(ofLists)} top-16 lists at 16+ player events on Topdeck.gg${sinceText}${top4Text}`,
+        howOften: topdeckHowOften(lists, ofLists, since, top4),
       };
     },
   },
@@ -171,6 +197,41 @@ export const mtgRecommend: RecommendMeta = {
       minUsd: 10,
       evidence({ usd }) {
         return { why: `Costs $${usd} while sitting outside the widely-played tier` };
+      },
+    },
+    /**
+     * The P3.8 aggregate answering the cut side (P3.11): the same exact-set
+     * scope in every sentence — the deck's OWN commanders, never a widened
+     * pairing (LATER row 35 owns that). Thin measured play argues with the
+     * raw counts; a meaningful share flips to a keep warning at the tiers
+     * declared above.
+     */
+    tournaments: {
+      evidence({ commanderNames, lists, ofLists, share, top4, since }) {
+        const cmd = commanderNames.join(" + ");
+        const howOften = topdeckHowOften(lists, ofLists, since, top4);
+        // Percentage honesty (the P3.10 shareLabel rule): a real 100% may
+        // say so; anything less never rounds up to it.
+        const pct = share >= 1 ? 100 : Math.min(99, Math.round(share * 100));
+        if (share >= TOURNAMENT_STAPLE_SHARE) {
+          return {
+            why: `Played in ${pct}% of top-16 lists with ${cmd} — cutting it gives up a measured staple`,
+            howOften,
+            side: "keep" as const,
+          };
+        }
+        if (share >= TOURNAMENT_PLAYED_SHARE) {
+          return {
+            why: `Played in ${pct}% of top-16 lists with ${cmd} — it sees real measured play`,
+            howOften,
+            side: "keep" as const,
+          };
+        }
+        return {
+          why: `Played in ${fmt(lists)} of ${fmt(ofLists)} top-16 lists with ${cmd}`,
+          howOften,
+          side: "cut" as const,
+        };
       },
     },
   },

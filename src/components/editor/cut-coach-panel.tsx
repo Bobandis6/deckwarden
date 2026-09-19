@@ -11,14 +11,19 @@
  * ranker is pure and runs HERE, on every edit — the editor already holds
  * full CardData per card, tags per entry, and both editorial templates off
  * the adapter, so cuts re-rank instantly mid-edit with zero server cost.
- * The ONE client-missing signal, combo membership, reuses the Combo Radar's
- * route (GET /api/decks/[id]/combos) under the same fetch policy (active
- * tab + leader + deck row + autosave settled + deckStateKey change) — never
- * a second combo query path, and at most one panel fetches per edit since
- * only one tab is active. While combo data is pending, absent (no leader:
- * deck ci_mask 0 would hide colored combos and mislabel their pieces as
- * ordinary cuts), or failed, the panel says so explicitly — rankings
- * without combo protection are disclosed, never silent.
+ * The client-missing signals — combo membership, and since P3.11 the
+ * tournament shares for the deck's exact commander set — reuse the Combo
+ * Radar's route (GET /api/decks/[id]/combos) under the same fetch policy
+ * (active tab + leader + deck row + autosave settled + deckStateKey
+ * change): never a second per-edit route, and at most one panel fetches
+ * per edit since only one tab is active. While combo data is pending,
+ * absent (no leader: deck ci_mask 0 would hide colored combos and mislabel
+ * their pieces as ordinary cuts), or failed, the panel says so explicitly —
+ * rankings without combo protection are disclosed, never silent. Tournament
+ * data needs no such note: absence is the aggregate's honest cold start
+ * (most commander sets have no measured lists), and a card added since the
+ * last fetch simply carries no tournament line until the next settled
+ * fetch measures it (byCard presence, never a fabricated zero).
  *
  * The gate is the deck's size computation, not a new one: deckSizeCount
  * over countsTowardSize zones vs FormatDef.deckSize.max — exactly what the
@@ -46,6 +51,7 @@ import {
   rankCuts,
   type CutCandidate,
   type CutEntryInput,
+  type TournamentCutSignals,
 } from "@/lib/recommend/cuts";
 import type { FormatDef, GameAdapter } from "@/lib/games/types";
 
@@ -75,6 +81,7 @@ export function CutCoachPanel({
   onSetQty,
 }: CutCoachPanelProps) {
   const [combosInDeck, setCombosInDeck] = useState<DeckComboView[] | null>(null);
+  const [tournaments, setTournaments] = useState<TournamentCutSignals | null>(null);
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -107,9 +114,11 @@ export function CutCoachPanel({
           throw new Error("The combo check is rate-limited for a moment — try again shortly.");
         }
         if (!res.ok) throw new Error(`The combo check failed (${res.status}).`);
-        const json: { inDeck: DeckComboView[] } = await res.json();
+        const json: { inDeck: DeckComboView[]; tournaments?: TournamentCutSignals } =
+          await res.json();
         lastKeyRef.current = fetchKey;
         setCombosInDeck(json.inDeck);
+        setTournaments(json.tournaments ?? null);
         setFetching(false);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -138,8 +147,10 @@ export function CutCoachPanel({
       entries: cutEntries,
       excludedZones,
       completeCombosByCard: completeCombosByCard(combosInDeck ?? [], presentIds),
+      tournamentsByCard: new Map(Object.entries(tournaments?.byCard ?? {})),
+      tournamentContext: tournaments?.context ?? null,
     });
-  }, [overBy, entries, cards, format, adapter, combosInDeck]);
+  }, [overBy, entries, cards, format, adapter, combosInDeck, tournaments]);
 
   const toggleExpanded = (key: string) => {
     setExpanded((prev) => {
