@@ -644,7 +644,7 @@ LATER  on-site tournament lists · One Piece starter decks / autofill · affilia
 Tick a package with its date and sha when it ships; record deviations from this contract beside the tick (the way `REDESIGN.md` §6 does), not by rewriting the sections above.
 
 - [x] Plan approved by the owner; contract landed in the repo with `W1-session-prompt.md` (2026-09-19).
-- [ ] W1 — Brand foundation (step 0: build plan §6c, CLAUDE.md line, REDESIGN.md addendum, LATER rows; then tokens, fills, the mark, Literata titles)
+- [x] W1 — Brand foundation (2026-09-19: step 0 docs `4b21d00`, feat `e40342d`; D0 shipped **verbatim** — no token deviations; ship note in `W1-session-prompt.md`. Small implementation decisions recorded there: primary hover = the house color-mix idiom, Badge's unused default variant got the same hairline, avatar badge text → `text-background`, `favicon.ico` hand-assembled 16+32 PNG-in-ICO because `pnpm dlx png-to-ico` emitted a 285KB four-size file, `global-error`'s h1 stays sans — that shell loads no font variables.)
 - [ ] W2 — Brand completion (OG wordmark + font, manifest, apple icon, `themeColor`, both-theme audit, the serif-modal-titles decision)
 - [ ] W3 — Account menu + deck quick actions
 - [ ] W4 — Choose-commander flow (+ `/commanders?q=`)

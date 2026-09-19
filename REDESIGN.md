@@ -511,4 +511,4 @@ The W-series (`WAVE2.md`, build plan §6c) re-keys the brand this contract was w
 
 ### W1 deviations from `WAVE2.md` D0 (measured ratios)
 
-Recorded as they happen during W1; an empty list means D0 shipped verbatim.
+**None — D0 shipped verbatim (2026-09-19, `e40342d`).** The four R6 light-theme fixes were re-measured on the new ivory surfaces and all hold with no changes: placeholders (`--muted-foreground` `#565e5b`) 6.08:1 on `#f7f4ee` / 6.56:1 on card; inactive tab triggers 5.62:1 on muted `#f0ebe1`; the banner credit 13.17:1 at its worst case (85 % ivory over white art); the amber legality chip (`text-amber-800` on `amber-500/15`) 5.83:1 light / 8.68:1 dark. Also measured: the gold hairline ≈ 3.01:1 against the primary green fill (non-text boundary, ≥ 3:1); focus rings at 50 % — gold 2.95:1 dark, green 2.57:1 light; the emerald Warden line 5.0:1 light / 9.72:1 dark. `tracking-tight` kept on every serif title (nothing read cramped in the dev pass).
