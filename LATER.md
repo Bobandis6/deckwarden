@@ -83,6 +83,7 @@ with one line on when it earns its way back. Nothing on this list is a "no" — 
 | Autofill variants: "chaos mode", total-deck budget, client-side reroll, theme hints (tribal/keyword matching): the owner chose the evidence-based shell (2026-09-19); per-card budget tiers match Suggestions; theme hints are inference from card text, adjacent to the no-role-inference rule. Client-side reroll has a designed escape hatch — `buildShell` is pure, so the ranked window could be returned once and rerolled locally. | Someone asks twice / shell-quality feedback / Neon compute from rerolls shows up. |
 | Bulk multi-select on `/account`: one-at-a-time (W3's ⋯ menu) covers today's deck counts (cap 100). | A user manages dozens of decks. |
 | Hand-written precon blurbs: generated factual summaries ship first (W8); WotC marketing copy is never copied. | The owner wants editorial voice on the newest products. |
+| Maskable manifest icons (`purpose: "maskable"`): W2 ships 192/512 with `purpose: "any"` only — declaring maskable promises an 80 % safe zone nobody verified on a device (the shield sits at 65.6 % of the canvas, likely fine, unproven). Same qlmanage pipeline, one padding tweak + a device/Lighthouse pass. | An Android install shows a cropped shield, or Lighthouse PWA audit is run in anger. |
 
 ## Deferred infrastructure
 
