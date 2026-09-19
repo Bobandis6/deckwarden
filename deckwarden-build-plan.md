@@ -243,6 +243,28 @@ The visual redesign runs as its own numbered packages, governed by [REDESIGN.md]
 
 **Status (2026-09-12): the R-series is complete — R1a `8f69064` → R1b `d0b25de` → R3 `d05a957` → R2 `096df3b` → R5a `02b4b6a` → R5b `15fa66f` → R4 `e77ff0f` → R6 `fe0fa40`; `REDESIGN.md` §6 is the record.** Sanctioned by §10's brand hook (dark default, per-game accent, the Warden persona, shield-and-card mark). Fires LATER row 47 (R1a) and row 63 (R5b); does not fire row 62. One Piece ambient art stays off until Bandai answers (owner decision 2026-09-08). Hard rules unchanged: attribution, no image optimizer, no stored image URLs, the cold-start rule, keyboard-first.
 
+## 6c. W-series — Wave-2 packages (added 2026-09-19)
+
+Wave 2 (the crest rebrand plus the owner's ten feature ideas) runs as its own numbered packages, governed by [WAVE2.md](WAVE2.md) (the owner-approved contract, landed 2026-09-19) under the same session protocol as Pn.m and Rn packages: one package per session, deployed and `pnpm check`-green or not done, out-of-scope items to LATER.md with a trigger. The standing P2.9 / P4.7 beta-response triggers keep their priority — a warm signal gets its own session, never a slice of a W-session.
+
+| Package | Deliverable | Done when |
+|---|---|---|
+| W1 Brand foundation | crest token re-key (forest green / gold / charcoal / ivory, dark default), vector crest + shield `BrandMark`, favicon, Literata wordmark + titles, gold hairline on primary buttons | both themes readable everywhere; indigo gone from `src/` outside OG code reserved for W2; ISR routes still `●`; pinned copy intact |
+| W2 Brand completion | OG wordmark + Literata TTF for satori, `og.accentGeneric` → gold, `manifest.ts` + apple icon, `themeColor`, `SurfaceHeader` gold rule + generic gradient, both-theme contrast audit, the serif-modal-titles decision | every OG route returns the crest + serif wordmark (Inter fallback can never 500); audited text pairs ≥ 4.5:1 recorded; One Piece unfurls stay artless |
+| W3 Account menu + deck quick actions | account dropdown (sections + Sign out), ⋯ and right-click deck actions (visibility radios, folder submenu, delete AlertDialog, Undo toast) | sign out works from any page; visibility is one click with Undo and no grid reorder; delete guarded; APIs unchanged |
+| W4 Choose-commander flow | leader-zone Browse link via `display.leaderBrowse`, sessionStorage pick intent + hub "Use for" CTA island, `?leader=` applied only with matching intent + empty zone, `/commanders` `?q=` | fresh draft round-trips hub → seeded draft with zero deck rows; a saved deck returns to itself with Undo; crafted links change nothing; hub server HTML byte-identical |
+| W5 Card-page printings + API | `GET /api/cards/[id]/printings`, gallery island (pin-to-hero, hover previews, `?printing=`, phone drawer), default-printing ingest fix (REC-1) | ≤ 100 slim rows in HTML; hero stays the LCP; ISR intact; Sol Ring's default becomes a regular printing with a USD price |
+| W6 Editor printings | Collapsible printings in the card pane (fetch on first open), `setPrinting` as a real edit with Undo, ambient art + list image follow | choosing a printing autosaves and crossfades the art; reload keeps it; previewing never mints a deck |
+| W7 Buy links | adapter `capabilities.buy` (MTG only), Mass Entry link builders + tests, Buy menus on share / editor / card pages, copy-list fallback, affiliate env var (stays empty on Hobby) | whole-deck / no-basics / missing-only links open pre-filled; no Deckwarden server calls TCGplayer; no `sponsored` rel with the env unset |
+| W8a Precons data | `decks.kind` migration + `precon_products`, MTGJSON mapper + fixture, `ingest:precons` (deterministic `p_` ids, `source_hash`), `kind` guards (purge, backup, rails) | five spot checks correct; precons invisible in community rails; write routes 403; rerun idempotent; db growth < 6 MB |
+| W8b Precons surfaces | `/precons` (static + client filter island), `GET /api/precons/[code]`, share-page precon meta + Start from this precon (draft seeding), hub precon shelf, nav + sitemap | a precon draft seeds 100 cards with zero POST; the first edit creates exactly one deck; Fork still requires sign-in |
+| W9a Autofill engine + API | `gatherSignals` / `recommendForSnapshot` refactor, `RecommendMeta.autofill` (curve template + land plan, no role inference), pure `buildShell` + seeded RNG, `POST /api/decks/autofill` (writes nothing, own rate bucket) | 99 evidence-carrying picks that validate; same seed reproduces; budget shortfalls stated; partners yield 98 |
+| W9b Review sheet + editor doors | autofill sheet (Dialog / Drawer), `applyListSwap` with Undo (Import inherits it), doors in the empty state + More menu, adapter-gated | apply = one edit + Undo; reroll never dirties; One Piece shows no door |
+| W9c Doors: Surprise me · hub · combos | `GET /api/leaders/random`, Surprise me on `/decks/new` + home, hub "Start with a starter shell" (latched), With-your-commander combos + Add pieces + Build around | two rolls give two legal commanders with zero rows until accept; hub pinned CTA text/href untouched |
+| W10 Tournaments v1 | `/tournaments` (force-dynamic) + `/tournaments/[id]` (ISR, noindex), hub internal event links kept beside the external ones, nav + sitemap index | renders from existing tables only; the hub smokes' external-URL pins stay green |
+
+**Status:** progress is tracked in `WAVE2.md`'s tracker (tick per package with date + sha; deviations recorded beside the tick).
+
 ## 7. Feature Additions Beyond the Original Doc
 
 Adoption- and ease-of-use-focused additions, each slotted into a milestone above:
