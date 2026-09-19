@@ -9,6 +9,7 @@
 import type { Metadata, Viewport } from "next";
 
 import { DeckEditor } from "@/components/editor/deck-editor";
+import { dark } from "@/lib/theme/tokens";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
+  // W2: same single dark value as the root layout (see it for why).
+  themeColor: dark.background,
 };
 
 export default async function DeckEditPage({ params }: PageProps<"/decks/[id]/edit">) {

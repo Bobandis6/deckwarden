@@ -18,6 +18,7 @@ import {
   OgSubtitle,
   OgTitle,
 } from "@/lib/og/elements";
+import { loadOgFonts } from "@/lib/og/fonts";
 import { fetchOgArt } from "@/lib/og/scryfall";
 import { ogAccent } from "@/lib/theme/tokens";
 
@@ -38,7 +39,9 @@ export const contentType = "image/png";
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const card = await loadCardOgData(id);
+  // Fonts on EVERY ImageResponse, fallback branches included (W2) — a
+  // branch without them would repaint in the bundled sans mid-family.
+  const [card, fonts] = await Promise.all([loadCardOgData(id), loadOgFonts()]);
 
   if (!card) {
     return new ImageResponse(
@@ -46,7 +49,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         <OgGenericBody />
         <OgFooter stats={[]} />
       </OgFrame>,
-      size,
+      { ...size, fonts },
     );
   }
 
@@ -76,6 +79,6 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         accent={accent}
       />
     </OgFrame>,
-    size,
+    { ...size, fonts },
   );
 }

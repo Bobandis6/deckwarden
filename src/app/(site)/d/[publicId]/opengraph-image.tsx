@@ -26,6 +26,7 @@ import {
   OgSubtitle,
   OgTitle,
 } from "@/lib/og/elements";
+import { loadOgFonts } from "@/lib/og/fonts";
 import { deckOgLabels } from "@/lib/og/labels";
 import { fetchOgArt } from "@/lib/og/scryfall";
 
@@ -37,7 +38,9 @@ export const contentType = "image/png";
 
 export default async function Image({ params }: { params: Promise<{ publicId: string }> }) {
   const { publicId } = await params;
-  const deck = await loadDeckOgData(publicId);
+  // Fonts on EVERY ImageResponse, fallback branches included (W2) — a
+  // branch without them would repaint in the bundled sans mid-family.
+  const [deck, fonts] = await Promise.all([loadDeckOgData(publicId), loadOgFonts()]);
 
   if (!deck || deck.visibility === "private") {
     return new ImageResponse(
@@ -45,7 +48,7 @@ export default async function Image({ params }: { params: Promise<{ publicId: st
         <OgGenericBody />
         <OgFooter stats={[]} />
       </OgFrame>,
-      size,
+      { ...size, fonts },
     );
   }
 
@@ -76,6 +79,6 @@ export default async function Image({ params }: { params: Promise<{ publicId: st
         <OgFooter stats={stats} accent={labels.accent} />
       </div>
     </OgFrame>,
-    size,
+    { ...size, fonts },
   );
 }

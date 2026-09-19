@@ -90,11 +90,13 @@ describe("OG palette", () => {
     expect(og.raised).toBe(dark.popover);
   });
 
-  it("accent per game: Magic lavender, One Piece teal; generic keeps the pre-W2 OG indigo", () => {
+  it("accent per game: Magic lavender, One Piece teal; generic is the brand gold (W2)", () => {
     expect(ogAccent(GAME_ID.mtg)).toBe("#b5a2ff");
     expect(ogAccent(GAME_ID.optcg)).toBe("#62d6c5");
-    expect(ogAccent(GAME_ID.azuki)).toBe("#a5b4fc");
+    expect(ogAccent(GAME_ID.azuki)).toBe("#c9a96a");
     expect(ogAccent(null)).toBe(og.accentGeneric);
+    // A reference, not a second literal: the generic accent IS dark gold.
+    expect(og.accentGeneric).toBe(dark.gold);
   });
 
   it("rgba() blends a token for satori gradients", () => {

@@ -2,11 +2,16 @@
  * SurfaceHeader (R5b, REDESIGN.md §2 "Hubs" + §4 G3): the accent-gradient
  * band at the top of the hub pages (/c/, /l/), the card page and the deck
  * share page — the "stronger card-and-title introduction". One component,
- * two paints: the game accent as a vertical gradient (every surface — the
- * band sits inside a `data-game` root, so `--accent-game` resolves to the
- * Magic or One Piece accent, or the brand on a game-neutral page), and on
- * top of it, when the caller resolved one, the leader's art crop as a
- * banner under a bottom veil that dissolves into the page background.
+ * two paints: the game accent as a vertical gradient (the band sits inside
+ * a `data-game` root on every game surface), and on top of it, when the
+ * caller resolved one, the leader's art crop as a banner under a bottom
+ * veil that dissolves into the page background. Outside a game context —
+ * today only the /cards and /d loading shells — the band paints the crest's
+ * own ramp instead, green into charcoal, not a gold-brand wash (W2, D0
+ * "brand details"); an ancestor variant (`[[data-game]_&]`) picks the paint
+ * with zero client code. W2 also ends every band with a 1 px gold rule at
+ * 30 % along its bottom edge — the brand hairline, over art and veil alike.
+ * `SurfaceSkeleton` renders THIS component, so the shells inherit both.
  *
  * Art comes from R2's resolver (`resolveCardArt` / `loadDeckLeaderArt`) —
  * the hub page calls it in its server render, the deck page reuses the art
@@ -70,7 +75,15 @@ export function SurfaceHeader({
       <div
         aria-hidden
         data-slot="surface-gradient"
-        className="from-accent-game/25 via-accent-game/10 to-accent-game/5 absolute inset-0 bg-linear-to-b"
+        className="from-accent-game/25 via-accent-game/10 to-accent-game/5 absolute inset-0 hidden bg-linear-to-b [[data-game]_&]:block"
+      />
+      <div
+        aria-hidden
+        data-slot="surface-gradient-generic"
+        // Heavier alphas than the accent ramp on purpose: the crest green is
+        // itself dark, so 45/15/35 gives the same visual presence the bright
+        // accents get from 25/10/5 (compared side by side in the W2 pass).
+        className="from-primary/45 via-primary/15 via-55% absolute inset-0 bg-linear-to-b to-[#242c2f]/35 [[data-game]_&]:hidden"
       />
       {art && (
         <>
@@ -102,6 +115,12 @@ export function SurfaceHeader({
           </p>
         </>
       )}
+      {/* The gold rule (W2): last in the stack so it survives art + veil. */}
+      <div
+        aria-hidden
+        data-slot="band-rule"
+        className="bg-gold/30 absolute inset-x-0 bottom-0 h-px"
+      />
     </div>
   );
 }

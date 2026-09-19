@@ -13,6 +13,8 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 
+import { dark } from "@/lib/theme/tokens";
+
 import { NewDeckChooser } from "./new-deck-chooser";
 
 export const metadata: Metadata = {
@@ -32,6 +34,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
+  // W2: same single dark value as the root layout (see it for why).
+  themeColor: dark.background,
 };
 
 export default function NewDeckPage() {

@@ -22,6 +22,7 @@ import {
   OgSubtitle,
   OgTitle,
 } from "@/lib/og/elements";
+import { loadOgFonts } from "@/lib/og/fonts";
 import { fetchOgArt } from "@/lib/og/scryfall";
 import { ogAccent } from "@/lib/theme/tokens";
 
@@ -42,7 +43,9 @@ export const contentType = "image/png";
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const leader = await loadLeaderBySlug(GAME_ID.mtg, slug);
+  // Fonts on EVERY ImageResponse, fallback branches included (W2) — a
+  // branch without them would repaint in the bundled sans mid-family.
+  const [leader, fonts] = await Promise.all([loadLeaderBySlug(GAME_ID.mtg, slug), loadOgFonts()]);
 
   if (!leader) {
     return new ImageResponse(
@@ -50,7 +53,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
         <OgGenericBody />
         <OgFooter stats={[]} />
       </OgFrame>,
-      size,
+      { ...size, fonts },
     );
   }
 
@@ -88,6 +91,6 @@ export default async function Image({ params }: { params: Promise<{ slug: string
         <OgFooter stats={stats} accent={accent} />
       </div>
     </OgFrame>,
-    size,
+    { ...size, fonts },
   );
 }

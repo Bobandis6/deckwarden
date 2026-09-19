@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Literata } from "next/font/google";
 import "./globals.css";
 
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { siteOrigin } from "@/lib/seo/site";
+import { dark } from "@/lib/theme/tokens";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,15 @@ const literata = Literata({
 const DESCRIPTION =
   "Build, analyze, and share Magic: The Gathering Commander and One Piece Card Game decks — no account needed.";
 const SITE_TITLE = "Deckwarden — Commander & One Piece deck builder";
+
+// One themeColor, one value (W2, D0 "brand details"): the browser chrome
+// matches the dark default. The theme is CLASS-based (next-themes), so a
+// `prefers-color-scheme` media pair would follow the OS setting, not the
+// page's actual theme — deliberately a single value. The token reference
+// (dark.background), not a new literal; the editor pages repeat it in their
+// own `viewport` exports (R4) so the meta is present regardless of how Next
+// merges segment viewports.
+export const viewport: Viewport = { themeColor: dark.background };
 
 export const metadata: Metadata = {
   // metadataBase makes OG/canonical URLs absolute. siteOrigin (P2.6) pins

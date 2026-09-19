@@ -27,7 +27,7 @@ describe("deckOgLabels", () => {
       kicker: "Deck",
       curveLabel: "Cost curve",
       fetchArt: false,
-      accent: "#a5b4fc",
+      accent: "#c9a96a",
     });
   });
 });

@@ -101,15 +101,15 @@ export const og = {
   /** Stat chips and the empty curve bars — the panel/raised surfaces. */
   panel: dark.card,
   raised: dark.popover,
-  /** Pages with no game context: the pre-W1 indigo, kept deliberately —
-   *  the OG images are W2's package (wordmark, font, gold accent) and the
-   *  unfurl canvas already follows the dark tokens above. */
-  accentGeneric: "#a5b4fc",
+  /** Pages with no game context paint the brand voice — gold (W2). A
+   *  reference, not a new literal: OG always renders the dark theme, so
+   *  the generic accent IS dark gold. */
+  accentGeneric: dark.gold,
 } as const;
 
 /**
  * The accent an OG image paints for a game: the game accent of the unfurled
- * surface, the generic indigo when the page has none (REDESIGN.md §1).
+ * surface, the brand gold when the page has none (W2, WAVE2.md D0).
  */
 export function ogAccent(gameId: number | null): string {
   if (gameId === GAME_ID.mtg) return dark["accent-mtg"];
