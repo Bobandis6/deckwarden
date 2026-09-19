@@ -122,7 +122,9 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
           </span>
         )}
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{user.name}</h1>
+          <h1 className="font-display truncate text-2xl font-semibold tracking-tight">
+            {user.name}
+          </h1>
           <p className="text-muted-foreground truncate text-sm">
             @{user.username} · Joined {joinedLabel(user.createdAt)}
           </p>

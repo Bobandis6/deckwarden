@@ -262,7 +262,9 @@ export function DeckShareView({
         {/* The artwork header (R5b, G3): the resolved crop as the banner with
             its visible credit, or the accent gradient. */}
         <SurfaceHeader art={art} className={SURFACE_BAND.deck} />
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight break-words">{deck.name}</h1>
+        <h1 className="font-display mt-4 text-3xl font-semibold tracking-tight break-words">
+          {deck.name}
+        </h1>
         {leaderZoneDef && leaders && (
           <p data-slot="leader-line" className="mt-1 text-sm break-words">
             <span className="text-muted-foreground">{leaderZoneDef.label}</span> {leaders}

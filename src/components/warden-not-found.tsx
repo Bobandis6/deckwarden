@@ -21,7 +21,7 @@ export function WardenNotFound() {
     <main className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-16 text-center">
       <BrandMark className="size-14" />
       <p className="text-muted-foreground font-mono text-sm">{copy.eyebrow}</p>
-      <h1 className="text-3xl font-semibold tracking-tight">{copy.title}</h1>
+      <h1 className="font-display text-3xl font-semibold tracking-tight">{copy.title}</h1>
       <p className="text-muted-foreground max-w-md">{copy.hint}</p>
       <div className="flex flex-wrap justify-center gap-3">
         <Button nativeButton={false} render={<Link href="/" />}>

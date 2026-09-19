@@ -34,8 +34,8 @@ export function SiteHeader() {
           aria-label="Deckwarden"
           className="group/mark focus-visible:ring-ring/50 mr-2 flex shrink-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 pointer-coarse:min-h-11"
         >
-          <BrandMark className="size-7 motion-safe:transition-transform motion-safe:duration-150 motion-safe:group-hover/mark:-rotate-3" />
-          <span className="text-sm font-semibold tracking-tight">Deckwarden</span>
+          <BrandMark className="size-8 motion-safe:transition-transform motion-safe:duration-150 motion-safe:group-hover/mark:-rotate-3" />
+          <span className="font-display text-lg font-semibold tracking-tight">Deckwarden</span>
         </Link>
 
         <nav aria-label="Site" className="hidden items-center gap-1 md:flex">

@@ -175,7 +175,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
 
         <div className="min-w-0 flex-1 md:pt-4">
           <div className="flex flex-wrap items-baseline gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">{leader.name}</h1>
+            <h1 className="font-display text-3xl font-semibold tracking-tight">{leader.name}</h1>
             <span dangerouslySetInnerHTML={{ __html: ciPipsHtml(leader.ciMask) }} />
           </div>
           <p className="text-muted-foreground mt-1">
@@ -214,7 +214,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
 
           {adapter.hub && (
             <section aria-label="Deck template" className="mt-8">
-              <h2 className="text-lg font-semibold">{adapter.hub.templateTitle}</h2>
+              <h2 className="font-display text-lg font-semibold">{adapter.hub.templateTitle}</h2>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 A starting template, not a rule — counts to fill in around the commander.
               </p>
@@ -237,7 +237,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       </div>
 
       <section aria-label="Staples" className="mt-10">
-        <h2 className="text-lg font-semibold">Staples in these colors</h2>
+        <h2 className="font-display text-lg font-semibold">Staples in these colors</h2>
         <p className="text-muted-foreground mt-0.5 text-xs">
           The {STAPLES_LIMIT} most-played cards that fit this color identity, ranked by EDHREC play
           data via Scryfall.
@@ -274,7 +274,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           past the disclosed floor — cold-start honest absence. */}
       {tournamentsMeta && metaLens && (
         <section aria-label="Most played with this commander" className="mt-10">
-          <h2 className="text-lg font-semibold">Most played with {leader.name}</h2>
+          <h2 className="font-display text-lg font-semibold">Most played with {leader.name}</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             The {metaLens.rows.length} most-played cards in {metaLens.totalLists} settled top-
             {TOP_PLACEMENT} lists running {leader.name}
@@ -298,7 +298,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       {/* Cold-start rule: both shelves render only with real rows — never padding. */}
       {adapter.capabilities.combos && combosData.total > 0 && (
         <section aria-label="Combos" className="mt-10">
-          <h2 className="text-lg font-semibold">Combos with {leader.name}</h2>
+          <h2 className="font-display text-lg font-semibold">Combos with {leader.name}</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             {combosData.total > COMBOS_SHOWN
               ? `The ${combosData.combos.length} most-played of ${combosData.total} combos`
@@ -316,7 +316,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
 
       {tournamentsMeta && topFinishes.total > 0 && (
         <section aria-label="Top finishes" className="mt-10 max-w-2xl">
-          <h2 className="text-lg font-semibold">Top finishes</h2>
+          <h2 className="font-display text-lg font-semibold">Top finishes</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             {topFinishes.total > TOP_FINISHES_SHOWN
               ? `The ${TOP_FINISHES_SHOWN} most recent of ${topFinishes.total} finishes`
@@ -396,7 +396,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
 
       {hubDecks.length > 0 && (
         <section aria-label="Decks with this commander" className="mt-10 max-w-2xl">
-          <h2 className="text-lg font-semibold">Decks with this commander</h2>
+          <h2 className="font-display text-lg font-semibold">Decks with this commander</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             Public Deckwarden decks running {leader.name}.
           </p>

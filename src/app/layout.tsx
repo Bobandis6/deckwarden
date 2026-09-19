@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Literata } from "next/font/google";
 import "./globals.css";
 
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -13,6 +13,18 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// The display face (W1, WAVE2.md D0): Literata carries the wordmark and
+// titles through the `font-display` utility. A variable Google font takes
+// no `weight` (600/700 come from the CSS that uses it); the optical-size
+// axis rides along so small sizes stay sturdy. Self-hosted at build time
+// by next/font like the Geists — no runtime request to Google.
+const literata = Literata({
+  variable: "--font-literata",
+  subsets: ["latin"],
+  display: "swap",
+  axes: ["opsz"],
 });
 
 // Two-game identity (P4.6, the OP beta): "Commander deck builder" stays a
@@ -47,7 +59,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${literata.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/* No footer here since R4: the (site) layout renders it for every

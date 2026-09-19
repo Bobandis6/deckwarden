@@ -172,7 +172,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
 
         <div className="min-w-0 flex-1 md:pt-4">
           <div className="flex flex-wrap items-baseline gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">{leader.name}</h1>
+            <h1 className="font-display text-3xl font-semibold tracking-tight">{leader.name}</h1>
             <span className="text-muted-foreground text-lg tabular-nums uppercase">
               {leader.externalKey}
             </span>
@@ -220,7 +220,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
             </Link>
           </div>
 
-          <h2 className="mt-8 text-lg font-semibold">Find cards for this deck</h2>
+          <h2 className="font-display mt-8 text-lg font-semibold">Find cards for this deck</h2>
           <p className="text-muted-foreground mt-0.5 text-sm">
             A {colorNames.join("/")} leader builds from {colorNames.join(" and ")} cards.
           </p>
@@ -247,7 +247,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
 
           {siblings.length > 0 && (
             <section aria-label={`Other ${leader.name} leaders`} className="mt-8">
-              <h2 className="text-lg font-semibold">Other {leader.name} leaders</h2>
+              <h2 className="font-display text-lg font-semibold">Other {leader.name} leaders</h2>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 Same character, different card — each is its own archetype.
               </p>
@@ -273,7 +273,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
       {/* Cold-start rule: renders only with real rows — a leader with none gets the P4.4 page. */}
       {tournamentsMeta && topFinishes.total > 0 && (
         <section aria-label="Top finishes" className="mt-10 max-w-2xl">
-          <h2 className="text-lg font-semibold">Top finishes</h2>
+          <h2 className="font-display text-lg font-semibold">Top finishes</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             {topFinishes.total > TOP_FINISHES_SHOWN
               ? `The ${TOP_FINISHES_SHOWN} most recent of ${topFinishes.total} finishes`

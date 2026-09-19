@@ -72,6 +72,7 @@ export function ValidationPanel({
       >
         <BrandMark
           key={settleKey}
+          variant="shield"
           className={cn(
             "size-4 shrink-0",
             settle &&
@@ -81,6 +82,7 @@ export function ValidationPanel({
         <span
           key={`line-${settleKey}`}
           className={cn(
+            "font-display",
             settle && "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300",
           )}
         >

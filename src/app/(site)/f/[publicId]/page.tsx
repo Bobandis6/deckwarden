@@ -70,7 +70,7 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
   if (folder.visibility === "private" && !isOwner) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-        <h1 className="text-xl font-semibold">This folder is private</h1>
+        <h1 className="font-display text-xl font-semibold">This folder is private</h1>
         <p className="text-muted-foreground max-w-md text-sm">
           The owner hasn&apos;t shared it. If it&apos;s yours, sign in to view it.
         </p>
@@ -98,7 +98,9 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
   return (
     <main className="max-w-reading mx-auto w-full flex-1 px-4 py-12">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight break-words">{folder.name}</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight break-words">
+          {folder.name}
+        </h1>
         <p className="text-muted-foreground mt-1 text-sm">
           {owner?.username ? (
             <>

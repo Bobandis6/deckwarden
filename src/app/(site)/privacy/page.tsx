@@ -21,14 +21,14 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <main className="max-w-reading mx-auto w-full flex-1 px-4 py-12 text-sm">
-      <h1 className="text-3xl font-semibold tracking-tight">Privacy</h1>
+      <h1 className="font-display text-3xl font-semibold tracking-tight">Privacy</h1>
       <p className="text-muted-foreground mt-2">
         Deckwarden has optional sign-in, no ads, and no analytics. Cookies exist only to keep you
         signed in — nothing tracks you. This page lists everything it does store.
       </p>
 
       <section className="mt-8 space-y-3">
-        <h2 className="text-lg font-semibold">Accounts (optional)</h2>
+        <h2 className="font-display text-lg font-semibold">Accounts (optional)</h2>
         <p>
           You never need an account to build, share, or browse — signing in just keeps your decks
           across browsers. Sign-in is via Discord or Google only; there are no passwords here. From
@@ -68,7 +68,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="mt-8 space-y-3">
-        <h2 className="text-lg font-semibold">Decks you build</h2>
+        <h2 className="font-display text-lg font-semibold">Decks you build</h2>
         <p>
           Decks are stored on our servers: the card list, deck name, description, and visibility
           (public, unlisted, or private). Anyone you give a share link can view a public or unlisted
@@ -89,7 +89,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="mt-8 space-y-3">
-        <h2 className="text-lg font-semibold">IP addresses</h2>
+        <h2 className="font-display text-lg font-semibold">IP addresses</h2>
         <p>
           When a deck is created we record the creating IP address, used only for spam control and
           abuse cleanup. Rate-limit counters keyed by IP are kept for at most two days. Our hosting
@@ -98,7 +98,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="mt-8 space-y-3">
-        <h2 className="text-lg font-semibold">Error reporting</h2>
+        <h2 className="font-display text-lg font-semibold">Error reporting</h2>
         <p>
           When something breaks, an error report (stack trace, browser version, the failing URL, and
           possibly your IP address) may be sent to Sentry, our error-monitoring service, so we can
@@ -107,7 +107,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="mt-8 space-y-3">
-        <h2 className="text-lg font-semibold">Where things run</h2>
+        <h2 className="font-display text-lg font-semibold">Where things run</h2>
         <p>
           Hosting is on Vercel, the database on Neon (US region), and encrypted backups on
           Cloudflare R2. Card images load directly from Scryfall’s CDN, so your browser makes
@@ -125,7 +125,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="mt-8 space-y-3">
-        <h2 className="text-lg font-semibold">Questions or removal requests</h2>
+        <h2 className="font-display text-lg font-semibold">Questions or removal requests</h2>
         <p>
           Email{" "}
           <a href="mailto:contact@deckwarden.gg" className="underline">

@@ -10,6 +10,13 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  /* Display face (W1): Literata carries the wordmark, page/section titles on
+     site pages, empty-state titles and the Warden lines — via an explicit
+     `font-display` utility, never a blanket element rule. --font-heading
+     stays sans on purpose: it feeds dialog/sheet/drawer/alert titles the
+     builder opens, and the builder stays Geist (serif modal titles are W2's
+     recorded decision). */
+  --font-display: var(--font-literata);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -36,6 +43,11 @@
   --color-accent-mtg: var(--accent-mtg);
   --color-accent-optcg: var(--accent-optcg);
   --color-accent-game: var(--accent-game);
+  /* Gold (W1, WAVE2.md D0): hairlines and decorative rules — border-gold/70
+     on the primary button is structural, not decoration (the green fill is
+     1.84:1 on the dark page; the hairline is what makes it a visible
+     control, WCAG 1.4.11). Decorative only on light (2.4:1 on ivory). */
+  --color-gold: var(--gold);
   /* Container widths (R1b, REDESIGN.md §1): reading / browse / wide replace the
      max-w-2xl … 6xl spread → max-w-reading, max-w-browse, max-w-wide. */
   --container-reading: 42rem;
@@ -69,69 +81,78 @@
   }
 }
 
-/* Theme tokens — "Warden Studio" (R1a, REDESIGN.md §1). Hex on purpose:
+/* Theme tokens — "Warden Studio, re-keyed" (W1, WAVE2.md D0; structure from
+   R1a). The crest palette: charcoal-family dark surfaces, ivory light
+   surfaces, forest-green action, gold brand voice on dark. Hex on purpose:
    src/lib/theme/tokens.ts carries the same strings for the OG images, and
    src/lib/theme/tokens.test.ts parses THIS file and asserts the two blocks
    below equal `light` / `dark` there, value for value. Edit both or the
    test names the drift. :root is the light theme; .dark (the default —
-   next-themes sets the class before first paint) is the dark theme. */
+   next-themes sets the class before first paint) is the dark theme.
+   Role rules (WAVE2.md D0): gold = brand voice on dark (links, focus,
+   hairlines) and DECORATIVE ONLY on light (2.4:1 on ivory); green = action
+   fill (its label carries the contrast — the fill itself is 1.84:1 on the
+   dark page, so bare green fills are forbidden); game accents = context,
+   never card data. */
 :root {
-  --background: #f7f7fb;
-  --foreground: #1b1d26;
-  --card: #ffffff;
-  --card-foreground: #1b1d26;
+  --background: #f7f4ee;
+  --foreground: #242c2f;
+  --card: #fffdf8;
+  --card-foreground: #242c2f;
   --popover: #ffffff;
-  --popover-foreground: #1b1d26;
-  --primary: #4f46e5;
-  --primary-foreground: #ffffff;
-  --secondary: #e8eaf2;
-  --secondary-foreground: #1b1d26;
-  --muted: #eeeff5;
-  --muted-foreground: #5f6775;
-  --accent: #e6e8f1;
-  --accent-foreground: #1b1d26;
+  --popover-foreground: #242c2f;
+  --primary: #23483c;
+  --primary-foreground: #f7f4ee;
+  --secondary: #ece7dc;
+  --secondary-foreground: #242c2f;
+  --muted: #f0ebe1;
+  --muted-foreground: #565e5b;
+  --accent: #e9e3d6;
+  --accent-foreground: #242c2f;
   --destructive: #b91c1c;
-  --border: #e2e4ec;
-  --input: #d8dbe6;
-  --ring: #4f46e5;
-  --chart-1: #4f46e5;
-  --chart-2: #6b7280;
-  --chart-3: #0f766e;
-  --chart-4: #5b50d6;
-  --chart-5: #5f6775;
-  --brand: #4338ca;
-  --accent-mtg: #5b50d6;
-  --accent-optcg: #0f766e;
+  --border: #e0d9ca;
+  --input: #cfc6b2;
+  --ring: #23483c;
+  --chart-1: #23483c;
+  --chart-2: #6f746f;
+  --chart-3: #0a6587;
+  --chart-4: #5246cf;
+  --chart-5: #565e5b;
+  --brand: #23483c;
+  --accent-mtg: #5246cf;
+  --accent-optcg: #0a6587;
+  --gold: #ba9b61;
   --radius: 0.75rem;
 }
 
 .dark {
-  --background: #101218;
-  --foreground: #f3f4f8;
-  --card: #191d27;
-  --card-foreground: #f3f4f8;
-  --popover: #222837;
-  --popover-foreground: #f3f4f8;
-  --primary: #4f46e5;
-  --primary-foreground: #ffffff;
-  --secondary: #262d3c;
-  --secondary-foreground: #f3f4f8;
-  --muted: #222837;
-  --muted-foreground: #aab2c3;
-  --accent: #2b3345;
-  --accent-foreground: #f3f4f8;
+  --background: #0f1314;
+  --foreground: #f3f1ea;
+  --card: #171c1e;
+  --card-foreground: #f3f1ea;
+  --popover: #20272a;
+  --popover-foreground: #f3f1ea;
+  --primary: #23483c;
+  --primary-foreground: #f7f4ee;
+  --secondary: #252d30;
+  --secondary-foreground: #f3f1ea;
+  --muted: #20272a;
+  --muted-foreground: #a9b0ad;
+  --accent: #2a3336;
+  --accent-foreground: #f3f1ea;
   --destructive: #f87171;
-  --border: #2a3040;
-  --input: #2a3040;
-  --ring: #818cf8;
-  --chart-1: #818cf8;
-  --chart-2: #8b93a5;
+  --border: #2b3437;
+  --input: #2b3437;
+  --ring: #c9a96a;
+  --chart-1: #c9a96a;
+  --chart-2: #8b9391;
   --chart-3: #62d6c5;
   --chart-4: #b5a2ff;
-  --chart-5: #aab2c3;
-  --brand: #818cf8;
+  --chart-5: #a9b0ad;
+  --brand: #c9a96a;
   --accent-mtg: #b5a2ff;
   --accent-optcg: #62d6c5;
+  --gold: #c9a96a;
 }
 
 /* Game accent (G1): surface roots — the editor, share-page main, the /c/
@@ -169,6 +190,12 @@
      themes (5.34:1 light, 8.79:1 dark on the background). */
   ::placeholder {
     color: var(--muted-foreground);
+  }
+
+  /* Text selection in the brand voice (W1, WAVE2.md D0 "small details"):
+     gold at 30 % over whatever surface carries it, both themes. */
+  ::selection {
+    background: color-mix(in oklch, var(--gold) 30%, transparent);
   }
 
   /* Motion policy (R1a, REDESIGN.md §1). Convention from here on: every

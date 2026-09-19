@@ -40,7 +40,7 @@ function MeterIndicator({ className, ...props }: MeterPrimitive.Indicator.Props)
   return (
     <MeterPrimitive.Indicator
       data-slot="meter-indicator"
-      className={cn("h-full bg-primary transition-all", className)}
+      className={cn("h-full bg-brand transition-all", className)}
       {...props}
     />
   );

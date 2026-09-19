@@ -7,6 +7,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "./button";
 
 describe("Button touch targets", () => {
@@ -37,5 +38,41 @@ describe("Button touch targets", () => {
     render(<Button size="sm">Keep</Button>);
     const el = document.querySelector<HTMLElement>("[data-slot=button]")!;
     expect(el.className).toContain("pointer-coarse:min-h-11");
+  });
+});
+
+/**
+ * Primary hairline (W1, WAVE2.md D0): the default variant's gold border is
+ * STRUCTURAL — the green fill is 1.84:1 on the dark page, so a primary
+ * button that loses its border is invisible there. The variant class must
+ * beat the base string's border-transparent through cn()'s tailwind-merge,
+ * exactly the path the component takes.
+ */
+describe("Primary button hairline", () => {
+  it("the default variant carries border-gold/70 and it survives cn()", () => {
+    const cls = cn(buttonVariants({ variant: "default" }));
+    expect(cls).toContain("border-gold/70");
+    // tailwind-merge resolved the conflict toward the hairline.
+    expect(cls).not.toContain("border-transparent");
+  });
+
+  it.each(["outline", "secondary", "ghost", "destructive", "link"] as const)(
+    "the %s variant has no hairline",
+    (variant) => {
+      expect(cn(buttonVariants({ variant }))).not.toContain("border-gold/70");
+    },
+  );
+
+  it("hover lightens with the house color-mix idiom, never bg-primary/80", () => {
+    const cls = buttonVariants({ variant: "default" });
+    expect(cls).toContain("hover:bg-[color-mix(in_oklch,var(--primary),var(--foreground)_12%)]");
+    expect(cls).not.toContain("hover:bg-primary/80");
+  });
+
+  it("the rendered default button keeps the hairline", () => {
+    render(<Button>Save</Button>);
+    const el = document.querySelector<HTMLElement>("[data-slot=button]")!;
+    expect(el.className).toContain("border-gold/70");
+    expect(el.className).not.toContain("border-transparent");
   });
 });

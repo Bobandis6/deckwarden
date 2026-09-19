@@ -40,7 +40,7 @@ export default function GlobalError({
         <div className="flex gap-3">
           <button
             onClick={() => retry()}
-            className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium"
+            className="bg-primary text-primary-foreground border-gold/70 rounded-md border px-4 py-2 text-sm font-medium"
           >
             Try again
           </button>

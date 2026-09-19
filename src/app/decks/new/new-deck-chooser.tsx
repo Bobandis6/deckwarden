@@ -59,7 +59,7 @@ export function NewDeckChooser() {
       <SiteHeader />
       <main className="max-w-reading mx-auto flex w-full flex-1 flex-col items-center justify-center gap-8 px-4 py-12">
         <div className="text-center">
-          <h1 className="text-3xl font-semibold tracking-tight">Start a new deck</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">Start a new deck</h1>
           <p className="text-muted-foreground mt-1">Pick your game.</p>
         </div>
         <div className="grid w-full gap-4 sm:grid-cols-2">

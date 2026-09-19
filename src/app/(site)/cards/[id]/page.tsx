@@ -138,7 +138,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
 
         <div className="min-w-0 flex-1 md:pt-4">
           <div className="flex flex-wrap items-baseline gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">{identity.name}</h1>
+            <h1 className="font-display text-3xl font-semibold tracking-tight">{identity.name}</h1>
             <span
               className="text-lg"
               dangerouslySetInnerHTML={{ __html: adapter.display.costHtml(card) }}
@@ -173,7 +173,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
             </p>
           )}
 
-          <h2 className="mt-8 text-lg font-semibold">Legality</h2>
+          <h2 className="font-display mt-8 text-lg font-semibold">Legality</h2>
           <ul className="mt-2 flex flex-wrap gap-2">
             {formatRows.map((f) => {
               const status = statusByFormat.get(f.id) ?? f.defaultLegality;
@@ -188,7 +188,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
             })}
           </ul>
 
-          <h2 className="mt-8 text-lg font-semibold">Printings</h2>
+          <h2 className="font-display mt-8 text-lg font-semibold">Printings</h2>
           <div className="mt-2 overflow-x-auto">
             {/* No price columns for OP (P4.4): prices are 0/2,785 non-null —
                 two all-dash columns would imply data we don't have. */}
@@ -238,7 +238,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
 
           {adapter.capabilities.combos && combosData.total > 0 && (
             <section aria-label="Combos" className="mt-8">
-              <h2 className="text-lg font-semibold">Combos using this card</h2>
+              <h2 className="font-display text-lg font-semibold">Combos using this card</h2>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 {combosData.total > COMBOS_SHOWN
                   ? `The ${combosData.combos.length} most-played of ${combosData.total} combos`

@@ -49,7 +49,7 @@ export default async function CardsPage({ searchParams }: PageProps<"/cards">) {
 
   return (
     <main className="max-w-wide mx-auto w-full flex-1 px-4 py-8" data-game={game}>
-      <h1 className="text-3xl font-semibold tracking-tight">Card search</h1>
+      <h1 className="font-display text-3xl font-semibold tracking-tight">Card search</h1>
 
       {/* The game pills, now the shared GameSwitch (R1b) with this page's own hrefs. */}
       <GameSwitch

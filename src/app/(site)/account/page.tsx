@@ -54,7 +54,7 @@ export const metadata: Metadata = {
 
 type DeckRow = typeof schema.decks.$inferSelect;
 
-const SECTION_TITLE_CLASS = "text-lg font-semibold";
+const SECTION_TITLE_CLASS = "font-display text-lg font-semibold";
 const EYEBROW_CLASS = "text-muted-foreground text-xs font-medium tracking-wide uppercase";
 
 /**
@@ -104,7 +104,7 @@ export default async function AccountPage() {
   if (!session) {
     return (
       <main className="max-w-reading mx-auto flex w-full flex-1 flex-col items-center justify-center gap-6 px-4 py-12">
-        <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Sign in</h1>
         <p className="text-muted-foreground max-w-md text-center text-sm">
           An account keeps your decks across browsers and devices. Decks you built on this browser
           come along automatically when you sign in.
@@ -207,7 +207,9 @@ export default async function AccountPage() {
           </span>
         )}
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{session.user.name}</h1>
+          <h1 className="font-display truncate text-2xl font-semibold tracking-tight">
+            {session.user.name}
+          </h1>
           <p className="text-muted-foreground truncate text-sm">
             {profile?.username ? `@${profile.username}` : "No username yet — pick one in Settings"}
           </p>

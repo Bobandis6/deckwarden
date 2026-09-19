@@ -8,7 +8,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        // The gold hairline is STRUCTURAL (W1, WAVE2.md D0): the green fill
+        // is 1.84:1 on the dark page, so the border is what makes the
+        // control visible (WCAG 1.4.11). It sits after the base classes so
+        // tailwind-merge beats border-transparent; focus-visible:border-ring
+        // still wins on focus. Hover uses the house color-mix idiom (the
+        // secondary variant's) because bg-primary/80 would fade the dark
+        // green INTO the dark page; mixing 12% foreground lightens on dark
+        // and darkens on light.
+        default:
+          "bg-primary text-primary-foreground border-gold/70 hover:bg-[color-mix(in_oklch,var(--primary),var(--foreground)_12%)]",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
@@ -17,7 +26,7 @@ const buttonVariants = cva(
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-brand underline-offset-4 hover:underline",
       },
       // Touch targets (R6, REDESIGN.md §7): ONE base rule — every text size
       // grows to at least 44 × 44 px and every icon size to 44 × 44 on a

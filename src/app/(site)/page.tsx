@@ -61,7 +61,7 @@ export default async function Home() {
         <p className="text-muted-foreground rounded-full border px-3 py-0.5 text-xs font-medium tracking-wide uppercase">
           Open beta
         </p>
-        <h1 className="max-w-3xl text-5xl font-bold tracking-tight text-balance">
+        <h1 className="font-display max-w-3xl text-5xl font-bold tracking-tight text-balance">
           Your next great deck starts here.
         </h1>
         <p className="text-muted-foreground max-w-xl text-lg text-balance">

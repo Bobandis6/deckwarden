@@ -85,7 +85,7 @@ export function EditorHeader({
         aria-label="Deckwarden"
         className="group/mark focus-visible:ring-ring/50 flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
       >
-        <BrandMark className="size-7 motion-safe:transition-transform motion-safe:duration-150 motion-safe:group-hover/mark:-rotate-3" />
+        <BrandMark className="size-8 motion-safe:transition-transform motion-safe:duration-150 motion-safe:group-hover/mark:-rotate-3" />
       </Link>
       <Badge variant="outline" className="text-muted-foreground shrink-0 font-normal">
         {adapter.name} · {format.label}

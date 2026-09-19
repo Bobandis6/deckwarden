@@ -79,7 +79,7 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
 
   return (
     <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="mtg">
-      <h1 className="text-3xl font-semibold tracking-tight">Commanders</h1>
+      <h1 className="font-display text-3xl font-semibold tracking-tight">Commanders</h1>
       <p className="text-muted-foreground mt-1 text-sm">
         Ranked by how much each commander is actually played (EDHREC data via Scryfall).
       </p>

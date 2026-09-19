@@ -1,9 +1,10 @@
 /**
- * EmptyState (R1b, C8): one shape for "nothing here yet" — the shield mark
- * (optional), a title, a hint, an optional action — so empty lists read the
- * same everywhere. Shield only (REDESIGN.md §6: no character asset), and
- * the copy stays plain here; the Warden voice is R5b/F8's. Smoke-pinned
- * strings ("No bookmarks yet", …) pass through as the title verbatim.
+ * EmptyState (R1b, C8; W1 puts the crest and a serif title on it): one shape
+ * for "nothing here yet" — the crest mark (optional), a title, a hint, an
+ * optional action — so empty lists read the same everywhere. Mark only, no
+ * character asset (REDESIGN.md §6), and the copy stays plain here; the
+ * Warden voice is R5b/F8's. Smoke-pinned strings ("No bookmarks yet", …)
+ * pass through as the title verbatim.
  */
 import type { ReactNode } from "react";
 
@@ -28,7 +29,7 @@ export function EmptyState({ title, hint, action, mark = false, className }: Emp
       )}
     >
       {mark && <BrandMark className="mb-1 size-8 opacity-80" />}
-      <p className="text-foreground font-medium">{title}</p>
+      <p className="text-foreground font-display font-medium">{title}</p>
       {hint && <p className="text-xs">{hint}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>

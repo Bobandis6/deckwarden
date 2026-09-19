@@ -54,9 +54,15 @@ describe("theme tokens ↔ globals.css", () => {
   });
 
   it("the accents are exposed as Tailwind colors", () => {
-    for (const name of ["brand", "accent-mtg", "accent-optcg", "accent-game"]) {
+    for (const name of ["brand", "accent-mtg", "accent-optcg", "accent-game", "gold"]) {
       expect(css).toContain(`--color-${name}: var(--${name});`);
     }
+  });
+
+  it("the display face is exposed as a font utility, and headings stay sans (W1)", () => {
+    expect(css).toContain("--font-display: var(--font-literata);");
+    // Dialog/sheet/drawer titles read --font-heading; serif there is W2's call.
+    expect(css).toContain("--font-heading: var(--font-sans);");
   });
 
   it("the DON!! cost chip is foreground-on-background, a rounded square (C4)", () => {
@@ -84,7 +90,7 @@ describe("OG palette", () => {
     expect(og.raised).toBe(dark.popover);
   });
 
-  it("accent per game: Magic lavender, One Piece teal, generic indigo elsewhere", () => {
+  it("accent per game: Magic lavender, One Piece teal; generic keeps the pre-W2 OG indigo", () => {
     expect(ogAccent(GAME_ID.mtg)).toBe("#b5a2ff");
     expect(ogAccent(GAME_ID.optcg)).toBe("#62d6c5");
     expect(ogAccent(GAME_ID.azuki)).toBe("#a5b4fc");

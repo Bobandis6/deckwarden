@@ -66,7 +66,7 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
   return (
     <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="optcg">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">One Piece Leaders</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">One Piece Leaders</h1>
         <Button nativeButton={false} render={<Link href="/decks/new?game=optcg" />}>
           Start a deck
         </Button>
