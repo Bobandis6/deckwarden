@@ -52,7 +52,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { AmbientArt } from "@/components/deck/ambient-art";
 import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
 import { SampleHand } from "@/components/deck/sample-hand";
-import { CardDetailPane } from "@/components/editor/card-detail-pane";
+import { CardDetailPane, type PrintingEditing } from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
 import { CutCoachPanel } from "@/components/editor/cut-coach-panel";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
@@ -80,6 +80,8 @@ import { ModalFinalFocus } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast, Toaster } from "@/components/ui/toast";
 import { deckOwnership } from "@/lib/collection/ownership";
+import { embeddablePrintingImageUrl } from "@/lib/cards/images";
+import { type GalleryPrinting } from "@/lib/cards/printings";
 import { leaderArtTarget, orderLeadersBy } from "@/lib/decks/ambient-art";
 import { leaderDenorm } from "@/lib/decks/cards";
 import {
@@ -87,6 +89,7 @@ import {
   deckSizeCount,
   removeCard,
   replaceLeader,
+  setPrinting,
   setQty,
   setTags,
   toEditorCard,
@@ -877,6 +880,56 @@ export function DeckEditor({
     };
   }, [preview, format, entries, applyEdit]);
 
+  // A chosen printing must show everywhere at once (W6): the per-card image
+  // map feeds the list, the grid, the leader zone and the sample hand — a
+  // reload would otherwise be the first place the choice renders. The
+  // preview is a detached copy and follows separately.
+  const setCardImage = useCallback((cardId: string, image: string | null) => {
+    setCards((prev) => {
+      const existing = prev.get(cardId);
+      if (!existing || existing.image === image) return prev;
+      return new Map(prev).set(cardId, { ...existing, image });
+    });
+    setPreview((prev) => (prev && prev.id === cardId ? { ...prev, image } : prev));
+  }, []);
+
+  // Choosing a printing is a REAL edit (W6, D5): setPrinting → applyEdit →
+  // the autosave PUTs printingId, and the toast's Undo re-applies the
+  // previous choice the same way — never a client-only rollback. The
+  // commander's ambient art follows on its own: leaderArtTarget reads the
+  // entry's printingId, and useLeaderArt refetches when it changes.
+  const handleSetPrinting = useCallback(
+    (card: EditorCard, row: GalleryPrinting) => {
+      const before = entriesRef.current;
+      const entry = before.find((e) => e.cardId === card.id);
+      if (!entry) return;
+      const previousId = entry.printingId ?? null;
+      if (previousId === row.id) return;
+      const previousImage = cards.get(card.id)?.image ?? card.image;
+      applyEdit({ entries: setPrinting(before, card.id, row.id) });
+      setCardImage(card.id, embeddablePrintingImageUrl(row, "normal"));
+      notify(`${card.name} now uses ${row.setCode.toUpperCase()} ${row.collectorNumber}`, () => {
+        applyEdit({ entries: setPrinting(entriesRef.current, card.id, previousId) });
+        setCardImage(card.id, previousImage);
+      });
+    },
+    [cards, applyEdit, setCardImage, notify],
+  );
+
+  // The pane's printing selection (W6) plumbs the way `tagging` does:
+  // present only when the previewed card is in the deck. The CARD is the
+  // unit, not one (zone, card) entry — see setPrinting's docblock.
+  const printingEditing = useMemo<PrintingEditing | null>(() => {
+    if (!preview) return null;
+    const previewed = preview;
+    const entry = entries.find((e) => e.cardId === previewed.id);
+    if (!entry) return null;
+    return {
+      printingId: entry.printingId ?? null,
+      onSetPrinting: (row: GalleryPrinting) => handleSetPrinting(previewed, row),
+    };
+  }, [preview, entries, handleSetPrinting]);
+
   // Live validation (P1.4) and analytics (P1.5): the adapter's pure functions
   // on every edit, over one shared snapshot. validate is the same code the PUT
   // route re-runs server-side on save; analyze feeds the middle pane's blocks.
@@ -996,7 +1049,12 @@ export function DeckEditor({
             </TabsList>
           </div>
           <TabsContent value="card" keepMounted>
-            <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
+            <CardDetailPane
+              adapter={load.adapter}
+              card={preview}
+              tagging={tagging}
+              printing={printingEditing}
+            />
           </TabsContent>
           {load.adapter.recommend && (
             <TabsContent value="suggest" keepMounted>
@@ -1050,7 +1108,12 @@ export function DeckEditor({
           <div className="flex h-10 shrink-0 items-center border-b px-3 pointer-coarse:h-14">
             <h2 className="text-sm font-medium">Card</h2>
           </div>
-          <CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />
+          <CardDetailPane
+            adapter={load.adapter}
+            card={preview}
+            tagging={tagging}
+            printing={printingEditing}
+          />
         </>
       )}
       <EditorAttribution adapter={load.adapter} />
@@ -1181,7 +1244,14 @@ export function DeckEditor({
         />
       }
       tools={toolsContent}
-      sheet={<CardDetailPane adapter={load.adapter} card={preview} tagging={tagging} />}
+      sheet={
+        <CardDetailPane
+          adapter={load.adapter}
+          card={preview}
+          tagging={tagging}
+          printing={printingEditing}
+        />
+      }
       sheetTitle={preview?.name ?? null}
       ambient={
         // Last child of the layout on purpose: the credit chip's sticky row sits at the surface's end (R2).

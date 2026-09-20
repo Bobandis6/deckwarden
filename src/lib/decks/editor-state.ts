@@ -166,6 +166,32 @@ export function setTags(
   );
 }
 
+/**
+ * Choose an entry's exact printing (W6) — applied to EVERY entry of the
+ * card, not one (zone, card) pair: `EditorCard.image` is per card, so a
+ * per-zone choice could never render distinctly anyway (a card sitting in
+ * commander + main gets one look). `null` clears back to the identity's
+ * default printing — the key is dropped so `toSavePayload` omits it. An
+ * unknown card is a no-op. Printing↔card ownership is the PUT route's
+ * check; the pane only offers rows fetched for this card, so there is
+ * nothing structural to validate here.
+ */
+export function setPrinting(
+  entries: readonly EditorEntry[],
+  cardId: string,
+  printingId: string | null,
+): EditorEntry[] {
+  return entries.map((e) => {
+    if (e.cardId !== cardId) return e;
+    if (printingId === null) {
+      const rest = { ...e };
+      delete rest.printingId;
+      return rest;
+    }
+    return { ...e, printingId };
+  });
+}
+
 /** The PUT /api/decks/[id]/cards body ({ cards: [...] } around this). */
 export function toSavePayload(
   entries: readonly EditorEntry[],

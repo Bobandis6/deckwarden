@@ -44,6 +44,32 @@ const signet: CardWire = {
   image: null,
 };
 
+/** W6: two slim printings rows for Sol Ring (W5's API shape), default first on the wire or not — the pane hoists it. */
+const solDefaultPrinting = {
+  id: "aaaaaaaa-0000-4000-8000-000000000001",
+  setCode: "cmm",
+  setName: "Commander Masters",
+  collectorNumber: "410",
+  rarity: "uncommon",
+  year: 2023,
+  isDefault: true,
+  hasBack: false,
+  usd: "2.89",
+  usdFoil: null,
+};
+const solAltPrinting = {
+  id: "aaaaaaaa-0000-4000-8000-000000000002",
+  setCode: "sld",
+  setName: "Secret Lair Drop",
+  collectorNumber: "2783",
+  rarity: "rare",
+  year: 2024,
+  isDefault: false,
+  hasBack: false,
+  usd: null,
+  usdFoil: "12.00",
+};
+
 type Listener = () => void;
 function stubViewport(width: number) {
   const listeners: { query: string; fn: Listener }[] = [];
@@ -94,6 +120,18 @@ function route(input: RequestInfo | URL, init?: RequestInit) {
   if (url === "/api/decks/deck-1" && method === "PATCH") return ok({});
   if (url.startsWith("/api/decks/deck-1/recommendations")) return ok({ recommendations: [] });
   if (url.startsWith("/api/decks/deck-1/combos")) return ok({ combos: [], inDeck: [] });
+  if (url === `/api/cards/${sol.id}/printings`) {
+    // Newest first like the real route — the pane hoists the default itself.
+    return ok({ printings: [solAltPrinting, solDefaultPrinting], total: 2, truncated: false });
+  }
+  if (url === `/api/cards/${signet.id}/printings`) {
+    // The N=1 case: the pane stays honest with a single row.
+    return ok({
+      printings: [{ ...solDefaultPrinting, id: "aaaaaaaa-0000-4000-8000-000000000003" }],
+      total: 1,
+      truncated: false,
+    });
+  }
   return ok({});
 }
 
@@ -103,6 +141,15 @@ const posts = () =>
 const puts = () =>
   fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "PUT")
     .length;
+const printingsFetches = (cardId: string) =>
+  fetchMock.mock.calls.filter(([url]) => String(url) === `/api/cards/${cardId}/printings`).length;
+const lastPutEntries = (): { cardId: string; printingId?: string }[] => {
+  const putCalls = fetchMock.mock.calls.filter(
+    ([, init]) => (init as RequestInit | undefined)?.method === "PUT",
+  );
+  const body = (putCalls.at(-1)?.[1] as RequestInit).body as string;
+  return (JSON.parse(body) as { cards: { cardId: string; printingId?: string }[] }).cards;
+};
 const saveStatus = () =>
   document.querySelector("[data-slot=save-slot]")?.getAttribute("data-status");
 const sheetPopup = () => document.querySelector("[data-slot=drawer-popup]");
@@ -394,5 +441,144 @@ describe("DeckEditor — a commander add returns the phone to the Deck pane (P2.
     expect(screen.queryByRole("dialog", { name: "Tools" })).toBeNull();
     expect(sheetPopup()).toBeNull();
     expect(within(section("Deck list")).getByText("Sol Ring")).toBeTruthy();
+  });
+});
+
+describe("DeckEditor — the pane's Printings collapsible (W6, D5)", () => {
+  const tools = () => section("Card detail and suggestions");
+
+  /** Wide draft with Sol Ring added (the one create), earlier toasts expired. */
+  async function withSolInDeck() {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    fireEvent.change(input, { target: { value: "sol" } });
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring to Main deck" }));
+    // Flush the create + PUT and expire the add toast, so the only Undo
+    // later on screen is the printing toast's.
+    await settle(5500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+    return input;
+  }
+
+  it("fetches on FIRST open only; row clicks preview without editing; 'Use this printing' is a real autosaved edit with a real Undo", async () => {
+    await withSolInDeck();
+
+    // Closed by default, nothing fetched, no count yet.
+    const trigger = within(tools()).getByRole("button", { name: /^Printings/ });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(printingsFetches(sol.id)).toBe(0);
+
+    // First open → ONE request; rows render default-first; the count lands.
+    fireEvent.click(trigger);
+    await act(async () => {});
+    expect(printingsFetches(sol.id)).toBe(1);
+    expect(within(tools()).getByRole("button", { name: /Printings · 2/ })).toBeTruthy();
+    const rows = within(tools()).getAllByRole("button", { pressed: false });
+    const rowNames = rows.map((r) => r.textContent);
+    expect(rowNames.some((t) => t?.includes("Commander Masters"))).toBe(true);
+    // The default row is marked as what the deck uses (no explicit choice yet).
+    expect(
+      within(tools()).getByRole("button", { name: /Commander Masters/ }).textContent,
+    ).toContain("In deck");
+    expect(within(tools()).getByText(/In deck: default printing · CMM · #410/)).toBeTruthy();
+
+    // Selecting a row previews it in the pane image — no edit, no save, and
+    // the apply button arms only now (the selection differs from the deck).
+    const useButton = () =>
+      within(tools()).getByRole("button", { name: "Use this printing in deck" });
+    expect(useButton()).toHaveProperty("disabled", true);
+    fireEvent.click(within(tools()).getByRole("button", { name: /Secret Lair Drop/ }));
+    const paneImage = within(tools()).getByRole("img", { name: "Sol Ring" });
+    expect(paneImage.getAttribute("src")).toContain(solAltPrinting.id);
+    expect(useButton()).toHaveProperty("disabled", false);
+    await settle(1100);
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+    expect(saveStatus()).toBe("saved");
+
+    // Close and reopen → the per-card cache answers, no second request.
+    fireEvent.click(within(tools()).getByRole("button", { name: /Printings · 2/ }));
+    await act(async () => {});
+    fireEvent.click(within(tools()).getByRole("button", { name: /Printings · 2/ }));
+    await act(async () => {});
+    expect(printingsFetches(sol.id)).toBe(1);
+
+    // The real edit: dirty → autosave PUTs printingId; toast per D5.
+    fireEvent.click(useButton());
+    expect(saveStatus()).toBe("dirty");
+    const choiceToast = screen
+      .getByText("Sol Ring now uses SLD 2783")
+      .closest('[data-slot="toast"]');
+    expect(choiceToast).toBeTruthy();
+    await settle(1100);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(2);
+    expect(lastPutEntries()).toEqual([
+      { cardId: sol.id, zone: "main", qty: 1, tags: [], printingId: solAltPrinting.id },
+    ]);
+    // The pane now marks the chosen row and disables the (unchanged) selection.
+    expect(within(tools()).getByText(/In deck: SLD · #2783/)).toBeTruthy();
+    expect(within(tools()).getByRole("button", { name: /Secret Lair Drop/ }).textContent).toContain(
+      "In deck",
+    );
+    expect(useButton()).toHaveProperty("disabled", true);
+
+    // Undo is a REAL edit: the previous (default) choice re-applies and the
+    // next autosave PUTs a list without printingId — never a client rollback.
+    fireEvent.click(within(choiceToast as HTMLElement).getByRole("button", { name: "Undo" }));
+    expect(saveStatus()).toBe("dirty");
+    await settle(1100);
+    await act(async () => {});
+    expect(puts()).toBe(3);
+    expect(lastPutEntries()).toEqual([{ cardId: sol.id, zone: "main", qty: 1, tags: [] }]);
+    expect(within(tools()).getByText(/In deck: default printing/)).toBeTruthy();
+    expect(posts()).toBe(1);
+  });
+
+  it("a previewed card NOT in the deck browses printings honestly at N=1; switching cards and returning reuses the cache", async () => {
+    const input = await withSolInDeck();
+
+    // Open Sol Ring's printings once (the deck add left it previewed).
+    fireEvent.click(within(tools()).getByRole("button", { name: /^Printings/ }));
+    await act(async () => {});
+    expect(printingsFetches(sol.id)).toBe(1);
+
+    // Preview Arcane Signet without adding it. Its collapsible is closed
+    // (the open state is per card), and opening it is viewer-only.
+    fireEvent.change(input, { target: { value: "arcane" } });
+    await settle();
+    fireEvent.click(screen.getByRole("option", { name: /Arcane Signet/ }));
+    await act(async () => {});
+    expect(within(tools()).getByRole("heading", { name: "Arcane Signet" })).toBeTruthy();
+    const signetTrigger = within(tools()).getByRole("button", { name: /^Printings/ });
+    expect(signetTrigger.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(signetTrigger);
+    await act(async () => {});
+    expect(printingsFetches(signet.id)).toBe(1);
+    expect(within(tools()).getByRole("button", { name: /Printings · 1/ })).toBeTruthy();
+    // Viewer only: rows render, but no deck controls and nothing marked.
+    expect(within(tools()).queryByText(/In deck/)).toBeNull();
+    expect(within(tools()).queryByRole("button", { name: "Use this printing in deck" })).toBeNull();
+    // Browsing minted nothing.
+    await settle(1100);
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+    expect(saveStatus()).toBe("saved");
+
+    // Back on Sol Ring: closed again, and reopening hits the cache — the one
+    // request from the top of the test stands (the verify list's item 2).
+    fireEvent.change(input, { target: { value: "sol ring" } });
+    await settle();
+    fireEvent.click(screen.getByRole("option", { name: /Sol Ring/ }));
+    await act(async () => {});
+    fireEvent.click(within(tools()).getByRole("button", { name: /^Printings/ }));
+    await act(async () => {});
+    expect(within(tools()).getByText(/In deck: default printing/)).toBeTruthy();
+    expect(printingsFetches(sol.id)).toBe(1);
   });
 });

@@ -10,6 +10,7 @@ import {
   parseQuickAdd,
   removeCard,
   replaceLeader,
+  setPrinting,
   setQty,
   setTags,
   singleQtyIncrease,
@@ -174,6 +175,42 @@ describe("tags", () => {
     expect(next.find((e) => e.cardId === "b")?.tags).toEqual(["keep"]);
     // unknown entry → structural no-op
     expect(setTags(start, "commander", "a", ["x"])).toEqual(start);
+  });
+});
+
+describe("setPrinting (W6 — the pane's printing choice)", () => {
+  it("sets the printing on EVERY entry of the card — per card, not per (zone, card)", () => {
+    const start = [
+      entry({ cardId: "krenko", zone: "commander" }),
+      entry({ cardId: "krenko", qty: 1 }),
+      entry({ cardId: "b" }),
+    ];
+    const next = setPrinting(start, "krenko", "sld-2783");
+    expect(next.filter((e) => e.cardId === "krenko").map((e) => e.printingId)).toEqual([
+      "sld-2783",
+      "sld-2783",
+    ]);
+    expect("printingId" in next.find((e) => e.cardId === "b")!).toBe(false);
+  });
+
+  it("replaces an earlier choice and rides the save payload", () => {
+    const start = setPrinting([entry({ cardId: "a" })], "a", "cmm-410");
+    const next = setPrinting(start, "a", "sld-2783");
+    expect(toSavePayload(next)).toEqual([
+      { cardId: "a", zone: "main", qty: 1, tags: [], printingId: "sld-2783" },
+    ]);
+  });
+
+  it("null clears back to the default printing — the key is dropped, so the PUT omits it", () => {
+    const start = [entry({ cardId: "a", printingId: "sld-2783" })];
+    const next = setPrinting(start, "a", null);
+    expect("printingId" in next[0]).toBe(false);
+    expect(toSavePayload(next)).toEqual([{ cardId: "a", zone: "main", qty: 1, tags: [] }]);
+  });
+
+  it("is a no-op for a card with no entries", () => {
+    const start = [entry({ cardId: "a" })];
+    expect(setPrinting(start, "ghost", "x")).toEqual(start);
   });
 });
 
