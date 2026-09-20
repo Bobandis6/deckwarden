@@ -11,6 +11,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { massEntryUrl } from "@/lib/buy/links";
 import { artCredit, type CardArt } from "@/lib/cards/art";
 import { COMMANDER } from "@/lib/games/mtg/formats";
 import { atraxa, card, thrasios, tymna } from "@/lib/games/mtg/test-fixtures";
@@ -108,9 +109,13 @@ describe("DeckShareView — the artwork header", () => {
     expect(status.textContent).toBe("The Warden approves this deck ✓");
 
     const actions = [
-      ...header.querySelectorAll<HTMLElement>("a[data-slot=button], button[data-slot=button]"),
+      // The buy menu's trigger is a Button too, but Base UI stamps its own
+      // data-slot on it (dropdown-menu-trigger) — include it in the row pin.
+      ...header.querySelectorAll<HTMLElement>(
+        "a[data-slot=button], button[data-slot=button], button[data-slot=dropdown-menu-trigger]",
+      ),
     ].map((el) => el.textContent);
-    expect(actions).toEqual(["♡ Like", "Bookmark", "Fork", "Copy decklist"]);
+    expect(actions).toEqual(["♡ Like", "Bookmark", "Fork", "Copy decklist", "Buy this deck"]);
   });
 
   it("without art (One Piece, the private gate): the gradient band and no credit anywhere in the header", () => {
@@ -230,5 +235,71 @@ describe("DeckShareView — F5 previews", () => {
 
     fireEvent.click(name);
     expect(push).toHaveBeenCalledWith(`/cards/${solRing.id}`);
+  });
+});
+
+describe("DeckShareView — the buy menu (W7, D6)", () => {
+  /** Base UI menu triggers open on the pointer sequence, not a bare click. */
+  function openMenu(trigger: HTMLElement) {
+    fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
+    fireEvent.mouseDown(trigger, { button: 0 });
+    fireEvent.click(trigger, { button: 0 });
+  }
+
+  const mountain = card({
+    name: "Mountain",
+    primaryType: "Land",
+    costValue: 0,
+    attrs: { type_line: "Basic Land — Mountain", oracle_text: "({T}: Add {R}.)" },
+  });
+  const buyCards: ShareDeckCard[] = [
+    wire(atraxa, commanderZone),
+    wire(solRing, mainZone),
+    { ...wire(mountain, mainZone), qty: 33 },
+  ];
+
+  it("real Mass Entry links in a new tab, per-copy counts, no sponsored rel while the env is empty", async () => {
+    render(<DeckShareView deck={deck} cards={buyCards} />);
+    openMenu(screen.getByRole("button", { name: "Buy this deck" }));
+    const menu = await screen.findByRole("menu", { name: "Buy this deck" });
+
+    const items = within(menu).getAllByRole("menuitem");
+    expect(items.map((i) => i.textContent)).toEqual(["Whole deck (35)", "Without basic lands (2)"]);
+    expect(items[0].getAttribute("href")).toBe(
+      massEntryUrl("Magic", ["1 Atraxa, Praetors' Voice", "1 Sol Ring", "33 Mountain"]),
+    );
+    expect(items[1].getAttribute("href")).toBe(
+      massEntryUrl("Magic", ["1 Atraxa, Praetors' Voice", "1 Sol Ring"]),
+    );
+    for (const item of items) {
+      expect(item.getAttribute("target")).toBe("_blank");
+      expect(item.getAttribute("rel")).toBe("noopener");
+    }
+    // D6's footer label; the affiliate disclosure stays dark with the env unset.
+    expect(menu.textContent).toContain(
+      "Opens TCGplayer Mass Entry in a new tab · prices via Scryfall, updated daily.",
+    );
+    expect(menu.textContent).not.toContain("commission");
+  });
+
+  it("Only cards I'm missing renders only with a collection, same per-copy math as You own N/M", async () => {
+    const { unmount } = render(<DeckShareView deck={deck} cards={buyCards} />);
+    openMenu(screen.getByRole("button", { name: "Buy this deck" }));
+    let menu = await screen.findByRole("menu", { name: "Buy this deck" });
+    expect(within(menu).queryByRole("menuitem", { name: /missing/ })).toBeNull();
+    unmount();
+
+    // Owns the commander and Sol Ring → missing = the 33 Mountains.
+    render(<DeckShareView deck={deck} cards={buyCards} owned={new Set([atraxa.id, solRing.id])} />);
+    openMenu(screen.getByRole("button", { name: "Buy this deck" }));
+    menu = await screen.findByRole("menu", { name: "Buy this deck" });
+    const missing = within(menu).getByRole("menuitem", { name: "Only cards I'm missing (33)" });
+    expect(missing.getAttribute("href")).toBe(massEntryUrl("Magic", ["33 Mountain"]));
+  });
+
+  it("no buy surface for a game whose adapter declares no buy (One Piece)", () => {
+    const opDeck: ShareDeckMeta = { ...deck, game: "optcg", format: "standard", leaderIds: [] };
+    render(<DeckShareView deck={opDeck} cards={[]} />);
+    expect(screen.queryByRole("button", { name: "Buy this deck" })).toBeNull();
   });
 });

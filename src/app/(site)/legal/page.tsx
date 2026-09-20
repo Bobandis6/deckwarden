@@ -67,6 +67,35 @@ export default function LegalPage() {
         </p>
       </section>
 
+      <section className="mt-8 space-y-3">
+        <h2 className="font-display text-lg font-semibold">Buying cards</h2>
+        <p>
+          Deck pages and card pages link out to{" "}
+          <a
+            href="https://www.tcgplayer.com"
+            className="underline"
+            rel="noreferrer"
+            target="_blank"
+          >
+            TCGplayer
+          </a>{" "}
+          (Mass Entry and card search) so a list can be priced or bought in one step. These are
+          plain outbound links: your browser goes straight to TCGplayer, Deckwarden never contacts
+          TCGplayer on your behalf, and nothing about your decks is sent there beyond the card names
+          and quantities in the link you click. TCGplayer is not affiliated with Deckwarden and
+          prices shown on Deckwarden are Scryfall&apos;s daily estimates, not TCGplayer offers.
+        </p>
+        {/* Renders only on the affiliate day (never on Vercel Hobby) — the
+            server reads the same build-time env that wraps the links. */}
+        {process.env.NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE && (
+          <p>
+            Some outbound TCGplayer links are affiliate links: Deckwarden may earn a commission on
+            qualifying purchases made through them, at no extra cost to you. Card data and prices
+            remain free to view either way.
+          </p>
+        )}
+      </section>
+
       <section id="one-piece" className="mt-8 space-y-3">
         <h2 className="font-display text-lg font-semibold">One Piece Card Game data</h2>
         <p>

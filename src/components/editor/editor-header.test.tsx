@@ -117,7 +117,7 @@ describe("EditorHeader", () => {
     expect(onOpen).toHaveBeenCalledWith("share");
   });
 
-  it("More lists Details, Import, Export (+ History with a live deck) and the shortcut sheet", async () => {
+  it("More lists Details, Import, Export, Buy (+ History with a live deck) and the shortcut sheet", async () => {
     const onOpen = vi.fn();
     const { rerender } = render(header({ onOpen }));
     open(screen.getByRole("button", { name: "More" }));
@@ -126,7 +126,7 @@ describe("EditorHeader", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((i) => i.textContent),
-    ).toEqual(["Details", "Import", "Export", "Keyboard shortcuts?"]);
+    ).toEqual(["Details", "Import", "Export", "Buy this deck…", "Keyboard shortcuts?"]);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Details" }));
     expect(onOpen).toHaveBeenCalledWith("details");
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
@@ -141,5 +141,22 @@ describe("EditorHeader", () => {
     ).toContain("History");
     fireEvent.click(within(menu).getByRole("menuitem", { name: "History" }));
     expect(onOpen).toHaveBeenCalledWith("history");
+  });
+
+  it("Buy this deck… opens the buy dialog, and only for games that declare buy (W7)", async () => {
+    const onOpen = vi.fn();
+    const { rerender } = render(header({ onOpen }));
+    open(screen.getByRole("button", { name: "More" }));
+    const menu = await screen.findByRole("menu", { name: "More" });
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Buy this deck…" }));
+    expect(onOpen).toHaveBeenCalledWith("buy");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+
+    // One Piece declares no capabilities.buy → the item does not exist.
+    const optcg = getAdapter("optcg");
+    rerender(header({ onOpen, adapter: optcg, format: optcg.formats[0] }));
+    open(screen.getByRole("button", { name: "More" }));
+    const opMenu = await screen.findByRole("menu", { name: "More" });
+    expect(within(opMenu).queryByRole("menuitem", { name: "Buy this deck…" })).toBeNull();
   });
 });

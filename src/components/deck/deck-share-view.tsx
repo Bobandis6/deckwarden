@@ -42,6 +42,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { AmbientArt } from "@/components/deck/ambient-art";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
+import { BuyDeckMenu, countedEntries } from "@/components/deck/buy-deck-menu";
 import { DeckGridView } from "@/components/deck/deck-grid-view";
 import { DeckTextView } from "@/components/deck/deck-text-view";
 import { EngagementButtons, type EngagementViewer } from "@/components/deck/engagement-buttons";
@@ -53,6 +54,7 @@ import { ValidationPanel } from "@/components/deck/validation-panel";
 import { EmptyState } from "@/components/empty-state";
 import { SURFACE_BAND, SurfaceHeader } from "@/components/surface-header";
 import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/toast";
 import type { CardArt } from "@/lib/cards/art";
 import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
 import { orderLeadersBy } from "@/lib/decks/ambient-art";
@@ -307,6 +309,15 @@ export function DeckShareView({
           <Button variant="outline" size="sm" onClick={copyDecklist}>
             Copy decklist
           </Button>
+          {/* Buy menu (W7, D6) — only for games whose adapter declares buy. */}
+          {adapter.capabilities.buy && (
+            <BuyDeckMenu
+              buy={adapter.capabilities.buy}
+              entries={countedEntries(entries, format)}
+              cards={cardMap}
+              owned={owned}
+            />
+          )}
           {editToken !== null && (
             <Button
               nativeButton={false}
@@ -412,6 +423,9 @@ export function DeckShareView({
           </div>
         </section>
       )}
+      {/* The buy menu's copy-list path toasts (W7); the host mounts the Toaster
+          (a portal — contributes nothing in-flow). */}
+      <Toaster />
       {/* Last child on purpose: the credit chip's sticky row sits at main's end (R2). */}
       <AmbientArt art={art} swatches={swatches} appearance={appearance} />
     </main>

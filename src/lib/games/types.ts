@@ -549,5 +549,27 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
       /** Deep link to one event's page on the source. */
       eventUrl(externalKey: string): string;
     };
+    /**
+     * A vendor sells this game's singles (W7: MTG via TCGplayer). Declarative
+     * + pure like the rest of this block: the adapter names the vendor and
+     * builds line/URL strings, core (src/lib/buy/) assembles Mass Entry links
+     * and renders the menus. Links OUT only — no Deckwarden server ever calls
+     * the vendor, and premium never gates any of it. The affiliate wrapper is
+     * core's concern (NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE, empty on Hobby).
+     * Absent = no buy surface renders anywhere for the game (One Piece), with
+     * no apology copy.
+     */
+    buy?: {
+      /** Display name for labels, e.g. "TCGplayer". */
+      vendor: string;
+      /** Mass Entry `productline=` value (live-verified capitalization). */
+      productLine: string;
+      /** One Mass Entry line, e.g. "33 Mountain" (vendor-parsable name). */
+      massEntryLine(card: Omit<CardData<A>, "legality">, qty: number): string;
+      /** The vendor's single-card page (name search — printings are LATER). */
+      cardUrl(card: Omit<CardData<A>, "legality">): string;
+      /** "Without basic lands" membership (D6); absent = nothing skippable. */
+      skipByDefault?(card: Omit<CardData<A>, "legality">): boolean;
+    };
   };
 }

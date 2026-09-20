@@ -24,7 +24,7 @@
  * has an entry, the TagEditor idiom) goes through the editor's real edit
  * path via `printing.onSetPrinting`.
  */
-import { ArrowRightIcon, ChevronDownIcon, XIcon } from "lucide-react";
+import { ArrowRightIcon, ArrowUpRightIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 
@@ -32,6 +32,7 @@ import { CardImage } from "@/components/cards/card-image";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { withPartner } from "@/lib/buy/links";
 import { embeddablePrintingImageUrl, thumbnailUrl } from "@/lib/cards/images";
 import { printingCaption, type GalleryPrinting } from "@/lib/cards/printings";
 import { MAX_TAG_LENGTH, MAX_TAGS, type EditorCard } from "@/lib/decks/editor-state";
@@ -158,10 +159,28 @@ export function CardDetailPane({
 
       <p className="text-muted-foreground mt-3 flex items-center justify-between text-xs">
         <span>{card.cheapestUsd !== null ? `from $${card.cheapestUsd.toFixed(2)}` : ""}</span>
-        <Link href={`/cards/${card.id}`} className="hover:underline" target="_blank">
-          Card page
-          <ArrowRightIcon aria-hidden className="ml-1 inline size-3.5 align-[-0.15em]" />
-        </Link>
+        <span className="flex items-center gap-3">
+          {/* Buy ↗ (W7, D6): between the price and the card-page link, only
+              for games whose adapter declares buy. Plain link out; the env
+              ternary folds to "noopener" while the affiliate var is unset. */}
+          {adapter.capabilities.buy && (
+            <a
+              href={withPartner(adapter.capabilities.buy.cardUrl(card))}
+              className="hover:underline"
+              target="_blank"
+              rel={
+                process.env.NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE ? "sponsored noopener" : "noopener"
+              }
+            >
+              Buy
+              <ArrowUpRightIcon aria-hidden className="ml-0.5 inline size-3.5 align-[-0.15em]" />
+            </a>
+          )}
+          <Link href={`/cards/${card.id}`} className="hover:underline" target="_blank">
+            Card page
+            <ArrowRightIcon aria-hidden className="ml-1 inline size-3.5 align-[-0.15em]" />
+          </Link>
+        </span>
       </p>
 
       {/* D5: after the footer line, closed by default. The count appears once

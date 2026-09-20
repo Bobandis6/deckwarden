@@ -6,6 +6,7 @@ import { COLOR_BIT, maskToLetters } from "../colors";
 import type { CardData, GameAdapter, SearchFieldDef } from "../types";
 import type { MtgAttrs } from "./attrs";
 import { analyzeMtg } from "./analyze";
+import { mtgBuy } from "./buy";
 import { parseMtgDecklist, serializeMtgDecklist } from "./decklist";
 import { MTG_FORMATS } from "./formats";
 import { mtgImportLeaderGuess } from "./import-guess";
@@ -196,5 +197,8 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
       // /event/{TID} verified against a live raw-TID event page 2026-09-01.
       eventUrl: (externalKey) => `https://topdeck.gg/event/${encodeURIComponent(externalKey)}`,
     },
+    // Buy links (W7): TCGplayer Mass Entry + name search, strings only —
+    // link-building/menus are core (src/lib/buy/), IO is the reader's browser.
+    buy: mtgBuy,
   },
 };

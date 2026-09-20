@@ -51,6 +51,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { AmbientArt } from "@/components/deck/ambient-art";
 import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
+import { BuyDeckDialog, countedEntries } from "@/components/deck/buy-deck-menu";
 import { SampleHand } from "@/components/deck/sample-hand";
 import { CardDetailPane, type PrintingEditing } from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
@@ -1180,6 +1181,18 @@ export function DeckEditor({
           {dialog === "export" && snapshot && (
             <ExportDialog
               text={load.adapter.serializeDecklist(snapshot, cards)}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {/* W7: whole-deck buy links. No `owned` here — the editor's lazily
+              grown set can't tell "no collection" from "owns nothing"; the
+              honest "Only cards I'm missing" lives on the share page, whose
+              server computes ownership for the whole deck. */}
+          {dialog === "buy" && load.adapter.capabilities.buy && (
+            <BuyDeckDialog
+              buy={load.adapter.capabilities.buy}
+              entries={countedEntries(entries, load.format)}
+              cards={cards}
               onClose={() => setDialog(null)}
             />
           )}

@@ -21,6 +21,14 @@ export function SiteFooter() {
         . Deckwarden is unofficial Fan Content permitted under the Fan Content Policy — not approved
         or endorsed by Wizards of the Coast.
       </p>
+      {/* W7: the one-line disclosure exists only on the affiliate day (never
+          on Vercel Hobby) — same build-time env that wraps the buy links. */}
+      {process.env.NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE && (
+        <p className="mt-2">
+          Some TCGplayer links are affiliate links — Deckwarden may earn a commission on qualifying
+          purchases.
+        </p>
+      )}
       <p className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
         <Link href="/legal" className="hover:text-foreground underline">
           Legal

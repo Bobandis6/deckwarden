@@ -14,6 +14,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { massEntryUrl } from "@/lib/buy/links";
 import type { CardWire } from "@/lib/decks/editor-state";
 import { card } from "@/lib/games/mtg/test-fixtures";
 import { saveAppearance } from "@/lib/theme/appearance";
@@ -580,5 +581,57 @@ describe("DeckEditor — the pane's Printings collapsible (W6, D5)", () => {
     await act(async () => {});
     expect(within(tools()).getByText(/In deck: default printing/)).toBeTruthy();
     expect(printingsFetches(sol.id)).toBe(1);
+  });
+});
+
+describe("DeckEditor — Buy this deck (W7, D6)", () => {
+  /** Base UI menu triggers open on the pointer sequence, not a bare click. */
+  function openMenu(trigger: HTMLElement) {
+    fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
+    fireEvent.mouseDown(trigger, { button: 0 });
+    fireEvent.click(trigger, { button: 0 });
+  }
+
+  it("the pane footer gets Buy ↗ and More → Buy this deck… opens the link dialog without writing", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    fireEvent.change(input, { target: { value: "sol" } });
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring to Main deck" }));
+    await settle(5500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+
+    // The pane footer's Buy ↗ (between the price and the card-page link):
+    // the single-card name-search URL, new tab, plain rel while env-dark.
+    const pane = section("Card detail and suggestions");
+    const buyLink = within(pane).getByRole("link", { name: "Buy" });
+    expect(buyLink.getAttribute("href")).toBe(
+      "https://www.tcgplayer.com/search/magic/product?q=Sol%20Ring",
+    );
+    expect(buyLink.getAttribute("target")).toBe("_blank");
+    expect(buyLink.getAttribute("rel")).toBe("noopener");
+
+    // More → Buy this deck… → the dialog lists real Mass Entry links.
+    openMenu(screen.getByRole("button", { name: "More" }));
+    await settle(50);
+    const menu = screen.getByRole("menu", { name: "More" });
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Buy this deck…" }));
+    await settle(50);
+    const dialog = screen.getByRole("dialog", { name: "Buy this deck" });
+    // Button render={<a/>} keeps role button (W4 gotcha) — real hrefs still.
+    const whole = within(dialog).getByRole("button", { name: /Whole deck/ });
+    expect(whole.tagName).toBe("A");
+    expect(whole.getAttribute("href")).toBe(massEntryUrl("Magic", ["1 Sol Ring"]));
+    expect(whole.getAttribute("target")).toBe("_blank");
+    expect(within(dialog).getByRole("button", { name: /Without basic lands/ })).toBeTruthy();
+    expect(dialog.textContent).toContain(
+      "Opens TCGplayer Mass Entry in a new tab · prices via Scryfall, updated daily.",
+    );
+    // Looking at buy links is never an edit: still one create, one PUT.
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
   });
 });

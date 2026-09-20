@@ -45,7 +45,8 @@ import type { ForkCredit } from "@/lib/decks/fork-credit";
 import type { FormatDef, GameAdapter } from "@/lib/games/types";
 
 /** The editor's dialogs, each opened from the header (or `?` for the sheet). */
-export type EditorDialog = "details" | "import" | "export" | "share" | "history" | "shortcuts";
+export type EditorDialog =
+  "details" | "import" | "export" | "buy" | "share" | "history" | "shortcuts";
 
 export function EditorHeader({
   adapter,
@@ -134,6 +135,10 @@ export function EditorHeader({
             <DropdownMenuItem onClick={() => onOpen("details")}>Details</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onOpen("import")}>Import</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onOpen("export")}>Export</DropdownMenuItem>
+            {/* Buy links (W7, D6) — only for games whose adapter declares buy. */}
+            {adapter.capabilities.buy && (
+              <DropdownMenuItem onClick={() => onOpen("buy")}>Buy this deck…</DropdownMenuItem>
+            )}
             {/* Versioning is a deck-level concern (P3.6): a header affordance,
                 not a fourth right-pane tab. Needs a server row (not a draft). */}
             {canHistory && (

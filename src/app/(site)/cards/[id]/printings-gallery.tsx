@@ -26,7 +26,7 @@
  * ids the card doesn't own resolve to nothing and change nothing (the W4
  * crafted-link stance).
  */
-import { RotateCcwIcon } from "lucide-react";
+import { ArrowUpRightIcon, RotateCcwIcon } from "lucide-react";
 import {
   createContext,
   useCallback,
@@ -78,9 +78,22 @@ interface Displayed {
 
 type TailStatus = "idle" | "loading" | "done" | "error";
 
+/**
+ * W7: the card page's outbound buy link, built SERVER-SIDE by the page from
+ * the adapter declaration + the build-time affiliate env (ISR-safe — the ●
+ * route never reads env at request time) and passed through as data. `rel`
+ * rides along so no "sponsored" literal ships in this client bundle.
+ */
+export interface CardBuyLink {
+  href: string;
+  vendor: string;
+  rel: string;
+}
+
 interface GalleryContextValue {
   cardName: string;
   hasPrices: boolean;
+  buy: CardBuyLink | null;
   rows: GalleryPrinting[];
   total: number;
   truncated: boolean;
@@ -125,6 +138,7 @@ export function PrintingsGallery({
   gameCode,
   printings,
   total,
+  buy = null,
   children,
 }: {
   cardId: string;
@@ -133,6 +147,8 @@ export function PrintingsGallery({
   /** Slim rows, default first then newest first — the page's ≤ 100. */
   printings: GalleryPrinting[];
   total: number;
+  /** Server-built outbound buy link (W7); null = the game declares no buy. */
+  buy?: CardBuyLink | null;
   children: ReactNode;
 }) {
   const hasPrices = gameCode !== "optcg";
@@ -266,6 +282,7 @@ export function PrintingsGallery({
     () => ({
       cardName,
       hasPrices,
+      buy,
       rows,
       total: apiMeta?.total ?? total,
       truncated: apiMeta?.truncated ?? false,
@@ -283,6 +300,7 @@ export function PrintingsGallery({
     [
       cardName,
       hasPrices,
+      buy,
       rows,
       apiMeta,
       total,
@@ -306,6 +324,7 @@ export function PrintingsGallery({
         row={drawerRow}
         cardName={cardName}
         hasPrices={hasPrices}
+        buy={buy}
         onClose={() => setDrawerRow(null)}
       />
     </GalleryContext.Provider>
@@ -318,7 +337,7 @@ export function PrintingsGallery({
  * a visible main image — what makes "click → shows in the main spot" legible.
  */
 export function PrintingsHero() {
-  const { cardName, pinnedRow, displayed, announceText, reset, flip } = useGallery();
+  const { cardName, pinnedRow, displayed, announceText, reset, flip, buy } = useGallery();
   const hasDefault = pinnedRow !== null || displayed.id !== null;
 
   return (
@@ -375,6 +394,15 @@ export function PrintingsHero() {
             )}
           </div>
         </div>
+      )}
+      {/* W7 (D6): under the hero caption; renders only when the game sells. */}
+      {buy && (
+        <p className="mt-3 w-72 text-sm">
+          <a href={buy.href} className="hover:underline" target="_blank" rel={buy.rel}>
+            Buy on {buy.vendor}
+            <ArrowUpRightIcon aria-hidden className="ml-1 inline size-3.5 align-[-0.15em]" />
+          </a>
+        </p>
       )}
       <p aria-live="polite" className="sr-only">
         {announceText}
@@ -558,18 +586,20 @@ function PrintingRow({
 
 /**
  * The phone path (D4): tap a row → this bottom drawer, reusing ui/drawer.tsx
- * as-is. Large image, set line, prices; the footer is W7's buy slot — empty
- * until W7 ships real links (no dead controls).
+ * as-is. Large image, set line, prices; the footer holds W7's [ Buy ↗ ]
+ * (rendered only when the game declares buy — no dead controls).
  */
 function PrintingDrawer({
   row,
   cardName,
   hasPrices,
+  buy,
   onClose,
 }: {
   row: GalleryPrinting | null;
   cardName: string;
   hasPrices: boolean;
+  buy: CardBuyLink | null;
   onClose: () => void;
 }) {
   return (
@@ -606,7 +636,20 @@ function PrintingDrawer({
                 {row.usdFoil ? ` · foil $${row.usdFoil}` : ""}
               </p>
             )}
-            {/* W7's buy slot lands here (D4's [ Buy ↗ ]). */}
+            {/* D4's [ Buy ↗ ] (W7) — name search; exact printings are LATER. */}
+            {buy && (
+              <div className="mt-3 flex justify-center">
+                <Button
+                  nativeButton={false}
+                  variant="outline"
+                  size="sm"
+                  render={<a href={buy.href} target="_blank" rel={buy.rel} />}
+                >
+                  Buy on {buy.vendor}
+                  <ArrowUpRightIcon aria-hidden className="size-3.5" />
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </DrawerContent>

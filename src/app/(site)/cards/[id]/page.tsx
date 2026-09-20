@@ -23,6 +23,7 @@ import { ComboList } from "@/components/combos/combo-list";
 import { OptcgPostureLine } from "@/components/optcg-posture-line";
 import { SURFACE_BAND, SurfaceHeader } from "@/components/surface-header";
 import { GAME_ID, GAMES } from "@/db/seed-data";
+import { withPartner } from "@/lib/buy/links";
 import { INLINE_PRINTINGS_MAX, toGalleryPrinting } from "@/lib/cards/printings";
 import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
 import { getAdapter } from "@/lib/games/registry";
@@ -106,6 +107,18 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
   // Slim rows for the gallery (W5): ≤ 100 into the HTML (default first — the
   // page sort above), no image URLs on the wire; "Show all" fetches the rest.
   const galleryRows = printings.slice(0, INLINE_PRINTINGS_MAX).map(toGalleryPrinting);
+  // Buy link (W7): built HERE from the adapter declaration + the build-time
+  // affiliate env, then passed down as data — the route stays ● (no request-
+  // time env read on the ISR path) and no "sponsored" literal reaches the
+  // client bundle while NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE is unset.
+  const buyCap = adapter.capabilities.buy;
+  const buy = buyCap
+    ? {
+        href: withPartner(buyCap.cardUrl(card)),
+        vendor: buyCap.vendor,
+        rel: process.env.NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE ? "sponsored noopener" : "noopener",
+      }
+    : null;
 
   return (
     <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game={gameCode}>
@@ -130,6 +143,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
         gameCode={gameCode}
         printings={galleryRows}
         total={printings.length}
+        buy={buy}
       >
         <div className="flex flex-col gap-6 md:flex-row md:gap-8">
           <PrintingsHero />
