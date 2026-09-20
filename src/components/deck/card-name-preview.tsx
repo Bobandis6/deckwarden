@@ -25,7 +25,6 @@ import type { ReactElement } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import type { EditorCard } from "@/lib/decks/editor-state";
 
 /** Hover opens after this; the primitive's default (600 ms) reads as a stall on a decklist. */
 export const PREVIEW_OPEN_DELAY_MS = 300;
@@ -33,10 +32,16 @@ export const PREVIEW_OPEN_DELAY_MS = 300;
 export const PREVIEW_CLOSE_DELAY_MS = 150;
 
 export function CardNamePreview({
-  card,
+  name,
+  image,
+  caption,
   children,
 }: {
-  card: EditorCard;
+  /** Widened from `card: EditorCard` in W5 — the gallery's rows aren't EditorCards. */
+  name: string;
+  image: string | null;
+  /** Optional line under the image — the gallery's "CMM · #410 · Unc.". */
+  caption?: string;
   /** The trigger element itself — rendered as is, with the preview's handlers merged in. */
   children: ReactElement;
 }) {
@@ -49,14 +54,17 @@ export function CardNamePreview({
       />
       <HoverCardContent side="right" align="start" className="w-auto p-1.5">
         <CardImage
-          src={card.image}
+          src={image}
           alt=""
           width={488}
           height={680}
           className="w-56 rounded-[4.75%/3.5%]"
-          fallback={card.name}
+          fallback={name}
         />
-        <span className="sr-only">{card.name}</span>
+        <span className="sr-only">{name}</span>
+        {caption && (
+          <p className="text-muted-foreground mt-1 px-0.5 text-center text-xs">{caption}</p>
+        )}
       </HoverCardContent>
     </HoverCard>
   );

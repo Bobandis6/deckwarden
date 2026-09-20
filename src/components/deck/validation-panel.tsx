@@ -155,7 +155,7 @@ export function ValidationPanel({
                       </button>
                     );
                     return preview ? (
-                      <CardNamePreview key={cardId} card={card}>
+                      <CardNamePreview key={cardId} name={card.name} image={card.image}>
                         {chip}
                       </CardNamePreview>
                     ) : (

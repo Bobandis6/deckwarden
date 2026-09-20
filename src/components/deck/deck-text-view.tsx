@@ -173,7 +173,9 @@ export function DeckTextView({
                     </span>
                   )}
                   {preview ? (
-                    <CardNamePreview card={card}>{nameButton}</CardNamePreview>
+                    <CardNamePreview name={card.name} image={card.image}>
+                      {nameButton}
+                    </CardNamePreview>
                   ) : (
                     nameButton
                   )}

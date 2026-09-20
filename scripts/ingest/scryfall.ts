@@ -143,6 +143,8 @@ interface Stats {
   post_pass: {
     identities_removed: number;
     printings_removed: number;
+    /** The ranking behind defaults_cleared/set — bumped by REC-1 (W5). */
+    default_rank_rule: string;
     defaults_cleared: number;
     defaults_set: number;
     cheapest_updated: number;
@@ -194,6 +196,7 @@ async function main() {
       post_pass: {
         identities_removed: 0,
         printings_removed: 0,
+        default_rank_rule: "v2: box sets and priceless printings demoted (REC-1, W5)",
         defaults_cleared: 0,
         defaults_set: 0,
         cheapest_updated: 0,
@@ -336,8 +339,11 @@ async function main() {
         AND NOT EXISTS (SELECT 1 FROM stage_cp s WHERE s.id = p.id)`;
     stats.post_pass.printings_removed = remCp.count;
 
-    // Default printing per identity: paper > promo/memorabilia > unreleased, newest first.
-    // Two passes (clear, then set) so cp_default_one is never transiently violated.
+    // Default printing per identity: paper > promo/memorabilia > unreleased >
+    // box sets and priceless printings (REC-1, W5: "newest paper printing"
+    // alone made Sol Ring's sitewide image a Secret Lair with no nonfoil
+    // price), newest first. Two passes (clear, then set) so cp_default_one is
+    // never transiently violated.
     await sql`CREATE TEMP TABLE tmp_default_winner AS
       SELECT id FROM (
         SELECT p.id, row_number() OVER (
@@ -345,6 +351,8 @@ async function main() {
           ORDER BY st.digital ASC,
                    (st.set_type IN ('promo', 'memorabilia')) ASC,
                    (p.released_at > current_date) ASC,
+                   (st.set_type = 'box') ASC,
+                   ((p.prices->>'usd') IS NULL) ASC,
                    p.released_at DESC NULLS LAST,
                    p.id
         ) AS rn

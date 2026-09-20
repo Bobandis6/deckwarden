@@ -29,13 +29,15 @@ async function loadCard(id: string) {
         rarity: cardPrintings.rarity,
         releasedAt: cardPrintings.releasedAt,
         isDefault: cardPrintings.isDefault,
+        hasBack: cardPrintings.hasBack,
         prices: cardPrintings.prices,
         imageOverride: cardPrintings.imageOverride,
-        isRemoved: cardPrintings.isRemoved,
       })
       .from(cardPrintings)
       .innerJoin(sets, eq(sets.id, cardPrintings.setId))
-      .where(eq(cardPrintings.cardIdentityId, id))
+      // Removed printings don't exist for the gallery (W5) — the counts and
+      // rows here must match what /api/cards/[id]/printings serves.
+      .where(and(eq(cardPrintings.cardIdentityId, id), eq(cardPrintings.isRemoved, false)))
       .orderBy(desc(cardPrintings.releasedAt)),
     db.select().from(formats).where(eq(formats.gameId, identity.gameId)).orderBy(asc(formats.id)),
     db
