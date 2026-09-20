@@ -33,6 +33,16 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      # After Scryfall so a new set's precons resolve the same night. Cheap on
+      # a normal night (one DeckList request, new codes only); the script does
+      # its own full re-fetch on Sunday UTC, and PRECONS_FULL=true on a manual
+      # dispatch forces one.
+      - name: Ingest MTGJSON Commander precons (after Scryfall — printings resolve locally)
+        run: pnpm ingest:precons
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PRECONS_FULL: ${{ github.event_name == 'workflow_dispatch' && 'true' || '' }}
+
       - name: Ingest Commander Spellbook combos (after Scryfall — pieces resolve via oracle_id)
         run: pnpm ingest:spellbook
         env:

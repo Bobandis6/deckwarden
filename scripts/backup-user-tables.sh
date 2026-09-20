@@ -16,7 +16,10 @@ DIRECT_URL="${DATABASE_URL/-pooler./.}"
 
 # `collections` was listed from day one and only came into existence in P3.7
 # (2026-09-02); the pg_tables filter below always tolerated its absence.
-USER_TABLES="users decks deck_folders deck_cards deck_versions deck_likes deck_bookmarks collections"
+# `precon_products` (W8a): forks, likes and bookmarks reference precon deck
+# ids — a restore without the product meta would orphan them and the next
+# ingest would collide on public_id.
+USER_TABLES="users decks deck_folders deck_cards deck_versions deck_likes deck_bookmarks collections precon_products"
 EXISTING=$(psql "$DIRECT_URL" -Atc \
   "SELECT string_agg(tablename, ' ') FROM pg_tables WHERE schemaname='public'
    AND tablename = ANY(string_to_array('$USER_TABLES', ' '))")

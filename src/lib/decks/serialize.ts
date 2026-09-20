@@ -20,6 +20,8 @@ export function deckMetaJson(deck: DeckRow, opts: { isOwner: boolean }) {
     description: deck.description,
     notes: deck.notes,
     visibility: deck.visibility,
+    // 'user' | 'precon' (W8a): clients render precons as product lists.
+    kind: deck.kind,
     // Owner-only: folder membership is the owner's organization. Non-owners
     // see folder contents solely through a folder page the owner shared.
     folderId: opts.isOwner ? deck.folderId : null,

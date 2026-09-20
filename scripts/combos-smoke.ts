@@ -161,7 +161,8 @@ async function main() {
     // ---- "Decks with this commander" shelf (cold-start honesty) -------------
     const [{ n: hubDecks }] = await sql`
       SELECT count(*)::int AS n FROM decks
-      WHERE visibility = 'public' AND leader_ids @> ARRAY[${leader.id}]::uuid[]`;
+      WHERE visibility = 'public' AND kind = 'user'
+        AND leader_ids @> ARRAY[${leader.id}]::uuid[]`;
     if (Number(hubDecks) === 0) {
       check(
         "no public decks with this leader → shelf hidden",

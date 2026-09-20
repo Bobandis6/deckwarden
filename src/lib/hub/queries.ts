@@ -196,6 +196,8 @@ export async function loadHubDecks(leaderId: string): Promise<HubDeckRow[]> {
     .where(
       and(
         eq(decks.visibility, "public"),
+        // Community decks only (W8a): precons get their own shelf in W8b.
+        eq(decks.kind, "user"),
         // The decks_hub GIN index serves @> containment.
         sql`${decks.leaderIds} @> ARRAY[${leaderId}]::uuid[]`,
       ),

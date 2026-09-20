@@ -1,6 +1,7 @@
 /**
  * Anonymous-deck purge policy (P1.1, plan §4): the cost of the guest-deck
- * spam surface. Two rules, both scoped to user_id IS NULL:
+ * spam surface. Two rules, both scoped to user_id IS NULL **and kind =
+ * 'user'** (W8a: precons are ownerless product rows, not stale guests):
  *   - EMPTY decks (no deck_cards rows) created > 30 days ago
  *   - untouched decks (updated_at) > 12 months ago
  *
@@ -45,7 +46,10 @@ async function main() {
       })
       .from(decks)
       .where(
-        sql`${decks.userId} is null and (
+        // kind = 'user' (W8a): precons are ownerless BY DESIGN and never
+        // "touched" — without this guard every precon becomes a candidate
+        // 12 months after its release date.
+        sql`${decks.userId} is null and ${decks.kind} = 'user' and (
           ${decks.updatedAt} < now() - interval '${sql.raw(UNTOUCHED_AFTER)}'
           or (
             ${decks.createdAt} < now() - interval '${sql.raw(EMPTY_AFTER)}'

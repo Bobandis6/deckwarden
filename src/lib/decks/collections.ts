@@ -18,7 +18,7 @@
  * the user id `loadOwnerDecks` is handed and the filters the profile and
  * folder pages add.
  */
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
 
@@ -61,10 +61,15 @@ export function deckCollection() {
 
 export type DeckCollectionRow = Awaited<ReturnType<typeof loadRecentPublicDecks>>[number];
 
-/** Public decks, newest activity first (updated_at moves on real edits, never on likes). */
+/**
+ * Public decks, newest activity first (updated_at moves on real edits, never
+ * on likes). kind = 'user' (W8a): precons are product lists, not community
+ * activity — and the predicate is what lets the rebuilt decks_recent_public
+ * partial index keep serving this.
+ */
 export async function loadRecentPublicDecks(limit = RECENT_PUBLIC_LIMIT) {
   return deckCollection()
-    .where(eq(decks.visibility, "public"))
+    .where(and(eq(decks.visibility, "public"), eq(decks.kind, "user")))
     .orderBy(desc(decks.updatedAt))
     .limit(limit);
 }

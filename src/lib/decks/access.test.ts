@@ -41,6 +41,21 @@ describe("isDeckOwner", () => {
   it("never grants session ownership of an anonymous deck", () => {
     expect(isDeckOwner(anonDeck(), null, "user-1")).toBe(false);
   });
+
+  /**
+   * Precon rows (W8a) are userId NULL + claimToken NULL by CHECK constraint —
+   * the shape below IS a precon as this module sees one. Nobody ever owns
+   * one, so every write route behind requireOwnedDeck answers 403, and claim
+   * can't fire (no token to match). Pinned here because the whole
+   * write-refusal story rests on this function's NULL handling.
+   */
+  it("precon shape (user NULL, token NULL): unowned by everyone", () => {
+    const precon = anonDeck({ claimToken: null, visibility: "public" });
+    expect(isDeckOwner(precon, null, null)).toBe(false);
+    expect(isDeckOwner(precon, TOKEN, null)).toBe(false); // forged token header
+    expect(isDeckOwner(precon, null, "user-1")).toBe(false); // any signed-in user
+    expect(isDeckOwner(precon, TOKEN, "user-1")).toBe(false);
+  });
 });
 
 describe("canReadDeck", () => {
@@ -60,6 +75,12 @@ describe("canReadDeck", () => {
     expect(canReadDeck(claimed, null, "user-1")).toBe(true);
     expect(canReadDeck(claimed, null, "user-2")).toBe(false);
     expect(canReadDeck(claimed, null, null)).toBe(false);
+  });
+
+  it("public precon: everyone reads (engagement stays legitimate), nobody owns", () => {
+    const precon = anonDeck({ claimToken: null, visibility: "public" });
+    expect(canReadDeck(precon, null, null)).toBe(true);
+    expect(canReadDeck(precon, null, "user-1")).toBe(true);
   });
 });
 

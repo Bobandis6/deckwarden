@@ -14,6 +14,7 @@ const row: DeckRow = {
   description: null,
   notes: null,
   visibility: "public",
+  kind: "user",
   leaderIds: [],
   ciMask: 0,
   folderId: "44444444-4444-4444-8444-444444444444",
@@ -35,5 +36,10 @@ describe("deckMetaJson", () => {
     expect(json).not.toHaveProperty("claimToken");
     expect(json).not.toHaveProperty("createdIp");
     expect(json).not.toHaveProperty("userId");
+  });
+
+  it("exposes kind on the wire (W8a)", () => {
+    expect(deckMetaJson(row, { isOwner: false }).kind).toBe("user");
+    expect(deckMetaJson({ ...row, kind: "precon" }, { isOwner: false }).kind).toBe("precon");
   });
 });

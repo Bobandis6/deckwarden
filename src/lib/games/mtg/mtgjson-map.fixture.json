@@ -1,0 +1,117 @@
+{
+  "__capture": "Real MTGJSON deck file, trimmed (W8a): https://mtgjson.com/api/v5/decks/TimeyWimey_WHO.json fetched 2026-09-20. Rows cut to the interesting cases — partner commanders, a split card (one row, side 'a', full 'A // B' name), a saga, the SAME basic in two printings (Plains #196 x2 + #197 x1), and one plane (WHO decks ship planechase extras). Row fields beyond the parsed subset kept on the first commander to prove tolerant parsing.",
+  "meta": { "date": "2026-09-20", "version": "5.3.0+20260920" },
+  "data": {
+    "code": "WHO",
+    "name": "Timey-Wimey",
+    "releaseDate": "2023-10-13",
+    "type": "Commander Deck",
+    "commander": [
+      {
+        "name": "The Tenth Doctor",
+        "count": 1,
+        "isFoil": true,
+        "layout": "normal",
+        "setCode": "WHO",
+        "number": "3",
+        "manaCost": "{3}{U}{R}",
+        "identifiers": {
+          "scryfallId": "f1499f49-793b-4265-9ad0-883a431941ab",
+          "scryfallOracleId": "23af0a0a-1d12-47c7-b191-2bd3f84eea93"
+        }
+      },
+      {
+        "name": "Rose Tyler",
+        "count": 1,
+        "isFoil": true,
+        "layout": "normal",
+        "setCode": "WHO",
+        "number": "5",
+        "identifiers": {
+          "scryfallId": "3aa8d034-f98c-4e27-b6af-850eadf59941",
+          "scryfallOracleId": "2f56de72-80d7-48c6-9b57-84fbd252c699"
+        }
+      }
+    ],
+    "mainBoard": [
+      {
+        "name": "Wilfred Mott",
+        "count": 1,
+        "isFoil": false,
+        "layout": "normal",
+        "setCode": "WHO",
+        "number": "32",
+        "identifiers": {
+          "scryfallId": "10918b68-b442-4895-b8a6-57f65274a39e",
+          "scryfallOracleId": "5a970742-687f-49ed-8822-e2953f4530b6"
+        }
+      },
+      {
+        "name": "Coward // Killer",
+        "count": 1,
+        "isFoil": false,
+        "layout": "split",
+        "side": "a",
+        "setCode": "WHO",
+        "number": "77",
+        "identifiers": {
+          "scryfallId": "9e389269-deef-4c48-b6d1-c505bf7cc6b3",
+          "scryfallOracleId": "21591447-c045-4317-8d0e-705627aa157b"
+        }
+      },
+      {
+        "name": "The Girl in the Fireplace",
+        "count": 1,
+        "isFoil": false,
+        "layout": "saga",
+        "setCode": "WHO",
+        "number": "21",
+        "identifiers": {
+          "scryfallId": "1e3a5da4-0d8e-4db1-b827-ddfeb5ce0f1d",
+          "scryfallOracleId": "39068bf1-cae4-4ac9-82ef-4e81bf59446e"
+        }
+      },
+      {
+        "name": "Plains",
+        "count": 2,
+        "isFoil": false,
+        "layout": "normal",
+        "setCode": "WHO",
+        "number": "196",
+        "identifiers": {
+          "scryfallId": "2c4d8ef3-2b26-4376-a00e-ccd58e3ea2eb",
+          "scryfallOracleId": "bc71ebf6-2056-41f7-be35-b2e5c34afa99"
+        }
+      },
+      {
+        "name": "Plains",
+        "count": 1,
+        "isFoil": false,
+        "layout": "normal",
+        "setCode": "WHO",
+        "number": "197",
+        "identifiers": {
+          "scryfallId": "1aaea970-a19c-400a-a8cb-5d30f9cc2672",
+          "scryfallOracleId": "bc71ebf6-2056-41f7-be35-b2e5c34afa99"
+        }
+      }
+    ],
+    "sideBoard": [],
+    "tokens": [],
+    "planes": [
+      {
+        "name": "The Lux Foundation Library",
+        "count": 1,
+        "isFoil": false,
+        "layout": "planar",
+        "setCode": "WHO",
+        "number": "588",
+        "identifiers": {
+          "scryfallId": "c3cd9db0-b417-42e8-b3be-00fdc9330014",
+          "scryfallOracleId": "68750b81-1309-4362-84b3-8835b3d71d28"
+        }
+      }
+    ],
+    "schemes": []
+  }
+}

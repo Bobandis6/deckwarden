@@ -353,6 +353,9 @@ export const verifications = pgTable(
 export const DECK_VISIBILITIES = ["public", "unlisted", "private"] as const;
 export type DeckVisibility = (typeof DECK_VISIBILITIES)[number];
 
+export const DECK_KINDS = ["user", "precon"] as const;
+export type DeckKind = (typeof DECK_KINDS)[number];
+
 /**
  * Deck folders (P2.2) — the shareable-folder-URL feature (§7: a known
  * Moxfield gap, "one table + one page"). Account-only: guests organize
@@ -427,6 +430,15 @@ export const decks = pgTable(
      * (Was private until share pages existed; P1.7 flipped it as planned.)
      */
     visibility: text("visibility").$type<DeckVisibility>().notNull().default("unlisted"),
+    /**
+     * 'user' = someone's deck (incl. guests); 'precon' = an official
+     * published product list (W8a, ingested from MTGJSON) — ownerless by
+     * CHECK constraint, never community activity: community rails and
+     * counts filter on kind = 'user', while share pages / sitemap / OG
+     * keep precons in. Forks of precons are 'user' by construction
+     * (forks.ts inserts explicit columns; this default applies).
+     */
+    kind: text("kind").$type<DeckKind>().notNull().default("user"),
     /** Command-zone denorm (2 entries = partners); powers "decks for commander X". */
     leaderIds: uuid("leader_ids").array().notNull().default([]),
     /** Deck color identity = OR of the leaders' ci_mask. */
@@ -445,14 +457,25 @@ export const decks = pgTable(
   },
   (t) => [
     check("decks_visibility_check", sql`${t.visibility} in ('public','unlisted','private')`),
+    check("decks_kind_check", sql`${t.kind} in ('user','precon')`),
+    /** Precons are unowned product lists: no owner, no claim path, no folder, no fork lineage. */
+    check(
+      "decks_precon_unowned",
+      sql`${t.kind} <> 'precon' or (${t.userId} is null and ${t.claimToken} is null and ${t.folderId} is null and ${t.forkedFromDeckId} is null)`,
+    ),
     index("decks_hub").using("gin", t.leaderIds),
     index("decks_browse").on(t.gameId, t.formatId, t.visibility, t.updatedAt.desc()),
     index("decks_owner").on(t.userId, t.updatedAt.desc()),
     index("decks_folder").on(t.folderId, t.updatedAt.desc()),
-    /** Home "recent public decks" rail (P2.3): cross-game, so decks_browse's game-first prefix can't serve it. */
+    /**
+     * Home "recent public decks" rail (P2.3): cross-game, so decks_browse's
+     * game-first prefix can't serve it. kind = 'user' since W8a — ~200 public
+     * precons would otherwise dominate the partial index for a rail that must
+     * never show them.
+     */
     index("decks_recent_public")
       .on(t.updatedAt.desc())
-      .where(sql`${t.visibility} = 'public'`),
+      .where(sql`${t.visibility} = 'public' and ${t.kind} = 'user'`),
   ],
 );
 
@@ -549,6 +572,32 @@ export const deckVersions = pgTable(
   },
   (t) => [unique("deck_versions_deck_version").on(t.deckId, t.version)],
 );
+
+/**
+ * Product metadata for kind='precon' decks (W8a) — one row per ingested
+ * Commander preconstructed deck, keyed to its deck row (CASCADE: deleting
+ * the deck row is the rollback path and must take the meta with it).
+ *
+ * `code` = MTGJSON's fileName (unique across the DeckList, e.g.
+ * 'BreedLethality_C16') — the upsert/dedupe key against the source.
+ * `slug` powers public_id ('p_' + slug) and stays unique on its own.
+ * `source_hash` is over the MAPPED stable subset (commanders + list +
+ * meta), NOT the raw file — MTGJSON re-stamps meta.date every build, so
+ * raw-byte hashes would never match twice.
+ */
+export const preconProducts = pgTable("precon_products", {
+  deckId: uuid("deck_id")
+    .primaryKey()
+    .references(() => decks.id, { onDelete: "cascade" }),
+  code: text("code").notNull().unique(),
+  slug: text("slug").notNull().unique(),
+  setCode: text("set_code").notNull(),
+  releaseDate: date("release_date"),
+  productName: text("product_name").notNull(),
+  /** Generated factual summary (colors, commander, release, card count) — never marketing copy. */
+  blurb: text("blurb"),
+  sourceHash: text("source_hash").notNull(),
+});
 
 // ---------------------------------------------------------------------------
 // Collections (P3.7) — owned printings
