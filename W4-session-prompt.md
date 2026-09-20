@@ -52,3 +52,25 @@ NOT printings (W5/W6), NOT an in-editor picker dialog (LATER row — the owner a
 ## Context, not tasks
 
 Sequence after W4: W5 printings (+ API + REC-1) → W6 editor printings → W7 buy links → W8a/b precons → W9a/b/c autofill → W10 tournaments. P2.9's and P4.7's standing triggers still exist beside the W-series and get their own round, never a slice of a W-session. Owner decisions of 2026-09-19 stand. Bandai and Azuki emails unanswered — posture unchanged. Cold-start rule holds: no simulated decks, posts, or metrics. Premium never gates card data.
+
+---
+
+## Ship note — 2026-09-19, feat `077401a`
+
+Shipped D3 + REC-2 complete, deployed (Vercel success on `077401a`), prod verified read-only. Pre-flight: nightlies green, census exactly at baseline (25/1/1·0·1 — no warm signal), db:size 262.8 MB. Baseline confirmed 799 tests / 106 files; landed at **814 / 108** (leader-pick-intent unit tests, hub-island RTL, leader-zone rewrite, both display tests extended), same 6 pre-existing warnings.
+
+**What went in** (all per contract): `display.leaderBrowse` optional block in `types.ts` + both adapters; leader-zone empty state per the D3 ASCII (primary styled `<Link>` + ghost "Search by name", new hint line, phone stacking via `flex-col sm:flex-row`); `src/lib/decks/leader-pick-intent.ts` (pure `parsePickIntent`/`pickIntentFor` + `useSyncExternalStore` store, null server snapshot, raw-string snapshot cache); `hub-build-cta.tsx` + `leader-pick-banner.tsx` islands; editor `handleBrowseLeader` (writes intent for saved decks only, calls `flush()`; drafts navigate plain) and the `?leader=` apply effect after `handleAdd` (one-shot ref, every state write inside the async IIFE, late-response guard before `handleAdd` so a race can never leader-replace); `edit/page.tsx` passes `searchParams.leader`; `?q=` on both indexes through a shared `nameNormLikeCondition` in `hub/queries.ts` (normalizes inside the query fn, escapes LIKE wildcards — the card "_____" exists).
+
+**Design decisions (pinned)**: banner sits below the game switch, ABOVE the q-form + chips row (context, not a filter); q resets page (no page input in the form; chips/pagination preserve q via `filterHref(letters, page, q)`); the Choose→ghost demotion is deliberate and pinned in `leader-zone.test.tsx`; `/leaders` got banner + q in the same commit (no split). One judgment call the contract left open: a **full zone with a matching intent** announces on the search pane's live line (new `SearchPaneHandle.announce`, same notice channel as add rejections) and the intent is NOT cleared — contract-literal ("cleared on apply and Cancel"), TTL covers it; a stale/wrong-deck/no intent stays silent and even leaves `?leader=` in the URL (strip happens only on apply — "changes nothing" taken literally).
+
+**Verification**: hub CTA anchors byte-identical dev-vs-prod BEFORE deploy (1019 B `/c/`, 990 B `/l/`) and same sizes after; `?q=krenko` → exactly 3 Krenkos in popularity order (Tin Street Kingpin 902 < Mob Boss 1085 — the surprising order is CORRECT, not alphabetical drift); explain shows Bitmap Index Scan on `ci_name_trgm`, 0.09 ms; full DFC name and "atraxa, praetors" match ("esika the prismatic" does NOT — substring semantics across the fold, expected); acceptance walk E2E on dev: fresh-draft path (Krenko seeded, zero `POST /api/decks` — only `/mine`) and saved-deck path (intent → banner → Use for → same deck id, Undo toast, param stripped, intent cleared); crafted link + full-zone + live-line invariants all held. Route table zero changes (`/c/` `/l/` ●, `/commanders` `/leaders` ƒ). Smokes hubs/seo/optcg green on dev. Prod: MISS ×2 → HIT on `/c/`, q live both indexes, banner absent from server HTML, zero prod decks minted.
+
+**Lessons / gotchas for later sessions**:
+- Dev shares the ONE Neon DB: the QA guest deck (name typed → row minted) was deleted by id afterward (`user_id is null` guard in the delete), census re-proven 25. Budget the same cleanup into any editor-flow QA.
+- Synthetic `input.value` setter + `dispatchEvent(new Event('input'))` does NOT reach this React build's state (editor name input) — the DOM shows the value but no `markDirty`. Real keystrokes through the pane's type action work.
+- The pane's Return quirk extends to visible panes: a real Return keypress in the q form did not submit; `form.requestSubmit()` (or a dispatched keydown) does. R5a's memory said "hidden pane" — it is not hidden-only.
+- Base UI Button-as-Link renders `role="button"` on the anchor: RTL queries for the hub CTAs use `getAllByRole("button")` + `tagName === "A"`, never role link.
+- A hub island hydrates late on ISR pages: the first post-navigation DOM check can see the intent in sessionStorage but no CTA yet — wait/re-poll before concluding it broke.
+- `pickIntentFor` runs BEFORE the zone check, so stale/wrong intents are indistinguishable from crafted links (silent) — only a VALID intent into a full zone announces. That ordering is load-bearing for the "changes nothing" acceptance line.
+
+Census at close: 25 decks / 1 user (restored); db:size 262.8 MB (unchanged — W4 added no data). Next: `W5-session-prompt.md` (written this session).
