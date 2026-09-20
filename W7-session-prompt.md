@@ -56,3 +56,38 @@ NOT affiliate anything (the env var stays EMPTY in every Vercel env — plain li
 ## Context, not tasks
 
 Sequence after W7: W8a/b precons → W9a/b/c autofill → W10 tournaments. P2.9's and P4.7's standing triggers still exist beside the W-series and get their own round, never a slice of a W-session. Owner decisions of 2026-09-19 stand (plain buy links was one of them). Bandai and Azuki emails unanswered — posture unchanged. Cold-start rule holds: no simulated decks, posts, or metrics. Premium never gates card data or prices (the buy menu links OUT; it never gates). The affiliate day belongs to the VPS move (LATER), not to W7.
+
+---
+
+## Ship note — 2026-09-20
+
+**Shipped**: feat `e1b94c1` (docs follow-up carries this note). `pnpm check` green: **865 tests / 113 files** (baseline 843/111; +22), 6 pre-existing warnings, 0 errors. `pnpm db:size` **263.2 MB** (alert 350). Nightlies green through 09-20; census at baseline (25 decks · 1 user · likes 1 · bm 0 · folders 1) → no beta round preempted.
+
+**URL shapes recorded (live-verified 2026-09-20, before coding)**
+- Mass Entry: `https://www.tcgplayer.com/massentry?productline=<Line>&c=<list>` — `c` = lines joined by `||`, each `<qty> <name>`, `encodeURIComponent`-ed (space `%20`, `||` `%7C%7C`, `//` `%2F%2F`). Pre-fills the Items box AND auto-opens the Item Options dialog (Normal+Foil, NM/LP/MP pre-checked) one click from Add to Cart. `productline=` really drives the select (proven with `Pokemon`). An errored submit adds NOTHING (all-or-nothing) and TCGplayer's own red panel names each unmatched line.
+- Single card: `https://www.tcgplayer.com/search/magic/product?q=<name>` (lowercase path segment; `productline=` capital-M `Magic` on the form param — both verified).
+- Line-format tolerance: `[SET] number` suffixes exist but W7 sends name-only lines (exact printings = LATER).
+
+**The contract's name-rule sketch was overruled by the live form** (the prompt's own "the LIVE site wins"): full ADVENTURE names are rejected (`Bonecrusher Giant // Stomp`, `Brazen Borrower // Petty Theft` → "could not be found"), while splits parse full (`Wear // Tear`, `Fire // Ice` ✓). Shipped rule in `mtg/buy.ts` `tcgplayerName()`: name has `" // "` AND `mana_cost` has `" // "` (one face carries both costs) AND type_line does NOT match `\b(Adventure|Omen)\b` → full name; otherwise front face. Extra proofs: omen front-face ✓ (`Stormscale Scion`), aftermath full ✓ (`Dusk // Dawn`), Room full ✓ (`Bottomless Pool // Locker Room`).
+
+**Parse acceptance (real decks, real submits, cart cleaned after)**
+- Krenko — Mob Rule (mono-red, 100 cards / 70 lines): **69/70 = 98.6%**. Miss: `Goblin Chirurgeon` — TCGplayer catalogs FEM multi-art commons only as "(A)/(B)/(C)" variant products; not a name-rule failure.
+- Niv-Mizzet — Curiosity Engine (100 cards / 80 lines, incl. the split): **80/80 → 100 cart items**, `Expansion // Explosion` in the cart.
+- MDFC front-face lines from the other public decks (`Needleverge Pathway`, `Bala Ged Recovery`): **2/2**.
+- **Known misses recorded**: Kamigawa flips (TCGplayer product = "Front (Back)"; indistinguishable from transform without `layout`) and FEM-era multi-art variants. Both routed to the exact-printing LATER row.
+
+**Design decisions (disclosed + pinned)**
+1. **Card-page link built server-side** in `cards/[id]/page.tsx` and passed as data `{href, vendor, rel}` through the gallery provider's context to `PrintingsHero` (under the caption) and `PrintingDrawer` (W5's reserved footer). The route stays ● (verified in the build route table) and no `sponsored` literal rides the client bundle.
+2. **Share row = dropdown, editor = dialog.** `BuyDeckMenu` (ui/dropdown-menu, `DropdownMenuLinkItem` = real `<a role=menuitem>`) in the share action row after Copy decklist; the editor's More item opens `BuyDeckDialog` (ui/modal, the Details/Export idiom) because Base UI submenus ignore mouse clicks (W3) and phones need it. Both live in `src/components/deck/buy-deck-menu.tsx`; menu named "Buy this deck" after its trigger.
+3. **Clipboard fallback**: over-cliff item with `navigator.clipboard` unavailable/refused → error toast ("use Copy decklist instead"), NO tab opened — never a stranded empty Mass Entry. Success = copy, open bare form (still `productline=`-selected, still partner-wrapped), toast "List copied — paste it into Mass Entry". The share view now mounts its own `<Toaster />` (host-mounts rule).
+4. **Editor "Buy ↗"** opens `cardUrl` = the magic name-search page (shape above). The editor dialog omits "Only cards I'm missing": its lazily-grown `owned` set can't distinguish "no collection" from "owns nothing" — the honest item lives on the share page, whose server computes ownership per deck (`owned` present ⇔ signed-in + has collection). Count-0 items render disabled (no links to an empty form).
+5. **`next.config.ts` pins `NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE` to a build-time `""`** when unset. Without this, Next leaves an UNDEFINED `NEXT_PUBLIC_` var as a runtime lookup and the sponsored/disclosure literals ship as dead branches — the pin makes them fold out (grep of `.next/static` clean: `sponsored`/`commission`/`Affiliate links` all absent). The verify-first #5 grep passes literally.
+6. `MASS_ENTRY_URL_MAX = 6000`, measured on the FINAL url after `withPartner` (unit-proven that the wrap alone can push a list over).
+
+**Env-set proof (dev run with a dummy base, then removed)**: links wrap (double-encoded), `rel="sponsored noopener"` on menu items + card-page links, disclosures render in the menu footer, site footer and /legal; unset again → all absent (share/legal/home greps clean). `.env.example` documents MUST-STAY-EMPTY-on-Hobby.
+
+**Surfaces proven on dev**: share menu (Whole deck (100) with `33 Mountain` one line · Without basic lands (67) · no missing item signed-out), card page hero + phone-drawer [ Buy on TCGplayer ↗ ] (screenshots taken), editor More item + dialog (empty draft = disabled (0) rows, no dead links, no deck minted), OP negatives (share `jhr5ax43ewx7`, card page, editor More) all Buy-free. Smokes green on dev: `smoke:seo` (incl. the :374 OP `>USD<` pin), `smoke:optcg`, `smoke:hubs`. No QA decks minted; census untouched at 25.
+
+**Pane quirk for the file**: the editor search combobox's option-click preview does NOT fire from `javascript_tool` element clicks (highlight-driven; same family as W4's "synthetic input events"); the pane-footer Buy ↗ is pinned by the new `deck-editor.test.tsx` W7 test instead (href/target/rel asserted on the real component). Also: Base UI stamps `data-slot="dropdown-menu-trigger"` over Button's `data-slot="button"` — the share-view actions-row pin now selects both.
+
+**Tests**: `links.test.ts` (URL shape vs the recorded live string, partner wrap, the FINAL-url cliff, `deckBuyOptions` counts/owned math/ghost entries) · `mtg/buy.test.ts` (name rule incl. aftermath/room/omen/flip-adjacent cases, basics skip incl. Snow, cardUrl encoding) · `editor-header.test.tsx:129` pin updated + OP-negative case · `deck-share-view.test.tsx` buy-menu describe (hrefs, per-copy counts, owned-gated missing item, OP negative, footer label, no-commission-while-dark) · `deck-editor.test.tsx` buy-dialog test (real hrefs, "looking at buy links is never an edit").
