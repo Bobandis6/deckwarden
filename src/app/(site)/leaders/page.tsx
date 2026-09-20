@@ -10,8 +10,9 @@
  * release-date map). Rows show the external key because OP names don't
  * identify leaders: 17 distinct Monkey.D.Luffys are 17 archetypes.
  *
- * Caching intent: force-dynamic — ?colors= drives the query, same reasoning
- * as /commanders; one partial-indexed read per request is cheap.
+ * Caching intent: force-dynamic — ?colors= / ?q= (W4: name filter, in
+ * lockstep with /commanders) drive the query, same reasoning as
+ * /commanders; one partial-indexed read per request is cheap.
  *
  * Color filter semantics: exact colors_mask ("Red/Green leaders", not
  * "leaders that include Red") — mirrors /commanders' exact-identity call.
@@ -27,7 +28,10 @@ import Link from "next/link";
 import { chipClass, ColorChipLink, ColorChipList } from "@/components/color-chip";
 import { EmptyState } from "@/components/empty-state";
 import { GameSwitch } from "@/components/game-switch";
+import { LeaderPickBanner } from "@/components/hub/leader-pick-banner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { normalizeCardName } from "@/lib/cards/normalize";
 import { loadOpLeaderIndex } from "@/lib/hub/queries";
 import { lettersToMask } from "@/lib/games/colors";
 import { OPTCG_COLORS } from "@/lib/games/optcg/colors";
@@ -44,8 +48,12 @@ export const metadata: Metadata = {
   alternates: { canonical: "/leaders" },
 };
 
-function filterHref(letters: string): string {
-  return letters ? `/leaders?colors=${letters.toLowerCase()}` : "/leaders";
+function filterHref(letters: string, q = ""): string {
+  const params = new URLSearchParams();
+  if (letters) params.set("colors", letters.toLowerCase());
+  if (q) params.set("q", q);
+  const qs = params.toString();
+  return qs ? `/leaders?${qs}` : "/leaders";
 }
 
 export default async function LeadersPage({ searchParams }: PageProps<"/leaders">) {
@@ -61,7 +69,11 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
           .map((c) => c.maskLetter)
           .join("");
 
-  const leaders = await loadOpLeaderIndex({ colorsMask });
+  // Name filter (W4 — /leaders parity with /commanders, the lockstep rule).
+  const rawQ = typeof sp.q === "string" ? sp.q : "";
+  const qActive = normalizeCardName(rawQ) !== "";
+
+  const leaders = await loadOpLeaderIndex({ colorsMask, q: rawQ });
 
   return (
     <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="optcg">
@@ -79,41 +91,79 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
       {/* Contextual game switch (R1b, REDESIGN.md §2): the Commander index is one pill away. */}
       <GameSwitch active="optcg" className="mt-4" />
 
-      <nav aria-label="Color filter" className="mt-3 flex flex-wrap gap-1.5">
-        <Link
-          href={filterHref("")}
-          aria-current={colorsMask === null ? "page" : undefined}
-          className={chipClass(colorsMask === null)}
-        >
-          All
-        </Link>
-        {OPTCG_COLORS.map((c) => {
-          const active = activeLetters.includes(c.maskLetter);
-          const next = active
-            ? activeLetters.replace(c.maskLetter, "")
-            : activeLetters + c.maskLetter;
-          return (
-            <ColorChipLink
-              key={c.name}
-              game="optcg"
-              color={c.maskLetter}
-              href={filterHref(next)}
-              active={active}
-            />
-          );
-        })}
-      </nav>
+      {/* Pick banner (W4, D3): null server snapshot — appears after
+          hydration only, above the whole filter row (same placement as
+          /commanders). */}
+      <LeaderPickBanner game="optcg" noun="leader" />
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {/* Name filter (W4 — /commanders parity): plain GET form, colors
+            ride along hidden, Enter submits. */}
+        <form action="/leaders" method="get" role="search" className="w-full sm:w-56">
+          <label htmlFor="leaders-q" className="sr-only">
+            Filter by name
+          </label>
+          <Input
+            id="leaders-q"
+            type="search"
+            name="q"
+            defaultValue={rawQ}
+            placeholder="Filter by name…"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {activeLetters && (
+            <input type="hidden" name="colors" value={activeLetters.toLowerCase()} />
+          )}
+        </form>
+        <nav aria-label="Color filter" className="flex flex-wrap gap-1.5">
+          <Link
+            href={filterHref("", rawQ)}
+            aria-current={colorsMask === null ? "page" : undefined}
+            className={chipClass(colorsMask === null)}
+          >
+            All
+          </Link>
+          {OPTCG_COLORS.map((c) => {
+            const active = activeLetters.includes(c.maskLetter);
+            const next = active
+              ? activeLetters.replace(c.maskLetter, "")
+              : activeLetters + c.maskLetter;
+            return (
+              <ColorChipLink
+                key={c.name}
+                game="optcg"
+                color={c.maskLetter}
+                href={filterHref(next, rawQ)}
+                active={active}
+              />
+            );
+          })}
+        </nav>
+      </div>
 
       {leaders.length === 0 ? (
-        <EmptyState
-          className="mt-6"
-          title="No leaders match that exact color pairing."
-          action={
-            <Link href={filterHref("")} className="underline">
-              Show all leaders
-            </Link>
-          }
-        />
+        qActive ? (
+          <EmptyState
+            className="mt-6"
+            title={`No leaders match “${rawQ.trim()}”`}
+            action={
+              <Link href={filterHref(activeLetters)} className="underline">
+                Clear filter
+              </Link>
+            }
+          />
+        ) : (
+          <EmptyState
+            className="mt-6"
+            title="No leaders match that exact color pairing."
+            action={
+              <Link href={filterHref("")} className="underline">
+                Show all leaders
+              </Link>
+            }
+          />
+        )
       ) : (
         <>
           <p className="text-muted-foreground mt-6 text-sm" aria-live="polite">

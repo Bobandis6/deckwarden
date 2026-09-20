@@ -48,6 +48,11 @@ const DEBOUNCE_MS = 200;
 
 export interface SearchPaneHandle {
   focus(): void;
+  /**
+   * Put a message on the pane's live line (W4: why a `?leader=` pick was
+   * not applied). Same channel as add rejections — clears on the next input.
+   */
+  announce(text: string, tone?: "ok" | "err"): void;
 }
 
 interface SearchPaneProps {
@@ -81,7 +86,14 @@ export function SearchPane({
   useEffect(() => {
     onPreviewRef.current = onPreview;
   }, [onPreview]);
-  useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }), []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => inputRef.current?.focus(),
+      announce: (text, tone = "err") => dispatch({ type: "notice", notice: { text, tone } }),
+    }),
+    [],
+  );
 
   const mainZone = format.zones.find((z) => !z.isLeaderZone);
   const leaderZone = format.zones.find((z) => z.isLeaderZone);

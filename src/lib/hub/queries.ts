@@ -21,6 +21,7 @@ import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
+import { normalizeCardName } from "@/lib/cards/normalize";
 import {
   deckCollectionSelect,
   defaultPrintingJoin,
@@ -37,6 +38,19 @@ const {
   legalities,
   users,
 } = schema;
+
+/**
+ * A `?q=` name filter as a name_norm condition (W4, REC-2): normalized
+ * through THE shared normalizer so "Krenko" and a pasted DFC name match
+ * stored values, with LIKE wildcards escaped (the card "_____" exists).
+ * `%q%` rides the ci_name_trgm GIN index. Null when nothing survives.
+ */
+function nameNormLikeCondition(q: string | undefined) {
+  const norm = q ? normalizeCardName(q) : "";
+  if (!norm) return null;
+  const escaped = norm.replace(/[\\%_]/g, (m) => `\\${m}`);
+  return sql`${cardIdentities.nameNorm} LIKE ${"%" + escaped + "%"}`;
+}
 
 export type LeaderRow = typeof schema.cardIdentities.$inferSelect;
 
@@ -270,6 +284,8 @@ export async function loadLeaderIndex(opts: {
   ciMask: number | null;
   page: number;
   limit?: number;
+  /** Name filter (W4, REC-2) — normalized here; popularity order unchanged. */
+  q?: string;
 }): Promise<LeaderIndexRow[]> {
   const conditions = [
     eq(cardIdentities.gameId, GAME_ID.mtg),
@@ -278,6 +294,8 @@ export async function loadLeaderIndex(opts: {
     sql`${cardIdentities.slug} IS NOT NULL`,
   ];
   if (opts.ciMask !== null) conditions.push(eq(cardIdentities.ciMask, opts.ciMask));
+  const nameLike = nameNormLikeCondition(opts.q);
+  if (nameLike) conditions.push(nameLike);
   return getDb()
     .select({
       id: cardIdentities.id,
@@ -325,6 +343,8 @@ export interface OpLeaderIndexRow {
  */
 export async function loadOpLeaderIndex(opts: {
   colorsMask: number | null;
+  /** Name filter (W4 — /leaders parity with /commanders). */
+  q?: string;
 }): Promise<OpLeaderIndexRow[]> {
   const conditions = [
     eq(cardIdentities.gameId, GAME_ID.optcg),
@@ -333,6 +353,8 @@ export async function loadOpLeaderIndex(opts: {
     sql`${cardIdentities.slug} IS NOT NULL`,
   ];
   if (opts.colorsMask !== null) conditions.push(eq(cardIdentities.colorsMask, opts.colorsMask));
+  const nameLike = nameNormLikeCondition(opts.q);
+  if (nameLike) conditions.push(nameLike);
   return getDb()
     .select({
       id: cardIdentities.id,

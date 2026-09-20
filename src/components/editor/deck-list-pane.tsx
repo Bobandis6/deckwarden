@@ -63,8 +63,10 @@ interface DeckListPaneProps {
   onPreview: (card: EditorCard) => void;
   /** Opens the Cut Coach tab (P3.4); absent when the game declares no cuts. */
   onOpenCuts?: (() => void) | undefined;
-  /** The empty leader zone's "Choose commander / leader" — focuses search (R3). */
+  /** The empty leader zone's ghost "Search by name" — focuses search (R3, demoted in W4). */
   onChooseLeader?: () => void;
+  /** The Browse link's click (W4): the editor writes the saved-deck pick intent here. */
+  onBrowseLeader?: () => void;
   /** Card ids the owner owns any printing of (P3.7); undefined = no collection imported. */
   owned?: ReadonlySet<string>;
   /** "You own N/100 · missing ≈ $Y" (P3.7); null = no collection imported, nothing shown. */
@@ -91,6 +93,7 @@ export function DeckListPane({
   onPreview,
   onOpenCuts,
   onChooseLeader,
+  onBrowseLeader,
   owned,
   ownership = null,
   onAddCards,
@@ -195,6 +198,7 @@ export function DeckListPane({
           onRemove={onRemove}
           onPreview={onPreview}
           onChooseLeader={onChooseLeader}
+          onBrowseLeader={onBrowseLeader}
           adapter={adapter}
         />
       )}

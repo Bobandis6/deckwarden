@@ -142,6 +142,8 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
     },
     defaultGroupBy: "primaryType",
     leaderNoun: "Commander",
+    // W4: the empty leader zone's browse destination (D3).
+    leaderBrowse: { href: "/commanders", label: "Browse commanders" },
     searchPlaceholder: "Add cards — try “4 Sol Ring”",
     importPlaceholder:
       "1 Sol Ring\n1 Arcane Signet (AFC) 95\n…paste from Moxfield, Arena, Archidekt, anywhere.",

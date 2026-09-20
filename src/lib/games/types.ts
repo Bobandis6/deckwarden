@@ -468,6 +468,13 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
     /** 'Commander' / 'Leader'. */
     leaderNoun: string;
     /**
+     * The leader index to browse when the leader zone is empty (W4):
+     * "/commanders" · "Browse commanders" / "/leaders" · "Browse leaders".
+     * Deliberately NOT under `hub` — hub is absent for One Piece and gates
+     * template rendering. Absent = the empty zone offers search focus only.
+     */
+    leaderBrowse?: { href: string; label: string };
+    /**
      * Short printed-id chip ("OP15-058") for games whose names don't identify
      * a card (17 printed Enels). Rendered beside names in search results,
      * import suggestions, and the card pane — some of those hold the

@@ -29,10 +29,10 @@ import { CardImage } from "@/components/cards/card-image";
 import { ComboList } from "@/components/combos/combo-list";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
 import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
+import { HubBuildCta } from "@/components/hub/hub-build-cta";
 import { MetaLensTable } from "@/components/hub/meta-lens-table";
 import { StaplesTable } from "@/components/hub/staples-table";
 import { SurfaceHeader } from "@/components/surface-header";
-import { Button } from "@/components/ui/button";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
 import { resolveCardArt } from "@/lib/cards/art";
 import { printingImageUrl } from "@/lib/cards/images";
@@ -197,14 +197,15 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
                 ?leader= carries the oracle id (external_key); resolve's pass 0
                 seeds it into the draft's leader zone as state only, through
                 the seam /l/ has used since P4.6. A banned or not-legal
-                commander is shown for reference and gets no build action. */}
+                commander is shown for reference and gets no build action.
+                W4: the island's server render is this exact anchor; a fresh
+                pick intent adds "Use for '{deck}'" after hydration only. */}
             {status === "legal" && (
-              <Button
-                nativeButton={false}
-                render={<Link href={`/decks/new?game=mtg&leader=${leader.externalKey}`} />}
-              >
-                Build with this commander
-              </Button>
+              <HubBuildCta
+                game="mtg"
+                leaderKey={leader.externalKey}
+                label="Build with this commander"
+              />
             )}
             <Link href={`/cards/${leader.id}`} className="text-sm underline">
               Card details, printings & prices

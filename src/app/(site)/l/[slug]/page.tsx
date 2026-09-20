@@ -36,8 +36,8 @@ import { notFound } from "next/navigation";
 
 import { CardImage } from "@/components/cards/card-image";
 import { chipsForMask, ColorChip } from "@/components/color-chip";
+import { HubBuildCta } from "@/components/hub/hub-build-cta";
 import { SurfaceHeader } from "@/components/surface-header";
-import { Button } from "@/components/ui/button";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
 import { resolveCardArt } from "@/lib/cards/art";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
@@ -207,13 +207,14 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             {/* ?leader= makes the button's words true (P4.6): the editor
                 opens with this leader already in the leader zone (still a
-                draft — no server row until the first real edit). */}
-            <Button
-              nativeButton={false}
-              render={<Link href={`/decks/new?game=optcg&leader=${leader.externalKey}`} />}
-            >
-              Build with this leader
-            </Button>
+                draft — no server row until the first real edit). W4: the
+                island's server render is this exact anchor; a fresh pick
+                intent adds "Use for '{deck}'" after hydration only. */}
+            <HubBuildCta
+              game="optcg"
+              leaderKey={leader.externalKey}
+              label="Build with this leader"
+            />
             <Link href={`/cards/${leader.id}`} className="text-sm underline">
               Card details, printings & legality
               <ArrowRightIcon aria-hidden className="ml-1 inline size-4 align-[-0.2em]" />

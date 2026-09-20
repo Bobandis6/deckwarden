@@ -27,4 +27,11 @@ describe("mtg display (R2)", () => {
   it("declares art_crop ambient art", () => {
     expect(mtgAdapter.capabilities.ambientArt).toEqual({ kind: "art_crop" });
   });
+
+  it("leaderBrowse points the empty leader zone at /commanders (W4)", () => {
+    expect(mtgAdapter.display.leaderBrowse).toEqual({
+      href: "/commanders",
+      label: "Browse commanders",
+    });
+  });
 });

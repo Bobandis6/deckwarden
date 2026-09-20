@@ -9,10 +9,12 @@
  *
  * R3: the caption carries the printed id (`display.idBadge`, C13 — the two
  * Enel leaders are told apart here too) and the stat line (C15 — Life, for
- * One Piece, rides `display.statLine`; Magic gets its P/T). The empty state
- * gains "Choose commander / leader" when `onChooseLeader` is set (the
- * editor's — it focuses search); the share page passes nothing and keeps
- * the plain EmptyState.
+ * One Piece, rides `display.statLine`; Magic gets its P/T). W4 (D3) rebuilds
+ * the editor's empty state: the primary action is a Browse LINK to the
+ * adapter's leader index (`display.leaderBrowse`; `onBrowseLeader` writes
+ * the saved-deck pick intent before navigation) and the old search focus
+ * demotes to a ghost "Search by name" (`onChooseLeader`, unchanged
+ * callback); the share page passes neither and keeps the plain EmptyState.
  *
  * R5b (F12): in the read-only shape (no `onRemove` — the share page) each
  * card carries a persistent ring in the game accent, so the leader reads
@@ -23,12 +25,13 @@
  * comes from the shared `leaderCaption` (the artwork header reads the
  * same helper).
  */
-import { XIcon } from "lucide-react";
+import { ArrowRightIcon, XIcon } from "lucide-react";
+import Link from "next/link";
 import { useId } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import { leaderCaption } from "@/lib/decks/leader-caption";
 import type { ViewItem } from "@/lib/decks/view-model";
@@ -43,8 +46,15 @@ interface LeaderZoneProps {
   /** Absent = read-only (share pages). */
   onRemove?: (zoneId: string, cardId: string) => void;
   onPreview: (card: EditorCard) => void;
-  /** Editor only: the empty state's "Choose {leader}" action (focuses search). */
+  /** Editor only: the empty state's ghost "Search by name" action (focuses search). */
   onChooseLeader?: () => void;
+  /**
+   * Editor only (W4): fired when the primary "Browse commanders / leaders"
+   * link is clicked, BEFORE navigation — the editor writes the pick intent
+   * for saved decks there (drafts keep plain navigation). The destination
+   * itself comes off `adapter.display.leaderBrowse`.
+   */
+  onBrowseLeader?: () => void;
   /** For the caption's id badge and stat line; absent = name only. */
   adapter?: GameAdapter;
 }
@@ -56,10 +66,12 @@ export function LeaderZone({
   onRemove,
   onPreview,
   onChooseLeader,
+  onBrowseLeader,
   adapter,
 }: LeaderZoneProps) {
   const noun = zone.label.toLowerCase();
   const readOnly = !onRemove;
+  const browse = adapter?.display.leaderBrowse;
   // R6 (status never color-only): the validation ring's severity as text,
   // described onto the card button — the name stays "Show {name}".
   const idPrefix = useId();
@@ -73,17 +85,36 @@ export function LeaderZone({
         <EmptyState
           className="mt-2 py-3"
           title={`No ${noun} yet`}
-          hint={onRemove ? "Ctrl+Enter on a search result adds one." : undefined}
+          hint={
+            onRemove
+              ? "Pick one from the full list, or press Ctrl+Enter on a search result."
+              : undefined
+          }
           action={
+            // W4 (D3): Browse is the primary path — a styled Link, not a
+            // Button (the account-slot pattern) — and search focus demotes
+            // to a ghost "Search by name". Both stack full-width on phones.
             onChooseLeader ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="pointer-coarse:min-h-11"
-                onClick={onChooseLeader}
-              >
-                Choose {noun}
-              </Button>
+              <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
+                {browse && (
+                  <Link
+                    href={browse.href}
+                    onClick={onBrowseLeader}
+                    className={cn(buttonVariants({ size: "sm" }), "pointer-coarse:min-h-11")}
+                  >
+                    {browse.label}
+                    <ArrowRightIcon aria-hidden className="size-4" />
+                  </Link>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="pointer-coarse:min-h-11"
+                  onClick={onChooseLeader}
+                >
+                  Search by name
+                </Button>
+              </div>
             ) : undefined
           }
         />

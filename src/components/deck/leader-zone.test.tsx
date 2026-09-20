@@ -1,7 +1,9 @@
 /**
- * LeaderZone (R3): the editor's "Choose commander / leader" action (only
- * with `onChooseLeader`), the read-only share shape (no action, no hint, no
- * remove), and the One Piece caption — printed id and Life (C13 / C15).
+ * LeaderZone (R3, W4): the editor's empty-state actions — the primary
+ * Browse link off `display.leaderBrowse` (D3; the demotion of search focus
+ * to a ghost "Search by name" is deliberate) — the read-only share shape
+ * (no action, no hint, no remove), and the One Piece caption — printed id
+ * and Life (C13 / C15).
  */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -33,8 +35,9 @@ const enel: EditorCard = {
 };
 
 describe("LeaderZone", () => {
-  it("editor: the empty state offers Choose commander, which calls back (search focus)", () => {
+  it("editor: Browse commanders is the primary LINK (adapter href, intent hook); Search by name is the ghost callback (W4)", () => {
     const choose = vi.fn();
+    const browse = vi.fn();
     render(
       <LeaderZone
         zone={commanderZone}
@@ -43,18 +46,50 @@ describe("LeaderZone", () => {
         onRemove={() => {}}
         onPreview={() => {}}
         onChooseLeader={choose}
+        onBrowseLeader={browse}
+        adapter={getAdapter("mtg")}
       />,
     );
     expect(screen.getByText("No commander yet")).toBeTruthy();
-    expect(screen.getByText("Ctrl+Enter on a search result adds one.")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Choose commander" }));
+    expect(
+      screen.getByText("Pick one from the full list, or press Ctrl+Enter on a search result."),
+    ).toBeTruthy();
+    const link = screen.getByRole("link", { name: "Browse commanders" });
+    expect(link.getAttribute("href")).toBe("/commanders");
+    fireEvent.click(link);
+    expect(browse).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Search by name" }));
     expect(choose).toHaveBeenCalledTimes(1);
   });
 
+  it("editor without an adapter: no Browse link, the ghost search action stands alone", () => {
+    render(
+      <LeaderZone
+        zone={commanderZone}
+        items={[]}
+        severity={new Map()}
+        onRemove={() => {}}
+        onPreview={() => {}}
+        onChooseLeader={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByRole("button", { name: "Search by name" })).toBeTruthy();
+  });
+
   it("share page: no action, no hint, no remove", () => {
-    render(<LeaderZone zone={leaderZone} items={[]} severity={new Map()} onPreview={() => {}} />);
+    render(
+      <LeaderZone
+        zone={leaderZone}
+        items={[]}
+        severity={new Map()}
+        onPreview={() => {}}
+        adapter={optcg}
+      />,
+    );
     expect(screen.getByText("No leader yet")).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
     expect(screen.queryByText(/Ctrl\+Enter/)).toBeNull();
   });
 

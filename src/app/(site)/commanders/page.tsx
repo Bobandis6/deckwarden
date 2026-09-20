@@ -7,10 +7,12 @@
  * persisted under `deckwarden:index-view` — and `data-game="mtg"` gives the
  * chips and frames the Magic accent.
  *
- * Caching intent: force-dynamic — ?colors= / ?page= drive the query, and
- * one partial-indexed read (ci_leaders, now with the default printing
- * joined) per request is cheap; if this page ever shows up in Neon compute,
- * the upgrade path is ISR per filter combination, not a rethink.
+ * Caching intent: force-dynamic — ?colors= / ?page= / ?q= (W4, REC-2: a
+ * name filter on name_norm over the trgm index, so "browse to choose" works
+ * across 4,012 commanders) drive the query, and one partial-indexed read
+ * (ci_leaders, now with the default printing joined) per request is cheap;
+ * if this page ever shows up in Neon compute, the upgrade path is ISR per
+ * filter combination, not a rethink.
  *
  * Color filter semantics: exact color identity ("Azorius commanders", not
  * "commanders that include W or U") — the way players name the space.
@@ -20,8 +22,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { chipClass, ColorChipLink } from "@/components/color-chip";
+import { EmptyState } from "@/components/empty-state";
 import { GameSwitch } from "@/components/game-switch";
 import { LeaderIndexView, type IndexLeader } from "@/components/hub/leader-index-view";
+import { LeaderPickBanner } from "@/components/hub/leader-pick-banner";
+import { Input } from "@/components/ui/input";
+import { normalizeCardName } from "@/lib/cards/normalize";
 import { leaderTileImage } from "@/lib/decks/tiles";
 import { COLOR_ORDER, lettersToMask, maskToLetters } from "@/lib/games/colors";
 import { LEADERS_PAGE_SIZE, loadLeaderIndex } from "@/lib/hub/queries";
@@ -36,10 +42,11 @@ export const metadata: Metadata = {
   alternates: { canonical: "/commanders" },
 };
 
-function filterHref(letters: string, page = 1): string {
+function filterHref(letters: string, page = 1, q = ""): string {
   const params = new URLSearchParams();
   if (letters) params.set("colors", letters.toLowerCase());
   if (page > 1) params.set("page", String(page));
+  if (q) params.set("q", q);
   const qs = params.toString();
   return qs ? `/commanders?${qs}` : "/commanders";
 }
@@ -49,6 +56,11 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
   const rawColors = typeof sp.colors === "string" ? sp.colors : "";
   const rawPage = typeof sp.page === "string" ? Number(sp.page) : 1;
   const page = Number.isInteger(rawPage) && rawPage >= 1 && rawPage <= 100 ? rawPage : 1;
+  // Name filter (W4, REC-2): normalized in the query itself; qActive gates
+  // the filtered empty state, rawQ echoes what the reader typed. The GET
+  // form carries no page input — a new filter restarts at page 1.
+  const rawQ = typeof sp.q === "string" ? sp.q : "";
+  const qActive = normalizeCardName(rawQ) !== "";
 
   // "c" alone = exactly colorless (mask 0); letters = exactly that identity.
   const wantsColorless = /c/i.test(rawColors);
@@ -56,7 +68,7 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
   const ciMask = wantsColorless && colorMask === 0 ? 0 : colorMask > 0 ? colorMask : null;
   const activeLetters = ciMask === null ? "" : ciMask === 0 ? "C" : maskToLetters(ciMask).join("");
 
-  const leaders = await loadLeaderIndex({ ciMask, page });
+  const leaders = await loadLeaderIndex({ ciMask, page, q: rawQ });
   const hasNext = leaders.length === LEADERS_PAGE_SIZE;
   const rows: IndexLeader[] = leaders.flatMap((leader, i) =>
     leader.slug === null
@@ -87,45 +99,91 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
       {/* Contextual game switch (R1b, REDESIGN.md §2): the One Piece index is one pill away. */}
       <GameSwitch active="mtg" className="mt-4" />
 
-      <nav aria-label="Color identity filter" className="mt-3 flex flex-wrap gap-1.5">
-        <Link
-          href={filterHref("")}
-          aria-current={ciMask === null ? "page" : undefined}
-          className={chipClass(ciMask === null)}
-        >
-          All
-        </Link>
-        {COLOR_ORDER.map((c) => {
-          // Toggle the letter within the current exact-identity selection.
-          const next =
-            c === "C"
-              ? activeLetters === "C"
-                ? ""
-                : "C"
-              : activeLetters.includes(c)
-                ? activeLetters.replace(c, "").replace("C", "")
-                : activeLetters.replace("C", "") + c;
-          const active = c === "C" ? activeLetters === "C" : activeLetters.includes(c);
-          return (
-            <ColorChipLink key={c} game="mtg" color={c} href={filterHref(next)} active={active} />
-          );
-        })}
-      </nav>
+      {/* Pick banner (W4, D3): null server snapshot — appears after
+          hydration only, when this tab is browsing for a saved deck. Sits
+          above the whole filter row: it is context for the page, not one
+          more filter. */}
+      <LeaderPickBanner game="mtg" noun="commander" />
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {/* Name filter (W4, REC-2): a plain GET form — Enter submits; the
+            current color selection rides along as a hidden input so q and
+            colors combine instead of fighting. No page input: page resets. */}
+        <form action="/commanders" method="get" role="search" className="w-full sm:w-56">
+          <label htmlFor="commanders-q" className="sr-only">
+            Filter by name
+          </label>
+          <Input
+            id="commanders-q"
+            type="search"
+            name="q"
+            defaultValue={rawQ}
+            placeholder="Filter by name…"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {activeLetters && (
+            <input type="hidden" name="colors" value={activeLetters.toLowerCase()} />
+          )}
+        </form>
+        <nav aria-label="Color identity filter" className="flex flex-wrap gap-1.5">
+          <Link
+            href={filterHref("", 1, rawQ)}
+            aria-current={ciMask === null ? "page" : undefined}
+            className={chipClass(ciMask === null)}
+          >
+            All
+          </Link>
+          {COLOR_ORDER.map((c) => {
+            // Toggle the letter within the current exact-identity selection.
+            const next =
+              c === "C"
+                ? activeLetters === "C"
+                  ? ""
+                  : "C"
+                : activeLetters.includes(c)
+                  ? activeLetters.replace(c, "").replace("C", "")
+                  : activeLetters.replace("C", "") + c;
+            const active = c === "C" ? activeLetters === "C" : activeLetters.includes(c);
+            return (
+              <ColorChipLink
+                key={c}
+                game="mtg"
+                color={c}
+                href={filterHref(next, 1, rawQ)}
+                active={active}
+              />
+            );
+          })}
+        </nav>
+      </div>
 
       {rows.length === 0 ? (
-        <p className="text-muted-foreground mt-6 text-sm">
-          No commanders match that exact color identity{page > 1 ? " on this page" : ""}.{" "}
-          <Link href={filterHref(activeLetters)} className="underline">
-            Back to page 1
-          </Link>
-        </p>
+        qActive ? (
+          <EmptyState
+            className="mt-6"
+            title={`No commanders match “${rawQ.trim()}”`}
+            action={
+              <Link href={filterHref(activeLetters)} className="underline">
+                Clear filter
+              </Link>
+            }
+          />
+        ) : (
+          <p className="text-muted-foreground mt-6 text-sm">
+            No commanders match that exact color identity{page > 1 ? " on this page" : ""}.{" "}
+            <Link href={filterHref(activeLetters)} className="underline">
+              Back to page 1
+            </Link>
+          </p>
+        )
       ) : (
         <LeaderIndexView leaders={rows} />
       )}
 
       <div className="mt-4 flex items-center justify-between text-sm">
         {page > 1 ? (
-          <Link href={filterHref(activeLetters, page - 1)} className="underline">
+          <Link href={filterHref(activeLetters, page - 1, rawQ)} className="underline">
             <ArrowLeftIcon aria-hidden className="mr-1 inline size-4 align-[-0.2em]" />
             Previous
           </Link>
@@ -133,7 +191,7 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
           <span />
         )}
         {hasNext && (
-          <Link href={filterHref(activeLetters, page + 1)} className="underline">
+          <Link href={filterHref(activeLetters, page + 1, rawQ)} className="underline">
             Next
             <ArrowRightIcon aria-hidden className="ml-1 inline size-4 align-[-0.2em]" />
           </Link>

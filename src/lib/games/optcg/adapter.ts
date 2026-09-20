@@ -197,6 +197,8 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
     },
     defaultGroupBy: "costValue",
     leaderNoun: "Leader",
+    // W4: the empty leader zone's browse destination (D3, /l/ lockstep).
+    leaderBrowse: { href: "/leaders", label: "Browse leaders" },
     // 1,615 upstream duplicate names (17 printed Enels): the printed id is
     // the only thing that identifies a card, so surface it everywhere.
     idBadge: (card: OptcgCard) => card.externalKey,

@@ -99,6 +99,7 @@ import {
 } from "@/lib/decks/editor-state";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
 import type { ImportOutcome } from "@/lib/decks/import";
+import { clearPickIntent, pickIntentFor, writePickIntent } from "@/lib/decks/leader-pick-intent";
 import { getDeckToken, removeDeckToken, setDeckToken } from "@/lib/decks/token-store";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
@@ -178,6 +179,7 @@ export function DeckEditor({
   draftGame,
   draftFormat,
   draftLeaderKey,
+  applyLeaderKey,
 }: {
   /** null = draft mode (/decks/new): no server deck exists until the first real edit. */
   deckId: string | null;
@@ -191,6 +193,14 @@ export function DeckEditor({
    * contract), and the first real edit persists the leader with the rest.
    */
   draftLeaderKey?: string;
+  /**
+   * Saved decks only (W4): `?leader=` from the hub's "Use for …" CTA.
+   * Applied ONLY with a matching un-expired pick intent and an empty leader
+   * zone, through handleAdd (a real edit — Undo toast, autosave); the URL
+   * param is stripped and the intent cleared on apply. A crafted link with
+   * no matching intent changes nothing.
+   */
+  applyLeaderKey?: string;
 }) {
   const router = useRouter();
   // Draft mode is ready (or misconfigured) synchronously — only a real deck
@@ -323,7 +333,7 @@ export function DeckEditor({
   }, [ensureDeck]);
 
   const autosave = useAutosave(save);
-  const { markDirty, isDirty } = autosave;
+  const { markDirty, isDirty, flush } = autosave;
 
   // Hydrate from the server (GET joins card data — no N+1): once on mount for
   // an existing deck, and again after a version restore (P3.6) replaced the
@@ -557,6 +567,22 @@ export function DeckEditor({
     focusAfterSwitchRef.current = false;
     searchRef.current?.focus();
   }, [activePane]);
+
+  // Browse commanders / leaders from the empty zone (W4, D3): a SAVED deck
+  // writes the pick intent so the hub CTA can bring the pick back to this
+  // exact deck, and flushes autosave so the round trip never leaves an edit
+  // behind (the unmount keepalive backstops the debounce window). Drafts
+  // write nothing — the P4.6 `?leader=` draft seed is their return path.
+  const handleBrowseLeader = useCallback(() => {
+    const deckId = deckIdRef.current;
+    if (!deckId || !adapter) return;
+    writePickIntent({
+      deckId,
+      deckName: metaRef.current.name.trim() || "Untitled",
+      game: adapter.id,
+    });
+    void flush();
+  }, [adapter, flush]);
   const openShortcuts = useCallback(() => {
     setDialogFromMenu(false);
     setDialog("shortcuts");
@@ -659,6 +685,54 @@ export function DeckEditor({
     },
     [format, adapter, cards, applyEdit, showCard, notify, tier],
   );
+
+  // The saved-deck half of the browse round trip (W4, D3): apply ?leader=
+  // ONLY with a matching un-expired intent and an empty leader zone, through
+  // handleAdd — Undo toast and autosave built in, unlike the draft seeder
+  // above (state-only by design). One-shot ref like the seeder; every state
+  // write happens inside the async IIFE (the combo-radar discipline). On
+  // apply the intent clears and replaceState strips the param without a
+  // history entry; a crafted link with no matching intent changes nothing.
+  const appliedLeaderRef = useRef(false);
+  useEffect(() => {
+    if (initialDeckId === null || !applyLeaderKey || appliedLeaderRef.current) return;
+    if (load.state !== "ready") return;
+    appliedLeaderRef.current = true;
+    const { adapter: gameAdapter, format: deckFormat } = load;
+    const leaderZone = deckFormat.zones.find((z) => z.isLeaderZone);
+    if (!leaderZone) return;
+    if (pickIntentFor(initialDeckId, gameAdapter.id) === null) return;
+    void (async () => {
+      if (entriesRef.current.some((e) => e.zone === leaderZone.id)) {
+        searchRef.current?.announce(
+          `This deck already has a ${leaderZone.label.toLowerCase()} — the browsed pick was not applied.`,
+        );
+        return;
+      }
+      try {
+        const res = await fetch("/api/cards/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            game: gameAdapter.id,
+            format: deckFormat.code,
+            names: [applyLeaderKey],
+          }),
+        });
+        if (!res.ok) return; // a broken key degrades to the plain editor
+        const json: { results: { match: CardWire | null }[] } = await res.json();
+        const wire = json.results[0]?.match;
+        if (!wire || !wire.isLeaderCandidate) return;
+        // Late-response guard: never replace what arrived in the meantime.
+        if (entriesRef.current.some((e) => e.zone === leaderZone.id)) return;
+        if (handleAdd(toEditorCard(wire), leaderZone.id, 1) !== undefined) return;
+        clearPickIntent();
+        window.history.replaceState(window.history.state, "", `/decks/${initialDeckId}/edit`);
+      } catch {
+        // The pick is a convenience — the editor works without it.
+      }
+    })();
+  }, [initialDeckId, applyLeaderKey, load, handleAdd]);
 
   // Adds from the right-pane panels (Suggestions P3.2, Combo Radar P3.3):
   // same edit path as handleAdd, but the preview updates without stealing
@@ -1099,6 +1173,7 @@ export function DeckEditor({
           onPreview={inspectCard}
           onOpenCuts={load.adapter.recommend?.cuts ? openCuts : undefined}
           onChooseLeader={focusSearch}
+          onBrowseLeader={handleBrowseLeader}
           onAddCards={focusSearch}
           extras={tier !== "phone"}
           owned={hasCollection ? owned : undefined}

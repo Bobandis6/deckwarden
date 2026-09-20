@@ -29,9 +29,16 @@ export const viewport: Viewport = {
   themeColor: dark.background,
 };
 
-export default async function DeckEditPage({ params }: PageProps<"/decks/[id]/edit">) {
+export default async function DeckEditPage({
+  params,
+  searchParams,
+}: PageProps<"/decks/[id]/edit">) {
   const { id } = await params;
+  // ?leader= (W4): the hub CTA's "Use for …" pick, applied client-side only
+  // with a matching sessionStorage intent — the param alone changes nothing.
+  const sp = await searchParams;
+  const leader = typeof sp.leader === "string" ? sp.leader : undefined;
   // No site header on editor routes: the editor renders its own (R3), with
   // the appearance menu in it — one appearance control per page.
-  return <DeckEditor deckId={id} />;
+  return <DeckEditor deckId={id} applyLeaderKey={leader} />;
 }

@@ -57,4 +57,11 @@ describe("optcg display (R3)", () => {
   it("declares no ambient art (REDESIGN.md §3: off until Bandai answers)", () => {
     expect(optcgAdapter.capabilities.ambientArt).toBeUndefined();
   });
+
+  it("leaderBrowse points the empty leader zone at /leaders (W4, /l/ lockstep)", () => {
+    expect(optcgAdapter.display.leaderBrowse).toEqual({
+      href: "/leaders",
+      label: "Browse leaders",
+    });
+  });
 });
