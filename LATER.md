@@ -85,6 +85,7 @@ with one line on when it earns its way back. Nothing on this list is a "no" — 
 | Hand-written precon blurbs: generated factual summaries ship first (W8); WotC marketing copy is never copied. | The owner wants editorial voice on the newest products. |
 | Maskable manifest icons (`purpose: "maskable"`): W2 ships 192/512 with `purpose: "any"` only — declaring maskable promises an 80 % safe zone nobody verified on a device (the shield sits at 65.6 % of the canvas, likely fine, unproven). Same qlmanage pipeline, one padding tweak + a device/Lighthouse pass. | An Android install shows a cropped shield, or Lighthouse PWA audit is run in anger. |
 | ⋯ deck actions on the home "Your decks" rail: W3 scoped the quick-actions island to `/account` (the contract's call, recorded 2026-09-19) — home-rail tiles gain nothing until `AccountDeckTile` wraps them too, and the rail mixes guest decks (no PATCH rights without the claim token wired through). | The owner reaches for a home-rail tile's actions and finds none, or a beta user asks. |
+| Printings-gallery long-tail edges (W5, 2026-09-20): a `?printing=` deep link to a printing beyond the API's 250-row cap silently falls back to the default (only basic lands have >250; the cap IS the pagination), and "Filter sets…" searches loaded rows only — a set outside the inline 100 needs "Show all" first (the empty state says "No **loaded** sets match"). | A player shares a beyond-the-cap deep link and reports it, or filter confusion shows up in feedback. |
 
 ## Deferred infrastructure
 
