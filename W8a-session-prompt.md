@@ -55,3 +55,52 @@ NOT the `/precons` page, the share-page precon chrome, hub shelves, nav links, o
 ## Context, not tasks
 
 Sequence after W8a: W8b precon surfaces → W9a/b/c autofill → W10 tournaments. P2.9's and P4.7's standing triggers still exist beside the W-series and get their own round, never a slice of a W-session. Owner decisions of 2026-09-19 stand (ownerless official precons was one of them). Bandai and Azuki emails unanswered — posture unchanged. Cold-start rule holds: precons are published product lists rendered AS product lists — never community activity, never "recent", timestamps = release dates. Premium never gates card data or prices. The affiliate env stays empty (W7 ship note has the switch-on runbook for the VPS day).
+
+---
+
+## Ship note — 2026-09-20
+
+Shipped: feat `1b1a7c4`, test de-flake `89035ab`. Vercel success on both; nightly dispatched on `1b1a7c4` green end-to-end (precons step `unchanged: 175`, backup dump list carries `precon_products`, restore drill re-run green, 40s).
+
+**MTGJSON field drift vs the contract (live files, 2026-09-20, api/v5 `5.3.0+20260920`):**
+
+- `DeckList.json` = 3,059 decks, 48 types; `type === "Commander Deck"` → **191** (contract said ~200). "MTGO Commander Deck" (2) is a distinct type and stays excluded by exact match.
+- **Collector's Editions**: 16 entries are the same product list in premium foils (regular vs CE lists verified identical name×count on 40K; different scryfallIds). All 16 have a same-set regular sibling (the FIC four hide the phrase mid-name: "Limit Break Collector's Edition (FINAL FANTASY VII)"). Skipped, counted — 175 products is the honest catalogue.
+- **Multi-face cards are ONE row** with the full "A // B" name, `side: "a"`, `faceName` (split/aftermath/adventure observed across WOC/DRC/DSC/MOC/LCC). No two-row DFC shape found anywhere; the dedupe-by-oracle-id defense stays.
+- **The same oracle id DOES recur across rows** — as different printings of a basic (TimeyWimey: Plains #196 ×2 + #197 ×1; C13 had 9 such). Merged into one entry (deck_cards PK is per identity), qty summed, the **higher-count** printing represents the entry — first-seen lost to the hash's order-independence test.
+- Partner pair confirmed real: TimeyWimey_WHO `commander[]` = Tenth Doctor + Rose Tyler (2 + 98 = 100). No >2 case exists in the 191; the overflow→main branch is fixture-tested synthetically.
+- WHO decks ship `planes[]` (10), DSC `schemes[]` (10), some SLD `tokens[]` — 18 mapper warnings total, all extras ignored by design.
+- MTGJSON serves `.json.sha256` sidecars, but they hash raw bytes and `meta.date` changes every daily build — useless for change detection. `source_hash` = sha256 over the mapped stable subset (setCode/name/releaseDate/sorted entries).
+
+**Reconciled SQL:** `drizzle/0014_reflective_impossible_man.sql` matched WAVE2 §W8a step 1 statement-for-statement (drizzle qualifies columns and adds `NULLS LAST`, moot on a NOT NULL column; the old 0008 index emission differs only by the added `and "decks"."kind" = 'user'`). Applied once; `kind='precon'` count was 0 immediately after, 25 rows backfilled `'user'`.
+
+**Ingest counts (run 1 = the real backfill; run 2 = FULL rerun proof):** 191 entries → 16 `ce_skipped` → 175 fetched, 175 ingested, 0 unresolved identities, **0 unresolved printings**, 0 structural, 0 fetch failures, 0 slug collisions; rerun: `unchanged: 175`, zero writes. Run 1's `ingest_runs` row is honestly `failed` — every deck row committed, then the stats UPDATE crashed: **`client.json()` on the createDb (drizzle-wrapped) client breaks in Bind; the scryfall/spellbook bare-client idiom does not carry over.** Fixed to `${JSON.stringify(stats)}::jsonb`; run 2's row is `succeeded`.
+
+**Spot checks (era sweep + partner pair):**
+
+| code | public_id | commander(s) | cards | printings |
+|---|---|---|---|---|
+| Counterpunch_CMD (2011) | `p_counterpunch_cmd` | Ghave, Guru of Spores | 100 | 77/77 own-set |
+| EternalBargain_C13 (2013) | `p_eternal_bargain_c13` | Oloro, Ageless Ascetic | 100 | 79/79 own-set |
+| BreedLethality_C16 (2016) | `p_breed_lethality_c16` | Atraxa, Praetors' Voice | 100 | 83/83 own-set (the D7 example URL, live) |
+| TimeyWimey_WHO (2023) | `p_timey_wimey_who` | The Tenth Doctor + Rose Tyler | 100 | 94/94 own-set |
+| BlightCurse_ECC (2026) | `p_blight_curse_ecc` | Auntie Ool, Cursewretch | 100 | 85/85 resolved, 79 own-set — the other 6 are main-set printings the file itself lists (physically in the box) |
+
+All five: `kind=precon`, public, created_at = updated_at = release date; totals 175 decks = 175 products, 0 constraint-shape violations, 0 timestamp drift.
+
+**Design decisions (pinned):**
+
+1. **Slug** = `clean(name minus parentheticals) + '_' + set code`, ≤30 chars (truncate base, counter backstop — never hit). Parenthetical strip is what turns "Scions & Spellcraft (FINAL FANTASY XIV)" into `scions_spellcraft_fic`. Slugs are minted once and never re-slugged on rename (they are public URLs).
+2. **Description lives on `decks.description`** — it feeds og:description + JSON-LD today with zero W8b work; `precon_products.blurb` stays NULL, reserved. Shape: "White-Blue-Red Commander precon led by X and Y. Official {Set} ({CODE}) product list, released {Month YYYY}. {N} cards."
+3. **Partner pairs**: both to the commander zone; >2 (nonexistent today) overflows to main with a mapper warning surfaced in ingest stats.
+4. **Weekly gate lives in the script**, not workflow YAML: nightly = new codes only (~2 s when quiet; a new set's decks land the night after Scryfall has the cards — better than the contract's "next week"), Sunday UTC = full source-hash sweep, `PRECONS_FULL=true` on workflow_dispatch forces one. Deviation from "weekly-or-dispatch" disclosed: strictly cheaper AND fresher.
+
+**Leaks:** home rail 12/12 `kind=user`; Atraxa hub shelf 1 user deck (unfiltered would be 3 — Breed Lethality + the CM2 anthology excluded); 13 public user decks unchanged; sitemap gained exactly 175 `/d/p_` URLs (intended — indexable pages with OG images); purge dry-run 0 candidates with 157 pre-2025 release dates in range; profiles/Continue-building safe by NULL owner. Partial index serves the guarded rail (Bitmap Index Scan under `enable_seqscan=off`; at 188 rows the planner prefers a seq scan — economics, not a defect).
+
+**Write refusals (live, dev + prod):** PATCH/PUT cards/DELETE with no proof and with a forged `x-deck-token` → 403; claim (correct body shape) and like → 401 signed out; engagement stays allowed for signed-in readers by `requireEngageableDeck` (unit-pinned); fork = 401 signed out, allowed signed in (fork of a precon is `kind='user'` by explicit-columns construction). GET meta 200 with `"kind":"precon"` on the wire.
+
+**CI de-flake (`89035ab`):** the W7 "Buy this deck" test failed both CI attempts on `1b1a7c4` (Node-24 runner) — its fixed `settle(50)` + `getByRole` lost the Base UI menu-open race that local runs win. findBy*/waitFor hang under the file's faked `setTimeout` (RTL's poll rides it unadvanced), so `pollFor()` advances fake time in 50 ms slices and yields one real `setImmediate` turn per round. 8/8 full-file runs green. Discovered but NOT fixed (pre-existing at `bcde7ea`, LATER row): a `vitest -t` isolated run of that one test never opens the menu at all until the file's first test has rendered once.
+
+**Environment notes for future sessions:** `client.json()` is unusable on the createDb client (above); MTGJSON deck files are ~200–770 KB each (full card objects inline) — never bulk-fetch casually; `source .env.local` breaks on unquoted `&` in OAuth secrets (use dotenv extraction).
+
+db:size 263.2 → 266.4 MB (+3.2 MB, budget < 6). Census before ingest: 25 decks (24 MTG + 1 OP) · 1 user · likes 1 · bm 0 · folders 1 — untouched by W8a (precons are not census).
