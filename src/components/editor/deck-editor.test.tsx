@@ -592,6 +592,24 @@ describe("DeckEditor — Buy this deck (W7, D6)", () => {
     fireEvent.click(trigger, { button: 0 });
   }
 
+  /**
+   * findBy and waitFor hang under this file's faked setTimeout (RTL's poll
+   * interval rides it, unadvanced), and a fixed settle lost the race on the
+   * CI runner (attempts 1+2 of 1b1a7c4). Poll by hand: advance fake time in
+   * slices and yield one REAL event-loop turn per round (setImmediate is
+   * not in toFake), so both fake-timer deferrals and real async boundaries
+   * get covered whatever the runner's speed.
+   */
+  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
+    for (let i = 0; i < 40; i++) {
+      const el = query();
+      if (el) return el;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: element never appeared");
+  }
+
   it("the pane footer gets Buy ↗ and More → Buy this deck… opens the link dialog without writing", async () => {
     stubViewport(1440);
     render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
@@ -616,11 +634,9 @@ describe("DeckEditor — Buy this deck (W7, D6)", () => {
 
     // More → Buy this deck… → the dialog lists real Mass Entry links.
     openMenu(screen.getByRole("button", { name: "More" }));
-    await settle(50);
-    const menu = screen.getByRole("menu", { name: "More" });
+    const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Buy this deck…" }));
-    await settle(50);
-    const dialog = screen.getByRole("dialog", { name: "Buy this deck" });
+    const dialog = await pollFor(() => screen.queryByRole("dialog", { name: "Buy this deck" }));
     // Button render={<a/>} keeps role button (W4 gotcha) — real hrefs still.
     const whole = within(dialog).getByRole("button", { name: /Whole deck/ });
     expect(whole.tagName).toBe("A");
