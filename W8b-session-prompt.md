@@ -54,3 +54,21 @@ NOT One Piece starter decks (the `/precons` OP pill renders DISABLED with the D7
 ## Context, not tasks
 
 Sequence after W8b: W9a autofill engine → W9b review sheet → W9c doors → W10 tournaments. P2.9 (MTG) and P4.7 round 3 (OP) standing triggers remain live beside the W-series. Owner decisions of 2026-09-19 stand: ownerless official precons, evidence-based starter shell, plain buy links. Bandai/Azuki posture unchanged; OP ambient art stays off. Cold-start rule holds: precons render AS product lists — release-date timestamps, never "recent", never community counts. Premium never gates card data or prices.
+
+---
+
+## Ship note — 2026-09-21, `e2df10c`
+
+Shipped whole. Everything below is what the next session can't re-derive from the diff.
+
+- **181, not 175.** The pre-flight nightly check surfaced +6 products (5 FDC + 1 FRC, all release-dated **2026-10-02** — in the future) from the Sunday full sweep. That's the W8a weekly gate doing its job; `/precons` renders 181 tiles and the 2026 group leads with unreleased products, which the release-date labels make honest.
+- **Decisions, as the prompt demanded, each pinned:**
+  - **`[slug]`, not `code`**: `/api/precons/[slug]` takes `precon_products.slug` (it already names the deck as `p_`+slug); the MTGJSON fileName 404s because `PRECON_SLUG_RE` (`precon-info.ts`, pure module so the client view can import it without dragging drizzle in) rejects uppercase — pinned in `precon-info.test.ts`. REC-4's `from=` carries the slug.
+  - **Est. price on tiles: shipped** — one aggregate (`SUM(qty × cheapest_usd)` grouped by deck) at revalidate time in `loadPreconIndex`; SUM skips null-priced cards so it's ≈ by construction (1 deck has null-priced cards today).
+  - **Share summary split**: colors/commander/set/release live in the W8a `decks.description` sentence (already rendered + og:description), curve lives in the existing Analytics section, and only the price half (est. today + five priciest) is render-computed from the wire's `cheapestUsd`. `precon_products.blurb` stays NULL.
+  - **Filter island: ephemeral** — no hash, no replaceState; pinned by the "never touches the URL" test. Revisit trigger in LATER.md.
+- **`ensureDeck` change is load-bearing**: the create POST now carries `metaRef.current.name` (the route always accepted optional `name`). That's what makes the acceptance exact — the seeder writes the name into `metaRef` AND moves `lastSavedRef.meta`, so the first edit is one POST (row minted already named) + one PUT, **zero PATCH** (pinned in the new deck-editor test). Side effect on the normal typed-name draft flow: the POST now carries the name too and the follow-up PATCH no-ops semantically — no pin moved.
+- **Native `<select>`s on the island** — `ui/select.tsx` has zero users in the repo; a Base UI popup select would stall in a hidden pane for nothing. `form_input`/`fireEvent.change` both drive them.
+- **Live-verification gotchas**: the error toast for a bad `from=` lives 5 s — pane tool round-trips are slower than that; prove it with a `browser_batch` navigate + same-call poll loop (caught at 200 ms). The first grep of the served HTML lied twice: the whole document is one line (`grep -c` counts lines, use `grep -o | wc -l`) and RSC flight data duplicates every string (362 "Released" for 181 tiles is correct).
+- **QA**: the seeded draft was minted once for the E2E (one POST/PUT proven, printings byte-equal to `deck_cards`, Ash Barrens qty-bump kept its printing), then DELETEd with its token (204); census re-proven at baseline (25 total / 13 owned). Probe scripts deleted from `scripts/.tmp/`.
+- **Baseline for W9a**: 901 tests / 116 files / 6 pre-existing warnings / 0 errors on `e2df10c`; db unchanged (W8b added no data).
