@@ -53,3 +53,31 @@ NOT the review sheet, the doors, "Surprise me", or ANY rendered surface (all W9b
 ## Context, not tasks
 
 Sequence after W9a: W9b review sheet → W9c doors → W10 tournaments. P2.9 (MTG) and P4.7 round 3 (OP) standing triggers remain live. Owner decisions of 2026-09-19 stand: evidence-based starter shell (no roles), plain buy links, ownerless precons. Neon compute is the watched risk on rerolls — the rate bucket is the first line, client-side reroll over the returned window is the recorded second. Premium never gates card data or prices.
+
+---
+
+## Ship note (2026-09-21, feat `02ee64b`)
+
+**Shipped and deployed** (Vercel commit status success on `02ee64b`). All five contract steps in order; `pnpm check` green at **924 tests / 117 files / 6 pre-existing warnings / 0 errors** (baseline 901/116 held through the refactor — the recommend slice was 70/70 byte-identical before and after step 1). `smoke:recommend` green post-refactor; **`pnpm smoke:autofill` all green on dev** (Atraxa 99 picks / validate clean / evidence on every pick / topdeck present; Kinnan locked tier; Talrand zero `topdeck-top16` rows; Thrasios+Tymna 98; Kozilek → Wastes filler; same seed identical, other seed 32 different; $1 budget honest; OP 400 with `No autofill for optcg`); prod spot-checked manually (Atraxa `budgetUsd: 5` → 99 picks, est $99.01, all ≤ $5, seed-identical twice, zero validation errors). Rate bucket proven: **429 at exactly 21/min** on dev with `Retry-After`; malformed bodies consume quota (limit before parsing, house pattern). No data added (db was 266.9 MB at pre-flight; the route writes nothing).
+
+**Statement count: 14** per call (DB_LOG=1, markers around one Atraxa POST): 2 rate upserts · `loadEntryFacts` · curve pool · combos · curve tournament candidates · base pool · base tournament candidates · `commander_stats` totals · commander names · `commander_card_stats` byCandidate · `loadFillerRows` · wire select · legalities. Beware counting from `preview_logs`: four of these arrive dimmed (`ESC[2m` prefixes the `[db]` tag), so a `^\[db\]` grep undercounts to 10.
+
+**Design decisions (each disclosed per the prompt):**
+
+- **`gatherSignals` options shape**: `GatherOptions = { maxPriceUsd, ownedCardIds, poolLimit, tournamentPoolLimit, scope, includeCombos }` — knobs only; the `CandidateFilter` stays an internal shape assembled inside `gatherSignals` from snapshot + opts. The tournament-SIGNALS read is deliberately NOT inside `gatherSignals`: the route reads the union once (that's how 14 statements happen); `recommendForSnapshot` does the same for the P3.1 path. W9b consumes the route — no third variant.
+- **The "split by isBase"** is the SQL scope, not a route-side re-sort: base pool = the adapter's declared `base.scope` (`eq` Land), curve pool = its negation (`ne` via `IS DISTINCT FROM`, so NULL-typed cards stay nonbase). One filter implementation, no 200-row split pass.
+- **`scope` whitelisting**: `SCOPE_COLUMNS` map in queries.ts; the type union allows only `"primary_type"` and a forged column throws `Invalid scope column` (pinned in `queries.test.ts`).
+- **Lock rule reading**: "share ≥ lockShare with ≥ lockMinLists lists" reads the **candidate's** lists ≥ 5 (plus a live context). Stricter and more local than reading the denominator.
+- **Leaders are excluded from the planner's curve state** (`keep` = non-leader countsTowardSize entries): the commander is the slot above the 99-template, so an empty Atraxa deck needs exactly [2,8,13,13,10,7,5,4]+37. rankCandidates' curve-evidence wording still counts all zones (P3.1 parity).
+- **Fillers resolve in a second pure phase**: `buildShell` → `ShellDraft` (+ `fillerNeed`), route loads filler rows + wires, `finishShell` appends. The pip split needs the chosen cards' cost texts (`autofill.costTextOf(attrs)` — core never touches `mana_cost`), which only exist after the wire read the response needs anyway. Both phases pure; determinism holds end-to-end.
+- **`notes[]` vocabulary (W9b renders verbatim, pinned in `autofill.test.ts`)**: `"The deck is already full — nothing to add."` · `` `Filled {n} of {slots} — the ${b}-a-card budget leaves too few candidates in {group labels}.` `` · `` `Filled {n} of {slots} — too few candidates in {group labels}.` `` Group labels, not game phrasing ("Lands", "Mana value 5"), keep the core game-agnostic.
+- **`totals.estUsd` prices the PICKS only** (what Apply adds), qty-weighted over known prices, with `unpriced` count for honesty. Response `cards` = wires for every involved id (keep + leaders + picks + used fillers) so the sheet needs no second fetch.
+- **`leaderIds` owns the command zone**: keep entries in the leader zone answer 400 (no silent munging).
+
+**Contract corrections found**: the prompt's line "the curve template `[6,8,16,22,26,28]`" mislabels `rankedByColorCount` (Σ=106; the ladder of ranked-land slots by color count). The 37+Σ=99 test runs against `MTG_CURVE_TEMPLATE` (Σ=62), as the contract's own step 3 intends — pinned in `mtg/recommend.test.ts`.
+
+**Response shape (the W9b sheet's input, verbatim from prod):** `{ game, format, seed, picks: [{cardId, zone, qty, group, tier: "locked"|"combo"|"sampled"|"filler", score, cheapestUsd, evidence: [{source, why, with, howOften, confidence}]}], groups: [{id: "base"|"curve-<b>", label, picks}], notes: string[], totals: {picks, estUsd, unpriced}, issues: ValidationIssue[], cards: CardWire[] }`. Picks are entries, not cards: Atraxa yields 92 entries / 99 qty (fillers carry qty > 1) — **applyListSwap must merge same-(zone,card) with any kept basics** (the route already merges for its own validate pass).
+
+**Fenced, already recorded**: client-side reroll (LATER row, `buildShell` purity is the door) · One Piece autofill (LATER row 77, adapter-gated). Nothing new for LATER.
+
+**Environment notes for the next session**: the dev loopback `deck-autofill:*:::1` counters held ~40/200 in the hour window after the battery (`counters:reset` only clears deck-create rows — harmless, self-expiring). `preview_logs` ANSI-dims some `[db]` lines (see above).
