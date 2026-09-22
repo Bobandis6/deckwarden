@@ -57,3 +57,34 @@ NOT "Surprise me", the hub CTA row, the combos-tab rows, or `GET /api/leaders/ra
 ## Context, not tasks
 
 Sequence after W9b: W9c doors → W10 tournaments. P2.9 (MTG) and P4.7 round 3 (OP) standing triggers remain live. Owner decisions of 2026-09-19 stand: evidence-based starter shell (no roles), plain buy links, ownerless precons. Neon compute on rerolls: the 20/min bucket is the first line; client-side reroll over the returned window is the recorded LATER second. Premium never gates card data or prices.
+
+---
+
+## Ship note — 2026-09-21, feat `e551042`
+
+Deployed (Vercel status on the sha). 940 tests / 118 files, `pnpm check` green; `smoke:recommend` + `smoke:autofill` green; no server-side changes — the W9a response shape was consumed as shipped.
+
+**What landed**
+
+- **(new)** `src/components/editor/autofill-sheet.tsx` — the D8 sheet: Dialog `wide` from md / bottom Drawer on phones (`phone` prop from the editor's tier; the Modal shell carries `ModalFinalFocus`), skeleton rows while loading, budget chips → `budgetUsd` absent/5/1, "Keep my N cards" (hidden at N = 0), Reroll (disabled in flight), source-count line built from `sourceMeta` labels ("88 from EDHREC · 11 from Land template" — the D8 sketch's prose line, generalized to adapter labels), `notes[]` verbatim, groups as Collapsibles with an indeterminate native group checkbox, rows = checkbox · name (CardNamePreview + `/cards/[id]` link) · first evidence sentence + source credit link (Topdeck.gg attribution wherever tournament evidence shows) · "+N more" expand · unit price, `issues` block above the footer, live Apply count + client-side est over CHECKED picks, 429 sentence with Retry disabled for the Retry-After window (one `setTimeout`, never auto-retry). No-leader open renders a sentence and fires nothing.
+- `applyListSwap(entries, cards, title)` in `deck-editor.tsx` — the generalized whole-list swap: captures the previous list, `mergeEntries()` (new pure helper in `editor-state.ts`, unit-tested) folds duplicate (zone, cardId) rows qty-capped at MAX_QTY with the FIRST row's tags/printingId winning, toast Undo restores the previous list through markDirty. **Import now uses it and gained Undo** (title "Import applied").
+- Doors: `DeckListPane` EmptyState gains **Autofill a starter shell** beside "Add cards" only when `onAutofill` is passed (adapter gate, editor-side) AND a leader is set (pane-side); More → **Autofill…** after Import (`EditorDialog` grew `"autofill"`; menu pin at `editor-header.test.tsx` updated with the OP-negative case).
+
+**Design decisions (disclosed per the prompt, pinned in the module doc + tests)**
+
+- *Sheet state model*: everything lives in the component; mount-on-open, unmount-on-close, reopen refetches. Stale-shell invalidation is structural — the sheet is modal, the deck cannot change under it. One POST per open is the cost; the cleanup abort keeps a closed sheet from spending more (and folds StrictMode's dev double-fire to one landed 200).
+- *Row identity*: one row per pick entry (zone, cardId); a filler renders once as "Wastes × 11".
+- *`issues` rendering*: the warning block above the footer (error tone for errors, muted for warnings), verbatim messages.
+- *Seed*: held with the shell in state (same-view reproducible), rendered nowhere. Reroll and every control change POST **without** a seed.
+- *Keep-unchecked Apply semantics* (the one place the prompt was silent): the plan was built without the non-leader cards, so Apply REPLACES them — leaders + picks; keep-checked stacks picks on the whole current list. Pinned in `autofill-sheet.test.tsx`.
+- *Est. total*: computed client-side over the checked picks (the server totals cover all picks; the live count and the price line must agree). Hidden at 0 checked picks.
+- The per-group "basics only" toggle is fenced → LATER row (not free: server-planned picks need a flag or client re-derivation).
+
+**Live proof (dev, shared Neon DB — QA deck deleted, census 25 re-proven)**
+
+Atraxa draft → commander add → door renders (absent before the leader, absent on MTG-no-commander and the whole OP editor) → sheet: 99 picks, groups "Lands · 37" through "Mana value 7+ · 4" (37 + Σ = 99 visible), ≤$1 roll = 92 row entries, max $0.99, still 99 filled, est $34 → Apply: toast "Added 99 cards · Undo", Warden-green 100/100, network shows exactly ONE extra PUT (the earlier POST+PUT pair was the commander add minting the draft); full-deck reopen via More → verbatim "The deck is already full — nothing to add." + "Keep my 99 cards" + disabled "Add 0 cards"; keep-unchecked → fresh full-curve 99. RTL pins the create counts (apply on a draft = one POST + one PUT), Undo restore + autosave, reroll/cancel never creating or dirtying.
+
+**Environment notes for the next session**
+
+- The pane's Details-dialog "Delete deck…" button did not advance to its confirm under pane clicks this session (unverified whether pane-quirk or regression — deletion via `DELETE /api/decks/[id]` + `x-deck-token` worked; the RTL delete tests are green). If it recurs in a live pass, look before assuming the dialog broke.
+- Dev HMR closes the mounted sheet (editor `dialog` state survives, the Dialog remount doesn't) — reopen after any mid-verification edit.
