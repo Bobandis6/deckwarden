@@ -6,6 +6,7 @@ import {
   deckSizeCount,
   MAX_QTY,
   MAX_TAGS,
+  mergeEntries,
   normalizeTags,
   parseQuickAdd,
   removeCard,
@@ -284,5 +285,29 @@ describe("singleQtyIncrease (the badge pop)", () => {
     expect(
       singleQtyIncrease(a, [entry({ cardId: "sol", qty: 5 }), entry({ cardId: "sig" })]),
     ).toBeNull();
+  });
+});
+
+describe("mergeEntries (W9b — the whole-list swap's dedupe)", () => {
+  it("merges duplicate (zone, card) rows, quantities added and capped, first row's tags/printing kept", () => {
+    const merged = mergeEntries([
+      entry({ cardId: "wastes", qty: 2, tags: ["ramp"], printingId: "p1" }),
+      entry({ cardId: "sol" }),
+      entry({ cardId: "wastes", qty: 11 }),
+      entry({ cardId: "sol", zone: "command" }),
+    ]);
+    expect(merged).toEqual([
+      { cardId: "wastes", zone: "main", qty: 13, tags: ["ramp"], printingId: "p1" },
+      { cardId: "sol", zone: "main", qty: 1, tags: [] },
+      { cardId: "sol", zone: "command", qty: 1, tags: [] },
+    ]);
+    expect(
+      mergeEntries([entry({ cardId: "sol", qty: 98 }), entry({ cardId: "sol", qty: 98 })])[0].qty,
+    ).toBe(MAX_QTY);
+  });
+
+  it("returns an already-merged list with unchanged rows", () => {
+    const a = [entry({ cardId: "sol" }), entry({ cardId: "sig" })];
+    expect(mergeEntries(a)).toEqual(a);
   });
 });

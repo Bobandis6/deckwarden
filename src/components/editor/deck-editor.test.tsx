@@ -815,3 +815,176 @@ describe("DeckEditor — Start from this precon (W8b)", () => {
     expect(posts()).toBe(0);
   });
 });
+
+describe("DeckEditor — Autofill review sheet + doors (W9b)", () => {
+  const commander = card({
+    name: "Atraxa, Praetors' Voice",
+    primaryType: "Creature",
+    isLeaderCandidate: true,
+    ciMask: 23,
+  });
+  const tower = card({ name: "Command Tower", primaryType: "Land", costValue: null });
+  const wastes = card({ name: "Wastes", primaryType: "Land", costValue: null });
+  const templateEvidence = {
+    source: "land-template",
+    why: "Fills the land template",
+    with: [],
+    howOften: null,
+    confidence: "medium",
+  };
+  const shellResponse = {
+    game: "mtg",
+    format: "commander",
+    seed: 42,
+    picks: [
+      {
+        cardId: tower.id,
+        name: "Command Tower",
+        zone: "main",
+        qty: 1,
+        group: "base",
+        tier: "locked",
+        score: 0.9,
+        cheapestUsd: "0.23",
+        evidence: [templateEvidence],
+      },
+      {
+        cardId: wastes.id,
+        name: "Wastes",
+        zone: "main",
+        qty: 11,
+        group: "base",
+        tier: "filler",
+        score: 0,
+        cheapestUsd: "0.10",
+        evidence: [templateEvidence],
+      },
+    ],
+    groups: [{ id: "base", label: "Lands", picks: 12 }],
+    notes: [],
+    totals: { picks: 12, estUsd: 1.33, unpriced: 0 },
+    issues: [],
+    cards: [
+      { ...commander, image: null },
+      { ...tower, image: null },
+      { ...wastes, image: null },
+    ],
+  };
+
+  const autofillPosts = () =>
+    fetchMock.mock.calls.filter(
+      ([url, init]) => String(url) === "/api/decks/autofill" && init?.method === "POST",
+    ).length;
+
+  function autofillRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    if (url === "/api/cards/resolve") {
+      return ok({ results: [{ match: { ...commander, image: null } }] });
+    }
+    if (url === "/api/decks/autofill") {
+      return { ...ok(shellResponse), headers: new Headers() };
+    }
+    return route(input, init);
+  }
+
+  /** The last-describe pattern: findBy/waitFor hang under this file's faked setTimeout. */
+  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
+    for (let i = 0; i < 40; i++) {
+      const el = query();
+      if (el) return el;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: element never appeared");
+  }
+
+  it("the EmptyState door needs a commander; Apply = ONE create + ONE PUT on the next autosave; the toast's Undo restores the prior list and autosaves", async () => {
+    fetchMock.mockImplementation(autofillRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftLeaderKey="atraxa" />,
+    );
+    // The seeded commander arrives state-only; the door renders with it.
+    const door = await pollFor(() =>
+      screen.queryByRole("button", { name: "Autofill a starter shell" }),
+    );
+    expect(posts()).toBe(0);
+
+    fireEvent.click(door);
+    const apply = await pollFor(() => screen.queryByRole("button", { name: "Add 12 cards" }));
+    expect(autofillPosts()).toBe(1);
+    // Loading a shell dirties nothing and mints nothing.
+    expect(posts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+
+    fireEvent.click(apply);
+    await pollFor(() => screen.queryByText("Added 12 cards"));
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+    const saved = lastPutEntries();
+    expect(saved).toHaveLength(3); // commander + Command Tower + Wastes ×11
+    expect(saved.find((e) => e.cardId === commander.id)).toBeTruthy();
+
+    // Undo is a REAL edit: the previous (leader-only) list autosaves back.
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(puts()).toBe(2);
+    expect(lastPutEntries()).toHaveLength(1);
+    expect(posts()).toBe(1);
+  });
+
+  it("Reroll re-POSTs the shell but never touches the deck — no create, no dirty; closing without applying changes nothing", async () => {
+    fetchMock.mockImplementation(autofillRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftLeaderKey="atraxa" />,
+    );
+    const door = await pollFor(() =>
+      screen.queryByRole("button", { name: "Autofill a starter shell" }),
+    );
+    fireEvent.click(door);
+    await pollFor(() => screen.queryByRole("button", { name: "Add 12 cards" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Reroll" }));
+    await pollFor(() => screen.queryByRole("button", { name: "Add 12 cards" }));
+    expect(autofillPosts()).toBe(2);
+    expect(posts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await settle(1500);
+    expect(posts()).toBe(0);
+    expect(puts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+    expect(within(section("Deck list")).queryByText("Command Tower")).toBeNull();
+  });
+
+  it("One Piece: no autofill door — the empty state keeps only Add cards (adapter-gated)", async () => {
+    fetchMock.mockImplementation(autofillRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor
+        deckId={null}
+        draftGame="optcg"
+        draftFormat="standard"
+        draftLeaderKey="OP15-058"
+      />,
+    );
+    await pollFor(() => screen.queryAllByText("Atraxa, Praetors' Voice")[0] ?? null);
+    expect(screen.queryByRole("button", { name: "Autofill a starter shell" })).toBeNull();
+    expect(
+      within(section("Deck list")).getAllByRole("button", { name: "Add cards" }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("MTG without a commander: the door waits — Add cards only", async () => {
+    fetchMock.mockImplementation(autofillRoute);
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+    await pollFor(() => within(section("Deck list")).queryByText("No cards yet"));
+    expect(screen.queryByRole("button", { name: "Autofill a starter shell" })).toBeNull();
+  });
+});

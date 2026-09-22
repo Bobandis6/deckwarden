@@ -206,6 +206,26 @@ export function toSavePayload(
 }
 
 /**
+ * Merge duplicate (zone, card) rows into one entry each (W9b): the whole-list
+ * swap path (Import, Autofill apply) may concatenate lists that share rows —
+ * kept basics plus autofill's fillers — and the PUT route rejects duplicate
+ * keys. Quantities add (capped at MAX_QTY); the FIRST row's tags and
+ * printingId win, so a kept card's chosen printing survives picks appended
+ * after it. Order is first-appearance, and an already-merged list returns
+ * unchanged rows.
+ */
+export function mergeEntries(entries: readonly EditorEntry[]): EditorEntry[] {
+  const byKey = new Map<string, EditorEntry>();
+  for (const e of entries) {
+    const key = `${e.zone} ${e.cardId}`;
+    const prev = byKey.get(key);
+    if (prev) byKey.set(key, { ...prev, qty: Math.min(prev.qty + e.qty, MAX_QTY) });
+    else byKey.set(key, e);
+  }
+  return [...byKey.values()];
+}
+
+/**
  * Replace the card in a single-card leader zone (R3 builder fix): valid only
  * for `isLeaderZone && max === 1` — One Piece's Leader. The previous card
  * leaves, the new one lands, and `replaced` names what left so the editor

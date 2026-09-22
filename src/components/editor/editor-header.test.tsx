@@ -126,7 +126,14 @@ describe("EditorHeader", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((i) => i.textContent),
-    ).toEqual(["Details", "Import", "Export", "Buy this deck…", "Keyboard shortcuts?"]);
+    ).toEqual([
+      "Details",
+      "Import",
+      "Autofill…",
+      "Export",
+      "Buy this deck…",
+      "Keyboard shortcuts?",
+    ]);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Details" }));
     expect(onOpen).toHaveBeenCalledWith("details");
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
@@ -158,5 +165,22 @@ describe("EditorHeader", () => {
     open(screen.getByRole("button", { name: "More" }));
     const opMenu = await screen.findByRole("menu", { name: "More" });
     expect(within(opMenu).queryByRole("menuitem", { name: "Buy this deck…" })).toBeNull();
+  });
+
+  it("Autofill… opens the review sheet, and only for games that declare recommend.autofill (W9b)", async () => {
+    const onOpen = vi.fn();
+    const { rerender } = render(header({ onOpen }));
+    open(screen.getByRole("button", { name: "More" }));
+    const menu = await screen.findByRole("menu", { name: "More" });
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Autofill…" }));
+    expect(onOpen).toHaveBeenCalledWith("autofill");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+
+    // One Piece declares no recommend.autofill → no door, no apology copy.
+    const optcg = getAdapter("optcg");
+    rerender(header({ onOpen, adapter: optcg, format: optcg.formats[0] }));
+    open(screen.getByRole("button", { name: "More" }));
+    const opMenu = await screen.findByRole("menu", { name: "More" });
+    expect(within(opMenu).queryByRole("menuitem", { name: "Autofill…" })).toBeNull();
   });
 });

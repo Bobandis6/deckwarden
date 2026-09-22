@@ -53,6 +53,7 @@ import { AmbientArt } from "@/components/deck/ambient-art";
 import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
 import { BuyDeckDialog, countedEntries } from "@/components/deck/buy-deck-menu";
 import { SampleHand } from "@/components/deck/sample-hand";
+import { AutofillSheet } from "@/components/editor/autofill-sheet";
 import { CardDetailPane, type PrintingEditing } from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
 import { CutCoachPanel } from "@/components/editor/cut-coach-panel";
@@ -88,6 +89,7 @@ import { leaderDenorm } from "@/lib/decks/cards";
 import {
   addCard,
   deckSizeCount,
+  mergeEntries,
   removeCard,
   replaceLeader,
   setPrinting,
@@ -873,22 +875,49 @@ export function DeckEditor({
     [applyEdit],
   );
 
+  // Whole-list swap with Undo (W9b): Import and Autofill both land here.
+  // The previous list is captured for the toast's Undo, which restores it
+  // through the same ref + state + markDirty path — a REAL edit the next
+  // autosave PUTs (Import gains the Undo it never had). mergeEntries folds
+  // duplicate (zone, card) rows — autofill picks on top of kept basics —
+  // because the PUT route rejects duplicate keys.
+  const applyListSwap = useCallback(
+    (nextEntries: EditorEntry[], newCards: readonly CardWire[], title: string) => {
+      const previous = entriesRef.current;
+      setCards((prev) => {
+        const next = new Map(prev);
+        for (const card of newCards) if (!next.has(card.id)) next.set(card.id, toEditorCard(card));
+        return next;
+      });
+      const merged = mergeEntries(nextEntries);
+      entriesRef.current = merged;
+      setEntries(merged);
+      markDirty();
+      notify(title, () => {
+        entriesRef.current = previous;
+        setEntries(previous);
+        markDirty();
+      });
+    },
+    [markDirty, notify],
+  );
+
   // Import applies as one whole-list swap: the pure applyImport already
   // merged/spilled per format rules, so the result is save-ready as-is.
   const handleImport = useCallback(
     (outcome: ImportOutcome) => {
-      setCards((prev) => {
-        const next = new Map(prev);
-        for (const card of outcome.cards)
-          if (!next.has(card.id)) next.set(card.id, toEditorCard(card));
-        return next;
-      });
-      entriesRef.current = outcome.entries;
-      setEntries(outcome.entries);
-      markDirty();
+      applyListSwap(outcome.entries, outcome.cards, "Import applied");
     },
-    [markDirty],
+    [applyListSwap],
   );
+
+  // The empty deck state's autofill door (W9b): never from the More menu,
+  // so focus falls back to Base UI's default on close (the button may be
+  // gone once the shell applies).
+  const openAutofill = useCallback(() => {
+    setDialogFromMenu(false);
+    setDialog("autofill");
+  }, []);
 
   // Visibility PATCHes immediately (not via autosave): it's a deliberate,
   // rare action and the Share dialog wants the result before it re-renders.
@@ -1273,6 +1302,22 @@ export function DeckEditor({
               onClose={() => setDialog(null)}
             />
           )}
+          {/* W9b: the review sheet — gated on the adapter's autofill
+              declaration (One Piece renders no door and no sheet). */}
+          {dialog === "autofill" && load.adapter.recommend?.autofill && (
+            <AutofillSheet
+              adapter={load.adapter}
+              format={load.format}
+              entries={entries}
+              cards={cards}
+              phone={tier === "phone"}
+              onApply={({ entries: next, cards: wires, added }) => {
+                applyListSwap(next, wires, `Added ${added} card${added === 1 ? "" : "s"}`);
+                setDialog(null);
+              }}
+              onClose={() => setDialog(null)}
+            />
+          )}
           {dialog === "export" && snapshot && (
             <ExportDialog
               text={load.adapter.serializeDecklist(snapshot, cards)}
@@ -1346,6 +1391,7 @@ export function DeckEditor({
           onChooseLeader={focusSearch}
           onBrowseLeader={handleBrowseLeader}
           onAddCards={focusSearch}
+          onAutofill={load.adapter.recommend?.autofill ? openAutofill : undefined}
           extras={tier !== "phone"}
           owned={hasCollection ? owned : undefined}
           ownership={ownership}

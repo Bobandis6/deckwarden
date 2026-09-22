@@ -77,6 +77,12 @@ interface DeckListPaneProps {
    * it focuses the search box the way "Choose commander" does).
    */
   onAddCards?: () => void;
+  /**
+   * "Autofill a starter shell" (W9b): opens the review sheet. Passed only
+   * when the adapter declares `recommend.autofill`; the pane renders the
+   * door only once a leader is set (the shell is built around one).
+   */
+  onAutofill?: (() => void) | undefined;
   /** Analytics and the sample hand below the list; false on phones (R4: the Tools tab hosts them). */
   extras?: boolean;
 }
@@ -97,6 +103,7 @@ export function DeckListPane({
   owned,
   ownership = null,
   onAddCards,
+  onAutofill,
   extras = true,
 }: DeckListPaneProps) {
   // Stored preference wins; absent fields fall back (group to the adapter's
@@ -250,7 +257,25 @@ export function DeckListPane({
           hint="Add them from Search."
           mark
           action={
-            onAddCards ? (
+            // The autofill door (W9b, D8): only once a leader is set — the
+            // shell is built around one. "Add cards" stays beside it.
+            onAutofill && leader.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button size="sm" className="pointer-coarse:min-h-11" onClick={onAutofill}>
+                  Autofill a starter shell
+                </Button>
+                {onAddCards && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="pointer-coarse:min-h-11"
+                    onClick={onAddCards}
+                  >
+                    Add cards
+                  </Button>
+                )}
+              </div>
+            ) : onAddCards ? (
               <Button
                 variant="outline"
                 size="sm"

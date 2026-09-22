@@ -46,7 +46,7 @@ import type { FormatDef, GameAdapter } from "@/lib/games/types";
 
 /** The editor's dialogs, each opened from the header (or `?` for the sheet). */
 export type EditorDialog =
-  "details" | "import" | "export" | "buy" | "share" | "history" | "shortcuts";
+  "details" | "import" | "autofill" | "export" | "buy" | "share" | "history" | "shortcuts";
 
 export function EditorHeader({
   adapter,
@@ -134,6 +134,11 @@ export function EditorHeader({
           <DropdownMenuContent align="end" className="min-w-44">
             <DropdownMenuItem onClick={() => onOpen("details")}>Details</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onOpen("import")}>Import</DropdownMenuItem>
+            {/* The review sheet (W9b, D8) — only for games whose adapter
+                declares recommend.autofill (One Piece shows nothing). */}
+            {adapter.recommend?.autofill && (
+              <DropdownMenuItem onClick={() => onOpen("autofill")}>Autofill…</DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => onOpen("export")}>Export</DropdownMenuItem>
             {/* Buy links (W7, D6) — only for games whose adapter declares buy. */}
             {adapter.capabilities.buy && (
