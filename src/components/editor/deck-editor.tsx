@@ -183,6 +183,7 @@ export function DeckEditor({
   draftGame,
   draftFormat,
   draftLeaderKey,
+  draftFromSlug,
   applyLeaderKey,
 }: {
   /** null = draft mode (/decks/new): no server deck exists until the first real edit. */
@@ -197,6 +198,15 @@ export function DeckEditor({
    * contract), and the first real edit persists the leader with the rest.
    */
   draftLeaderKey?: string;
+  /**
+   * Draft mode only (W8b): a precon slug from "Start from this precon" —
+   * the whole product list (entries WITH the precon's own printings, plus
+   * the product's name) seeded as STATE ONLY, never through applyImport
+   * (whose merge drops printingId) and never marking dirty: bouncing
+   * leaves no row, and the first real edit persists everything — the
+   * create POST carries the seeded name, so no extra meta PATCH fires.
+   */
+  draftFromSlug?: string;
   /**
    * Saved decks only (W4): `?leader=` from the hub's "Use for …" CTA.
    * Applied ONLY with a matching un-expired pick intent and an empty leader
@@ -279,11 +289,22 @@ export function DeckEditor({
   const ensureDeck = useCallback(async (): Promise<string> => {
     if (deckIdRef.current) return deckIdRef.current;
     createChainRef.current ??= (async () => {
+      // A seeded draft's name rides the create itself (W8b): the precon
+      // seeder wrote metaRef.name AND the meta baseline, so without this
+      // the row would mint as "Untitled deck" and nothing would ever PATCH
+      // the name in. A typed name goes along too — its PATCH then no-ops
+      // into the debounced meta diff as before.
+      const name = metaRef.current.name.trim();
       const res = await fetch("/api/decks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // `website` is the create route's honeypot — always sent empty.
-        body: JSON.stringify({ game: draftGame, format: draftFormat, website: "" }),
+        body: JSON.stringify({
+          game: draftGame,
+          format: draftFormat,
+          ...(name ? { name } : {}),
+          website: "",
+        }),
       });
       if (!res.ok) throw new Error(`Deck creation failed (${res.status})`);
       const json: {
@@ -443,6 +464,80 @@ export function DeckEditor({
       }
     })();
   }, [initialDeckId, draftLeaderKey, load]);
+
+  // "Start from this precon" (W8b): seed the WHOLE product list into a
+  // fresh draft — entries with the precon's own printings straight off
+  // GET /api/precons/[slug], never through applyImport (its merge drops
+  // printingId). State only, no markDirty: opening the seeded draft fires
+  // no POST, and the first real edit mints the row (the create carries the
+  // seeded name — see ensureDeck) and PUTs the full list. Same StrictMode
+  // ref guard + late-response discipline as the leader seeder above; an
+  // unknown or mismatched `from` seeds nothing and SAYS so (a visible
+  // toast, never a silent no-op).
+  const seededFromRef = useRef(false);
+  useEffect(() => {
+    if (initialDeckId !== null || !draftFromSlug || seededFromRef.current) return;
+    if (load.state !== "ready") return;
+    seededFromRef.current = true;
+    const { adapter, format } = load;
+    const sayMissing = () =>
+      toast.add({
+        title: "Couldn't find that precon — starting an empty deck instead.",
+        type: "error",
+        timeout: TOAST_MS,
+      });
+    void (async () => {
+      try {
+        const res = await fetch(`/api/precons/${encodeURIComponent(draftFromSlug)}`);
+        if (!res.ok) {
+          sayMissing();
+          return;
+        }
+        const json: {
+          deck: { name: string; game: string; format: string; leaderIds: string[] };
+          cards: {
+            cardId: string;
+            zone: string;
+            qty: number;
+            tags: string[];
+            printingId: string | null;
+            card: CardWire;
+          }[];
+        } = await res.json();
+        // A crafted link can point a One Piece draft at an MTG product —
+        // treat the mismatch exactly like an unknown slug.
+        if (json.deck.game !== adapter.id || json.deck.format !== format.code) {
+          sayMissing();
+          return;
+        }
+        // Late-response guard: never clobber what the user built meanwhile.
+        if (entriesRef.current.length > 0) return;
+        const seeded: EditorEntry[] = orderLeadersBy(
+          json.cards.map((c) => ({
+            cardId: c.cardId,
+            zone: c.zone,
+            qty: c.qty,
+            tags: c.tags,
+            ...(c.printingId ? { printingId: c.printingId } : {}),
+          })),
+          format,
+          json.deck.leaderIds,
+        );
+        entriesRef.current = seeded;
+        setEntries(seeded);
+        setCards(new Map(json.cards.map((c) => [c.cardId, toEditorCard(c.card)])));
+        // The product's name, state-only: baseline moves WITH metaRef so
+        // nothing turns dirty — ensureDeck sends it when the row mints.
+        metaRef.current = { ...metaRef.current, name: json.deck.name };
+        lastSavedRef.current.meta = metaPatchBody(metaRef.current);
+        setDeckName(json.deck.name);
+        const leaderWire = json.cards.find((c) => c.cardId === json.deck.leaderIds[0])?.card;
+        if (leaderWire) setPreview(toEditorCard(leaderWire));
+      } catch {
+        sayMissing();
+      }
+    })();
+  }, [initialDeckId, draftFromSlug, load]);
 
   // Owned lookups for cards added mid-session (P3.7): one debounced POST per
   // burst of new ids, only for users with a collection. A failed lookup

@@ -651,3 +651,167 @@ describe("DeckEditor — Buy this deck (W7, D6)", () => {
     expect(puts()).toBe(1);
   });
 });
+
+describe("DeckEditor — Start from this precon (W8b)", () => {
+  const SEED_PRINTING = "bbbbbbbb-0000-4000-8000-000000000001";
+  const commander = card({
+    name: "Atraxa, Praetors' Voice",
+    primaryType: "Creature",
+    isLeaderCandidate: true,
+  });
+  const preconFiller = Array.from({ length: 99 }, (_, i) =>
+    card({ name: `Precon Card ${i + 1}`, primaryType: "Artifact", costValue: 2 }),
+  );
+  const preconCards = [
+    {
+      cardId: commander.id,
+      zone: "commander",
+      qty: 1,
+      tags: [],
+      printingId: SEED_PRINTING,
+      card: { ...commander, image: null },
+    },
+    ...preconFiller.map((c, i) => ({
+      cardId: c.id,
+      zone: "main",
+      qty: 1,
+      tags: [],
+      printingId: i === 0 ? "bbbbbbbb-0000-4000-8000-000000000002" : null,
+      card: { ...c, image: null },
+    })),
+  ];
+  const preconResponse = {
+    precon: {
+      slug: "breed_lethality_c16",
+      code: "BreedLethality_C16",
+      setCode: "C16",
+      setName: "Commander 2016",
+      releaseDate: "2016-11-11",
+      productName: "Breed Lethality",
+    },
+    deck: {
+      publicId: "p_breed_lethality_c16",
+      name: "Breed Lethality",
+      description: null,
+      game: "mtg",
+      format: "commander",
+      leaderIds: [commander.id],
+      ciMask: 23,
+    },
+    cards: preconCards,
+  };
+
+  function preconRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    if (url === "/api/precons/breed_lethality_c16") return ok(preconResponse);
+    if (url.startsWith("/api/precons/")) return { ok: false, status: 404, json: async () => ({}) };
+    return route(input, init);
+  }
+
+  /** The last-describe pattern: findBy/waitFor hang under this file's faked setTimeout. */
+  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
+    for (let i = 0; i < 40; i++) {
+      const el = query();
+      if (el) return el;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: element never appeared");
+  }
+
+  const patches = () =>
+    fetchMock.mock.calls.filter(
+      ([url, init]) => String(url).startsWith("/api/decks/") && init?.method === "PATCH",
+    ).length;
+
+  it("seeds 100 cards WITH the precon's printings and the product name, fires no POST; the first edit = exactly one POST (carrying the name) + one PUT, no PATCH", async () => {
+    fetchMock.mockImplementation(preconRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor
+        deckId={null}
+        draftGame="mtg"
+        draftFormat="commander"
+        draftFromSlug="breed_lethality_c16"
+      />,
+    );
+    // The seeded commander shows in several places (leader zone, card pane) —
+    // any one of them proves the seed landed.
+    await pollFor(() => screen.queryAllByText("Atraxa, Praetors' Voice")[0] ?? null);
+
+    // The whole list is on screen, the name is the product's, nothing saved.
+    expect(within(section("Deck list")).getByText("Precon Card 1")).toBeTruthy();
+    expect((screen.getByRole("textbox", { name: "Deck name" }) as HTMLInputElement).value).toBe(
+      "Breed Lethality",
+    );
+    await settle(1500);
+    expect(posts()).toBe(0);
+    expect(puts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+
+    // First real edit: one create carrying the seeded name, one full PUT
+    // with the precon's own printingIds intact, and NO meta PATCH.
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    fireEvent.change(input, { target: { value: "sol" } });
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring to Main deck" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+    expect(patches()).toBe(0);
+    const createBody = JSON.parse(
+      fetchMock.mock.calls.find(
+        ([url, init]) => url === "/api/decks" && init?.method === "POST",
+      )![1]!.body as string,
+    ) as { name?: string };
+    expect(createBody.name).toBe("Breed Lethality");
+    const saved = lastPutEntries();
+    expect(saved).toHaveLength(101);
+    expect(saved.find((e) => e.cardId === commander.id)?.printingId).toBe(SEED_PRINTING);
+    expect(saved.filter((e) => e.printingId !== undefined)).toHaveLength(2);
+  });
+
+  it("an unknown from= seeds nothing and SAYS so", async () => {
+    fetchMock.mockImplementation(preconRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftFromSlug="nope" />,
+    );
+    await pollFor(() =>
+      screen.queryByText("Couldn't find that precon — starting an empty deck instead."),
+    );
+    await settle(1500);
+    expect(posts()).toBe(0);
+    expect(puts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+    expect(screen.queryByText("Precon Card 1")).toBeNull();
+  });
+
+  it("a game/format mismatch is treated exactly like an unknown slug", async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/precons/breed_lethality_c16") {
+        return ok({
+          ...preconResponse,
+          deck: { ...preconResponse.deck, game: "optcg", format: "standard" },
+        });
+      }
+      return route(input, init);
+    });
+    stubViewport(1440);
+    render(
+      <DeckEditor
+        deckId={null}
+        draftGame="mtg"
+        draftFormat="commander"
+        draftFromSlug="breed_lethality_c16"
+      />,
+    );
+    await pollFor(() =>
+      screen.queryByText("Couldn't find that precon — starting an empty deck instead."),
+    );
+    expect(screen.queryByText("Atraxa, Praetors' Voice")).toBeNull();
+    expect(posts()).toBe(0);
+  });
+});

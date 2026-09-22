@@ -206,6 +206,33 @@ export async function loadHubDecks(leaderId: string): Promise<HubDeckRow[]> {
     .limit(HUB_DECKS_LIMIT);
 }
 
+export const HUB_PRECONS_LIMIT = 6;
+
+/**
+ * "Precons led by {commander}" (W8b, D7): official product lists whose
+ * command zone contains this leader, newest release first (updated_at IS
+ * the release date on kind='precon' rows — W8a). Same cold-start rule as
+ * the community shelf: callers render it only when non-empty, ABOVE
+ * "Decks with this commander". Public product data, zero viewer state —
+ * hub ISR untouched.
+ */
+export async function loadHubPrecons(leaderId: string): Promise<HubDeckRow[]> {
+  return getDb()
+    .select(deckCollectionSelect)
+    .from(decks)
+    .leftJoin(users, eq(decks.userId, users.id))
+    .leftJoin(cardPrintings, defaultPrintingJoin)
+    .where(
+      and(
+        eq(decks.visibility, "public"),
+        eq(decks.kind, "precon"),
+        sql`${decks.leaderIds} @> ARRAY[${leaderId}]::uuid[]`,
+      ),
+    )
+    .orderBy(desc(decks.updatedAt))
+    .limit(HUB_PRECONS_LIMIT);
+}
+
 /** postgres.js row shape (snake_case); the index signature is drizzle's execute<T> constraint. */
 type MetaLensRaw = Record<string, unknown> & {
   id: string;

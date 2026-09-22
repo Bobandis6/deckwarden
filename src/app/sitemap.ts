@@ -54,6 +54,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absUrl("/") },
     { url: absUrl("/commanders") },
     { url: absUrl("/leaders") },
+    // W8b: the precon index — every precon deck itself is already in
+    // publicDecks below (precons are public rows).
+    { url: absUrl("/precons") },
     { url: absUrl("/cards") },
     // The OP corpus variant is its own canonical (cards/page.tsx, P4.4).
     { url: absUrl("/cards?game=optcg") },

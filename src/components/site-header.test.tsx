@@ -70,7 +70,7 @@ describe("SiteHeader", () => {
     expect(within(menu).getByRole("menuitemcheckbox", { name: "Background art" })).toBeTruthy();
   });
 
-  it("Browse opens a menu of the three indexes as links", async () => {
+  it("Browse opens a menu of the four indexes as links", async () => {
     render(<SiteHeader />);
     open(screen.getByRole("button", { name: "Browse" }));
     const menu = await screen.findByRole("menu", { name: "Browse" });
@@ -81,6 +81,7 @@ describe("SiteHeader", () => {
       ["Commanders", "/commanders"],
       ["Leaders", "/leaders"],
       ["Cards", "/cards"],
+      ["Precons", "/precons"],
     ]);
   });
 
@@ -147,6 +148,7 @@ describe("SiteHeader", () => {
       ["Commanders", "/commanders"],
       ["Leaders", "/leaders"],
       ["Cards", "/cards"],
+      ["Precons", "/precons"],
       ["My decks", "/#your-decks"],
     ]);
     fireEvent.keyDown(document.activeElement ?? menu, { key: "Escape" });

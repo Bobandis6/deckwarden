@@ -33,6 +33,7 @@ export function DeckTile({
   tile,
   linkTitle,
   actions,
+  badge,
   className,
   ...rest
 }: {
@@ -40,6 +41,8 @@ export function DeckTile({
   /** Owner surfaces: "Edit {name}" (the /account contract). */
   linkTitle?: string;
   actions?: ReactNode;
+  /** W8b: a visible chip in the meta line ("Precon") — real information, unlike the decorative game chip. */
+  badge?: string;
   className?: string;
 } & ComponentProps<"li">) {
   return (
@@ -102,9 +105,18 @@ export function DeckTile({
               {tile.gameLabel}
             </span>
           )}
+          {badge && (
+            <span
+              data-slot="tile-badge"
+              className={cn(badgeVariants({ variant: "secondary" }), "h-4 px-1.5 text-[10px]")}
+            >
+              {badge}
+            </span>
+          )}
           {tile.formatLabel && <span>{tile.formatLabel}</span>}
           {tile.visibility && <span>· {tile.visibility}</span>}
-          <span>· Updated {tile.updatedLabel}</span>
+          <span>· {tile.dateLabel ?? `Updated ${tile.updatedLabel}`}</span>
+          {tile.priceLabel && <span className="tabular-nums">· {tile.priceLabel}</span>}
         </p>
         {(tile.author || tile.likesCount > 0) && (
           <p className="text-muted-foreground mt-0.5 flex items-center justify-between gap-2 text-xs">

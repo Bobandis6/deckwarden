@@ -31,6 +31,7 @@ import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
 import { viewerEngagement } from "@/lib/decks/engagement";
 import { forkCredit } from "@/lib/decks/forks";
 import { loadDeckLeaderArt } from "@/lib/decks/leader-art";
+import { loadPreconByDeckId } from "@/lib/decks/precons";
 import { deckFormat } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { deckJsonLd, JsonLd } from "@/lib/seo/jsonld";
@@ -79,7 +80,7 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
   // is the opt-in that makes name/profile public, so accounts without one
   // stay anonymous here.
   const sessionUserId = await getSessionUserId(await headers());
-  const [cards, author, viewer, forkedFrom] = await Promise.all([
+  const [cards, author, viewer, forkedFrom, precon] = await Promise.all([
     fetchDeckCardsWire(deck),
     deck.userId
       ? getDb()
@@ -95,6 +96,9 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
     // Fork credit (P3.6) for THIS viewer: a private upstream credits
     // without name or link, except to someone who can read it.
     forkCredit(deck, { token: null, userId: sessionUserId }),
+    // Product chrome (W8b): the precon_products join is the test — never
+    // the `p_` prefix. Null for every user deck.
+    deck.kind === "precon" ? loadPreconByDeckId(deck.id) : Promise.resolve(null),
   ]);
   const fmt = deckFormat(deck);
   // "You own N/100 · missing ≈ $Y" (P3.7) — the signed-in viewer's OWN
@@ -142,6 +146,7 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
         ownership={ownership}
         owned={owned}
         art={art}
+        precon={precon}
       />
       {/* An OP deck's share page is a grid of Bandai card images — it needs
           the same posture line as /cards (P4.6); the walked funnel found it

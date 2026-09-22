@@ -238,6 +238,94 @@ describe("DeckShareView — F5 previews", () => {
   });
 });
 
+describe("DeckShareView — precon chrome (W8b, D7)", () => {
+  const precon = {
+    slug: "breed_lethality_c16",
+    code: "BreedLethality_C16",
+    setCode: "C16",
+    setName: "Commander 2016",
+    releaseDate: "2016-11-11",
+    productName: "Breed Lethality",
+  };
+  const pricedCards: ShareDeckCard[] = [
+    { ...wire(atraxa, commanderZone), card: { ...atraxa, image: null, cheapestUsd: 18.5 } },
+    { ...wire(solRing, mainZone), card: { ...solRing, image: null, cheapestUsd: 1.2 }, qty: 1 },
+    ...filler.map((c, i) => ({
+      ...wire(c, mainZone),
+      card: { ...c, image: null, cheapestUsd: i < 4 ? 10 - i : 0.1 },
+    })),
+  ];
+
+  it("badge, product meta line, MTGJSON byline, price summary, and the Start CTA beside Fork — no 'Updated' anywhere", () => {
+    render(
+      <DeckShareView
+        deck={{ ...deck, name: "Breed Lethality" }}
+        cards={pricedCards}
+        precon={precon}
+      />,
+    );
+    const header = screen.getByRole("banner");
+
+    expect(header.querySelector("[data-slot=precon-badge]")?.textContent).toBe("Precon");
+    expect(header.textContent).toContain("Commander · 100 / 100 cards");
+    expect(header.querySelector("[data-slot=precon-meta]")?.textContent).toBe(
+      "Preconstructed deck · Commander 2016 (C16) · Released Nov 2016",
+    );
+    expect(header.querySelector("[data-slot=precon-byline]")?.textContent).toBe(
+      "Official product list · data via MTGJSON",
+    );
+    // Cold-start rule: a product page never says "Updated".
+    expect(header.textContent).not.toContain("Updated");
+
+    // Est. price today = Σ qty × cheapestUsd (18.5 + 1.2 + 10+9+8+7 + 94×0.1 = 63.1 → ≈ $63),
+    // priciest five by unit price.
+    const prices = header.querySelector("[data-slot=precon-prices]")!;
+    expect(prices.textContent).toContain("Est. price today ≈ $63 (cheapest printings)");
+    expect(prices.textContent).toContain(
+      "Priciest: Atraxa, Praetors' Voice ($18.50), Filler 1 ($10.00), Filler 2 ($9.00), Filler 3 ($8.00), Filler 4 ($7.00)",
+    );
+
+    // Button render={<Link/>} keeps role button (the W4 gotcha) — a real <a> still.
+    const start = within(header).getByRole("button", { name: "Start from this precon" });
+    expect(start.tagName).toBe("A");
+    expect(start.getAttribute("href")).toBe("/decks/new?game=mtg&from=breed_lethality_c16");
+    // The CTA sits in the actions row, before Fork.
+    const actions = [
+      ...header.querySelectorAll<HTMLElement>(
+        "a[data-slot=button], button[data-slot=button], button[data-slot=dropdown-menu-trigger]",
+      ),
+    ].map((el) => el.textContent);
+    expect(actions).toEqual([
+      "♡ Like",
+      "Bookmark",
+      "Start from this precon",
+      "Fork",
+      "Copy decklist",
+      "Buy this deck",
+    ]);
+  });
+
+  it("a user deck shows none of the chrome (the join is the test, not the id shape)", () => {
+    render(<DeckShareView deck={deck} cards={cards} author={author} />);
+    const header = screen.getByRole("banner");
+    expect(header.querySelector("[data-slot=precon-badge]")).toBeNull();
+    expect(header.querySelector("[data-slot=precon-meta]")).toBeNull();
+    expect(header.querySelector("[data-slot=precon-byline]")).toBeNull();
+    expect(header.querySelector("[data-slot=precon-prices]")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start from this precon" })).toBeNull();
+    expect(header.textContent).toContain("Updated Sep 9, 2026");
+  });
+
+  it("no priced card → no price summary line, the rest of the chrome stays", () => {
+    // The atraxa fixture ships a price — strip every price for this case.
+    const unpriced = cards.map((c) => ({ ...c, card: { ...c.card, cheapestUsd: null } }));
+    render(<DeckShareView deck={deck} cards={unpriced} precon={precon} />);
+    const header = screen.getByRole("banner");
+    expect(header.querySelector("[data-slot=precon-meta]")).toBeTruthy();
+    expect(header.querySelector("[data-slot=precon-prices]")).toBeNull();
+  });
+});
+
 describe("DeckShareView — the buy menu (W7, D6)", () => {
   /** Base UI menu triggers open on the pointer sequence, not a bare click. */
   function openMenu(trigger: HTMLElement) {

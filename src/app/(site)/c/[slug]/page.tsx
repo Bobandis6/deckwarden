@@ -37,6 +37,7 @@ import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
 import { resolveCardArt } from "@/lib/cards/art";
 import { printingImageUrl } from "@/lib/cards/images";
 import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
+import { releasedLabel } from "@/lib/decks/precon-info";
 import { rowPrinting, tileFromDeck } from "@/lib/decks/tiles";
 import { ciPipsHtml } from "@/lib/games/colors";
 import { getAdapter } from "@/lib/games/registry";
@@ -48,6 +49,7 @@ import {
   loadCommanderMetaLens,
   loadDefaultPrinting,
   loadHubDecks,
+  loadHubPrecons,
   loadLeaderStatus,
   loadStaples,
   STAPLES_LIMIT,
@@ -110,21 +112,30 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
   if (!leader) notFound();
 
   const adapter = getAdapter("mtg");
-  const [[printing, art], status, staples, combosData, hubDecks, topFinishes, metaLens] =
-    await Promise.all([
-      // The banner's art (R5b): the default printing's crop through R2's
-      // resolver, resolved alongside the reads — null without an artist.
-      loadDefaultPrinting(leader.id).then(
-        async (p) => [p, p ? await resolveCardArt(adapter, p.id) : null] as const,
-      ),
-      loadLeaderStatus(FORMAT_ID.commander, leader.id),
-      loadStaples(leader),
-      // Only combos a deck with THIS commander could actually run (CI fit).
-      loadCombosForCard(leader.id, { fitCiMask: leader.ciMask }),
-      loadHubDecks(leader.id),
-      loadTopFinishes(GAME_ID.mtg, leader.id),
-      loadCommanderMetaLens(leader.id),
-    ]);
+  const [
+    [printing, art],
+    status,
+    staples,
+    combosData,
+    hubDecks,
+    hubPrecons,
+    topFinishes,
+    metaLens,
+  ] = await Promise.all([
+    // The banner's art (R5b): the default printing's crop through R2's
+    // resolver, resolved alongside the reads — null without an artist.
+    loadDefaultPrinting(leader.id).then(
+      async (p) => [p, p ? await resolveCardArt(adapter, p.id) : null] as const,
+    ),
+    loadLeaderStatus(FORMAT_ID.commander, leader.id),
+    loadStaples(leader),
+    // Only combos a deck with THIS commander could actually run (CI fit).
+    loadCombosForCard(leader.id, { fitCiMask: leader.ciMask }),
+    loadHubDecks(leader.id),
+    loadHubPrecons(leader.id),
+    loadTopFinishes(GAME_ID.mtg, leader.id),
+    loadCommanderMetaLens(leader.id),
+  ]);
 
   const tournamentsMeta = adapter.capabilities.tournaments;
   const card: CardData = {
@@ -395,6 +406,32 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
         </section>
       )}
 
+      {/* Precons ABOVE community decks (W8b, D7): official product lists
+          whose command zone runs this commander. Renders only when
+          non-empty (cold-start rule); tiles carry the release date, never
+          "Updated". */}
+      {hubPrecons.length > 0 && (
+        <section aria-label={`Precons led by ${leader.name}`} className="mt-10 max-w-2xl">
+          <h2 className="font-display text-lg font-semibold">Precons led by {leader.name}</h2>
+          <p className="text-muted-foreground mt-0.5 text-xs">
+            Official preconstructed decks with {leader.name} at the helm.
+          </p>
+          <DeckTileGrid className="mt-2 lg:grid-cols-2">
+            {hubPrecons.map((deck) => (
+              <DeckTile
+                key={deck.publicId}
+                badge="Precon"
+                tile={{
+                  ...tileFromDeck(deck, rowPrinting(deck), { href: `/d/${deck.publicId}` }),
+                  // kind='precon' rows carry their release date as updated_at (W8a).
+                  dateLabel: `Released ${releasedLabel(deck.updatedAt)}`,
+                }}
+              />
+            ))}
+          </DeckTileGrid>
+        </section>
+      )}
+
       {hubDecks.length > 0 && (
         <section aria-label="Decks with this commander" className="mt-10 max-w-2xl">
           <h2 className="font-display text-lg font-semibold">Decks with this commander</h2>
@@ -446,6 +483,17 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
               target="_blank"
             >
               {tournamentsMeta.sourceLabel}
+            </a>
+            .
+          </>
+        )}
+        {/* W8b: the precon shelf's source credit, only when the shelf shows. */}
+        {hubPrecons.length > 0 && (
+          <>
+            {" "}
+            Precon product lists via{" "}
+            <a href="https://mtgjson.com" className="underline" rel="noreferrer" target="_blank">
+              MTGJSON
             </a>
             .
           </>

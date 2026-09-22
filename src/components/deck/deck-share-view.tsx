@@ -53,6 +53,7 @@ import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/componen
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { EmptyState } from "@/components/empty-state";
 import { SURFACE_BAND, SurfaceHeader } from "@/components/surface-header";
+import { badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toast";
 import type { CardArt } from "@/lib/cards/art";
@@ -67,6 +68,7 @@ import {
 } from "@/lib/decks/editor-state";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
 import { leaderLine } from "@/lib/decks/leader-caption";
+import { releasedLabel, type PreconInfo } from "@/lib/decks/precon-info";
 import { getDeckToken } from "@/lib/decks/token-store";
 import { issueSeverityByCard, toDeckSnapshot } from "@/lib/decks/validation";
 import {
@@ -129,6 +131,7 @@ export function DeckShareView({
   ownership = null,
   owned,
   art = null,
+  precon = null,
 }: {
   deck: ShareDeckMeta;
   cards: ShareDeckCard[];
@@ -143,6 +146,8 @@ export function DeckShareView({
   owned?: ReadonlySet<string>;
   /** The art leader's crop, resolved by the server page (R2); null = gradient only. */
   art?: CardArt | null;
+  /** Product metadata (W8b) — present only on kind='precon' decks (the precon_products join). */
+  precon?: PreconInfo | null;
 }) {
   const router = useRouter();
   const appearance = useAppearance();
@@ -194,6 +199,28 @@ export function DeckShareView({
     () => new Map(cards.map((c) => [c.cardId, toEditorCard(c.card)])),
     [cards],
   );
+
+  // The D7 product summary's live half (W8b): est. price today and the five
+  // priciest cards, computed at render from the wire's current cheapest
+  // prices — the colors/commander/release facts stay in decks.description
+  // (the W8a sentence) and the curve in the Analytics section below.
+  // Null-priced cards are skipped, so the total is honest-approximate (≈).
+  const preconPrices = useMemo(() => {
+    if (!precon) return null;
+    let total = 0;
+    let priced = false;
+    const perCard = new Map<string, { name: string; usd: number }>();
+    for (const c of cards) {
+      const usd = c.card.cheapestUsd;
+      if (usd === null) continue;
+      priced = true;
+      total += usd * c.qty;
+      if (!perCard.has(c.cardId)) perCard.set(c.cardId, { name: c.card.name, usd });
+    }
+    if (!priced) return null;
+    const priciest = [...perCard.values()].sort((a, b) => b.usd - a.usd).slice(0, 5);
+    return { total: Math.round(total), priciest };
+  }, [precon, cards]);
 
   const snapshot = useMemo(
     () => (adapter && format ? toDeckSnapshot(adapter.id, format, entries) : null),
@@ -272,27 +299,51 @@ export function DeckShareView({
             <span className="text-muted-foreground">{leaderZoneDef.label}</span> {leaders}
           </p>
         )}
-        <p className="text-muted-foreground mt-1 text-sm">
-          {author && (
-            <>
-              by{" "}
-              <Link href={`/u/${author.username}`} className="text-foreground hover:underline">
-                {author.name}
-              </Link>{" "}
-              ·{" "}
-            </>
-          )}
-          {format.label} · <span className="tabular-nums">{sizeLabel}</span> cards · Updated{" "}
-          {/* timeZone pinned: this SSRs on the server (UTC) and hydrates in the
+        {precon ? (
+          // Product chrome (W8b, D7): the badge beside the format chip, the
+          // product meta line, and the source byline. No "Updated" — a
+          // precon's only date is its release (cold-start rule: product
+          // lists never look "recent").
+          <>
+            <p className="text-muted-foreground mt-1 text-sm">
+              <span className={badgeVariants({ variant: "secondary" })} data-slot="precon-badge">
+                Precon
+              </span>{" "}
+              {format.label} · <span className="tabular-nums">{sizeLabel}</span> cards
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm" data-slot="precon-meta">
+              Preconstructed deck · {precon.setName} ({precon.setCode})
+              {releasedLabel(precon.releaseDate) && (
+                <> · Released {releasedLabel(precon.releaseDate)}</>
+              )}
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm" data-slot="precon-byline">
+              Official product list · data via MTGJSON
+            </p>
+          </>
+        ) : (
+          <p className="text-muted-foreground mt-1 text-sm">
+            {author && (
+              <>
+                by{" "}
+                <Link href={`/u/${author.username}`} className="text-foreground hover:underline">
+                  {author.name}
+                </Link>{" "}
+                ·{" "}
+              </>
+            )}
+            {format.label} · <span className="tabular-nums">{sizeLabel}</span> cards · Updated{" "}
+            {/* timeZone pinned: this SSRs on the server (UTC) and hydrates in the
               viewer's zone — an unpinned date string mismatches and throws
               React #418. UTC-dated "Updated" is fine for a share page. */}
-          {updated.toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-            timeZone: "UTC",
-          })}
-        </p>
+            {updated.toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              timeZone: "UTC",
+            })}
+          </p>
+        )}
 
         {/* The legality line (F1's Warden line at zero issues; the expandable panel otherwise). */}
         <ValidationPanel
@@ -305,6 +356,18 @@ export function DeckShareView({
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <EngagementButtons deckId={deck.id} likesCount={deck.likesCount} viewer={viewer} />
+          {/* The primary CTA on a product page (W8b, REC-4): seed a DRAFT —
+              no row minted until the first real edit — beside Fork, which
+              stays the signed-in copy path. */}
+          {precon && (
+            <Button
+              nativeButton={false}
+              size="sm"
+              render={<Link href={`/decks/new?game=${adapter.id}&from=${precon.slug}`} />}
+            >
+              Start from this precon
+            </Button>
+          )}
           <ForkButton deckId={deck.id} signedIn={viewer !== null} />
           <Button variant="outline" size="sm" onClick={copyDecklist}>
             Copy decklist
@@ -345,6 +408,13 @@ export function DeckShareView({
         </div>
 
         {deck.description && <p className="mt-3 text-sm whitespace-pre-wrap">{deck.description}</p>}
+        {preconPrices && (
+          <p data-slot="precon-prices" className="text-muted-foreground mt-1 text-sm">
+            Est. price today ≈ <span className="tabular-nums">${preconPrices.total}</span> (cheapest
+            printings) · Priciest:{" "}
+            {preconPrices.priciest.map((c) => `${c.name} ($${c.usd.toFixed(2)})`).join(", ")}
+          </p>
+        )}
         {forkedFrom && (
           <p className="mt-1">
             <ForkCreditLine credit={forkedFrom} className="text-sm" />

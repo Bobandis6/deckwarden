@@ -33,6 +33,10 @@ export function NewDeckChooser() {
   // the game so the first save's URL swap can't un-seed a live editor.
   const paramLeader = params.get("leader");
   const [leaderKey] = useState(paramLeader);
+  // "Start from this precon" (W8b) — a precon slug, latched the same way.
+  // A precon seed includes its commander, so `from` supersedes `leader`.
+  const paramFrom = params.get("from");
+  const [fromSlug] = useState(paramFrom);
   // Adjust-state-during-render (the React-docs pattern): latch a present
   // param, ignore its later disappearance.
   if (paramGame && paramGame !== gameId) setGameId(paramGame);
@@ -46,7 +50,8 @@ export function NewDeckChooser() {
         deckId={null}
         draftGame={chosen.id as GameId}
         draftFormat={chosen.formats[0].code}
-        draftLeaderKey={leaderKey ?? undefined}
+        draftLeaderKey={fromSlug ? undefined : (leaderKey ?? undefined)}
+        draftFromSlug={fromSlug ?? undefined}
       />
     );
   }

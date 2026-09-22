@@ -59,6 +59,10 @@ export interface DeckTileData {
   slotGradient: string;
   /** Byline text (the author's display name) only when they chose a username. */
   author: string | null;
+  /** W8b: replaces "Updated {updatedLabel}" when set (precons: "Released Nov 2016"). */
+  dateLabel: string | null;
+  /** W8b: "≈ $97" on /precons tiles; null everywhere else. */
+  priceLabel: string | null;
 }
 
 export interface DeckTileInput {
@@ -73,6 +77,10 @@ export interface DeckTileInput {
   ciMask: number;
   leaderImage: string | null;
   author?: { name: string | null; username: string | null } | null;
+  /** W8b: a whole-date override for product rows ("Released Nov 2016"). */
+  dateLabel?: string | null;
+  /** W8b: est. price text for /precons tiles. */
+  priceLabel?: string | null;
 }
 
 /** The adapter's swatches for a deck's identity; the neutral swatch without an adapter. */
@@ -126,6 +134,8 @@ export function deckTileData(input: DeckTileInput): DeckTileData {
     strip: stripBackground(swatches),
     slotGradient: ambientGradient(swatches),
     author: input.author?.username ? (input.author.name ?? input.author.username) : null,
+    dateLabel: input.dateLabel ?? null,
+    priceLabel: input.priceLabel ?? null,
   };
 }
 
