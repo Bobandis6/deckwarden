@@ -295,6 +295,64 @@ export interface CutsMeta {
   };
 }
 
+/**
+ * Starter-shell autofill declaration (W9a) — pure data + pure functions the
+ * core planner (src/lib/recommend/autofill.ts) consumes. Optional: a game
+ * without it has no autofill (the route answers 400 — One Piece's whole
+ * deliverable). NO roles anywhere by owner decision (2026-09-19): only
+ * color identity, type, cost, popularity, tournament data and combos.
+ */
+export interface AutofillMeta {
+  /** The non-curve base group (MTG: the 37-land template). */
+  base: {
+    /** Group label the review sheet renders ("Lands"). */
+    label: string;
+    /** Evidence source slug for template-filled picks ("land-template"). */
+    source: string;
+    /** Template size for a complete deck (MTG: 37). */
+    count: number;
+    /**
+     * Candidate scope for the base pool, threaded to the query layer's
+     * whitelisted CandidateFilter.scope; the curve pool runs the negation.
+     */
+    scope: { column: "primary_type"; op: "eq"; value: string };
+    /** Whether a kept/picked card counts against the base template. */
+    isBase(card: CurveCardInput): boolean;
+    /**
+     * How many base slots ranked (non-filler) cards may take, indexed by
+     * popcount of the deck's color identity (clamped to the last entry).
+     * MTG: [6, 8, 16, 22, 26, 28] — mono decks want mostly basics.
+     */
+    rankedByColorCount: readonly number[];
+    /** Cap on ranked base picks with colorless identity (five-color staples). */
+    maxColorlessIdentity: number;
+    /** Names the core pre-loads for `fillers` resolution (MTG: the basics). */
+    fillerNames: readonly string[];
+    /**
+     * Split `n` filler slots across the declared names from the deck's
+     * color identity and the chosen nonbase cards' cost texts (pip counts).
+     * Pure and deterministic; `why` is the pick's template evidence.
+     */
+    fillers(i: {
+      ciMask: number;
+      n: number;
+      costTexts: readonly string[];
+    }): { name: string; qty: number; why: string }[];
+  };
+  /**
+   * Tournament lock tier: a candidate played in ≥ lockShare of the set's
+   * lists, itself measured in ≥ lockMinLists lists, is picked in rank order
+   * before any sampling. lockShare must reference the game's staple-share
+   * pin, never a second literal.
+   */
+  lockShare: number;
+  lockMinLists: number;
+  /** Cost-text accessor for `fillers` (MTG: attrs.mana_cost). */
+  costTextOf(attrs: Record<string, unknown>): string | null;
+  /** Review-sheet group label for a curve bucket ("Mana value 2"). */
+  curveLabel(bucketLabel: string): string;
+}
+
 export interface RecommendMeta {
   /**
    * What CardData.popularity is for this game (MTG: edhrec_rank). Absent =
@@ -373,6 +431,12 @@ export interface RecommendMeta {
    * directions.
    */
   cuts?: CutsMeta;
+  /**
+   * Starter-shell autofill (W9a). Optional pure declaration — implemented
+   * only where the data supports it (MTG); absent = no autofill door, 400
+   * from the API, no apology copy.
+   */
+  autofill?: AutofillMeta;
   /**
    * Cards that are never advice (MTG: basic lands — "Forest is not advice").
    * Declarative single-segment attrs paths the core translates to SQL

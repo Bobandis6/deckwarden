@@ -48,6 +48,35 @@ describe("candidateConditions", () => {
     ).toHaveLength(off.length + 1);
   });
 
+  it("scope goes through the whitelist like exclude — one condition per op, never string SQL", () => {
+    const off = candidateConditions(BASE);
+    expect(
+      candidateConditions({
+        ...BASE,
+        scope: { column: "primary_type", op: "eq", value: "Land" },
+      }),
+    ).toHaveLength(off.length + 1);
+    expect(
+      candidateConditions({
+        ...BASE,
+        scope: { column: "primary_type", op: "ne", value: "Land" },
+      }),
+    ).toHaveLength(off.length + 1);
+  });
+
+  it("rejects a non-whitelisted scope column instead of interpolating it", () => {
+    expect(() =>
+      candidateConditions({
+        ...BASE,
+        scope: {
+          column: "name; DROP TABLE" as unknown as "primary_type",
+          op: "eq",
+          value: "x",
+        },
+      }),
+    ).toThrow(/Invalid scope column/);
+  });
+
   it("rejects a malformed jsonb exclude key instead of interpolating it", () => {
     expect(() =>
       candidateConditions({

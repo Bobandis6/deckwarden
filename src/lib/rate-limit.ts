@@ -60,6 +60,18 @@ export const RATE_LIMITS = {
     { key: `card-resolve:ip:${ip ?? "unknown"}`, max: 20, windowSeconds: 60 },
     { key: `card-resolve:ip-hour:${ip ?? "unknown"}`, max: 200, windowSeconds: 3600 },
   ],
+  /**
+   * POST /api/decks/autofill (W9a) — now the app's costliest read (~2×
+   * recommendations: two candidate gathers + ranking + the planner), body-
+   * driven and reachable without a deck row. 20/min absorbs honest reroll
+   * bursts from the W9b sheet; the hourly lid is the Neon-compute first
+   * line the Wave-2 plan calls for (client-side reroll over the returned
+   * window is the recorded second).
+   */
+  deckAutofill: (ip: string | null): RateLimit[] => [
+    { key: `deck-autofill:ip:${ip ?? "unknown"}`, max: 20, windowSeconds: 60 },
+    { key: `deck-autofill:ip-hour:${ip ?? "unknown"}`, max: 200, windowSeconds: 3600 },
+  ],
   /** POST /api/decks/mine — home-page token verification, one per visit. */
   decksMine: (ip: string | null): RateLimit[] => [
     { key: `decks-mine:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },

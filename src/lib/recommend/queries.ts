@@ -40,7 +40,20 @@ export interface CandidateFilter {
   ownedCardIds?: ReadonlySet<string>;
   /** Adapter's never-advise rules (MTG: basic lands). */
   exclude?: RecommendMeta["exclude"];
+  /**
+   * Column scope (W9a): restricts the pool by one WHITELISTED column, the
+   * way `exclude` goes through this builder — never string-built SQL. The
+   * autofill route derives it from the adapter's `autofill.base.scope`
+   * (curve pool `ne` Land, base pool `eq` Land). `ne` is IS DISTINCT FROM,
+   * so NULL-typed cards stay in the `ne` pool (they are not Lands).
+   */
+  scope?: { column: "primary_type"; op: "eq" | "ne"; value: string };
 }
+
+/** The scope whitelist: every column a CandidateFilter.scope may name. */
+const SCOPE_COLUMNS = {
+  primary_type: cardIdentities.primaryType,
+} as const;
 
 const JSONB_KEY_RE = /^[a-z0-9_]+$/;
 
@@ -76,6 +89,15 @@ export function candidateConditions(f: CandidateFilter): SQL[] {
   if (f.ownedCardIds !== undefined) {
     conditions.push(
       f.ownedCardIds.size === 0 ? sql`false` : inArray(cardIdentities.id, [...f.ownedCardIds]),
+    );
+  }
+  if (f.scope !== undefined) {
+    const column = SCOPE_COLUMNS[f.scope.column];
+    if (!column) throw new Error(`Invalid scope column: ${f.scope.column}`);
+    conditions.push(
+      f.scope.op === "eq"
+        ? sql`${column} = ${f.scope.value}`
+        : sql`${column} IS DISTINCT FROM ${f.scope.value}`,
     );
   }
   return conditions;
@@ -238,6 +260,73 @@ export async function loadTournamentCandidates(
     )
     .orderBy(desc(commanderCardStats.lists), asc(cardIdentities.id))
     .limit(limit);
+}
+
+/**
+ * Facts for a client-sent card list (W9a): the autofill route takes ids
+ * only — every fact (type, cost, color identity) comes from the server, so
+ * a crafted body can never smuggle a wrong ciMask past the filter. Missing
+ * ids simply aren't returned; the caller 400s on the difference.
+ */
+export async function loadEntryFacts(
+  gameId: number,
+  ids: readonly string[],
+): Promise<
+  Map<
+    string,
+    { name: string; primaryType: string | null; costValue: number | null; ciMask: number }
+  >
+> {
+  if (ids.length === 0) return new Map();
+  const rows = await getDb()
+    .select({
+      id: cardIdentities.id,
+      name: cardIdentities.name,
+      primaryType: cardIdentities.primaryType,
+      costValue: cardIdentities.costValue,
+      ciMask: cardIdentities.ciMask,
+    })
+    .from(cardIdentities)
+    .where(
+      and(
+        eq(cardIdentities.gameId, gameId),
+        eq(cardIdentities.isRemoved, false),
+        inArray(cardIdentities.id, [...new Set(ids)]),
+      ),
+    );
+  return new Map(rows.map((r) => [r.id, r]));
+}
+
+/**
+ * Filler rows by exact name (W9a: the adapter's declared basics). Legality-
+ * checked like every candidate, but DELIBERATELY not run through
+ * candidateConditions — the adapter's `exclude` rules make basic lands
+ * never-advise for the ranked pools, while the land template explicitly
+ * fills with them.
+ */
+export async function loadFillerRows(
+  gameId: number,
+  formatId: number,
+  names: readonly string[],
+): Promise<CandidateCard[]> {
+  if (names.length === 0) return [];
+  return getDb()
+    .select(CANDIDATE_PROJECTION)
+    .from(cardIdentities)
+    .where(
+      and(
+        eq(cardIdentities.gameId, gameId),
+        eq(cardIdentities.isRemoved, false),
+        eq(cardIdentities.isPreview, false),
+        inArray(cardIdentities.name, [...names]),
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${legalities} l
+          WHERE l.card_identity_id = ${cardIdentities.id}
+            AND l.format_id = ${formatId}
+            AND l.effective_to IS NULL AND l.condition IS NULL
+            AND l.status IN ('banned', 'not_legal'))`,
+      ),
+    );
 }
 
 /** The deck's cards with the fields curve bucketing reads (all zones). */

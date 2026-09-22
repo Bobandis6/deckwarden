@@ -32,6 +32,7 @@
     "smoke:hubs": "tsx scripts/hubs-smoke.ts",
     "smoke:combos": "tsx scripts/combos-smoke.ts",
     "smoke:recommend": "tsx scripts/recommend-smoke.ts",
+    "smoke:autofill": "tsx scripts/autofill-smoke.ts",
     "smoke:seo": "tsx scripts/seo-smoke.ts",
     "smoke:versions": "tsx scripts/versions-forks-smoke.ts",
     "smoke:collection": "tsx scripts/collection-smoke.ts",

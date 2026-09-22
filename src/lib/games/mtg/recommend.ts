@@ -10,7 +10,7 @@
  * says "template", mirroring the hub template's labeling (cold-start rule:
  * computed/curated advice is fine, faked community stats are not).
  */
-import type { CurveCardInput, RecommendMeta } from "../types";
+import type { AutofillMeta, CurveCardInput, RecommendMeta } from "../types";
 
 /**
  * Editorial nonland target curve, buckets 0–7+ (the analytics histogram
@@ -66,6 +66,83 @@ function topdeckHowOften(
   const top4Text = top4 > 0 ? `; ${fmt(top4)} placed top 4` : "";
   return `${fmt(lists)} of ${fmt(ofLists)} top-16 lists at 16+ player events on Topdeck.gg${sinceText}${top4Text}`;
 }
+
+/**
+ * The land half of the editorial skeleton (W9a): the hub template's 37
+ * lands, autofill's base group. 37 + Σ MTG_CURVE_TEMPLATE = 99 — the
+ * commander is the 100th (a test enforces the arithmetic).
+ */
+export const MTG_LAND_TEMPLATE = 37;
+
+/**
+ * Ranked (non-filler) land slots by color count (index = popcount of the
+ * deck's color identity): mono decks want mostly basics; five-color decks
+ * lean on real fixing. Editorial, like the curve template.
+ */
+export const MTG_RANKED_LANDS_BY_COLOR: readonly number[] = [6, 8, 16, 22, 26, 28];
+
+/** WUBRG bit → its cost letter + basic land, in bitmask order. */
+const MTG_BASICS: readonly { bit: number; letter: string; name: string }[] = [
+  { bit: 1, letter: "W", name: "Plains" },
+  { bit: 2, letter: "U", name: "Island" },
+  { bit: 4, letter: "B", name: "Swamp" },
+  { bit: 8, letter: "R", name: "Mountain" },
+  { bit: 16, letter: "G", name: "Forest" },
+];
+
+const FILLER_WHY = `A basic land filling the ${MTG_LAND_TEMPLATE}-land template`;
+
+/**
+ * Autofill declaration (W9a): the base template + tournament lock tiers the
+ * core planner consumes. lockShare is TOURNAMENT_STAPLE_SHARE BY REFERENCE
+ * (the P3.11 pin) — never a second literal.
+ */
+export const mtgAutofill: AutofillMeta = {
+  base: {
+    label: "Lands",
+    source: "land-template",
+    count: MTG_LAND_TEMPLATE,
+    scope: { column: "primary_type", op: "eq", value: "Land" },
+    isBase: (card) => card.primaryType === "Land",
+    rankedByColorCount: MTG_RANKED_LANDS_BY_COLOR,
+    maxColorlessIdentity: 8,
+    fillerNames: [...MTG_BASICS.map((b) => b.name), "Wastes"],
+    fillers({ ciMask, n, costTexts }) {
+      if (n <= 0) return [];
+      const colors = MTG_BASICS.filter((b) => (ciMask & b.bit) !== 0);
+      // Colorless identity: Wastes is the only basic that fits (W9a's live
+      // subjects: Kozilek-style commanders and the one colorless precon).
+      if (colors.length === 0) return [{ name: "Wastes", qty: n, why: FILLER_WHY }];
+      // Split by colored-pip counts across the chosen nonland costs; a deck
+      // with no measurable pips (all-artifact keeps) splits evenly.
+      const pips = colors.map((c) =>
+        costTexts.reduce((sum, cost) => sum + (cost.split(c.letter).length - 1), 0),
+      );
+      const totalPips = pips.reduce((a, b) => a + b, 0);
+      const weights = totalPips > 0 ? pips : colors.map(() => 1);
+      const weightSum = weights.reduce((a, b) => a + b, 0);
+      // Largest remainder, ties to WUBRG order — deterministic by construction.
+      const raw = weights.map((w) => (n * w) / weightSum);
+      const qty = raw.map(Math.floor);
+      let left = n - qty.reduce((a, b) => a + b, 0);
+      const order = raw
+        .map((r, i) => ({ frac: r - Math.floor(r), i }))
+        .sort((a, b) => b.frac - a.frac || a.i - b.i);
+      for (const { i } of order) {
+        if (left <= 0) break;
+        qty[i] += 1;
+        left -= 1;
+      }
+      return colors
+        .map((c, i) => ({ name: c.name, qty: qty[i], why: FILLER_WHY }))
+        .filter((f) => f.qty > 0);
+    },
+  },
+  lockShare: TOURNAMENT_STAPLE_SHARE,
+  lockMinLists: 5,
+  costTextOf: (attrs) => (typeof attrs.mana_cost === "string" ? attrs.mana_cost : null),
+  curveLabel: (bucketLabel) => `Mana value ${bucketLabel}`,
+};
 
 export const mtgRecommend: RecommendMeta = {
   popularity: {
@@ -247,9 +324,13 @@ export const mtgRecommend: RecommendMeta = {
     // data appears — the panel renders this with every evidence entry.
     "topdeck-top16": { label: "Topdeck.gg", href: "https://topdeck.gg" },
     "curve-template": { label: "Curve template" },
+    "land-template": { label: "Land template" },
     "role-template": { label: "Role template" },
     price: { label: "Card price" },
   },
+
+  // Starter-shell autofill (W9a) — declared above, consumed by the core planner.
+  autofill: mtgAutofill,
 
   // Basic lands are never advice (hub staples precedent).
   exclude: [{ jsonbPath: ["type_line"], likePattern: "%Basic%" }],

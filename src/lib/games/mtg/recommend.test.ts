@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { mtgAdapter } from "./adapter";
 import {
   MTG_CURVE_TEMPLATE,
+  MTG_LAND_TEMPLATE,
+  MTG_RANKED_LANDS_BY_COLOR,
+  mtgAutofill,
   mtgCurveBucketOf,
   mtgRecommend,
   STAPLE_RANK,
@@ -234,5 +237,71 @@ describe("cut phrasing (P3.4 — the tradeoff in the deck's own terms)", () => {
     ]) {
       expect(mtgRecommend.sources?.[slug]?.label).toBeTruthy();
     }
+  });
+});
+
+describe("autofill declaration (W9a — the starter-shell contract)", () => {
+  const autofill = mtgAutofill;
+
+  it("lands + curve = the 99: base.count + Σ curve buckets, and the ranked-lands ladder is sane", () => {
+    const curveTotal = MTG_CURVE_TEMPLATE.reduce((a, b) => a + b, 0);
+    expect(autofill.base.count + curveTotal).toBe(99); // commander is the 100th
+    expect(autofill.base.count).toBe(MTG_LAND_TEMPLATE);
+    // One entry per color count 0–5, never asking for more ranked lands than the template holds.
+    expect(MTG_RANKED_LANDS_BY_COLOR).toHaveLength(6);
+    for (const n of MTG_RANKED_LANDS_BY_COLOR) {
+      expect(n).toBeLessThanOrEqual(autofill.base.count);
+    }
+  });
+
+  it("lockShare IS the P3.11 staple-share pin (never a second literal) and is wired into the adapter", () => {
+    expect(autofill.lockShare).toBe(TOURNAMENT_STAPLE_SHARE);
+    expect(autofill.lockMinLists).toBe(5);
+    expect(mtgRecommend.autofill).toBe(mtgAutofill);
+    expect(mtgRecommend.sources?.["land-template"]?.label).toBeTruthy();
+  });
+
+  it("scopes the base pool to Lands and classifies base cards the same way", () => {
+    expect(autofill.base.scope).toEqual({ column: "primary_type", op: "eq", value: "Land" });
+    expect(autofill.base.isBase({ primaryType: "Land", costValue: null })).toBe(true);
+    expect(autofill.base.isBase({ primaryType: "Creature", costValue: 2 })).toBe(false);
+  });
+
+  it("splits fillers by colored pips, largest remainder, WUBRG ties", () => {
+    const picks = autofill.base.fillers({
+      ciMask: 3, // WU
+      n: 10,
+      costTexts: ["{W}{W}", "{U}"],
+    });
+    expect(picks).toEqual([
+      { name: "Plains", qty: 7, why: "A basic land filling the 37-land template" },
+      { name: "Island", qty: 3, why: "A basic land filling the 37-land template" },
+    ]);
+    // Hybrid symbols count both sides.
+    const hybrid = autofill.base.fillers({ ciMask: 3, n: 2, costTexts: ["{W/U}"] });
+    expect(hybrid.map((p) => `${p.name}:${p.qty}`)).toEqual(["Plains:1", "Island:1"]);
+  });
+
+  it("splits evenly when no pips are measurable and answers colorless with Wastes", () => {
+    const even = autofill.base.fillers({ ciMask: 3, n: 5, costTexts: [] });
+    expect(even.map((p) => `${p.name}:${p.qty}`)).toEqual(["Plains:3", "Island:2"]);
+    expect(autofill.base.fillers({ ciMask: 0, n: 4, costTexts: ["{3}"] })).toEqual([
+      { name: "Wastes", qty: 4, why: "A basic land filling the 37-land template" },
+    ]);
+    expect(autofill.base.fillers({ ciMask: 3, n: 0, costTexts: [] })).toEqual([]);
+  });
+
+  it("declares every basic as a loadable filler name and cost/curve accessors", () => {
+    expect(autofill.base.fillerNames).toEqual([
+      "Plains",
+      "Island",
+      "Swamp",
+      "Mountain",
+      "Forest",
+      "Wastes",
+    ]);
+    expect(autofill.costTextOf({ mana_cost: "{2}{G}" })).toBe("{2}{G}");
+    expect(autofill.costTextOf({})).toBeNull();
+    expect(autofill.curveLabel("7+")).toBe("Mana value 7+");
   });
 });

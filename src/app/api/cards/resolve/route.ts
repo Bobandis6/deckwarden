@@ -22,9 +22,9 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
-import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { classifyResolveToken, isBareIdToken } from "@/lib/cards/resolve-token";
+import { toWire, wireSelect, type WireRow } from "@/lib/cards/wire";
 import { clientIp } from "@/lib/decks/access";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import type { LegalityEntry } from "@/lib/games/types";
@@ -34,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
-const { cardIdentities: ci, cardPrintings: cp } = schema;
+const { cardIdentities: ci } = schema;
 
 const BODY = z.object({
   game: z.enum(["mtg", "optcg"]).default("mtg"),
@@ -45,45 +45,6 @@ const BODY = z.object({
 /** Bound the per-request fuzzy fan-out; misses beyond it get no suggestions. */
 const FUZZY_LIMIT = 50;
 const SUGGESTIONS_PER_NAME = 5;
-
-/** CardWire columns + default-printing join, shared by all three passes. */
-function wireSelect(db: ReturnType<typeof getDb>) {
-  return db
-    .select({
-      id: ci.id,
-      name: ci.name,
-      nameNorm: ci.nameNorm,
-      externalKey: ci.externalKey,
-      primaryType: ci.primaryType,
-      costValue: ci.costValue,
-      colorsMask: ci.colorsMask,
-      ciMask: ci.ciMask,
-      cheapestUsd: ci.cheapestUsd,
-      popularity: ci.popularity,
-      isLeaderCandidate: ci.isLeaderCandidate,
-      isPreview: ci.isPreview,
-      attrs: ci.attrs,
-      printingId: cp.id,
-      imageOverride: cp.imageOverride,
-    })
-    .from(ci)
-    .leftJoin(cp, and(eq(cp.cardIdentityId, ci.id), eq(cp.isDefault, true)))
-    .$dynamic();
-}
-
-type WireRow = Awaited<ReturnType<typeof wireSelect>>[number];
-
-function toWire(row: WireRow, legality: Map<string, LegalityEntry[]>) {
-  const { nameNorm: _nameNorm, printingId, imageOverride, cheapestUsd, ...card } = row;
-  return {
-    ...card,
-    cheapestUsd: cheapestUsd === null ? null : Number(cheapestUsd),
-    legality: legality.get(row.id) ?? [],
-    image: printingId
-      ? embeddablePrintingImageUrl({ id: printingId, imageOverride }, "normal")
-      : null,
-  };
-}
 
 /** Deterministic best row per name: popular first (nulls last), previews last. */
 function better(a: WireRow, b: WireRow): WireRow {
