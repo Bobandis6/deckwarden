@@ -207,6 +207,74 @@ async function main() {
   check("responds 400", op.status === 400, op.status);
   check("names the gate", op.json.error === "No autofill for optcg", op.json.error);
 
+  // ------------------------------------------------------------------- W9c
+  interface RandomLeader {
+    leader: {
+      id: string;
+      name: string;
+      isLeaderCandidate: boolean;
+      legality: { status: string; condition?: unknown }[];
+    } | null;
+    error?: string;
+  }
+  console.log("\nGET /api/leaders/random (W9c) — 3 of the 30/min bucket:");
+  const roll = async (game: string) => {
+    const res = await fetch(`${BASE}/api/leaders/random?game=${game}`);
+    return { status: res.status, headers: res.headers, json: (await res.json()) as RandomLeader };
+  };
+  const [r1, r2, rOp] = [await roll("mtg"), await roll("mtg"), await roll("optcg")];
+  check("mtg responds 200", r1.status === 200, r1.json.error);
+  check("no-store", r1.headers.get("cache-control")?.includes("no-store") === true);
+  check("a leader candidate", r1.json.leader?.isLeaderCandidate === true, r1.json.leader?.name);
+  check(
+    "legal as rolled (no unconditional banned/not_legal row)",
+    (r1.json.leader?.legality ?? []).every(
+      (l) => l.condition != null || !["banned", "not_legal"].includes(l.status),
+    ),
+    r1.json.leader?.legality,
+  );
+  check(
+    `two rolls differ (${r1.json.leader?.name} / ${r2.json.leader?.name}; 1-in-100 repeat odds — rerun on a tie)`,
+    r1.json.leader?.id !== r2.json.leader?.id,
+  );
+  check("optcg responds 200", rOp.status === 200, rOp.json.error);
+  check(
+    "optcg leader candidate",
+    rOp.json.leader?.isLeaderCandidate === true,
+    rOp.json.leader?.name,
+  );
+
+  console.log("\nGET /api/cards/[id]/combos (W9c) — Kiki-Jiki, edge-cached:");
+  const kiki = await findCard("Kiki-Jiki, Mirror Breaker");
+  const comboRes = await fetch(`${BASE}/api/cards/${kiki.id}/combos?fit=31`);
+  const comboJson = (await comboRes.json()) as {
+    total: number;
+    combos: { pieces: { id: string; name: string; externalKey: string }[] }[];
+    error?: string;
+  };
+  check("responds 200", comboRes.status === 200, comboJson.error);
+  check(
+    "public s-maxage cache header (Vercel may rewrite — trust x-vercel-cache in prod)",
+    comboRes.headers.get("cache-control")?.includes("s-maxage") === true ||
+      BASE !== "http://localhost:3000",
+    comboRes.headers.get("cache-control"),
+  );
+  check(
+    "combos found for a combo-dense anchor",
+    comboJson.total > 0 && comboJson.combos.length > 0,
+  );
+  check(
+    "every piece carries an externalKey (the Add-N-pieces resolve path)",
+    comboJson.combos.every((c) => c.pieces.every((pc) => !!pc.externalKey)),
+  );
+  const fit0 = await fetch(`${BASE}/api/cards/${kiki.id}/combos?fit=8`);
+  const fit0Json = (await fit0.json()) as { total: number };
+  check(
+    "fit narrows honestly (mono-R ≤ WUBRG)",
+    fit0.status === 200 && fit0Json.total <= comboJson.total,
+    { mono: fit0Json.total, all: comboJson.total },
+  );
+
   console.log(failures === 0 ? "\nautofill smoke: all green" : `\n${failures} FAILURES`);
   process.exit(failures === 0 ? 0 : 1);
 }

@@ -72,6 +72,16 @@ export const RATE_LIMITS = {
     { key: `deck-autofill:ip:${ip ?? "unknown"}`, max: 20, windowSeconds: 60 },
     { key: `deck-autofill:ip-hour:${ip ?? "unknown"}`, max: 200, windowSeconds: 3600 },
   ],
+  /**
+   * GET /api/leaders/random (W9c) — the "Surprise me" roll: one indexed
+   * sample + one wire read per click, but each hit rolls fresh (no-store,
+   * uncacheable by design), so it gets its own bucket instead of riding a
+   * cached-read policy. 30/min covers honest re-rolling; scripted hammering
+   * gets cut off before it costs Neon anything.
+   */
+  leadersRandom: (ip: string | null): RateLimit[] => [
+    { key: `leaders-random:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },
+  ],
   /** POST /api/decks/mine — home-page token verification, one per visit. */
   decksMine: (ip: string | null): RateLimit[] => [
     { key: `decks-mine:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },

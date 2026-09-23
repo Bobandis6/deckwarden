@@ -214,6 +214,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
               game="optcg"
               leaderKey={leader.externalKey}
               label="Build with this leader"
+              autofill={Boolean(adapter.recommend?.autofill)}
             />
             <Link href={`/cards/${leader.id}`} className="text-sm underline">
               Card details, printings & legality

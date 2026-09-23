@@ -80,6 +80,10 @@ export default async function Home() {
             build: "/decks/new?game=mtg",
             browse: { href: "/commanders", label: "Browse commanders" },
             search: { href: "/cards", label: "Search cards" },
+            // W9c: the Magic card's random-commander door (the contract
+            // names the Magic card only — OP's roll exists via the API and
+            // the same latch, just doorless until it earns one).
+            surprise: { href: "/decks/new?game=mtg&surprise=1", label: "Surprise me" },
           }}
         >
           <MagicShelf cards={magicShelf(topCommanders)} />

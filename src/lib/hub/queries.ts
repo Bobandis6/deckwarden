@@ -20,7 +20,7 @@
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
-import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
+import { FORMAT_ID, GAME_ID, type GameCode } from "@/db/seed-data";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import {
   deckCollectionSelect,
@@ -351,6 +351,62 @@ export async function loadLeaderIndex(opts: {
 /** The homepage's Magic shelf (R5a): page 1's most-played commanders with their printings. */
 export function loadTopCommanders(limit: number): Promise<LeaderIndexRow[]> {
   return loadLeaderIndex({ ciMask: null, page: 1, limit });
+}
+
+/**
+ * "Surprise me" sampling width (W9c): Magic rolls uniformly inside the
+ * SURPRISE_POOL most-played commanders — wide enough that two rolls
+ * virtually never repeat, narrow enough that every surprise is a commander
+ * people actually play.
+ */
+export const SURPRISE_POOL = 100;
+
+/**
+ * One random legal leader for "Surprise me" (W9c). Unlike loadLeaderIndex,
+ * this DOES exclude banned/not-legal leaders (the staples NOT EXISTS shape) —
+ * a surprise must be playable as rolled. Sampling follows the game's signal,
+ * like the index orderings above: Magic uniformly inside the SURPRISE_POOL
+ * most-played (popularity is an MTG signal), One Piece uniformly over all
+ * legal leaders (the honest zero-signal roll). Slugged, non-preview
+ * candidates only — the same set the hubs browse.
+ */
+export async function loadRandomLeaderId(game: GameCode, formatId: number): Promise<string | null> {
+  const db = getDb();
+  const conditions = [
+    eq(cardIdentities.gameId, GAME_ID[game]),
+    eq(cardIdentities.isLeaderCandidate, true),
+    eq(cardIdentities.isRemoved, false),
+    eq(cardIdentities.isPreview, false),
+    sql`${cardIdentities.slug} IS NOT NULL`,
+    sql`NOT EXISTS (
+      SELECT 1 FROM ${legalities} l
+      WHERE l.card_identity_id = ${cardIdentities.id}
+        AND l.format_id = ${formatId}
+        AND l.effective_to IS NULL AND l.condition IS NULL
+        AND l.status IN ('banned', 'not_legal'))`,
+  ];
+  if (game === "mtg") {
+    const pool = db
+      .select({ id: cardIdentities.id })
+      .from(cardIdentities)
+      .where(and(...conditions, sql`${cardIdentities.popularity} IS NOT NULL`))
+      .orderBy(asc(cardIdentities.popularity), asc(cardIdentities.name))
+      .limit(SURPRISE_POOL)
+      .as("pool");
+    const [row] = await db
+      .select({ id: pool.id })
+      .from(pool)
+      .orderBy(sql`random()`)
+      .limit(1);
+    return row?.id ?? null;
+  }
+  const [row] = await db
+    .select({ id: cardIdentities.id })
+    .from(cardIdentities)
+    .where(and(...conditions))
+    .orderBy(sql`random()`)
+    .limit(1);
+  return row?.id ?? null;
 }
 
 export interface OpLeaderIndexRow {

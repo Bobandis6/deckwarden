@@ -186,6 +186,8 @@ export function DeckEditor({
   draftFormat,
   draftLeaderKey,
   draftFromSlug,
+  draftSurprise,
+  draftAutofill,
   applyLeaderKey,
 }: {
   /** null = draft mode (/decks/new): no server deck exists until the first real edit. */
@@ -209,6 +211,24 @@ export function DeckEditor({
    * create POST carries the seeded name, so no extra meta PATCH fires.
    */
   draftFromSlug?: string;
+  /**
+   * Draft mode only (W9c): "Surprise me" — seed a RANDOM legal leader off
+   * GET /api/leaders/random. Same state-only discipline as draftLeaderKey
+   * (bouncing leaves no row), but the GET returns the full wire, so no
+   * resolve unit is spent and a surprise draft fires zero POSTs until a
+   * real edit. Supersedes draftLeaderKey (the chooser never sends both).
+   */
+  draftSurprise?: boolean;
+  /**
+   * Draft mode only (W9c): `?autofill=1` from the hub's "Start with a
+   * starter shell" CTA. Opens the review sheet ONCE, after any pending
+   * draft seed SETTLES (not necessarily succeeds — a failed seed opens the
+   * sheet to its honest "set a commander first" sentence, which fires no
+   * POST; that degraded state is the pinned decision). Never auto-applies:
+   * the sheet's Apply stays the only write path. Gated on the adapter's
+   * autofill declaration like every other door.
+   */
+  draftAutofill?: boolean;
   /**
    * Saved decks only (W4): `?leader=` from the hub's "Use for …" CTA.
    * Applied ONLY with a matching un-expired pick intent and an empty leader
@@ -433,12 +453,18 @@ export function DeckEditor({
   // mount/unmount would cancel the one attempt the guard allows), and the
   // occupied-zone check makes a late response a no-op rather than a clobber.
   const seededLeaderRef = useRef(false);
+  // Draft seed settlement (W9c): flips true once whichever seeder ran has
+  // finished — success OR failure — so the ?autofill=1 sheet-open below can
+  // wait for the leader to land without ever waiting forever.
+  const [seedSettled, setSeedSettled] = useState(false);
   useEffect(() => {
     if (initialDeckId !== null || !draftLeaderKey || seededLeaderRef.current) return;
     if (load.state !== "ready") return;
     seededLeaderRef.current = true;
     const { adapter, format } = load;
     const leaderZone = format.zones.find((z) => z.isLeaderZone);
+    // No leader zone: nothing to seed — the sheet-open latch below counts
+    // this as "no seed expected", so no settle mark is needed here.
     if (!leaderZone) return;
     void (async () => {
       try {
@@ -463,9 +489,63 @@ export function DeckEditor({
         setPreview(card);
       } catch {
         // Seeding is a convenience — the editor works without it.
+      } finally {
+        setSeedSettled(true);
       }
     })();
   }, [initialDeckId, draftLeaderKey, load]);
+
+  // "Surprise me" (W9c): seed a RANDOM legal leader — same state-only
+  // discipline and StrictMode ref guard as the key seeder above, but the
+  // route returns the full wire, so nothing else is spent: a surprise draft
+  // stays at zero POSTs until a real edit. Unlike the key seeder, failure
+  // SAYS so (a toast) — the roll was the whole point of the click.
+  const seededSurpriseRef = useRef(false);
+  useEffect(() => {
+    if (initialDeckId !== null || !draftSurprise || seededSurpriseRef.current) return;
+    if (load.state !== "ready") return;
+    seededSurpriseRef.current = true;
+    const { adapter, format } = load;
+    const leaderZone = format.zones.find((z) => z.isLeaderZone);
+    const sayNoRoll = () =>
+      toast.add({
+        title: `Couldn't pick a random ${adapter.display.leaderNoun} — try again.`,
+        type: "error",
+        timeout: TOAST_MS,
+      });
+    // Same as the key seeder: no leader zone = no seed expected below.
+    if (!leaderZone) return;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/leaders/random?game=${adapter.id}`);
+        if (!res.ok) {
+          sayNoRoll();
+          return;
+        }
+        const json: { leader: CardWire | null } = await res.json();
+        const wire = json.leader;
+        if (!wire || !wire.isLeaderCandidate) {
+          sayNoRoll();
+          return;
+        }
+        // Late-response guard: never clobber a leader added meanwhile.
+        if (entriesRef.current.some((e) => e.zone === leaderZone.id)) return;
+        const next: EditorEntry[] = [
+          ...entriesRef.current,
+          { cardId: wire.id, zone: leaderZone.id, qty: 1, tags: [] },
+        ];
+        entriesRef.current = next;
+        setEntries(next);
+        const card = toEditorCard(wire);
+        setCards((prev) => new Map(prev).set(wire.id, card));
+        setPreview(card);
+      } catch {
+        sayNoRoll();
+      } finally {
+        setSeedSettled(true);
+      }
+    })();
+  }, [initialDeckId, draftSurprise, load]);
 
   // "Start from this precon" (W8b): seed the WHOLE product list into a
   // fresh draft — entries with the precon's own printings straight off
@@ -537,6 +617,8 @@ export function DeckEditor({
         if (leaderWire) setPreview(toEditorCard(leaderWire));
       } catch {
         sayMissing();
+      } finally {
+        setSeedSettled(true);
       }
     })();
   }, [initialDeckId, draftFromSlug, load]);
@@ -919,6 +1001,33 @@ export function DeckEditor({
     setDialog("autofill");
   }, []);
 
+  // ?autofill=1 (W9c): the hub CTA's latched sheet-open — ONCE, after any
+  // pending draft seed settles (the sheet with no leader renders its honest
+  // "set a commander first" sentence and fires nothing, so a failed seed or
+  // a crafted bare ?autofill=1 both degrade there, POST-free). Behind the
+  // same adapter gate as every door; never auto-applies — the sheet's one
+  // open POST is the only thing a latched visit spends. A render-time latch
+  // (the adjust-state-during-render pattern the chooser uses), not an
+  // effect: it converges after one set and fires exactly once.
+  const [autofillOpened, setAutofillOpened] = useState(false);
+  const seedExpected =
+    Boolean(draftFromSlug) ||
+    (Boolean(draftLeaderKey || draftSurprise) &&
+      load.state === "ready" &&
+      load.format.zones.some((z) => z.isLeaderZone));
+  if (
+    initialDeckId === null &&
+    draftAutofill &&
+    !autofillOpened &&
+    load.state === "ready" &&
+    load.adapter.recommend?.autofill &&
+    (!seedExpected || seedSettled)
+  ) {
+    setAutofillOpened(true);
+    setDialogFromMenu(false);
+    setDialog("autofill");
+  }
+
   // Visibility PATCHes immediately (not via autosave): it's a deliberate,
   // rare action and the Share dialog wants the result before it re-renders.
   // Unreachable in a pre-create draft (the Share button needs `share`, which
@@ -1203,10 +1312,12 @@ export function DeckEditor({
                 format={load.format}
                 deckId={liveDeckId}
                 entries={entries}
+                cards={cards}
                 inDeckQty={inDeckQty}
                 saveStatus={autosave.status}
                 active={rightTab === "combos"}
                 onAdd={handlePanelAdd}
+                onOpenAutofill={load.adapter.recommend?.autofill ? openAutofill : undefined}
               />
             </TabsContent>
           )}

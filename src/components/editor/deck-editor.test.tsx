@@ -816,7 +816,7 @@ describe("DeckEditor — Start from this precon (W8b)", () => {
   });
 });
 
-describe("DeckEditor — Autofill review sheet + doors (W9b)", () => {
+describe("DeckEditor — Autofill review sheet + doors (W9b/W9c)", () => {
   const commander = card({
     name: "Atraxa, Praetors' Voice",
     primaryType: "Creature",
@@ -986,5 +986,72 @@ describe("DeckEditor — Autofill review sheet + doors (W9b)", () => {
     render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
     await pollFor(() => within(section("Deck list")).queryByText("No cards yet"));
     expect(screen.queryByRole("button", { name: "Autofill a starter shell" })).toBeNull();
+  });
+
+  // ------------------------------------------------------------------- W9c
+  const anyPosts = () =>
+    fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "POST")
+      .length;
+
+  function surpriseRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    if (url.startsWith("/api/leaders/random")) {
+      return ok({ leader: { ...commander, image: null } });
+    }
+    return autofillRoute(input, init);
+  }
+
+  it("Surprise me: the random leader seeds state-only off the GET — literally zero POSTs, no deck row, no sheet", async () => {
+    fetchMock.mockImplementation(surpriseRoute);
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftSurprise />);
+    await pollFor(() => screen.queryAllByText("Atraxa, Praetors' Voice")[0] ?? null);
+    expect(anyPosts()).toBe(0); // the wire rides the GET — no resolve spent
+    expect(posts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // The seeded commander arms the EmptyState door (the sheet is one click away).
+    expect(screen.getByRole("button", { name: "Autofill a starter shell" })).toBeTruthy();
+  });
+
+  it("Surprise me on One Piece: a random leader into a normal draft — no sheet, no door, no apology copy", async () => {
+    fetchMock.mockImplementation(surpriseRoute);
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="optcg" draftFormat="standard" draftSurprise />);
+    await pollFor(() => screen.queryAllByText("Atraxa, Praetors' Voice")[0] ?? null);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Autofill a starter shell" })).toBeNull();
+    expect(posts()).toBe(0);
+  });
+
+  it("?autofill=1 with a leader seed: the sheet opens by itself AFTER the seed lands — one autofill POST, no create, never an auto-apply", async () => {
+    fetchMock.mockImplementation(autofillRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor
+        deckId={null}
+        draftGame="mtg"
+        draftFormat="commander"
+        draftLeaderKey="atraxa"
+        draftAutofill
+      />,
+    );
+    // No door click anywhere — the latch opens the sheet once the seed settles.
+    const apply = await pollFor(() => screen.queryByRole("button", { name: "Add 12 cards" }));
+    expect(apply).toBeTruthy();
+    expect(autofillPosts()).toBe(1);
+    expect(posts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+    // The sheet request was built around the seeded commander.
+    expect(screen.getAllByText(/Atraxa, Praetors' Voice/).length).toBeGreaterThan(0);
+  });
+
+  it("a crafted bare ?autofill=1 (no leader, no seed): the sheet's honest no-leader sentence, zero autofill POSTs", async () => {
+    fetchMock.mockImplementation(autofillRoute);
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftAutofill />);
+    await pollFor(() => screen.queryByText(/Set a commander first/));
+    expect(autofillPosts()).toBe(0);
+    expect(posts()).toBe(0);
   });
 });

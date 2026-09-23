@@ -45,6 +45,20 @@ describe("HubBuildCta", () => {
     render(<HubBuildCta game="mtg" leaderKey="abc-123" label="Build with this commander" />);
     expect(screen.getAllByRole("button")).toHaveLength(1);
   });
+
+  // W9c: the starter-shell row is additive — the pinned anchor above it is
+  // byte-identical with or without it, and no autofill prop means no row.
+  it("autofill adds the starter-shell row after the unchanged default", () => {
+    render(
+      <HubBuildCta game="mtg" leaderKey="abc-123" label="Build with this commander" autofill />,
+    );
+    const ctas = screen.getAllByRole("button");
+    expect(ctas).toHaveLength(2);
+    expect(ctas[0].textContent).toBe("Build with this commander");
+    expect(ctas[0].getAttribute("href")).toBe("/decks/new?game=mtg&leader=abc-123");
+    expect(ctas[1].textContent).toBe("Start with a starter shell");
+    expect(ctas[1].getAttribute("href")).toBe("/decks/new?game=mtg&leader=abc-123&autofill=1");
+  });
 });
 
 describe("LeaderPickBanner", () => {

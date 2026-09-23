@@ -17,6 +17,8 @@ const { combos, comboPieces, cardIdentities, deckCards } = schema;
 export interface ComboPieceRef {
   id: string;
   name: string;
+  /** The identity's external key — resolve's pass 0 hydrates pieces by it (W9c). */
+  externalKey: string;
 }
 
 export interface ComboView {
@@ -72,6 +74,7 @@ export async function loadCombosForCard(
       comboId: comboPieces.comboId,
       id: cardIdentities.id,
       name: cardIdentities.name,
+      externalKey: cardIdentities.externalKey,
     })
     .from(comboPieces)
     .innerJoin(cardIdentities, eq(cardIdentities.id, comboPieces.cardIdentityId))
@@ -86,7 +89,7 @@ export async function loadCombosForCard(
   const piecesByCombo = new Map<number, ComboPieceRef[]>();
   for (const row of pieceRows) {
     const list = piecesByCombo.get(row.comboId) ?? [];
-    list.push({ id: row.id, name: row.name });
+    list.push({ id: row.id, name: row.name, externalKey: row.externalKey });
     piecesByCombo.set(row.comboId, list);
   }
 
@@ -187,6 +190,7 @@ export async function loadCombosNearDeck(
       comboId: comboPieces.comboId,
       id: cardIdentities.id,
       name: cardIdentities.name,
+      externalKey: cardIdentities.externalKey,
     })
     .from(comboPieces)
     .innerJoin(cardIdentities, eq(cardIdentities.id, comboPieces.cardIdentityId))
@@ -201,7 +205,7 @@ export async function loadCombosNearDeck(
   const piecesByCombo = new Map<number, ComboPieceRef[]>();
   for (const row of pieceRows) {
     const list = piecesByCombo.get(row.comboId) ?? [];
-    list.push({ id: row.id, name: row.name });
+    list.push({ id: row.id, name: row.name, externalKey: row.externalKey });
     piecesByCombo.set(row.comboId, list);
   }
 

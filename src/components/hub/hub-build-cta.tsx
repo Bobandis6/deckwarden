@@ -20,12 +20,21 @@ export function HubBuildCta({
   game,
   leaderKey,
   label,
+  autofill = false,
 }: {
   game: GameId;
   /** The leader's external key — resolve's pass 0 seeds/applies by it. */
   leaderKey: string;
   /** "Build with this commander" / "Build with this leader" (smoke-pinned). */
   label: string;
+  /**
+   * The adapter's `recommend.autofill` gate (W9c): adds the "Start with a
+   * starter shell" row — same draft link plus `&autofill=1`, which the
+   * chooser latches and the editor turns into an opened review sheet after
+   * the leader seed lands (never an auto-apply). Additive only: the pinned
+   * anchors above never change.
+   */
+  autofill?: boolean;
 }) {
   const intent = usePickIntent(game);
   return (
@@ -46,6 +55,15 @@ export function HubBuildCta({
       >
         {label}
       </Button>
+      {autofill && (
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={<Link href={`/decks/new?game=${game}&leader=${leaderKey}&autofill=1`} />}
+        >
+          Start with a starter shell
+        </Button>
+      )}
     </>
   );
 }

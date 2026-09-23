@@ -16,6 +16,8 @@ export interface GameCardActions {
   build: string;
   browse: { href: string; label: string };
   search: { href: string; label: string };
+  /** "Surprise me" (W9c): a random legal leader into a fresh draft. */
+  surprise?: { href: string; label: string };
 }
 
 export function GameCard({
@@ -56,6 +58,15 @@ export function GameCard({
         <Button variant="ghost" nativeButton={false} render={<Link href={actions.search.href} />}>
           {actions.search.label}
         </Button>
+        {actions.surprise && (
+          <Button
+            variant="ghost"
+            nativeButton={false}
+            render={<Link href={actions.surprise.href} />}
+          >
+            {actions.surprise.label}
+          </Button>
+        )}
       </div>
       {children}
       {footer}

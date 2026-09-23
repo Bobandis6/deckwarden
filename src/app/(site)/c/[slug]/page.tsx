@@ -216,6 +216,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
                 game="mtg"
                 leaderKey={leader.externalKey}
                 label="Build with this commander"
+                autofill={Boolean(adapter.recommend?.autofill)}
               />
             )}
             <Link href={`/cards/${leader.id}`} className="text-sm underline">
