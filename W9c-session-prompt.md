@@ -49,3 +49,21 @@ NOT any change to the review sheet's internals beyond what the doors need (its s
 ## Context, not tasks
 
 Sequence after W9c: W10 tournaments v1 — then Wave 2 is done. P2.9 (MTG) and P4.7 round 3 (OP) standing triggers remain live. Owner decisions of 2026-09-19 stand: evidence-based starter shell (no roles), plain buy links, ownerless precons, sessionStorage pick-intent. Premium never gates card data or prices.
+
+---
+
+## Ship note — 2026-09-22 (feat `2c6c4a6`)
+
+Shipped and deployed. All three doors + both GET routes live; `pnpm check` green at **950 tests / 119 files / 6 pre-existing warnings / 0 errors**; `smoke:autofill` (grown two W9c sections), `smoke:hubs`, `smoke:recommend` all green on dev; QA deck deleted (204), census 25 re-proven.
+
+What later sessions should know:
+
+- **`/api/leaders/random` returns the full CardWire** — that's why a surprise draft is literally zero POSTs (no resolve unit spent). `SURPRISE_POOL = 100`; MTG "top 100" is by `popularity` = edhrec_rank over ALL cards, so pool members can carry ranks in the thousands — not a bug. The legality `NOT EXISTS` is the staples shape (unconditional `banned`/`not_legal` only — OP pair bans are conditional and stay in).
+- **Surprise me is seed-only** (no auto-sheet). D8's "opens the sheet with Reroll commander" line went to LATER with the verify-list zero-POST pin as the reason; the EmptyState door renders armed right after the seed. OP's roll is live but doorless (URL-only) — LATER row.
+- **`?autofill=1` is a render-time latch in deck-editor, not an effect** — `react-hooks/set-state-in-effect` is an eslint ERROR in this repo; the latch waits on `seedSettled`, which the three seeders set in `finally`. **Pinned: gated on the seed SETTLING, not succeeding** — a failed seed and a crafted bare link both open the sheet to its honest "Set a commander first" sentence (fires nothing). `seedExpected` counts a missing leader zone as no-seed so the latch can never hang.
+- The chooser latches `surprise`/`autofill` with adjust-during-render (the picker's own Surprise button navigates without a remount) and strips BOTH params via replaceState — a reload never re-rolls or re-opens (the sheet open spends a deckAutofill unit).
+- **ComboPieceRef grew a required `externalKey`** (both loaders select it) — that's the Add-N-pieces resolve path (pass 0, id-guarded per piece, results align with input order).
+- The commander-combos fetch keys on `(anchorId, fitMask)` where fit = union of leader ciMasks from the `cards` map — a partner landing widens fit and refetches; deck edits never do. First leader entry is the anchor (partners: the first).
+- Panel toasts ride the editor's Toaster default timeout (`toast.add` without `timeout`); the panel test mocks `@/components/ui/toast` — JSX-interpolated headings need `getByRole("heading")`, not `getByText`.
+- Pane note: mid-verification HMR rebuilds made two surprise loads look dead (no roll, no strip) — a clean load worked; don't chase ghosts before reloading after the rebuild settles.
+- `leaderNoun` is capital-C "Commander" — every W9c surface lowercases it in copy.
