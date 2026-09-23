@@ -23,6 +23,8 @@ const { tournaments, tournamentStandings } = schema;
 export const TOP_FINISHES_SHOWN = 8;
 
 export interface TopFinishRow {
+  /** Our event row id — the internal /tournaments/[id] link (W10). */
+  tournamentId: number;
   /** Source event id — feeds capabilities.tournaments.eventUrl. */
   externalKey: string;
   eventName: string;
@@ -48,10 +50,17 @@ export interface TopFinishes {
  * Most recent kept finishes (placement ≤ 16 at 16+ player events) for one
  * leader. Game-scoped since P4.5: /c/ passes GAME_ID.mtg, /l/ GAME_ID.optcg
  * — one query, two source pipelines (topdeck / limitless) behind it.
+ * W10: the hub shelves keep the default limit; /tournaments?leader= asks
+ * for the full run via ALL_FINISHES_CAP.
  */
-export async function loadTopFinishes(gameId: number, leaderId: string): Promise<TopFinishes> {
+export async function loadTopFinishes(
+  gameId: number,
+  leaderId: string,
+  limit: number = TOP_FINISHES_SHOWN,
+): Promise<TopFinishes> {
   const rows = await getDb()
     .select({
+      tournamentId: tournaments.id,
       externalKey: tournaments.externalKey,
       eventName: tournaments.name,
       startDate: tournaments.startDate,
@@ -76,11 +85,159 @@ export async function loadTopFinishes(gameId: number, leaderId: string): Promise
         AND ${tournamentStandings.leaderIds} @> ARRAY[${leaderId}]::uuid[]`,
     )
     .orderBy(desc(tournaments.startDate), asc(tournamentStandings.placement))
-    .limit(TOP_FINISHES_SHOWN);
+    .limit(limit);
 
   return {
     finishes: rows.map(({ total: _total, ...row }) => row),
     total: rows.length > 0 ? Number(rows[0].total) : 0,
+  };
+}
+
+/** /tournaments?leader= shows the whole run, capped sanely (one leader's kept finishes, newest first). */
+export const ALL_FINISHES_CAP = 100;
+
+/** How many events the /tournaments index lists per game (newest first). */
+export const RECENT_EVENTS_SHOWN = 50;
+
+/** A leader as the tournament surfaces name it: hub link when slugged, chips from the mask. */
+export interface EventLeaderRef {
+  name: string;
+  slug: string | null;
+  colorsMask: number;
+}
+
+export interface RecentTournamentRow {
+  id: number;
+  externalKey: string;
+  name: string;
+  /** ISO date string. */
+  startDate: string;
+  playerCount: number;
+  /** The placement-1 standing's leaders — empty when the winner wasn't kept/resolved. */
+  winners: EventLeaderRef[];
+}
+
+/** postgres.js row shape for the index query (json_agg arrives parsed). */
+type RecentTournamentRaw = Record<string, unknown> & {
+  id: number;
+  external_key: string;
+  name: string;
+  start_date: string;
+  player_count: number;
+  winners: { name: string; slug: string | null; colorsMask: number }[];
+};
+
+/**
+ * The /tournaments index (W10): recent kept events for one game, newest
+ * first via `tournaments_game_date`, each with the winner's leader(s) — the
+ * D9 "1st: …" line. The winner subquery touches at most one standing per
+ * event (unique tournament_id+placement).
+ */
+export async function loadRecentTournaments(
+  gameId: number,
+  limit: number = RECENT_EVENTS_SHOWN,
+): Promise<RecentTournamentRow[]> {
+  const rows = await getDb().execute<RecentTournamentRaw>(sql`
+    SELECT t.id, t.external_key, t.name, t.start_date::text AS start_date, t.player_count,
+      (SELECT coalesce(json_agg(json_build_object(
+                 'name', ci.name, 'slug', ci.slug, 'colorsMask', ci.colors_mask)
+               ORDER BY ci.name), '[]')
+       FROM ${tournamentStandings} ts
+       JOIN card_identities ci ON ci.id = ANY(ts.leader_ids)
+       WHERE ts.tournament_id = t.id AND ts.placement = 1) AS winners
+    FROM ${tournaments} t
+    WHERE t.game_id = ${gameId}
+    ORDER BY t.start_date DESC, t.id DESC
+    LIMIT ${limit}`);
+  return [...rows].map((row) => ({
+    id: row.id,
+    externalKey: row.external_key,
+    name: row.name,
+    startDate: row.start_date,
+    playerCount: row.player_count,
+    winners: row.winners,
+  }));
+}
+
+export interface TournamentEventStanding {
+  placement: number;
+  playerName: string | null;
+  leaders: EventLeaderRef[];
+  decklistUrl: string | null;
+  wins: number | null;
+  draws: number | null;
+  losses: number | null;
+}
+
+export interface TournamentEvent {
+  id: number;
+  gameId: number;
+  source: string;
+  externalKey: string;
+  name: string;
+  /** ISO date string. */
+  startDate: string;
+  playerCount: number;
+  topCut: number | null;
+  standings: TournamentEventStanding[];
+}
+
+/** postgres.js standings row for the event loader. */
+type EventStandingRaw = Record<string, unknown> & {
+  placement: number;
+  player_name: string | null;
+  leaders: { name: string; slug: string | null; colorsMask: number }[];
+  decklist_url: string | null;
+  wins: number | null;
+  draws: number | null;
+  losses: number | null;
+};
+
+/**
+ * One event page (W10): the tournament row + its kept standings in
+ * placement order (the live contract, P3.8), leaders resolved to
+ * { name, slug, colorsMask } so names link to their hubs. Two statements,
+ * deduped across layout/metadata/page by the segment's React cache.
+ */
+export async function loadTournamentEvent(id: number): Promise<TournamentEvent | null> {
+  const [event] = await getDb()
+    .select({
+      id: tournaments.id,
+      gameId: tournaments.gameId,
+      source: tournaments.source,
+      externalKey: tournaments.externalKey,
+      name: tournaments.name,
+      startDate: tournaments.startDate,
+      playerCount: tournaments.playerCount,
+      topCut: tournaments.topCut,
+    })
+    .from(tournaments)
+    .where(eq(tournaments.id, id))
+    .limit(1);
+  if (!event) return null;
+
+  const standings = await getDb().execute<EventStandingRaw>(sql`
+    SELECT ts.placement, ts.player_name, ts.decklist_url, ts.wins, ts.draws, ts.losses,
+      (SELECT coalesce(json_agg(json_build_object(
+                 'name', ci.name, 'slug', ci.slug, 'colorsMask', ci.colors_mask)
+               ORDER BY ci.name), '[]')
+       FROM card_identities ci
+       WHERE ci.id = ANY(ts.leader_ids)) AS leaders
+    FROM ${tournamentStandings} ts
+    WHERE ts.tournament_id = ${id}
+    ORDER BY ts.placement ASC`);
+
+  return {
+    ...event,
+    standings: [...standings].map((row) => ({
+      placement: row.placement,
+      playerName: row.player_name,
+      leaders: row.leaders,
+      decklistUrl: row.decklist_url,
+      wins: row.wins,
+      draws: row.draws,
+      losses: row.losses,
+    })),
   };
 }
 

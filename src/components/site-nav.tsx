@@ -39,6 +39,7 @@ export const BROWSE_LINKS = [
   { href: "/cards", label: "Cards" },
   // The D-nav sketch's order (WAVE2 §D1): Precons after Cards, Tournaments (W10) last.
   { href: "/precons", label: "Precons" },
+  { href: "/tournaments", label: "Tournaments" },
 ] as const;
 
 /** /account once signed in; the browser's guest-deck section on home until then. */

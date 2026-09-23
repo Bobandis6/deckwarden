@@ -193,6 +193,19 @@ async function main() {
       );
     }
 
+    // W10: the tournament INDEX is in the sitemap; event pages are noindex
+    // (D9's explicit v1 decision) and never listed.
+    check("core sitemap lists /tournaments", core.text.includes("/tournaments</loc>"));
+    check("core sitemap never lists event pages", !/\/tournaments\/\d/.test(core.text));
+    const [anyEvent] = await sql<{ id: number }[]>`
+      SELECT id FROM tournaments ORDER BY start_date DESC LIMIT 1`;
+    if (anyEvent) {
+      const eventPage = await page(`/tournaments/${anyEvent.id}`);
+      check("event page 200", eventPage.status === 200, eventPage.status);
+      check("event page is noindex (W10, D9)", NOINDEX_RE.test(eventPage.text));
+    }
+    check("junk event id → 404", (await page("/tournaments/999999999")).status === 404);
+
     const hubMap = await page("/c/sitemap.xml");
     check("hub sitemap 200", hubMap.status === 200, hubMap.status);
     check("hub sitemap lists the fixture leader", hubMap.text.includes(`/c/${leader.slug}</loc>`));

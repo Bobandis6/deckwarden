@@ -165,6 +165,13 @@ async function main() {
         finisherHub.text.includes("Topdeck.gg") &&
           finisherHub.text.includes("https://topdeck.gg/event/"),
       );
+      // W10: internal event links + the "All {n} finishes" hand-off are
+      // ADDITIVE — the external pins above must keep passing beside them.
+      check(
+        "top finishes shelf links events internally (W10)",
+        finisherHub.text.includes("/tournaments/") &&
+          finisherHub.text.includes(`/tournaments?leader=${finisher.slug as string}`),
+      );
     } else {
       console.log("  (no tournament rows yet — dormant; asserting the shelf stays hidden)");
       check("no tournament rows → no Top finishes shelf", !hub.text.includes("Top finishes"));
@@ -263,6 +270,12 @@ async function main() {
         "OP finishes shelf carries the Limitless credit + event link",
         opHub.text.includes("Limitless") &&
           opHub.text.includes("https://play.limitlesstcg.com/tournament/"),
+      );
+      // W10 mirror of the /c/ pin: internal links are additive.
+      check(
+        "OP finishes shelf links events internally (W10)",
+        opHub.text.includes("/tournaments/") &&
+          opHub.text.includes(`/tournaments?game=optcg&amp;leader=${opFinisher.slug as string}`),
       );
     } else {
       console.log("  (no OP tournament rows yet — asserting the /l/ shelf stays hidden)");

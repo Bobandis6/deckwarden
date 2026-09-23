@@ -312,17 +312,21 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
                         {ordinal(finish.placement)}
                       </span>{" "}
                       <span className="text-muted-foreground">of {finish.playerCount}</span> —{" "}
+                      {/* W10: the event name goes to our event page; the external
+                          source link stays on every row (attribution + smoke pin). */}
+                      <Link
+                        href={`/tournaments/${finish.tournamentId}`}
+                        className="font-medium underline-offset-2 hover:underline"
+                      >
+                        {finish.eventName}
+                      </Link>{" "}
                       <a
                         href={tournamentsMeta.eventUrl(finish.externalKey)}
-                        className="font-medium underline-offset-2 hover:underline"
                         rel="noreferrer"
                         target="_blank"
                       >
-                        {finish.eventName}
-                        <ArrowUpRightIcon
-                          aria-hidden
-                          className="ml-0.5 inline size-3.5 align-[-0.15em]"
-                        />
+                        <ArrowUpRightIcon aria-hidden className="inline size-3.5 align-[-0.15em]" />
+                        <span className="sr-only">on {tournamentsMeta.sourceLabel}</span>
                       </a>
                     </span>
                     <span className="text-muted-foreground block text-xs">
@@ -349,6 +353,14 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
               );
             })}
           </ul>
+          <p className="mt-2 text-sm">
+            <Link
+              href={`/tournaments?game=optcg&leader=${slug}`}
+              className="underline underline-offset-2"
+            >
+              All {topFinishes.total} {topFinishes.total === 1 ? "finish" : "finishes"} →
+            </Link>
+          </p>
         </section>
       )}
 
