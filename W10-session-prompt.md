@@ -54,3 +54,20 @@ NOT player profiles or player pages (event pages carry player names as text — 
 ## Context, not tasks
 
 W10 ends Wave 2. Standing triggers stay live: P2.9 (MTG rounds), P4.7 round 3 (OP). Owner decisions of 2026-09-19 stand. Premium never gates card data or prices. Event pages carry real player names from public tournament records — keep the source credit on both pages (attribution rule), and keep the noindex.
+
+---
+
+## Ship note — 2026-09-22, feat `92b574a` (docs follow-up in the same package). Wave 2 complete.
+
+Deployed and prod-proven the same day (Vercel status success on `92b574a`). Everything in the contract landed; the deviations/decisions worth recording:
+
+- **Both new loaders resolve leaders via the card_identities subquery precedent** (`loadTopFinishes`'s own move) — the acceptance's "from `tournaments` + `tournament_standings` only" means no deck/stats tables, and that held. `loadTopFinishes(gameId, leaderId, limit?)` kept its two hub callers source-compatible; `TopFinishRow` gained `tournamentId`.
+- **The index's two views**: unfiltered = 50 newest events (`RECENT_EVENTS_SHOWN`) with the placement-1 standing's leaders as the D9 "1st:" line (37 of 50 MTG events had a resolved winner at ship — the rest render without the line, honest absence); `?leader=` = that leader's run capped at `ALL_FINISHES_CAP` 100 with a "The 100 most recent of N" disclosure (Tymna: 3315). An unknown `?leader=` slug 404s (hub semantics, not a silently-ignored filter); there is no loading.tsx above the index so the notFound answers a real 404.
+- **The 404 gate** mirrors /c/[slug] exactly: `./event.ts` holds one React-cached lookup (id regex `^\d{1,9}$` inside it, so junk shapes cost zero statements) shared by layout/metadata/page. Curl-proven on dev and prod: `/tournaments/999999999` and `/tournaments/abc` → HTTP 404 status, Warden page.
+- **Hub shelf rows**: the event name became the internal Link; the external event link stayed as the ArrowUpRight anchor with sr-only "on {sourceLabel}" — the smoke pins (`https://topdeck.gg/event/`, `https://play.limitlesstcg.com/tournament/`) pass on the href alone. The /l/ "All {n} finishes →" href carries `?game=optcg&leader=` and greps as `&amp;` in HTML (the W8b one-line-HTML lesson, hit again while verifying — interpolated JSX also splits text with `<!-- -->`, so grep hrefs, not sentences).
+- **ISR proof**: dev never shows the s-maxage signature (the known-ISR /c/ hub curls identically no-cache in `next dev`) — the build table (`● /tournaments/[id]`, `ƒ /tournaments`) plus prod headers are the proof: `x-nextjs-prerender: 1` and second-hit `x-vercel-cache: HIT`.
+- **Smoke additions (additive)**: hubs-smoke pins the internal event link + the leader hand-off on both games' finisher hubs; seo-smoke pins sitemap-lists-index, no-event-URLs-in-sitemap, event-page noindex, junk-id 404.
+- **Honest-data note**: the Decklist column/link renders only when the source carried a URL — Tymna's 100 newest finishes have zero (Topdeck often doesn't publish them), the OP event page shows them on every row.
+- LATER rows added: index depth/pagination (50/100 caps); the hubs' local `ordinal`/`eventDateLabel` mirrors vs the new shared `lib/tournaments/format.ts`.
+
+**No W11 prompt.** The standing state is response rounds only: `P2.9-session-prompt.md` (MTG) and `P4.7-session-prompt.md` round 3 (OP). New work needs a fresh plan session.
