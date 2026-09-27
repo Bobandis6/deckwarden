@@ -16,6 +16,9 @@
  * R5b: the deck rows are R5a's DeckTiles, read through the joined collection
  * select (one statement, the tile printings aboard) — no byline, the page
  * is the author's. Folders stay rows (folders are not decks).
+ *
+ * P2.9 round 2: the avatar is UserAvatar — a stored provider URL that has
+ * gone stale shows the initial instead of an empty ring.
  */
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { Metadata } from "next";
@@ -26,6 +29,7 @@ import { cache } from "react";
 
 import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
 import { EmptyState } from "@/components/empty-state";
+import { UserAvatar } from "@/components/profile/user-avatar";
 import { getDb, schema } from "@/db";
 import { getSessionUserId } from "@/lib/auth";
 import { deckCollection } from "@/lib/decks/collections";
@@ -103,24 +107,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
   return (
     <main className="max-w-reading mx-auto w-full flex-1 px-4 py-12">
       <section className="flex items-center gap-4">
-        {user.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={user.image}
-            alt=""
-            width={64}
-            height={64}
-            referrerPolicy="no-referrer"
-            className="size-16 rounded-full border"
-          />
-        ) : (
-          <span
-            aria-hidden
-            className="bg-muted flex size-16 items-center justify-center rounded-full border text-xl font-semibold"
-          >
-            {user.name.charAt(0).toUpperCase() || "?"}
-          </span>
-        )}
+        <UserAvatar name={user.name} image={user.image} size={64} />
         <div className="min-w-0">
           <h1 className="font-display truncate text-2xl font-semibold tracking-tight">
             {user.name}

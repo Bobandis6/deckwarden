@@ -8,6 +8,11 @@
  * (collections.user_id ON DELETE CASCADE) must go with the account. Runs
  * against a live server + real DB — deliberately outside `pnpm check`.
  *
+ * P2.9 round 2: also the wiring pin for the closed Better Auth routes
+ * (src/lib/auth-disabled-paths.ts) — this is the only place a SIGNED-IN call
+ * to the stock profile write is proven refused on the real server, with the
+ * row read back unchanged.
+ *
  *   pnpm smoke:account                                  # http://localhost:3000
  *   BASE_URL=http://localhost:3111 pnpm smoke:account   # another port
  *
@@ -52,13 +57,15 @@ function signedCookie(token: string): string {
 async function api(
   method: string,
   path: string,
-  opts: { cookie?: string; body?: unknown } = {},
+  opts: { cookie?: string; body?: unknown; origin?: boolean } = {},
 ): Promise<{ status: number; json: unknown; text: string }> {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
       ...(opts.body !== undefined ? { "content-type": "application/json" } : {}),
       ...(opts.cookie ? { cookie: opts.cookie } : {}),
+      // Better Auth's own routes check Origin on cookie-bearing writes; the app's routes don't.
+      ...(opts.origin ? { origin: BASE } : {}),
     },
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
@@ -150,6 +157,37 @@ async function main() {
     const [{ n: aliceStill }] =
       await sql`select count(*)::int as n from users where id = ${alice.id}`;
     check("wrong confirm deleted nothing", Number(aliceStill) === 1);
+
+    // ---- closed auth routes (P2.9 round 2) ---------------------------------
+    // Better Auth mounts POST /update-user by default: it writes `name` and
+    // `image` for the signed-in user, unvalidated, and both render on public
+    // pages. Nothing in the app calls it, so auth.ts closes it. The Origin
+    // header is load-bearing: without it the origin check answers 403 first
+    // and "unchanged" would pass against an OPEN route.
+    const rewrite = await api("POST", "/api/auth/update-user", {
+      cookie: bob.cookie,
+      origin: true,
+      body: { name: `Rewritten ${run}`, image: "https://example.invalid/x.png" },
+    });
+    check("signed-in POST /api/auth/update-user → 404", rewrite.status === 404, rewrite.status);
+    const [bobProfile] = await sql`select name, image from users where id = ${bob.id}`;
+    check(
+      "bob's name and image unchanged",
+      bobProfile.name === `P28 Smoke b ${run}` && bobProfile.image === null,
+      bobProfile,
+    );
+    check(
+      "signed-out POST /api/auth/update-user → 404",
+      (await api("POST", "/api/auth/update-user", { origin: true, body: { name: "x" } })).status ===
+        404,
+    );
+    const bobSession = await api("GET", "/api/auth/get-session", { cookie: bob.cookie });
+    check(
+      "control: get-session still answers for bob",
+      bobSession.status === 200 &&
+        j<{ user?: { id?: string } }>(bobSession.json).user?.id === bob.id,
+      bobSession.status,
+    );
 
     // ---- the deletion -----------------------------------------------------
     const del = await api("DELETE", "/api/account", {

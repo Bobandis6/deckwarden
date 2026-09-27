@@ -16,6 +16,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 
 import { getDb, schema } from "@/db";
+import { AUTH_DISABLED_PATHS } from "@/lib/auth-disabled-paths";
 import { betterAuthRateLimitStorage } from "@/lib/rate-limit";
 
 function requireEnv(name: string): string {
@@ -74,6 +75,9 @@ export const auth = betterAuth({
     enabled: true,
     customStorage: betterAuthRateLimitStorage,
   },
+  // Stock routes the app never calls and must not expose (the unvalidated
+  // profile write) — the list and its reasons live in auth-disabled-paths.ts.
+  disabledPaths: AUTH_DISABLED_PATHS,
   advanced: { database: { generateId: "uuid" } },
   telemetry: { enabled: false },
   // Per better-auth docs nextCookies stays last so Set-Cookie propagates from

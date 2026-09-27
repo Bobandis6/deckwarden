@@ -6,8 +6,10 @@
  * refreshes the server-rendered deck list.
  *
  * Caching intent: force-dynamic — everything on the page is session-shaped.
- * Avatar uses a plain <img> per house image rules (no Vercel optimization
- * quota on externally hosted avatars). R5a: the deck rows are DeckTiles.
+ * The avatar is UserAvatar: still a plain <img> per house image rules (no
+ * Vercel optimization quota on externally hosted avatars), with the initial
+ * standing in until the picture loads and staying when a stale provider URL
+ * fails (P2.9 round 2). R5a: the deck rows are DeckTiles.
  *
  * R5b (REDESIGN.md §2 "Account"): three sections with in-page navigation —
  * Decks (claimed decks, folders, tiles, Unfiled, and Bookmarks as a
@@ -35,6 +37,7 @@ import { RemoveBookmarkButton } from "@/components/deck/engagement-buttons";
 import { EmptyState } from "@/components/empty-state";
 import { FolderControls } from "@/components/folders/folder-controls";
 import { NewFolderForm } from "@/components/folders/new-folder-form";
+import { UserAvatar } from "@/components/profile/user-avatar";
 import { UsernameForm } from "@/components/profile/username-form";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toast";
@@ -182,24 +185,7 @@ export default async function AccountPage() {
   return (
     <main className="max-w-reading mx-auto w-full flex-1 px-4 py-12">
       <section className="flex items-center gap-4">
-        {session.user.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={session.user.image}
-            alt=""
-            width={48}
-            height={48}
-            referrerPolicy="no-referrer"
-            className="size-12 rounded-full border"
-          />
-        ) : (
-          <span
-            aria-hidden
-            className="bg-muted flex size-12 items-center justify-center rounded-full border text-lg font-semibold"
-          >
-            {session.user.name.charAt(0).toUpperCase() || "?"}
-          </span>
-        )}
+        <UserAvatar name={session.user.name} image={session.user.image} size={48} />
         <div className="min-w-0">
           <h1 className="font-display truncate text-2xl font-semibold tracking-tight">
             {session.user.name}
