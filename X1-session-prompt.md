@@ -1,5 +1,54 @@
 # X1 session prompt — Account paths (My decks, this browser's decks, the name row, the way back after sign-in)
 
+## Ship note — 2026-09-27, step 0 `6e70a7d`, feat `e42d6ad`, deployed (Vercel status success on the full sha, 22:43 Z)
+
+**Shipped. The prompt below is history; `X2-session-prompt.md` is next.**
+
+`pnpm check` 959 → **1,045 tests** (121 → 126 files, the same 6 pre-existing `no-unused-vars` warnings, 0 errors). `pnpm db:size` 269.5 MB before and after (alert 350). Census unchanged before and after the dev pass and the smokes: 27 user decks (12 guest-owned), 181 precons, 1 user. Route table diff **empty**: `/account` `ƒ`; `/c/[slug]`, `/l/[slug]`, `/cards/[id]` `●`. Smokes green on dev: `account` (29 checks), `engagement` (30), `versions` (48), `profile` (26), with `counters:reset` between them. Pre-flight: nightlies green through 2026-09-27; the owner confirmed nothing was posted and no feedback arrived; read-only database access granted once, at the start.
+
+**Proven on prod, signed out, zero creates**
+
+| Check | Result |
+|---|---|
+| My decks in the server HTML | `/account` on `/`, `/commanders`, `/c/atraxa-praetors-voice`, `/c/krenko-mob-boss`, `/l/monkey-d-luffy-op01-003`; no `#your-decks` anywhere |
+| My decks in the phone menu (390 px, a hub) | `/account`, last of seven items |
+| ISR after the deploy | both hubs `x-nextjs-prerender: 1`, `x-vercel-cache` MISS then HIT |
+| `/account` | the sign-in block alone: h1, the copy, two buttons; no section, no `/api/decks/mine` request, no console error |
+| `/account?next=//evil.example` | markup identical to `/account`; the buttons' `next` prop is `null` |
+| `/account?next=%2Fd%2Fjhr5ax43ewx7` | same markup; the buttons' `next` prop is `/d/jhr5ax43ewx7` |
+| Like, Bookmark, Fork on `/d/jhr5ax43ewx7`, `/d/k88m2jdjtykk`, `/d/p_calling_all_angels_fdc` | each `/account?next=%2Fd%2F<that deck>` |
+| The token routes | **before the deploy 401 / 401 / 401, after it 404 / 404 / 404**; `/update-user` 404 both times; `/api/auth/ok` 200, `get-session` still answers |
+
+**Proven on dev**: the island with one guest deck made through the editor (one `POST /api/decks`), in both themes at 390 and 1440, no horizontal overflow, no hydration warning on home, a hub or `/account`; the deck was then deleted through the editor (`DELETE` 204, its share page 404) and the census re-proven.
+
+**Decisions made (each pinned by a test)**
+
+1. **The name row: `href="/account"` and a scroll to the top in the same click.** Verify-first 2, measured on Next 16.3.2 in a real browser: a `Link` to the path you are on clears a plain-anchor hash and lands at 0 from 2,235 and again from 1,500 — and stays at 40 from 40, because Next scrolls only when the page's top edge is out of view. The header is not sticky, so opening the menu puts you in exactly that range. `/account#top` lands once, then fails the second click in a row (1,500 stayed 1,500). So the row scrolls itself, on every primary click, `behavior: "instant"`; modified clicks are left alone. This is wider than the prompt's second candidate ("when the path is already `/account`"): arriving from another page gets the same landing.
+2. **The name row's text**: the name alone.
+3. **The island's words**: the contract's, plus a singular ("1 deck", "keep it").
+4. **The return**: automatic once the claim settles; a failed or empty claim returns anyway; `router.replace`, so Back never lands on a page whose only job is to leave. "Signed in — taking you back… Go now".
+5. **What `next` may be**: any safe root-relative path except `/account` and `/api/`. No prefix list.
+6. **Which prompts send `next`**: Like, Bookmark, Fork. Everything else stays plain `/account`.
+7. **Signed-in My decks**: `/account`.
+
+**Deviations from the contract, and things this prompt had wrong**
+
+- **Signed in with a valid `next`, `/account` renders only the claim step** — an sr-only h1 and the status line. D1 did not ask for it. The visitor is leaving, so the account's six queries and its sections are skipped. The claim still runs first.
+- **`safeNextPath` is stricter than D1's list**: `//` is refused anywhere (a query included), every rule is applied to the percent-decoded value too, reserved paths are matched on the parsed AND the decoded pathname (`/d/../account`, `/%61ccount`, `/Account`), and the helper returns the parsed form.
+- **Verify-first 5 would have passed vacuously.** Under a test runner Better Auth skips its origin and `callbackURL` checks by default (`create-context.mjs`: `isTest() ? true : false`) — measured: a default instance answers 200 to `callbackURL: "//evil.example/account"`. `callback-url.test.ts` forces `advanced.disableOriginCheck: false` and opens with the refusals as its control. The Origin header alone proves nothing here.
+- **The whole OAuth round trip runs in Vitest**, which the prompt assumed impossible without a browser: the provider's two calls are answered by a stubbed `fetch`, and the callback redirect ends on `/account?next=%2Fd%2F…` byte for byte with a session cookie. The library requests `/users/%40me` — match the decoded URL.
+- **`/account-info` is a GET with its input in the QUERY.** A bare request answers 400 before the session check, so "open instance → 401" needs `?accountId=…`. The unit test now derives each method from the library.
+- **LATER rows 64 and 108 were rewritten with this note**, not in step 0: a row says FIRED once there is a sha. Section F's twelve rows were appended at the end (rows 111–122) so the numbers `WAVE3.md` cites did not move.
+- **A pane mistake, disclosed**: trying to read the buttons' request by stubbing `fetch` in the page did not work (the auth client holds its own reference), so two clicks went through to Discord's and Google's sign-in pages. Nothing was typed and nobody was signed in. Each click left one OAuth state row in `verifications` (10-minute expiry). The page-to-button wiring was then read from the server payload instead. **Do not click the sign-in buttons in the pane.**
+
+**Handed to the owner, signed in on prod — three clicks (unchanged from "Deployable outcome")**
+
+1. Go to Profile & settings from the menu, then choose your name in the menu. You should be at the very top, name and picture in view.
+2. Scroll down a little (the header has to stay on screen to reach the menu) and choose your name again, twice in a row. Same result both times.
+3. Sign out. Open a public deck, choose Like, sign in. You should end on that deck.
+
+---
+
 Pull latest, then run X1 — the first Wave-3 package. **`WAVE3.md` is the contract** (drafted from the owner's answers of 2026-09-27, landed in the same commit as this prompt). Read it before anything else: all of A, B's "Validation corrections" and "Strengths to preserve", **D0** and **D1** (the ASCII spec is the design), the X1 row of the pin matrix in the appendix to E, F, and **G** (this package). Step 0 of this session adds the docs that make X-packages legal sessions under the CLAUDE.md protocol — build plan §6d, the CLAUDE.md line, the REDESIGN.md addendum, the LATER rows — the way W1's step 0 did for the W-series.
 
 X1 is five small changes in one package: **My decks opens `/account` for everyone**; **the signed-out account page lists this browser's decks** under the sign-in buttons; **the name in the account menu is a link** that lands at the top of `/account`; **signing in from Like, Bookmark or Fork returns you to the deck** (REC-1); and **three unused Better Auth token routes are closed** (REC-6). No migration, no new dependency, no new route.

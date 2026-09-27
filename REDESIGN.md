@@ -531,6 +531,14 @@ The X-series (`WAVE3.md`, build plan §6d) changes three recorded decisions abou
 - **X1 supersedes `WAVE2.md` D1's "guests need it for `/#your-decks`."** My decks stays in the top nav for everyone; a guest's target is `/account`.
 - **X2 will supersede W4's `LIKE` filter on `/commanders` and `/leaders`** (`nameNormLikeCondition` in `src/lib/hub/queries.ts`): the filter reads the shared name matcher (`WAVE3.md` D2), so `atraxa praetors` and `kiki jiki` find their commanders. Recorded now, effective when X2 ships.
 
-### X1 decisions and deviations from `WAVE3.md` D1
+### X1 decisions and deviations from `WAVE3.md` D1 (2026-09-27, `e42d6ad`)
 
-Recorded when X1 ships; an empty list means D1 shipped as written.
+D1 shipped as drawn. What it left to the package, and what was decided:
+
+- **The name row's mechanism: `href="/account"` plus a scroll to the top in the same click** (`landAtTop` in `account-slot.tsx`). Measured in a real browser on Next 16.3.2, on a signed-out page standing in for `/account`: after a plain-anchor hash (`history.state` null — the router never hears of it) a `Link` to the path you are on clears the hash and lands at `scrollY` 0, and does so again on a second click from 1,500 — but from `scrollY` 40 it stays at 40, because Next scrolls only when the page's top edge is out of view. The header is not sticky (`position: static`, 57 px), so whoever opens the account menu has the header on screen: exactly the range in which the link alone does nothing. `/account#top`, the other candidate, lands at 0 once and then fails the second click in a row (1,500 stayed 1,500) and the 40 case. The row therefore scrolls on every primary click, `behavior: "instant"`; a modified or middle click opens a tab and leaves the page where it is.
+- **The name row's text: the name alone.** No "Account" hint.
+- **The island's words: the contract's, with a singular.** "On this browser · 2 decks" / "Sign in to keep them on every device."; one deck reads "1 deck" / "keep it". The count is what the server verified, not what the browser holds. Tiles are home's (`BrowserDeckTiles`), two columns at most at the reading width.
+- **The return is automatic**, once the claim settles; a claim that fails or claims nothing returns anyway (the next visit to `/account` retries); the history entry is replaced. The status line reads "Signed in — taking you back…" with a "Go now" link.
+- **Signed in with a valid `next`, `/account` renders only the claim step.** Not in D1: the visitor is about to leave, so the account's sections and their six queries are skipped. The claim still runs first — that is the reason the return passes through `/account`.
+- **`next` may be any safe root-relative path** except `/account` and `/api/` — no list of allowed prefixes. `safeNextPath` refuses `//` anywhere, a backslash, control characters, the same things in percent-encoded form, and anything over 200 characters; an invalid value is ignored silently.
+- **Which prompts send `next`:** Like, Bookmark and Fork. The header's Sign in, home's copy, the editor's collection hint and the `/u/` and `/f/` prompts stay plain `/account`.
