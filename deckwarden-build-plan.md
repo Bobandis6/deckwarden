@@ -265,6 +265,21 @@ Wave 2 (the crest rebrand plus the owner's ten feature ideas) runs as its own nu
 
 **Status:** progress is tracked in `WAVE2.md`'s tracker (tick per package with date + sha; deviations recorded beside the tick).
 
+## 6d. X-series — Wave-3 packages (added 2026-09-27)
+
+Wave 3 (the owner's seven ideas of 2026-09-27: getting into your account, finding things, starting from a combo) runs as its own numbered packages, governed by [WAVE3.md](WAVE3.md) (drafted from the owner's four answers, landed 2026-09-27 in `5b9fa59`) under the same session protocol as Pn.m, Rn and Wn packages: one package per session, deployed and `pnpm check`-green or not done, out-of-scope items to LATER.md with a trigger. The standing P2.9 / P4.7 beta-response triggers keep their priority — a warm signal gets its own session, never a slice of an X-session. The defaults in `WAVE3.md` section F stay open until the owner says otherwise. X3, X4 and X5 are reorderable at the owner's word; X4a and X5 need X2's autocomplete component.
+
+| Package | Deliverable | Done when |
+|---|---|---|
+| X1 Account paths | My decks → `/account` for everyone (the nav reads no session), "On this browser" deck list under the sign-in buttons, the account menu's name row as a link to the top of `/account`, a validated `?next=` return path through `/account` for Like / Bookmark / Fork (REC-1), the three unused Better Auth token routes closed (REC-6) | a guest's My decks never dead-ends; a crafted `next` behaves like none; the claim runs before any return; the guest header stays router-free; the three token routes answer 404; route table unchanged |
+| X2 Suggest endpoint + browse dropdowns | `src/lib/search/name-match.ts` (the one ranking contract), `GET /api/cards/suggest`, `ui/autocomplete.tsx`, the name-suggest island on `/commanders`, `/leaders` and `/cards`, the hub filter on the shared matcher (REC-3), `sort=best` (REC-2) | `WAVE3.md` D2's acceptance table row by row; one statement per request (two for near misses); the editor's search results byte-identical; both forms work without JavaScript; exactly one new `ƒ` route |
+| X3 Combo doors | `loadComboByKey` + `GET /api/combos/[key]`, the hub's "Build around this combo" link, `?combo=` draft seeding (state only), pinned "Combo pieces" in the autofill sheet, "Suggest full list" on every editor combo row, smoke pins for the W9c page surfaces (REC-7) | the door opens a draft with zero `POST /api/decks` until Apply or a first edit; the pieces survive Apply with "Keep my N cards" unticked; a crafted `?combo=` seeds nothing and says so; `/c/` stays `●` with its pinned CTA untouched; One Piece shows no door |
+| X4a Set filter + picker | a printing-scoped `FieldTarget` + the `set` search field (Magic only), the in-set printing and `sort=number` on the search API, `loadReleasedSets` + `GET /api/sets`, the Set group, chip and `?printing=` tile links on `/cards` | `/cards?set=blb` shows that set's cards in collector order, each in its in-set printing; responses without `set` byte-identical; upcoming and digital-only sets absent; the collector-number rule stated and pinned |
+| X4b Sets page | `/sets` (static ISR with a client filter island — the `/precons` pattern), the Browse entry, the sitemap | every released set is a link in the server HTML; the page is `○`; the filter never touches the URL |
+| X5 Change picture | `users.avatar` (jsonb, migration `0015`), the provider picture refreshed at sign-in, `PUT /api/profile/avatar`, `UserAvatar` in the header too, the pencil dialog (provider picture / Magic card art with its credit / initial), `username` in the client session + "Public profile ↗" (REC-5) | a chosen picture survives the next sign-in; card art never renders without its artist and © line; no image URL is stored; `/api/auth/update-user` still answers 404; no uploads |
+
+**Status:** progress is tracked in `WAVE3.md`'s tracker (tick per package with date + sha; deviations recorded beside the tick).
+
 ## 7. Feature Additions Beyond the Original Doc
 
 Adoption- and ease-of-use-focused additions, each slotted into a milestone above:
