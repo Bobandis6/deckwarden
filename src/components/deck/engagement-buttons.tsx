@@ -7,7 +7,10 @@
  * response ({liked, likesCount} / {bookmarked}); revert on failure. The
  * count lives only inside the like button, so no router.refresh is needed.
  * Signed out: the like count is still public signal, so the buttons render
- * as links into /account sign-in instead of dead controls.
+ * as links into /account sign-in instead of dead controls. X1 (REC-1): the
+ * link carries the deck's own path as `?next=`, so signing in ends on the
+ * deck again — `signInHref` comes from the share view, which knows the
+ * public id (this component gets the uuid).
  *
  * RemoveBookmarkButton is the /account list's row action — DELETE then
  * router.refresh(), because there the server-rendered list is the source of
@@ -32,11 +35,14 @@ export function EngagementButtons({
   deckId,
   likesCount,
   viewer,
+  signInHref = "/account",
 }: {
   deckId: string;
   likesCount: number;
   /** null = signed out. */
   viewer: EngagementViewer | null;
+  /** Where the signed-out buttons lead: /account, with the way back when the caller has one. */
+  signInHref?: string;
 }) {
   const [liked, setLiked] = useState(viewer?.liked ?? false);
   const [bookmarked, setBookmarked] = useState(viewer?.bookmarked ?? false);
@@ -52,7 +58,7 @@ export function EngagementButtons({
           variant="outline"
           size="sm"
           title="Sign in to like decks"
-          render={<Link href="/account" />}
+          render={<Link href={signInHref} />}
         >
           {`♡ Like${count > 0 ? ` · ${count}` : ""}`}
         </Button>
@@ -61,7 +67,7 @@ export function EngagementButtons({
           variant="outline"
           size="sm"
           title="Sign in to bookmark decks"
-          render={<Link href="/account" />}
+          render={<Link href={signInHref} />}
         >
           Bookmark
         </Button>

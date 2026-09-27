@@ -11,24 +11,41 @@
  *
  * Failures are silent by design — the decks stay anonymous-but-owned in this
  * browser and the next visit retries.
+ *
+ * X1 (WAVE3.md D1, REC-1): with a return path the component sends the
+ * visitor back to where the sign-in prompt was — AFTER the claim settles,
+ * never instead of it, which is why the return goes through /account at all.
+ * With no tokens there is nothing to wait for and the return is immediate. A
+ * failed claim returns anyway (the next visit to /account retries it). The
+ * history entry is replaced, so Back does not land on a page whose only job
+ * is to leave. The status line carries the link for the case where the
+ * replace never happens.
  */
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { safeNextPath } from "@/lib/auth/next-path";
 import { listDeckTokens, removeDeckToken } from "@/lib/decks/token-store";
 
-export function ClaimDecks() {
+export function ClaimDecks({ next = null }: { next?: string | null }) {
   const router = useRouter();
   const [claimed, setClaimed] = useState(0);
   const startedRef = useRef(false);
+  // Validated again: the page checked it, but this is where it is followed.
+  const returnTo = safeNextPath(next);
 
   useEffect(() => {
     // Strict Mode guard: one claim attempt per mount.
     if (startedRef.current) return;
     startedRef.current = true;
     const held = listDeckTokens();
-    if (held.length === 0) return;
+    if (held.length === 0) {
+      if (returnTo !== null) router.replace(returnTo);
+      return;
+    }
     void (async () => {
+      let claimedIds: string[] = [];
       try {
         const res = await fetch("/api/decks/claim", {
           method: "POST",
@@ -37,17 +54,34 @@ export function ClaimDecks() {
             decks: held.slice(0, 100).map((h) => ({ id: h.deckId, token: h.token })),
           }),
         });
-        if (!res.ok) return;
-        const json: { claimedIds: string[] } = await res.json();
-        if (json.claimedIds.length === 0) return;
-        for (const id of json.claimedIds) removeDeckToken(id);
-        setClaimed(json.claimedIds.length);
-        router.refresh();
+        if (res.ok) {
+          const json: { claimedIds: string[] } = await res.json();
+          claimedIds = json.claimedIds;
+          for (const id of claimedIds) removeDeckToken(id);
+        }
       } catch {
         // Silent: claiming retries on the next account-page visit.
       }
+      if (returnTo !== null) {
+        router.replace(returnTo);
+        return;
+      }
+      if (claimedIds.length === 0) return;
+      setClaimed(claimedIds.length);
+      router.refresh();
     })();
-  }, [router]);
+  }, [router, returnTo]);
+
+  if (returnTo !== null) {
+    return (
+      <p className="rounded-lg border px-3 py-2 text-sm" role="status">
+        Signed in — taking you back…{" "}
+        <Link href={returnTo} replace className="underline underline-offset-4">
+          Go now
+        </Link>
+      </p>
+    );
+  }
 
   if (claimed === 0) return null;
   return (

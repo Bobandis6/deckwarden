@@ -34,6 +34,11 @@
  * focus preview (`preview`); Copy decklist confirms in a status slot with
  * a check that plays once and resets; the leader cards carry the accent
  * ring (in LeaderZone's read-only shape).
+ *
+ * X1 (WAVE3.md D1, REC-1): the signed-out Like, Bookmark and Fork prompts
+ * link /account?next=/d/<publicId>, so signing in ends on this deck again.
+ * The href is built HERE because this view holds the public id — the
+ * buttons get the uuid.
  */
 import { CheckIcon } from "lucide-react";
 import Link from "next/link";
@@ -56,6 +61,7 @@ import { SURFACE_BAND, SurfaceHeader } from "@/components/surface-header";
 import { badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toast";
+import { accountHref } from "@/lib/auth/next-path";
 import type { CardArt } from "@/lib/cards/art";
 import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
 import { orderLeadersBy } from "@/lib/decks/ambient-art";
@@ -267,6 +273,9 @@ export function DeckShareView({
 
   const onPreview = (card: EditorCard) => router.push(`/cards/${card.id}`);
 
+  // The sign-in prompts' target, with the way back to this deck (X1, REC-1).
+  const signInHref = accountHref(`/d/${deck.publicId}`);
+
   const copyDecklist = () => {
     const text = adapter.serializeDecklist(snapshot, cardMap);
     const settle = (state: CopyState) =>
@@ -355,7 +364,12 @@ export function DeckShareView({
         />
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <EngagementButtons deckId={deck.id} likesCount={deck.likesCount} viewer={viewer} />
+          <EngagementButtons
+            deckId={deck.id}
+            likesCount={deck.likesCount}
+            viewer={viewer}
+            signInHref={signInHref}
+          />
           {/* The primary CTA on a product page (W8b, REC-4): seed a DRAFT —
               no row minted until the first real edit — beside Fork, which
               stays the signed-in copy path. */}
@@ -368,7 +382,7 @@ export function DeckShareView({
               Start from this precon
             </Button>
           )}
-          <ForkButton deckId={deck.id} signedIn={viewer !== null} />
+          <ForkButton deckId={deck.id} signedIn={viewer !== null} signInHref={signInHref} />
           <Button variant="outline" size="sm" onClick={copyDecklist}>
             Copy decklist
           </Button>

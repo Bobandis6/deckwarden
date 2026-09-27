@@ -5,8 +5,8 @@
  * to /account for the rest. Rendered by the home page only when a session
  * exists — home is force-dynamic, so the page may read headers(); the
  * (site) layout still never does. The guest branch is the client
- * `YourDecks` (claim tokens); the two share the `your-decks` id the
- * header's guest "My decks" link targets and never render together.
+ * `YourDecks` (claim tokens); the two share the `your-decks` id and never
+ * render together (the id is content since X1 — My decks goes to /account).
  * Nothing to continue → nothing rendered: home is not a discovery surface
  * for one's own empty account.
  */

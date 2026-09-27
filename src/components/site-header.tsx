@@ -7,11 +7,12 @@
  *
  * Server shell, client islands. The shell is static markup, so it can sit
  * in the (site) layout without touching request data: the account slot
- * (AccountSlot) and the My decks target (MyDecksLink) read the session
- * CLIENT-side through the Better Auth client, and the server HTML always
- * carries the signed-out shape. headers() or cookies() anywhere in this
- * tree would make /c/, /l/ and /cards/[id] dynamic again — LATER row 69's
- * ISR fix is the yardstick this header is measured against.
+ * (AccountSlot) reads the session CLIENT-side through the Better Auth
+ * client, and the server HTML always carries the signed-out shape. It is the
+ * only island that does since X1 — My decks is /account for everyone.
+ * headers() or cookies() anywhere in this tree would make /c/, /l/ and
+ * /cards/[id] dynamic again — LATER row 69's ISR fix is the yardstick this
+ * header is measured against.
  *
  * Phones (< md): the nav links collapse into one Base UI Menu behind a
  * MenuIcon trigger (MobileNavMenu); the account slot and appearance menu

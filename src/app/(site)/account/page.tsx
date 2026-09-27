@@ -16,7 +16,18 @@
  * sub-block: bookmarks are decks you keep) · Collection import · Settings
  * (public profile, the signed-in identity with Sign out, and the Danger zone
  * LAST). Every control keeps its label; "Danger zone" and "No bookmarks
- * yet" are smoke-pinned and unchanged. The signed-out page is untouched.
+ * yet" are smoke-pinned and unchanged.
+ *
+ * X1 (WAVE3.md D1): My decks opens this page for everyone, so the
+ * signed-out page lists this browser's decks under the sign-in buttons
+ * (BrowserDecks, a client island — the sign-in block itself is unchanged).
+ * `?next=` is the way back after sign-in (REC-1): validated here by
+ * safeNextPath — an invalid value is ignored, the page is then plain
+ * /account — and handed to the buttons (it rides in the OAuth callback) and
+ * to ClaimDecks. Signed in with a valid `next`, the page renders ONLY the
+ * claim step and its status line: the visitor is about to leave, so the
+ * account's six queries never run for a page nobody reads. The claim still
+ * runs first; that is why the return passes through /account.
  */
 import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
 import { ArrowRightIcon, FolderIcon } from "lucide-react";
@@ -26,6 +37,7 @@ import Link from "next/link";
 
 import { AccountDeckTile } from "@/components/account/account-deck-tile";
 import { AccountNav } from "@/components/account/account-nav";
+import { BrowserDecks } from "@/components/account/browser-decks";
 import { type FolderOption } from "@/components/account/deck-action-items";
 import { ClaimDecks } from "@/components/auth/claim-decks";
 import { DeleteAccount } from "@/components/auth/delete-account";
@@ -43,6 +55,7 @@ import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toast";
 import { getDb, schema } from "@/db";
 import { auth } from "@/lib/auth";
+import { safeNextPath } from "@/lib/auth/next-path";
 import { collectionSummary } from "@/lib/collection/owned";
 import { formatLabel, updatedLabel } from "@/lib/decks/display";
 import { tileFromDeck } from "@/lib/decks/tiles";
@@ -95,8 +108,13 @@ function DeckItem({
   );
 }
 
-export default async function AccountPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+export default async function AccountPage({ searchParams }: PageProps<"/account">) {
+  const [session, params] = await Promise.all([
+    auth.api.getSession({ headers: await headers() }),
+    searchParams,
+  ]);
+  // null for a missing, repeated or unsafe value — the page is then plain /account.
+  const next = safeNextPath(params.next);
 
   if (!session) {
     return (
@@ -106,7 +124,17 @@ export default async function AccountPage() {
           An account keeps your decks across browsers and devices. Decks you built on this browser
           come along automatically when you sign in.
         </p>
-        <SignInButtons />
+        <SignInButtons next={next} />
+        <BrowserDecks />
+      </main>
+    );
+  }
+
+  if (next !== null) {
+    return (
+      <main className="max-w-reading mx-auto flex w-full flex-1 flex-col items-center justify-center gap-6 px-4 py-12">
+        <h1 className="sr-only">Signed in</h1>
+        <ClaimDecks next={next} />
       </main>
     );
   }

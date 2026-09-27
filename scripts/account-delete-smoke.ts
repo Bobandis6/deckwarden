@@ -11,7 +11,7 @@
  * P2.9 round 2: also the wiring pin for the closed Better Auth routes
  * (src/lib/auth-disabled-paths.ts) — this is the only place a SIGNED-IN call
  * to the stock profile write is proven refused on the real server, with the
- * row read back unchanged.
+ * row read back unchanged. X1: the three provider-token routes join it.
  *
  *   pnpm smoke:account                                  # http://localhost:3000
  *   BASE_URL=http://localhost:3111 pnpm smoke:account   # another port
@@ -181,6 +181,34 @@ async function main() {
       (await api("POST", "/api/auth/update-user", { origin: true, body: { name: "x" } })).status ===
         404,
     );
+    // The provider-token routes (X1, WAVE3.md REC-6): they hand the signed-in
+    // user's own Discord / Google tokens to page JavaScript, and nothing in
+    // the app uses one after sign-in. Method and input match what the library
+    // declares (auth-disabled-paths.test.ts pins that an OPEN instance answers
+    // these exact requests 401), so a 404 here is the closed list, not a typo.
+    const tokenRoutes = [
+      { method: "POST", path: "/api/auth/get-access-token", body: { accountId: "smoke" } },
+      { method: "POST", path: "/api/auth/refresh-token", body: { accountId: "smoke" } },
+      { method: "GET", path: "/api/auth/account-info?accountId=smoke", body: undefined },
+    ];
+    for (const route of tokenRoutes) {
+      const signedIn = await api(route.method, route.path, {
+        cookie: bob.cookie,
+        origin: true,
+        body: route.body,
+      });
+      check(
+        `signed-in ${route.method} ${route.path} → 404`,
+        signedIn.status === 404,
+        signedIn.status,
+      );
+      const signedOut = await api(route.method, route.path, { origin: true, body: route.body });
+      check(
+        `signed-out ${route.method} ${route.path} → 404`,
+        signedOut.status === 404,
+        signedOut.status,
+      );
+    }
     const bobSession = await api("GET", "/api/auth/get-session", { cookie: bob.cookie });
     check(
       "control: get-session still answers for bob",

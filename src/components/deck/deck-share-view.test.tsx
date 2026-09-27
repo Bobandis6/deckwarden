@@ -6,7 +6,8 @@
  * line inside the header, the actions in their pinned order; Copy decklist
  * confirming with a check that resets (and saying so when the clipboard
  * refuses); the leader card's accent ring; the hover / focus preview on a
- * card name that still navigates on click.
+ * card name that still navigates on click. X1: the signed-out Like,
+ * Bookmark and Fork prompts carry the way back to this deck.
  */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -142,6 +143,47 @@ describe("DeckShareView — the artwork header", () => {
     expect(document.querySelector("[data-slot=leader-line]")?.textContent).toBe(
       "Commander Tymna the Weaver & Thrasios, Triton Hero",
     );
+  });
+});
+
+describe("DeckShareView — the sign-in prompts (X1, REC-1)", () => {
+  const prompts = (header: HTMLElement) =>
+    ["♡ Like", "Bookmark", "Fork"].map((name) => within(header).getByRole("button", { name }));
+
+  it("signed out: Like, Bookmark and Fork link /account with this deck's path as next", () => {
+    render(<DeckShareView deck={deck} cards={cards} author={author} />);
+    const found = prompts(screen.getByRole("banner"));
+    // Button render={<Link/>} keeps role button (the W4 gotcha) — real anchors still.
+    expect(found.map((el) => [el.tagName, el.getAttribute("href"), el.title])).toEqual([
+      ["A", "/account?next=%2Fd%2Fuwvrnv2pv4t6", "Sign in to like decks"],
+      ["A", "/account?next=%2Fd%2Fuwvrnv2pv4t6", "Sign in to bookmark decks"],
+      ["A", "/account?next=%2Fd%2Fuwvrnv2pv4t6", "Sign in to fork decks"],
+    ]);
+  });
+
+  it("the path is the PUBLIC id — the uuid the buttons receive never reaches the link", () => {
+    render(<DeckShareView deck={deck} cards={cards} author={author} />);
+    const header = screen.getByRole("banner");
+    for (const el of prompts(header)) {
+      expect(el.getAttribute("href")).not.toContain(deck.id);
+    }
+  });
+
+  it("signed in: real buttons, no sign-in link anywhere in the action row", () => {
+    render(
+      <DeckShareView
+        deck={deck}
+        cards={cards}
+        author={author}
+        viewer={{ liked: false, bookmarked: false }}
+      />,
+    );
+    const header = screen.getByRole("banner");
+    for (const el of prompts(header)) {
+      expect(el.tagName).toBe("BUTTON");
+      expect(el.getAttribute("href")).toBeNull();
+    }
+    expect(header.innerHTML).not.toContain("/account");
   });
 });
 

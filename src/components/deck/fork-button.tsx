@@ -6,7 +6,7 @@
  * ForkButton — share-page action. Signed in: POST /api/decks/[id]/fork,
  * then straight into the new deck's editor. Signed out: a link to sign-in
  * (forks are account-only, forks.ts explains why), same pattern as the
- * engagement buttons.
+ * engagement buttons — including X1's way back (`signInHref`).
  *
  * ForkCreditLine — "Forked from …" for the share page and the editor
  * header, rendering each credit state honestly: a link when the upstream
@@ -20,7 +20,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
 
-export function ForkButton({ deckId, signedIn }: { deckId: string; signedIn: boolean }) {
+export function ForkButton({
+  deckId,
+  signedIn,
+  signInHref = "/account",
+}: {
+  deckId: string;
+  signedIn: boolean;
+  /** Where the signed-out button leads: /account, with the way back when the caller has one. */
+  signInHref?: string;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +41,7 @@ export function ForkButton({ deckId, signedIn }: { deckId: string; signedIn: boo
         variant="outline"
         size="sm"
         title="Sign in to fork decks"
-        render={<Link href="/account" />}
+        render={<Link href={signInHref} />}
       >
         Fork
       </Button>

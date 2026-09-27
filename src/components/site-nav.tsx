@@ -2,17 +2,15 @@
 
 /**
  * The site header's client islands (R1b): the Browse menu, the My decks
- * link — /account once signed in, home's guest-deck section (#your-decks)
- * until then — and the phone collapse, one Base UI Menu holding every nav
- * link behind a MenuIcon trigger below `md`.
+ * link, and the phone collapse — one Base UI Menu holding every nav link
+ * behind a MenuIcon trigger below `md`.
  *
- * Session state comes from the Better Auth client (as SignOutButton's does),
- * never from request data, so the (site) layout stays inert for ISR. The
- * server HTML renders the guest hrefs and the client swaps them once
- * useSession resolves: the markup is identical on both sides (useSession
- * starts pending with no data), so hydration matches and nothing needs
- * suppressHydrationWarning. Menu items are LinkItems rendered as Next Links
- * — real anchors (Enter follows them, middle-click opens a tab) with
+ * My decks is /account for everyone (X1, WAVE3.md D1): signed out, that
+ * page is sign-in with this browser's decks listed under the buttons. Nothing
+ * here reads the session any more — the link is the same string in the
+ * server HTML and after hydration, so nothing swaps; only the account slot
+ * (AccountSlot) still reads it. Menu items are LinkItems rendered as Next
+ * Links — real anchors (Enter follows them, middle-click opens a tab) with
  * client-side navigation, closing the menu on the way.
  */
 import { ChevronDownIcon, MenuIcon } from "lucide-react";
@@ -29,7 +27,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 /** The Browse menu's entries — hub indexes only, never a specific hub (hubs-smoke pins that). */
@@ -42,16 +39,12 @@ export const BROWSE_LINKS = [
   { href: "/tournaments", label: "Tournaments" },
 ] as const;
 
-/** /account once signed in; the browser's guest-deck section on home until then. */
-function useMyDecksHref(): string {
-  const { data } = authClient.useSession();
-  return data ? "/account" : "/#your-decks";
-}
+/** One target for everyone (X1): the account page, which is the sign-in page when signed out. */
+const MY_DECKS_HREF = "/account";
 
 export function MyDecksLink({ className }: { className?: string }) {
-  const href = useMyDecksHref();
   return (
-    <Link href={href} className={className}>
+    <Link href={MY_DECKS_HREF} className={className}>
       My decks
     </Link>
   );
@@ -78,7 +71,6 @@ export function BrowseMenu() {
 
 /** The phone collapse: every nav link in one menu; hidden from `md` up, where the inline links show. */
 export function MobileNavMenu() {
-  const myDecks = useMyDecksHref();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -101,7 +93,7 @@ export function MobileNavMenu() {
           ))}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuLinkItem render={<Link href={myDecks} />} closeOnClick>
+        <DropdownMenuLinkItem render={<Link href={MY_DECKS_HREF} />} closeOnClick>
           My decks
         </DropdownMenuLinkItem>
       </DropdownMenuContent>

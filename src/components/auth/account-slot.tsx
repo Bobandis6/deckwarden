@@ -18,10 +18,14 @@
  * (not a link): closeOnClick off, the menu closes itself only on success;
  * on failure it stays open and the item reads the retry copy (D1). No
  * "Public profile ↗" item — the client session has no username (LATER).
+ *
+ * X1 (WAVE3.md D1): the name is the menu's first item, a link to /account
+ * that lands at the very top of the page — see landAtTop for the measured
+ * reason a plain link is not enough.
  */
 import { LogOutIcon } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 
 import { signOutLabel, useSignOut } from "@/components/auth/use-sign-out";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -31,7 +35,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuLinkItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -46,6 +49,28 @@ const ACCOUNT_MENU_LINKS = [
   { href: "/account#collection", label: "Collection" },
   { href: "/account#settings", label: "Profile & settings" },
 ] as const;
+
+/**
+ * The name row's landing (X1): scrollY 0, from anywhere. The link alone does
+ * not guarantee it. Measured in a real browser on Next 16.3.2 (2026-09-27):
+ * a Link to the path you are already on clears a hash the in-page nav set
+ * (the router never heard about it) and scrolls to the top ONLY when the
+ * page's top edge is out of view — from scrollY 40 it stays at 40. The
+ * header is not sticky, so opening this menu means the header is on screen,
+ * which is exactly that range. `href="/account#top"` was the other
+ * candidate and fails the second click in a row: a repeated navigation to
+ * the same URL does not scroll again (1500 stayed 1500).
+ *
+ * So the row scrolls itself, in the same click as the navigation. "instant"
+ * so a smooth scroll can never be cut short by the page swap. A modified or
+ * non-primary click opens a tab or a window — this page stays where it is.
+ */
+export function landAtTop(event: MouseEvent) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    return;
+  }
+  window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+}
 
 export function AccountSlot() {
   const { data } = authClient.useSession();
@@ -93,7 +118,16 @@ function AccountMenu({ user }: { user: { name: string; image?: string | null } }
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="max-w-56 truncate">{user.name}</DropdownMenuLabel>
+          {/* The name alone, as a link (X1): the top of /account, name and picture in view. */}
+          <DropdownMenuLinkItem
+            render={<Link href="/account" />}
+            closeOnClick
+            onClick={landAtTop}
+            className="max-w-56 font-medium"
+          >
+            {/* min-w-0: a flex child will not shrink below its text without it, and the name would overflow instead of truncating. */}
+            <span className="min-w-0 truncate">{user.name}</span>
+          </DropdownMenuLinkItem>
           <DropdownMenuSeparator />
           {ACCOUNT_MENU_LINKS.map((entry) => (
             <DropdownMenuLinkItem key={entry.href} render={<Link href={entry.href} />} closeOnClick>
