@@ -1,5 +1,7 @@
 # Wave-3 planning session prompt — the owner's seven ideas (named 2026-09-27, P4.7 round 3)
 
+> **Session 1 (2026-09-27) stopped at pre-flight 1 and ran P2.9 round 2 instead** — the owner had shared the site link in a Discord they co-run, which is a warm signal. Nothing was planned and no `WAVE3.md` exists. Its validation work is kept: **read the addendum at the end of this file before "What exists today"**. It corrects several pins below, records what the signed-out prod walk found, and removes the bug half of idea 7 (fixed in `a508283`). Where the addendum and the sections below disagree, the addendum wins.
+
 Pull latest, then run a **planning-only** session: the `WAVE2.md` precedent (2026-09-19, "from a planning-only session against `b67ee0b` — nothing was implemented, installed, or deployed"). Wave 2 is complete (W1 → W10, 2026-09-19 → 22, tracker at the end of `WAVE2.md`) and no package is queued. In P4.7 round 3 (2026-09-27) the owner answered question (e) with **"Fresh planning session"** and, under question (b), pasted seven ideas "for a later planning session". This session turns them into a contract. **The deliverable is `WAVE3.md` plus the first package's session prompt, committed as docs.** No code, no installs, no migrations, no deploys, no DB writes.
 
 ## The owner's list (verbatim, pasted 2026-09-27 — quote it, never paraphrase it in the contract)
@@ -112,3 +114,87 @@ Numbering used below: (1) My decks → sign-in, (2) combo → suggested list, (3
 - The site is still unannounced (Magic: P2.8 checklist; One Piece: `P4.6-op-beta-launch.md`), so there is no user feedback yet beyond the owner's own use.
 - The owner's recent activity: two Untitled Magic decks on 2026-09-24, and a Discord sign-in plus Surprise me on 2026-09-27.
 - Open LATER rows that touch these ideas, cite them where relevant: Surprise-me sheet chain and "Combo piece" labels (W9 D8 residue), the OP Surprise-me door, multi-step undo (60), card stacks (61), the claim nudge (64, which relates to idea 1's guest-deck question), the `md` drawer width (72), and the `/tournaments` index depth.
+
+## Addendum — 2026-09-27: what session 1 verified before it stopped
+
+Session 1 re-verified every pin above against `a11274d` with three read-only explorers, walked the ideas on prod signed out, and then yielded to P2.9 round 2 (its note is under `P2.9-session-prompt.md`'s title). Where this addendum and the sections above disagree, **the addendum wins**. Re-verify anything you build a decision on; line numbers are from `a11274d` unless a sha is given.
+
+### Changed since this prompt was written
+
+- **Idea 7's bug half is FIXED** (`a508283`). `/account` and `/u/[username]` render `UserAvatar` (`src/components/profile/user-avatar.tsx`), which shows the initial until the picture loads and keeps it on failure. The owner's stored Discord URL is still dead (HTTP 404), so the profile shows "B". What remains of idea 7 is the feature: change the picture, refresh it from the provider, or both.
+- **Better Auth's `/api/auth/update-user` is closed** (`a508283`, `src/lib/auth-disabled-paths.ts`). It was live and wrote `name` and `image` unvalidated. A change-picture feature must bring its own validated route handler and must not reopen that path. `PATCH /api/profile` still accepts only `username`.
+- **Baselines:** `pnpm check` 959 tests / 121 files / 6 warnings / 0 errors; db 268.6 MB; census unchanged (27 user decks, 181 precons, 1 user); route table 71 lines.
+- **P4.9:** the DNS move finished the same day (`10505c4`, `e831b2c`, `1d8963b`). Read LATER's r2.dev row and `P4.9-session-prompt.md` for the flip's state before designing any One Piece thumbnail.
+- **Pre-flight 1 needs the owner's OK for database reads.** The census and counters queries were refused by the session's permission classifier until the owner approved read-only queries in chat. Ask once, early.
+
+### Prod walk, signed out (2026-09-27)
+
+| Idea | What a visitor gets today |
+|---|---|
+| 1 | A guest with no deck tokens who clicks My decks lands on plain home: `/#your-decks` has no element to scroll to, and no sign-in prompt appears |
+| 2 | `/c/kiki-jiki-mirror-breaker` lists "The 10 most-played of 73 combos"; the Zealous Conscripts card page lists 10 of 44. Rows link to card pages and to Commander Spellbook. No buttons |
+| 3/5 | No dropdown anywhere and no header search. `/commanders` and `/leaders` are GET forms named `q` ("Filter by name…"). `/cards` updates its grid as you type: `sol r` returns Sol Ring and Sol Grail |
+| 4 | Typing `set:blb` into `/cards` returns "0 cards": it is treated as a name |
+| 6 | Signed-in only; not walked |
+| 7 | The empty ring was visible on the PUBLIC profile `/u/bobandis6`, not only on `/account` (now fixed) |
+
+### Corrections to the pins above
+
+**Ideas 1 and 6 (nav, account)**
+
+- `account-nav.test.tsx` 15–20 pins the in-page `AccountNav` (three bare-hash links and the section ids). It does **not** pin the header menu.
+- The header is pinned by `site-header.test.tsx`: the guest My decks href at 56–58 and 154 (the phone menu's full `toEqual`), the signed-in href at 95, and the account menu's items in order by `toEqual` at 100–116. Turning the name label into a link item adds an entry and breaks that `toEqual`.
+- Smokes pin these pages too: `account-delete-smoke.ts` (the section nav label, `id="decks"` / `collection` / `settings`, "Sign in" on signed-out `/account`) and `engagement-smoke.ts` 249–262 ("Continue building" on signed-in home only).
+- `MobileNavMenu` (`site-nav.tsx` 80–110) uses the same `useMyDecksHref()`. There is no separate mobile nav component.
+- The guest `/#your-decks` link probably never scrolls on a client-side navigation: the section mounts after a fetch, and Next treats a missing hash target as a handled scroll (`layout-router.js` ≈250–259). Derived from source, not browser-tested.
+- **A plain `<Link href="/account">` is not a reliable scroll-to-top** in Next 16.3.2. The router compares against its own recorded URL. If the user reached `#settings` through the in-page `AccountNav` (plain anchors the router never hears about), the click is a same-page refresh and does not scroll. `#top` is special-cased (`layout-router.js` ≈125–133) and does scroll, except on a repeat click. Browser-check this in the package.
+- The section anchors use `scroll-mt-6` as breathing room. The header is not sticky.
+- **Sign-in prompts, none with a return parameter:** the header's Sign in; Like, Bookmark and Fork on share pages (links to `/account` titled "Sign in to like decks" and so on; "Sign in to fork decks" is smoke-pinned at `versions-forks-smoke.ts` 509); a text link in home's copy; the editor's "Only cards I own" hint. Private-deck and private-folder gates mention signing in as text only.
+- `ClaimDecks` runs only on signed-in `/account`, once per mount, and reads tokens from localStorage keys `deckwarden:deck-token:<deckId>`.
+
+**Idea 7 (the avatar feature)**
+
+- `overrideUserInfoOnSignIn` is set **per provider** and rewrites `name`, `image`, `email` and `emailVerified` on every sign-in (`better-auth/dist/oauth2/link-account.mjs` 183–191). Design consequence: turned on, it overwrites whatever is in `users.image`, so a chosen picture needs its own column.
+- The session cookie cache is 5 minutes. A direct write to `users.image` shows late on `/account` and in the header unless the cookie is re-issued. `/u/` reads the row and updates at once.
+- The client session carries `image` but not `username`, and there are no `additionalFields`.
+- Avatars render in exactly three places: `/account` (48 px), `/u/` (64 px) and the header (24 px). Bylines are text only and no OG route renders a user.
+- No upload path or storage client exists under `src/`; scripts use the aws CLI. `next.config.ts` has no image or CSP constraints.
+- Scryfall's rule for `art_crop`, read 2026-09-27: list the artist and copyright "elsewhere in the same interface", or show the full card image elsewhere in the same interface.
+- Scryfall's image docs now also list WEBP renditions (`thumb`, `grid`, `display`, `crop`, `art`) as replacements for the JPG ones. Verify before designing thumbnails.
+
+**Idea 2 (combos)**
+
+- **This is Wave-2 idea 3**, shipped in W9c as the editor's "Build around" (`WAVE2.md` 98 and the W9c tracker line). The gap is entry points outside the editor.
+- The sheet sends leaders as `leaderIds`. Only non-leader entries go as `keep`, and only while "Keep my N cards" is checked. Unchecked, Apply replaces the non-leader list. The sheet never sends a seed. The swap and its Undo live in the editor's `applyListSwap`.
+- "Add N pieces" renders only when a piece is missing; "Build around" only when the adapter declares autofill.
+- **Build around's adds are real edits.** They mark the deck dirty and the create POST follows about a second later. `?leader=`, `?from=` and `?surprise=` are state-only. Cancelling the sheet leaves the pieces and the row.
+- The pieces are ordinary keeps, not pinned, and carry no "Combo piece" label (LATER 104).
+- **The autofill request cannot name a combo.** Combos are inferred from keeps: exactly one piece away, top 200 by popularity. Seeding pieces as keeps is the only way to steer it.
+- No route looks a combo up by id or external key. `GET /api/cards/[id]/combos?fit=` returns the anchor's top 10 with piece refs, not card wires.
+- `seedSettled` is one boolean. A `?combo=` latch must seed the leader and the pieces in one seeder, or the sheet opens on the first settle and misses late pieces.
+- `WAVE2.md` 55 is stale: the Radar works in drafts since W9c.
+- Four source files hold a literal NUL byte as a key separator (`autofill-sheet.tsx` 81, `api/decks/autofill/route.ts` 270, `lib/decks/cards.ts` 31, `lib/decks/editor-state.ts` 220). Plain `grep` prints "Binary file matches"; use `grep -a`.
+
+**Ideas 3 and 5 (predictive search)**
+
+- The search API's name parameter is `name`. `q` is ignored there; only the `/cards` page maps `?q=` to it.
+- **No in-string query syntax exists.** Each filter is its own URL parameter (`mv=lte:3`, `ci=within:WU`).
+- Name search orders by trigram similarity, then name. There is **no popularity tiebreak**.
+- **Search rows carry no `slug`**, so a hub link cannot be built from a search result today. `isLeaderCandidate` is there, and a leader can still have a NULL slug.
+- The One Piece card-number path replaces every filter, not just the name.
+- `translate.ts` 102 does not escape `%`, `_` or `\` in its LIKE. The hub filter (`hub/queries.ts` 51) does, but has no fuzzy arm. The normalizer keeps commas and apostrophes, so `atraxa praetors` likely cannot match on `/commanders` (inferred, not measured).
+- `/cards?game=optcg` already has a native `<datalist>` for Traits. It is the only dropdown on a browse surface.
+- The package is `@base-ui/react` 1.7.0. Both `combobox` and `autocomplete` parts exist; `filter={null}` turns off client filtering for server-filtered suggestions.
+- `/api/cards/search`, `/options`, `/printings`, `/art` and `/combos` have no rate limit. Limiting a per-keystroke endpoint costs one database write per uncached request.
+- `popularity` is EDHREC rank, Magic only. It is NULL for every One Piece card.
+- The header is not sticky. On phones there is room for a search icon that opens a popup, not an inline box. `/` and `?` are editor-only hotkeys; ⌘K is deferred in `REDESIGN.md` with no LATER row.
+
+**Idea 4 (sets)**
+
+- No sets API, loader or `/sets` page exists. Nothing indexes `sets.released_at`, `set_type` or `digital`.
+- `FieldTarget` (`games/types.ts` 166–179) cannot express a join to printings. A set filter needs a new target kind and a matching `COLUMNS` entry in `translate.ts`.
+- The search join returns the default printing. A set filter needs a set-scoped printing to show the right image, and results could then link `/cards/<id>?printing=<pid>`.
+- `is_preview` comes from the first printing the bulk file lists for a card, not its earliest printing.
+- **One Piece set codes are Bandai's bracket labels with the hyphen** (`ST-01`, `OP14-EB04`, plus `PROMO` and `OTHER`). They differ from card-number prefixes (`OP01-025`). One Piece `released_at` is NULL everywhere (LATER 55).
+
+**Line drift:** the MTG search fields are `adapter.ts` 23–87; `SearchFieldDef` is `types.ts` 181–205; the `/commanders` form is 112–128 and `/leaders` 102–118.
