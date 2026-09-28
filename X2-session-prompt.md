@@ -1,5 +1,55 @@
 # X2 session prompt — Suggest endpoint + browse dropdowns (one ranked name matcher, three boxes)
 
+## Ship note — 2026-09-27, feat `d88c70e`, deployed (Vercel status success on the full sha, 04:45 Z on 09-28)
+
+**Shipped. The prompt below is history; `X3-session-prompt.md` is next.**
+
+`pnpm check` 1,045 → **1,094 tests** (126 → 129 files, the same 6 pre-existing `no-unused-vars` warnings — one moved lines inside the search route — 0 errors). `pnpm db:size` 269.5 MB before and after (alert 350). Census unchanged before and after the smokes: 27 user decks (26 Magic, 12 guest-owned, plus the One Piece fixture), 181 precons, 1 user; likes read **2**, not the prompt's 1 — one user exists and a like needs a user, so it is the owner's (X1's third click ends on a Like). Route table diff: **exactly `ƒ /api/cards/suggest`**; `/c/[slug]`, `/l/[slug]`, `/cards/[id]` stay `●`. Smokes green on dev: `hubs` (45 checks, 13 new), `optcg` (26, 3 new), `seo` (90), `search:canned` (13 cases, 3 new; its p95 warning is this laptop's round trip to Neon — the statements run in about 1 ms on the server). Pre-flight: nightlies green through 2026-09-27; the owner confirmed nothing posted and no feedback, reported **X1's three signed-in clicks all worked**, granted read-only database access, and kept the prefix-first order.
+
+**Proven on prod, signed out, zero creates**
+
+| Check | Result |
+|---|---|
+| `suggest?game=mtg&scope=cards&q=atr` | Atraxa, Praetors' Voice · Atraxa, Grand Unifier · Atreus, Impulsive Son · … |
+| `q=sol` · `q=opt` · `q=a` | Sol Ring first · Opt first · 200 with no rows |
+| `scope=leaders&q=kr` · `game=optcg&q=zoro` | Krenko, Tin Street Kingpin first · Zoro-Juurou OP05-067, ST18-004, then the Roronoa Zoro leaders, every row with its card number |
+| The edge cache | every one of those six URLs: MISS, then HIT (`age: 0`) |
+| `/commanders?q=atraxa praetors`, `?q=kiki jiki` | the commander's `/c/` row in the server HTML, no empty state; the form holds `name="q"` with the typed value and a default submit button |
+| The editor's three searches | `sol` 12,392 B, `atr` 15,173 B, `OP01-02` 6,526 B — **byte-identical** to the bytes saved before the deploy (MISS, so computed by the new code); dev before = prod before = dev after |
+| `search?name=_` | 35,349 → **15** (the cards whose names hold an underscore) |
+| ISR | `/c/`, `/l/`, `/cards/[id]` answer `x-nextjs-prerender: 1` |
+
+**Proven on dev**: D2's acceptance table row by row through the route (`atr`, `sol`, `opt`, `kr`, `atraxa praetors`, `kiki jiki`, `urzas saga`, `at`, `ring`, `zoro`, `a` all as drawn); statements with `DB_LOG=1` — `sol` 1, `atr` 1, `urzas saga` 2, the card-number pass 1, `a` 0; the three boxes in both themes at 390, 1024 and 1440 (popup = input width at 390, 358 px; the 18 rem floor under the 224 px index box; 44 px rows under a coarse pointer; no horizontal overflow), with the reduced-motion backstop injected (open, Esc, reopen); no hydration warning or console error on any of the three pages; the no-JS form shape through `curl`.
+
+**Measured on live data (read-only transaction)** — plans all through `ci_name_trgm`, warm execution / planning: `at` (two letters) 1.1–1.3 ms / 4.2 ms — a BitmapOr of six word-start scans, 184 candidates → 167 rows → top-N sort (the old `%at%` matched 4,405); `atr` 0.46 ms; `atraxa praetors` 0.39 ms; `kr` with `scope=leaders` 0.6–0.7 ms (the trigram index, not `ci_leaders`); `urzas saga` 0.69 ms, its near-miss statement 0.55 ms; the card-number pass 0.10 ms. Planning dominates; nothing needs an index.
+
+**Decisions made (each pinned by a test or a smoke)**
+
+1. **Order: prefix-first** (the owner kept it): exact · name starts with the text · every word starts a word · every word anywhere · near misses. Inside a class: most played, then leaders, then name, then card number — one order for both games.
+2. **Hover does not highlight** (`highlightItemOnHover` off): nothing is highlighted until an arrow key, so a resting pointer never arms Enter; hover is CSS only.
+3. **A pick navigates and never rewrites the box.** Every row is a `Link` (`prefetch={false}` — rows churn while typing); Base UI follows a link row without filling the input (verified in jsdom). On `/cards` the grid is not re-run on the way out.
+4. **The footer row** ("Show every commander matching “atr” ↵") is an option that submits the owning form; it wraps rather than truncates. `/cards` has none.
+5. **One switch** (`nameMatchCondition(q, "suggest" | "list")`): the dropdown takes classes 1–3 (+ its own near-miss statement under 8 rows from four characters); a list takes classes 1–4 plus near misses from four characters, ranked last — so the footer's list always contains the dropdown above it.
+6. **`sort=best` changes only the ORDER BY** — the translator's WHERE, the row shape and the id pass are untouched; `dir` is ignored; with no name it is the default order.
+7. **The hub filter's order is class, then play** (Magic) or class, then name and card number (One Piece); page 2 of a filtered list is rows 61–120 of that order; the unfiltered orders did not move. The boxes are keyed on the server's `q`, so a navigation that changes it (Clear filter) resets the box.
+8. **Row detail**: color chips on `/commanders`, the card number on `/leaders` and One Piece `/cards`, the type line on Magic `/cards`. One Piece thumbnails stay a 26 px spacer while `thumbnailUrl()` returns null.
+9. **The empty answer** (under two characters) is a 200 with the same cache header — the same answer for that URL every time.
+10. **Esc** closes and keeps the text (Base UI prevents the default, so a search input's native clear does not run); a second Esc with the popup shut clears the box, as it always did. Leaving the box before the first answer lands withdraws the request, so a late answer never pops a list up beside an empty focus.
+11. **No request until the reader types**: a page that lands with `?q=` costs no suggest call.
+
+**Deviations from the contract, and things this prompt had wrong**
+
+- **Enter did not submit the form — found in the pane, invisible to jsdom.** Base UI's Root renders a second, unnamed input with no `type` (a text field) beside the visible one, and HTML implicit submission ignores Enter in a form with two text fields and no submit button — with the popup open or shut, and in the script-less form too. Measured: prod's old single-input form submitted on a pane Return, dev's did not; the keydown and keypress were not default-prevented. The island now renders an invisible default submit button whenever it has a `name` (sr-only, not `hidden` — WebKit skips a default button with no box). Pinned in RTL (the form's shape) and in `smoke:hubs` (the server HTML). The prompt's verify-first 4 checked the keydown only; check the form.
+- **A word starts after a space, hyphen, period, double quote or "("** — D2 said space or hyphen. Measured: 273 One Piece names join words with a period (Monkey.D.Luffy, Edward.Newgate, Marshall.D.Teach — leaders all), 46 with a quote, 45 open a parenthesis without a space. Under D2's rule `luffy` on `/leaders` offered "Luffy & Ace" and none of the 17 Luffys. The apostrophe stays inside words (`urza's`).
+- **The within-class order adds "leaders first"** after play: it is what One Piece's "leaders, name, card number" needs with no rank, and it decides only among Magic's unranked rows of one class.
+- **The list accepts near misses** (from four characters), which D2 named for the dropdown only — so "Show every … matching" never shows fewer than the dropdown did.
+- **`name-key.ts` beside `name-match.ts`**: the request key (THE normalizer, capped at 100 characters, the two-character floor) is the client-safe half; the island may not import drizzle.
+- **The primitive**: `AutocompleteInput` copies `ui/input.tsx`'s look verbatim and has an `unstyled` escape (`/cards` keeps the field class its Type and Traits controls share); no Separator part (a listbox owns options only — the footer carries a border); Empty, Group and GroupLabel are there for X4a, unused by X2's box (its footer keeps the list from ever being empty, so it draws its own "No matches" line).
+- **The prompt's five corrections held.** No hub-filter tests existed (X2 wrote the first: `name-match.test.ts`, a route test over the real drizzle SQL, the island's RTL); `card-search.test.tsx` 117–119 moved to `…&sort=best` and 67/132/159 to `combobox`; `translate.test.ts` 20–29 is untouched (the escape binds the value); `smoke:hubs` gained the REC-3 checks, `/leaders` and the suggest rules. `search:canned` is 13 cases now.
+- **Read-only scripts**: postgres.js's `connection: { default_transaction_read_only: true }` does NOT survive Neon's pooler (the first script reported `off`; everything it had run was a SELECT). Use an explicit read-only transaction — `sql.begin("read only", …)` or drizzle's `transaction(…, { accessMode: "read only" })` — and assert `current_setting('transaction_read_only') = 'on'` inside it.
+
+---
+
 Pull latest, then run X2 — the second Wave-3 package. **`WAVE3.md` is the contract.** Read, in this order: section A's rows on ranking, the slim route and the missing rate limit; B's "Validation corrections" and "Strengths to preserve"; **D0** (the one new primitive and the popup rules) and **D2** (the ASCII spec, the ranking contract, the acceptance table, the endpoint); the **X2 block** in E and the X2 row of the pin matrix in its appendix; F. X1 is live (`e42d6ad`, docs `5e734df`); its ship note at the top of `X1-session-prompt.md` holds lessons this session inherits.
 
 X2 is one idea built once and used three times: **a ranked name matcher** (`src/lib/search/name-match.ts`, the only place the D2 ranking lives), **a slim endpoint** (`GET /api/cards/suggest`), **one primitive** (`src/components/ui/autocomplete.tsx`, hand-written over Base UI), **one island** (`src/components/search/name-suggest.tsx`), and **three boxes**: `/commanders`, `/leaders`, `/cards`. Two recommendations ride along: the hub filter reads the shared matcher (**REC-3** — `atraxa praetors` and `kiki jiki` find their commanders) and `/cards` orders its grid like its dropdown (**REC-2** — `sort=best`). No migration, no new dependency, exactly one new route.

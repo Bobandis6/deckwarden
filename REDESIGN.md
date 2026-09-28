@@ -529,7 +529,7 @@ The X-series (`WAVE3.md`, build plan §6d) changes three recorded decisions abou
 - **X1 supersedes §6's note that `id="your-decks"` is "the header's guest 'My decks' target since R1b".** Home keeps the section and both components keep the id; it is content, no longer a nav target. No link in `src/` points at `/#your-decks`.
 - **X1 supersedes `WAVE2.md` D1's "Bobandis6 ← label, not an item."** The name is the menu's first item: a link to `/account` that lands at the very top of the page (owner's idea 6). The four section links below it are unchanged.
 - **X1 supersedes `WAVE2.md` D1's "guests need it for `/#your-decks`."** My decks stays in the top nav for everyone; a guest's target is `/account`.
-- **X2 will supersede W4's `LIKE` filter on `/commanders` and `/leaders`** (`nameNormLikeCondition` in `src/lib/hub/queries.ts`): the filter reads the shared name matcher (`WAVE3.md` D2), so `atraxa praetors` and `kiki jiki` find their commanders. Recorded now, effective when X2 ships.
+- **X2 supersedes W4's `LIKE` filter on `/commanders` and `/leaders`** (`nameNormLikeCondition` in `src/lib/hub/queries.ts`, deleted): the filter reads the shared name matcher (`src/lib/search/name-match.ts`, `WAVE3.md` D2), so `atraxa praetors` and `kiki jiki` find their commanders, and a filtered list is ranked — best match first, then play — instead of play alone. Recorded at X1 step 0, effective since X2 (`d88c70e`, 2026-09-27). The filter box itself is now the predictive island inside the same GET form; its label, placeholder and hidden `colors` input are unchanged.
 
 ### X1 decisions and deviations from `WAVE3.md` D1 (2026-09-27, `e42d6ad`)
 
@@ -542,3 +542,18 @@ D1 shipped as drawn. What it left to the package, and what was decided:
 - **Signed in with a valid `next`, `/account` renders only the claim step.** Not in D1: the visitor is about to leave, so the account's sections and their six queries are skipped. The claim still runs first — that is the reason the return passes through `/account`.
 - **`next` may be any safe root-relative path** except `/account` and `/api/` — no list of allowed prefixes. `safeNextPath` refuses `//` anywhere, a backslash, control characters, the same things in percent-encoded form, and anything over 200 characters; an invalid value is ignored silently.
 - **Which prompts send `next`:** Like, Bookmark and Fork. The header's Sign in, home's copy, the editor's collection hint and the `/u/` and `/f/` prompts stay plain `/account`.
+
+### X2 decisions and deviations from `WAVE3.md` D0 and D2 (2026-09-27, `d88c70e`)
+
+D2 shipped as drawn — the measured `atr` dropdown on `/commanders` is D2's sketch row for row. What it left to the package, and what was decided:
+
+- **The order stays prefix-first** (the owner's answer, 2026-09-27): `ring` offers Rings of Brighthearth before Sol Ring. Inside a class: most played, then leaders, then the name, then the card number — one order for both games; "leaders first" decides only One Piece rows and Magic's unranked ones.
+- **A word starts after a space, a hyphen, a period, a double quote or an opening parenthesis** — wider than D2's space-or-hyphen, measured: 273 One Piece names join words with a period (Monkey.D.Luffy), and under D2's rule none of the 17 Luffys reached the `/leaders` dropdown.
+- **Nothing is highlighted until an arrow key, literally**: Base UI's hover highlight is off; hover is a CSS tint only, so a resting pointer never arms Enter.
+- **A pick navigates and never writes into the box**: every row is a link (no prefetch); the one non-link row is the footer, which submits the form.
+- **The footer row** ("Show every commander matching “…” ↵") sits under a border, not a separator element (a listbox owns options only), and wraps at the 18 rem floor. Its list is always a superset of the dropdown: the filter accepts classes 1–4 and, from four characters, near misses.
+- **Enter-to-submit needed a default button.** Base UI's Root renders a second, unnamed text input beside the visible one; HTML implicit submission ignores Enter in a form with two text fields and no submit button — with or without script. The island renders an invisible default submit button whenever it is a named form field. Found in the pane (jsdom has no implicit submission).
+- **Esc** closes and keeps the text; a second Esc with the popup shut clears the box, as a search box always did.
+- **`/cards`**: the Name box is the island, still controlled by the grid's `q` and still `autoFocus`; its input keeps the field class the Type and Traits controls share (the primitive's `unstyled` escape). A typed name asks the grid for `sort=best`, the dropdown's order, so the first tile is the first suggestion; the grid's WHERE is the translator's, untouched.
+- **Rows**: a 26 × 36 thumbnail (the `small` rendition; One Piece keeps a same-width spacer while `thumbnailUrl()` returns null), the name, and one quiet detail — color chips on `/commanders`, the card number on `/leaders` and One Piece `/cards`, the type line on Magic `/cards`.
+- **Width**: the popup is the input's width (`--anchor-width`), never under 18 rem, never wider than the viewport allows — 358 px under the 358 px phone box, 288 px under the 224 px desktop index box.
