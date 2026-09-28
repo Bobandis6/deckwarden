@@ -29,12 +29,17 @@ function check(label: string, ok: boolean, detail?: unknown) {
   }
 }
 
-async function getJson<T>(path: string): Promise<{ status: number; json: T; cache: string }> {
+async function getJson<T>(
+  path: string,
+): Promise<{ status: number; json: T; cache: string; edge: string | null }> {
   const res = await fetch(`${BASE}${path}`);
   return {
     status: res.status,
     json: (await res.json()) as T,
     cache: res.headers.get("cache-control") ?? "",
+    // Vercel rewrites an API's Cache-Control to bare `public` for the client;
+    // its own cache verdict is the header to trust there.
+    edge: res.headers.get("x-vercel-cache"),
   };
 }
 
@@ -80,11 +85,19 @@ async function main() {
 
       const sets = await getJson<{ sets: SetRow[] }>("/api/sets?game=mtg");
       check("/api/sets?game=mtg 200", sets.status === 200, sets.status);
-      check(
-        "/api/sets caches a day at the edge",
-        sets.cache.includes("s-maxage=86400"),
-        sets.cache,
-      );
+      if (sets.edge === null) {
+        check(
+          "/api/sets asks for a day at the edge",
+          sets.cache.includes("s-maxage=86400"),
+          sets.cache,
+        );
+      } else {
+        const again = await getJson<{ sets: SetRow[] }>("/api/sets?game=mtg");
+        check("/api/sets is served from the edge cache on a repeat", again.edge === "HIT", {
+          first: sets.edge,
+          second: again.edge,
+        });
+      }
       const rows = sets.json.sets ?? [];
       check(
         "/api/sets lists every released paper set with a live card",
