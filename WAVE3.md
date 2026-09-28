@@ -1,6 +1,6 @@
 # Deckwarden — Wave 3 plan (X-series): the owner's seven ideas
 
-**Status:** drafted from the owner's answers of 2026-09-27 (four questions, recorded under Context). The defaults in section F are still open to change, except the dropdown's order, which the owner kept (prefix-first, 2026-09-27). X1 shipped on 2026-09-27 (`e42d6ad`), X2 the same night (`d88c70e`), X3 on 2026-09-28 (`69636a4`); X4a is next — the progress tracker is at the end of this file.
+**Status:** drafted from the owner's answers of 2026-09-27 (four questions, recorded under Context). The defaults in section F are still open to change, except the ones the owner has answered: the dropdown's order (kept prefix-first, 2026-09-27), the editor's button (kept "Suggest full list", 2026-09-28), and X4a's main sets and order inside a set (answered 2026-09-28 — see Context). X1 shipped on 2026-09-27 (`e42d6ad`), X2 the same night (`d88c70e`), X3 on 2026-09-28 (`69636a4`); X4a is next — the progress tracker is at the end of this file.
 **Saved:** September 27, 2026, from a planning-only session against `8a4b501`. Nothing was implemented, installed, migrated or deployed. The production database was read (with the owner's approval) and never written.
 **Canonical copy:** `WAVE3.md` in the repo root (this file).
 **Working rules:** the CLAUDE.md session protocol applies unchanged — one package per session, deployed and `pnpm check`-green or not done, anything out of scope to `LATER.md` with a trigger. X1's step 0 adds build plan §6d, the CLAUDE.md line, the REDESIGN.md addendum and the LATER rows that make X-packages legal sessions.
@@ -42,6 +42,17 @@ Two of them were already partly done before this plan:
 | Where the predictive dropdown appears | The Commanders and Leaders filter boxes, and the Cards page. Not the header, not the editor's list |
 | Where "build a full list around this combo" is offered | Commander hub pages, and a clearer button in the editor. Not card pages |
 | What "change picture" offers | Your Discord/Google picture, any Magic card's art, or your initial. No uploads |
+
+**Decisions you confirmed on 2026-09-28** (after X3 shipped; they amend D4 and section F for X4a). Your words: *"it should be expansion, core, masters, commander, and draft, universes beyond etc. example if i start to search Eldritch Moon it will bring up its the 71st expansion set and have it show the most popular cards of that set and then have the full list under it after the most popular"* — then three follow-up choices:
+
+| Question | Your answer |
+|---|---|
+| The editor's combo button | "Suggest full list" (the default, kept) |
+| What counts as a main set | Expansion, core, masters, commander and draft innovation — which already hold almost every Universes Beyond product (The Lord of the Rings, Warhammer 40,000, Doctor Who, Fallout, Assassin's Creed, Final Fantasy, Spider-Man, Avatar, Teenage Mutant Ninja Turtles, Marvel Super Heroes, The Hobbit) — **plus** the six Universes Beyond Eternal sets (`eternal`), the bonus sheets (`masterpiece`: Mystical Archive, Retro Artifacts, Final Fantasy: Through the Ages, Marvel Universe, …) and Secret Lair Drop (`sld`). 241 of the 706 released paper sets on 2026-09-28; the other 465 are "Other products" |
+| Where you type a set's name | The Set picker on `/cards` — not the card-name box |
+| What a set shows | Its place in its line ("Eldritch Moon — the 71st expansion set"), then its 12 most-played cards, then the full set in collector-number order (the 12 appear there too) |
+
+Measured the same day, read-only: numbering each type's sets by release date gives Eldritch Moon 72nd, because Scryfall lists Time Spiral's bonus sheet, *Time Spiral Timeshifted*, as its own expansion on Time Spiral's release day. Skipping a set released the same day as a larger set of its type (Time Spiral Timeshifted, The Big Score, and the two Modern Horizons Timeshifts sheets — the only four) gives **Eldritch Moon the 71st expansion**, Arabian Nights the 1st, Bloomburrow the 102nd. Core sets are the exception to watch: Scryfall counts Alpha, Beta and Unlimited separately, so Tenth Edition comes out the 12th core set.
 
 ---
 
@@ -355,6 +366,8 @@ ONE CARD AWAY
 
 ### D4. Set search (X4a) and the Sets page (X4b)
 
+> **Amended by the owner's answers of 2026-09-28 (Context):** "Main sets" also holds the Universes Beyond Eternal sets, the bonus sheets and Secret Lair Drop (241 today, not 217); a chosen set shows its place in its line ("the 71st expansion set"), its 12 most-played cards, then the full list in collector-number order. The sketch below predates the answers — where they differ, the answers win.
+
 Purpose: see the cards of one set. Primary action: choose a set.
 
 ```text
@@ -563,8 +576,8 @@ X3, X4 and X5 do not depend on each other. X4a and X5 need X2's component. Reord
 | Closing the token routes in X1 (REC-6) | Closed | If you plan a feature that needs a provider token in the browser |
 | What the refresh at sign-in changes | The picture only | If you want the display name to follow Discord or Google too |
 | The dropdown's order | Names that start with what you typed come first, so `ring` lists Rings of Brighthearth before Sol Ring | If you would rather have any matching word, most played first (`ring` → Sol Ring): one line in the ranking module |
-| "Main sets" | Expansion, core, masters, commander, draft innovation | If Secret Lair, Un-sets or the six small "Eternal" companion sets (The Hobbit Eternal, Transformers, …) should sit with them |
-| Order inside a set | Collector number | If most-played first reads better to you |
+| "Main sets" | Expansion, core, masters, commander, draft innovation | **Answered 2026-09-28** (Context): those five plus the Eternal sets, the bonus sheets and Secret Lair Drop. The Un-sets (`funny`) were not among the choices and stay under "Other products" by default |
+| Order inside a set | Collector number | **Answered 2026-09-28** (Context): the 12 most-played first, then the full set in collector-number order |
 | The editor's button | "Suggest full list" | If you prefer "Build around" with the new tooltip |
 | The credit line in the header menu | One quiet line under the name | If the profile pages alone satisfy you; Scryfall's wording is "elsewhere in the same interface" |
 | Package order after X2 | X3 → X4a → X4b → X5 | Any order you like; X4a and X5 need only X2 |
