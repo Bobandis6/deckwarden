@@ -60,6 +60,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absUrl("/cards") },
     // The OP corpus variant is its own canonical (cards/page.tsx, P4.4).
     { url: absUrl("/cards?game=optcg") },
+    // X4b: the Sets index — its rows link /cards?set=<code>, which
+    // canonicalizes to bare /cards, so the index is the page to list.
+    { url: absUrl("/sets") },
     // W10: the tournament INDEX only — event pages are noindex v1 (D9).
     { url: absUrl("/tournaments") },
     { url: absUrl("/tournaments?game=optcg") },

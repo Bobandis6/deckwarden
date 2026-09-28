@@ -196,6 +196,8 @@ async function main() {
     // W10: the tournament INDEX is in the sitemap; event pages are noindex
     // (D9's explicit v1 decision) and never listed.
     check("core sitemap lists /tournaments", core.text.includes("/tournaments</loc>"));
+    // X4b: the Sets index (its rows' /cards?set= links canonicalize to /cards).
+    check("core sitemap lists /sets", core.text.includes("/sets</loc>"));
     check("core sitemap never lists event pages", !/\/tournaments\/\d/.test(core.text));
     const [anyEvent] = await sql<{ id: number }[]>`
       SELECT id FROM tournaments ORDER BY start_date DESC LIMIT 1`;

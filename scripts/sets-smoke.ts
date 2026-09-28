@@ -1,6 +1,8 @@
 /**
  * Curl-level checks for X4a's set filter (WAVE3.md D4): GET /api/sets, the
- * set scope on GET /api/cards/search, and /cards?set=. Every count and
+ * set scope on GET /api/cards/search, and /cards?set= — and X4b's /sets
+ * page (every released set a link, the default filter, ISR on Vercel) and
+ * its Browse entry. Every count and
  * fixture is read from the database with the contract's own rules — never a
  * literal — because set membership moves when Scryfall adds printings and a
  * new set appears on its release date. Reads only, inside one explicit
@@ -63,7 +65,7 @@ interface SearchBody {
 const RELEASED = `NOT s.digital AND s.released_at <= (now() AT TIME ZONE 'UTC')::date`;
 
 async function main() {
-  console.log(`X4a set smoke against ${BASE}\n`);
+  console.log(`X4a + X4b set smoke against ${BASE}\n`);
   const sql = postgres(DB_URL!, { max: 1, prepare: false });
   try {
     await sql.begin("read only", async (tx) => {
@@ -283,6 +285,71 @@ async function main() {
       check(
         "/cards?set= canonicalizes to bare /cards",
         /rel="canonical" href="[^"]*\/cards"/.test(html),
+      );
+
+      // ---- /sets (X4b) ----------------------------------------------------------
+      const setsPage = await fetch(`${BASE}/sets`);
+      const setsHtml = await setsPage.text();
+      check("/sets 200", setsPage.status === 200, setsPage.status);
+      const linked = new Set(
+        [...setsHtml.matchAll(/href="\/cards\?set=([a-z0-9]+)"/g)].map((m) => m[1]),
+      );
+      const unlinked = released.filter((r) => !linked.has(r.code)).map((r) => r.code);
+      check(
+        `/sets links every released paper set with a live card (${released.length}), each to /cards?set=`,
+        unlinked.length === 0 && linked.size === released.length,
+        { linked: linked.size, db: released.length, unlinked: unlinked.slice(0, 5) },
+      );
+      const others = released.length - dbMain.length;
+      const hiddenRows = setsHtml.match(/<li hidden=""><a /g)?.length ?? 0;
+      check(
+        `"Main sets only" is on in the server HTML: the ${others} other products are hidden, not dropped`,
+        hiddenRows === others && /<input type="checkbox"[^>]*checked=""/.test(setsHtml),
+        { hidden: hiddenRows, others },
+      );
+      const years = [...setsHtml.matchAll(/<h2[^>]*>(\d{4})<\/h2>/g)].map((m) => m[1]);
+      check(
+        "/sets groups by year, newest first",
+        years.length > 0 && years.every((y, i) => i === 0 || years[i - 1] > y),
+        years.slice(0, 5),
+      );
+      check("/sets canonical is /sets", /rel="canonical" href="[^"]*\/sets"/.test(setsHtml));
+      const setsEdge = setsPage.headers.get("x-vercel-cache");
+      if (setsEdge !== null) {
+        check(
+          "/sets is prerendered (ISR)",
+          setsPage.headers.get("x-nextjs-prerender") === "1",
+          setsPage.headers.get("x-nextjs-prerender"),
+        );
+        const again = await fetch(`${BASE}/sets`);
+        await again.arrayBuffer();
+        const repeat = again.headers.get("x-vercel-cache");
+        check(
+          "/sets is served from the cache on a repeat",
+          repeat === "HIT" || repeat === "PRERENDER" || repeat === "STALE",
+          { first: setsEdge, second: repeat },
+        );
+      }
+
+      // The Browse menu renders its items only when opened, so no server HTML
+      // carries them; the header's own JS must list Sets right after Cards.
+      const home = await (await fetch(`${BASE}/`)).text();
+      const scripts = [...home.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
+      let browse: string | undefined;
+      for (const src of scripts) {
+        const js = await (await fetch(new URL(src, BASE))).text();
+        if (/href:\s*"\/sets",\s*label:\s*"Sets"/.test(js)) {
+          browse = js;
+          break;
+        }
+      }
+      const cardsAt = browse?.search(/href:\s*"\/cards",\s*label:\s*"Cards"/) ?? -1;
+      const setsAt = browse?.search(/href:\s*"\/sets",\s*label:\s*"Sets"/) ?? -1;
+      const preconsAt = browse?.search(/href:\s*"\/precons",\s*label:\s*"Precons"/) ?? -1;
+      check(
+        "the header's Browse menu lists Sets after Cards (and before Precons)",
+        cardsAt >= 0 && cardsAt < setsAt && setsAt < preconsAt,
+        { scripts: scripts.length, cardsAt, setsAt, preconsAt },
       );
     });
   } finally {

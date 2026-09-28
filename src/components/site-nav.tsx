@@ -34,7 +34,9 @@ export const BROWSE_LINKS = [
   { href: "/commanders", label: "Commanders" },
   { href: "/leaders", label: "Leaders" },
   { href: "/cards", label: "Cards" },
-  // The D-nav sketch's order (WAVE2 §D1): Precons after Cards, Tournaments (W10) last.
+  // X4b (WAVE3.md E): Sets right after Cards — every row there opens /cards?set=.
+  { href: "/sets", label: "Sets" },
+  // Then the D-nav sketch's order (WAVE2 §D1): Precons, and Tournaments (W10) last.
   { href: "/precons", label: "Precons" },
   { href: "/tournaments", label: "Tournaments" },
 ] as const;
