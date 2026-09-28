@@ -84,6 +84,8 @@ import { toast, Toaster } from "@/components/ui/toast";
 import { deckOwnership } from "@/lib/collection/ownership";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { type GalleryPrinting } from "@/lib/cards/printings";
+import type { ComboView } from "@/lib/combos/queries";
+import { comboPin, type ComboPin } from "@/lib/combos/view";
 import { leaderArtTarget, orderLeadersBy } from "@/lib/decks/ambient-art";
 import { leaderDenorm } from "@/lib/decks/cards";
 import {
@@ -187,6 +189,7 @@ export function DeckEditor({
   draftLeaderKey,
   draftFromSlug,
   draftSurprise,
+  draftComboKey,
   draftAutofill,
   applyLeaderKey,
 }: {
@@ -216,13 +219,24 @@ export function DeckEditor({
    * GET /api/leaders/random. Same state-only discipline as draftLeaderKey
    * (bouncing leaves no row), but the GET returns the full wire, so no
    * resolve unit is spent and a surprise draft fires zero POSTs until a
-   * real edit. Supersedes draftLeaderKey (the chooser never sends both).
+   * real edit. Supersedes draftLeaderKey and draftComboKey (the one seed
+   * precedence rule below).
    */
   draftSurprise?: boolean;
   /**
+   * Draft mode only (X3): a Commander Spellbook key from the hub's "Build
+   * around this combo" — with draftLeaderKey naming which piece is the
+   * commander. ONE GET /api/combos/[key] seeds the commander and every
+   * other piece, state only (same discipline as draftLeaderKey, which it
+   * supersedes), and makes the combo the review sheet's pinned context.
+   * Ignored where the adapter declares no combos.
+   */
+  draftComboKey?: string;
+  /**
    * Draft mode only (W9c): `?autofill=1` from the hub's "Start with a
-   * starter shell" CTA. Opens the review sheet ONCE, after any pending
-   * draft seed SETTLES (not necessarily succeeds — a failed seed opens the
+   * starter shell" CTA (and X3's "Build around this combo"). Opens the
+   * review sheet ONCE, after any pending draft seed SETTLES (not
+   * necessarily succeeds — a failed seed opens the
    * sheet to its honest "set a commander first" sentence, which fires no
    * POST; that degraded state is the pinned decision). Never auto-applies:
    * the sheet's Apply stays the only write path. Gated on the adapter's
@@ -445,6 +459,28 @@ export function DeckEditor({
     setLoad({ state: "ready", adapter, format });
   }, []);
 
+  // ONE seeder per draft (X3): a precon list beats a random roll beats a
+  // combo beats a plain leader — the first kind present runs, alone, and
+  // alone flips seedSettled, so the ?autofill=1 sheet below can never open
+  // on a half-seeded draft. Every kind but `from` places a leader, so a
+  // format with no leader zone expects none of them. A combo needs the
+  // adapter's combo capability: One Piece reads `combo` as noise and seeds
+  // its leader as if it were absent (no apology copy).
+  const draftSeed: "from" | "surprise" | "combo" | "leader" | null =
+    initialDeckId !== null || load.state !== "ready"
+      ? null
+      : draftFromSlug
+        ? "from"
+        : !load.format.zones.some((z) => z.isLeaderZone)
+          ? null
+          : draftSurprise
+            ? "surprise"
+            : draftComboKey && load.adapter.capabilities.combos
+              ? "combo"
+              : draftLeaderKey
+                ? "leader"
+                : null;
+
   // Seed the hub CTA's leader into a fresh draft (P4.6). Resolve by external
   // key (the exact-id pass), then add the leader-zone entry WITHOUT marking
   // dirty — state only, so abandoning the draft still creates nothing. The
@@ -453,12 +489,17 @@ export function DeckEditor({
   // mount/unmount would cancel the one attempt the guard allows), and the
   // occupied-zone check makes a late response a no-op rather than a clobber.
   const seededLeaderRef = useRef(false);
-  // Draft seed settlement (W9c): flips true once whichever seeder ran has
+  // Draft seed settlement (W9c): flips true once the one seeder that ran has
   // finished — success OR failure — so the ?autofill=1 sheet-open below can
-  // wait for the leader to land without ever waiting forever.
+  // wait for the seed to land without ever waiting forever.
   const [seedSettled, setSeedSettled] = useState(false);
+  // The combo the review sheet is built around (X3): set by the combo
+  // seeder (for its ?autofill=1 sheet) and by the Combo Radar's "Suggest
+  // full list", cleared whenever the sheet closes (Cancel, Esc, Apply);
+  // the empty-deck door and More → Autofill… open the plain sheet.
+  const [autofillPin, setAutofillPin] = useState<ComboPin | null>(null);
   useEffect(() => {
-    if (initialDeckId !== null || !draftLeaderKey || seededLeaderRef.current) return;
+    if (draftSeed !== "leader" || !draftLeaderKey || seededLeaderRef.current) return;
     if (load.state !== "ready") return;
     seededLeaderRef.current = true;
     const { adapter, format } = load;
@@ -493,7 +534,7 @@ export function DeckEditor({
         setSeedSettled(true);
       }
     })();
-  }, [initialDeckId, draftLeaderKey, load]);
+  }, [draftSeed, draftLeaderKey, load]);
 
   // "Surprise me" (W9c): seed a RANDOM legal leader — same state-only
   // discipline and StrictMode ref guard as the key seeder above, but the
@@ -502,7 +543,7 @@ export function DeckEditor({
   // SAYS so (a toast) — the roll was the whole point of the click.
   const seededSurpriseRef = useRef(false);
   useEffect(() => {
-    if (initialDeckId !== null || !draftSurprise || seededSurpriseRef.current) return;
+    if (draftSeed !== "surprise" || seededSurpriseRef.current) return;
     if (load.state !== "ready") return;
     seededSurpriseRef.current = true;
     const { adapter, format } = load;
@@ -545,7 +586,7 @@ export function DeckEditor({
         setSeedSettled(true);
       }
     })();
-  }, [initialDeckId, draftSurprise, load]);
+  }, [draftSeed, load]);
 
   // "Start from this precon" (W8b): seed the WHOLE product list into a
   // fresh draft — entries with the precon's own printings straight off
@@ -558,7 +599,7 @@ export function DeckEditor({
   // toast, never a silent no-op).
   const seededFromRef = useRef(false);
   useEffect(() => {
-    if (initialDeckId !== null || !draftFromSlug || seededFromRef.current) return;
+    if (draftSeed !== "from" || !draftFromSlug || seededFromRef.current) return;
     if (load.state !== "ready") return;
     seededFromRef.current = true;
     const { adapter, format } = load;
@@ -621,7 +662,72 @@ export function DeckEditor({
         setSeedSettled(true);
       }
     })();
-  }, [initialDeckId, draftFromSlug, load]);
+  }, [draftSeed, draftFromSlug, load]);
+
+  // "Build around this combo" (X3, WAVE3.md D3): ONE GET /api/combos/[key]
+  // answers every piece as a full wire — the piece whose external key is
+  // `draftLeaderKey` goes to the leader zone, the rest to the main deck,
+  // STATE ONLY (no markDirty, no resolve spent): the door's draft fires no
+  // POST until Apply or a first real edit. The pin is set in the same
+  // batch as the pieces and the settle flag, so the ?autofill=1 sheet
+  // opens on the whole seed, built around the combo. Same StrictMode ref
+  // guard and late-response discipline as the seeders above; a combo link
+  // with no leader, an unknown (or gone) key, or a leader that is not one
+  // of its pieces seeds nothing and SAYS so, in the unknown-`from=` voice.
+  const seededComboRef = useRef(false);
+  useEffect(() => {
+    if (draftSeed !== "combo" || !draftComboKey || seededComboRef.current) return;
+    if (load.state !== "ready") return;
+    seededComboRef.current = true;
+    const { adapter, format } = load;
+    const leaderZone = format.zones.find((z) => z.isLeaderZone);
+    const mainZone = format.zones.find((z) => !z.isLeaderZone && z.countsTowardSize);
+    const noun = adapter.display.leaderNoun.toLowerCase();
+    const say = (title: string) => toast.add({ title, type: "error", timeout: TOAST_MS });
+    const sayMissing = () => say("Couldn't find that combo — starting an empty deck instead.");
+    void (async () => {
+      try {
+        if (!draftLeaderKey) {
+          say(`That combo link names no ${noun} — starting an empty deck instead.`);
+          return;
+        }
+        const res = await fetch(`/api/combos/${encodeURIComponent(draftComboKey)}`);
+        if (!res.ok) {
+          sayMissing();
+          return;
+        }
+        const json: { combo: ComboView; cards: CardWire[] } = await res.json();
+        const leader = json.cards.find((c) => c.externalKey === draftLeaderKey);
+        if (!leader || !leader.isLeaderCandidate || !leaderZone || !mainZone) {
+          say(`That combo doesn't include that ${noun} — starting an empty deck instead.`);
+          return;
+        }
+        // Late-response guard: never clobber what the user built meanwhile.
+        if (entriesRef.current.length > 0) return;
+        const next: EditorEntry[] = [
+          { cardId: leader.id, zone: leaderZone.id, qty: 1, tags: [] },
+          ...json.cards
+            .filter((c) => c.id !== leader.id)
+            .map((c) => ({ cardId: c.id, zone: mainZone.id, qty: 1, tags: [] })),
+        ];
+        entriesRef.current = next;
+        setEntries(next);
+        setCards((prev) => {
+          const map = new Map(prev);
+          for (const c of json.cards) map.set(c.id, toEditorCard(c));
+          return map;
+        });
+        setPreview(toEditorCard(leader));
+        // The pin is the latched sheet's context; with no ?autofill=1 there
+        // is no sheet to pin (the Radar's button pins its own combo).
+        if (draftAutofill) setAutofillPin(comboPin(json.combo.pieces, json.combo.templates));
+      } catch {
+        sayMissing();
+      } finally {
+        setSeedSettled(true);
+      }
+    })();
+  }, [draftSeed, draftComboKey, draftLeaderKey, draftAutofill, load]);
 
   // Owned lookups for cards added mid-session (P3.7): one debounced POST per
   // burst of new ids, only for users with a collection. A failed lookup
@@ -771,6 +877,8 @@ export function DeckEditor({
     setDialog("shortcuts");
   }, []);
   const openFromHeader = useCallback((next: EditorDialog) => {
+    // More → Autofill… is the plain sheet, never a combo's (X3).
+    if (next === "autofill") setAutofillPin(null);
     setDialogFromMenu(next !== "share");
     setDialog(next);
   }, []);
@@ -995,10 +1103,23 @@ export function DeckEditor({
 
   // The empty deck state's autofill door (W9b): never from the More menu,
   // so focus falls back to Base UI's default on close (the button may be
-  // gone once the shell applies).
+  // gone once the shell applies). No combo pinned — and no argument: the
+  // door hands this straight to onClick.
   const openAutofill = useCallback(() => {
+    setAutofillPin(null);
     setDialogFromMenu(false);
     setDialog("autofill");
+  }, []);
+  // The Combo Radar's "Suggest full list" (X3): the same sheet, built
+  // around one combo — its pieces always kept, shown and never dropped.
+  const openComboAutofill = useCallback((pin: ComboPin) => {
+    setAutofillPin(pin);
+    setDialogFromMenu(false);
+    setDialog("autofill");
+  }, []);
+  const closeAutofill = useCallback(() => {
+    setDialog(null);
+    setAutofillPin(null);
   }, []);
 
   // ?autofill=1 (W9c): the hub CTA's latched sheet-open — ONCE, after any
@@ -1008,13 +1129,11 @@ export function DeckEditor({
   // same adapter gate as every door; never auto-applies — the sheet's one
   // open POST is the only thing a latched visit spends. A render-time latch
   // (the adjust-state-during-render pattern the chooser uses), not an
-  // effect: it converges after one set and fires exactly once.
+  // effect: it converges after one set and fires exactly once. The combo
+  // door's pin (X3) is already in state by then — the seeder sets it in
+  // the batch that settles the seed.
   const [autofillOpened, setAutofillOpened] = useState(false);
-  const seedExpected =
-    Boolean(draftFromSlug) ||
-    (Boolean(draftLeaderKey || draftSurprise) &&
-      load.state === "ready" &&
-      load.format.zones.some((z) => z.isLeaderZone));
+  const seedExpected = draftSeed !== null;
   if (
     initialDeckId === null &&
     draftAutofill &&
@@ -1317,7 +1436,7 @@ export function DeckEditor({
                 saveStatus={autosave.status}
                 active={rightTab === "combos"}
                 onAdd={handlePanelAdd}
-                onOpenAutofill={load.adapter.recommend?.autofill ? openAutofill : undefined}
+                onOpenAutofill={load.adapter.recommend?.autofill ? openComboAutofill : undefined}
               />
             </TabsContent>
           )}
@@ -1422,11 +1541,12 @@ export function DeckEditor({
               entries={entries}
               cards={cards}
               phone={tier === "phone"}
+              pinned={autofillPin ?? undefined}
               onApply={({ entries: next, cards: wires, added }) => {
                 applyListSwap(next, wires, `Added ${added} card${added === 1 ? "" : "s"}`);
-                setDialog(null);
+                closeAutofill();
               }}
-              onClose={() => setDialog(null)}
+              onClose={closeAutofill}
             />
           )}
           {dialog === "export" && snapshot && (

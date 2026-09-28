@@ -17,8 +17,15 @@
  * different picks), budgetUsd: 1 honesty (≤ $1 or a stated shortfall note),
  * One Piece → 400, no-store caching.
  *
- * Budget: ~11 POSTs — under the 20/min deckAutofill bucket. Never retry
- * into a 429; `pnpm counters:reset` if a manual battery preceded this.
+ * X3 adds GET /api/combos/[key] (Kiki-Jiki's most-played fitting combo,
+ * picked through the W9c route so the nightly can't rot it; an unknown key
+ * → the cached 404; an off-shape key → 400) and `keep` with a combo's
+ * pieces through the real planner: the pieces are never re-suggested, and
+ * a kept piece outside the commander's colors comes back in `issues` —
+ * never refused.
+ *
+ * Budget: 11 autofill POSTs — under the 20/min deckAutofill bucket. Never
+ * retry into a 429; `pnpm counters:reset` if a manual battery preceded this.
  */
 export {}; // import-free file: stay a module so `main` doesn't collide with other scripts
 
@@ -49,7 +56,7 @@ interface ShellResponse {
   groups: { id: string; label: string; picks: number }[];
   notes: string[];
   totals: { picks: number; estUsd: number | null; unpriced: number };
-  issues: { severity: string; message: string }[];
+  issues: { code?: string; severity: string; message: string; cardIds?: string[] }[];
   cards: { id: string; name: string }[];
 }
 
@@ -273,6 +280,113 @@ async function main() {
     "fit narrows honestly (mono-R ≤ WUBRG)",
     fit0.status === 200 && fit0Json.total <= comboJson.total,
     { mono: fit0Json.total, all: comboJson.total },
+  );
+
+  // ------------------------------------------------------------------- X3
+  interface CardWireLite {
+    id: string;
+    name: string;
+    externalKey: string;
+    isLeaderCandidate: boolean;
+    legality: unknown[];
+    image: string | null;
+  }
+  interface ComboAnswer {
+    combo?: { externalKey: string; pieces: { id: string; name: string; externalKey: string }[] };
+    cards?: CardWireLite[];
+    error?: string;
+  }
+  console.log("\nGET /api/combos/[key] (X3) — Kiki-Jiki's most-played fitting combo, edge-cached:");
+  const kikiFit = (await (await fetch(`${BASE}/api/cards/${kiki.id}/combos?fit=8`)).json()) as {
+    combos: { externalKey: string }[];
+  };
+  const comboKey = kikiFit.combos[0]?.externalKey ?? "";
+  const one = await fetch(`${BASE}/api/combos/${comboKey}`);
+  const oneJson = (await one.json()) as ComboAnswer;
+  check(`responds 200 for ${comboKey}`, one.status === 200, oneJson.error);
+  check(
+    "public s-maxage cache header (Vercel may rewrite — trust x-vercel-cache in prod)",
+    one.headers.get("cache-control")?.includes("s-maxage") === true ||
+      BASE !== "http://localhost:3000",
+    one.headers.get("cache-control"),
+  );
+  const pieces = oneJson.combo?.pieces ?? [];
+  const wires = oneJson.cards ?? [];
+  check(
+    "one full wire per piece, in the pieces' order (name order)",
+    pieces.length >= 2 &&
+      JSON.stringify(wires.map((w) => w.id)) === JSON.stringify(pieces.map((pc) => pc.id)) &&
+      wires.every((w) => Array.isArray(w.legality) && "image" in w),
+    { pieces: pieces.map((pc) => pc.name), wires: wires.map((w) => w.name) },
+  );
+  const kikiWire = wires.find((w) => w.id === kiki.id);
+  check(
+    "the commander is a piece, a leader candidate, and resolvable by its ?leader= key",
+    kikiWire?.isLeaderCandidate === true &&
+      pieces.some((pc) => pc.id === kiki.id && pc.externalKey === kikiWire.externalKey),
+  );
+  const miss = await fetch(`${BASE}/api/combos/999999999-999999999`);
+  check(
+    "an unknown key → 404 with the same cache header (the miss cache)",
+    miss.status === 404 &&
+      (miss.headers.get("cache-control")?.includes("s-maxage") === true ||
+        BASE !== "http://localhost:3000"),
+    { status: miss.status, cache: miss.headers.get("cache-control") },
+  );
+  const offShape = await fetch(`${BASE}/api/combos/not-a-key`);
+  check("an off-shape key → 400", offShape.status === 400, offShape.status);
+
+  console.log("\nkeep with the combo's pieces, through the real planner (X3) — 2 POSTs:");
+  const keepPieces = pieces
+    .filter((pc) => pc.id !== kiki.id)
+    .map((pc) => ({ cardId: pc.id, zone: "main", qty: 1 }));
+  const kept = await autofill({
+    game: "mtg",
+    format: "commander",
+    leaderIds: [kiki.id],
+    keep: keepPieces,
+    seed,
+  });
+  check("responds 200", kept.status === 200, kept.json.error);
+  const keptIds = new Set(keepPieces.map((k) => k.cardId));
+  check(
+    "the pieces are never re-suggested",
+    kept.json.picks.every((pk) => !keptIds.has(pk.cardId)),
+    kept.json.picks
+      .filter((pk) => keptIds.has(pk.cardId))
+      .map((pk) => nameOf(kept.json, pk.cardId)),
+  );
+  check(
+    `the plan fills around them: ${99 - keepPieces.length} picks`,
+    qty(kept.json) === 99 - keepPieces.length,
+    qty(kept.json),
+  );
+  check(
+    "a fitting combo raises no color-identity issue",
+    kept.json.issues.every((i) => i.code !== "COLOR_IDENTITY"),
+    kept.json.issues,
+  );
+  const pestermite = await findCard("Pestermite");
+  const offColor = await autofill({
+    game: "mtg",
+    format: "commander",
+    leaderIds: [kiki.id],
+    keep: [...keepPieces, { cardId: pestermite.id, zone: "main", qty: 1 }],
+    seed,
+  });
+  check(
+    "a kept piece outside the commander's colors is NOT refused (200)",
+    offColor.status === 200,
+  );
+  check(
+    "…it comes back in issues: a COLOR_IDENTITY error naming it",
+    offColor.json.issues.some(
+      (i) =>
+        i.code === "COLOR_IDENTITY" &&
+        i.severity === "error" &&
+        (i.cardIds ?? []).includes(pestermite.id),
+    ),
+    offColor.json.issues,
   );
 
   console.log(failures === 0 ? "\nautofill smoke: all green" : `\n${failures} FAILURES`);

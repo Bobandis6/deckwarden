@@ -34,9 +34,12 @@ export function NewDeckChooser() {
   const paramLeader = params.get("leader");
   const [leaderKey] = useState(paramLeader);
   // "Start from this precon" (W8b) — a precon slug, latched the same way.
-  // A precon seed includes its commander, so `from` supersedes `leader`.
   const paramFrom = params.get("from");
   const [fromSlug] = useState(paramFrom);
+  // "Build around this combo" (X3) — a Spellbook key, latched like `leader`
+  // and kept in the URL like it (a reload re-seeds, the sheet stays shut).
+  const paramCombo = params.get("combo");
+  const [comboKey] = useState(paramCombo);
   // ?surprise=1 / ?autofill=1 (W9c): one-shot latches like the above, but
   // ALSO adjusted during render (the picker's own "Surprise me" button
   // navigates here without a remount) and stripped from the URL below — a
@@ -53,8 +56,9 @@ export function NewDeckChooser() {
   if (paramAutofill && !autofill) setAutofill(true);
   const chosen = adapters.find((a) => a.id === gameId);
 
-  // Strip the latched one-shot params without a history entry; ?game= and
-  // ?leader= stay (the first save's replaceState drops them, as before).
+  // Strip the latched one-shot params without a history entry; ?game=,
+  // ?leader= and ?combo= stay (the first save's replaceState drops them, as
+  // before).
   useEffect(() => {
     const url = new URL(window.location.href);
     if (!url.searchParams.has("surprise") && !url.searchParams.has("autofill")) return;
@@ -65,15 +69,18 @@ export function NewDeckChooser() {
 
   if (chosen) {
     // Editor routes carry no site header: the editor renders its own (R3),
-    // appearance menu included — one appearance control per page.
+    // appearance menu included — one appearance control per page. Every
+    // latched seed goes through as-is: the editor's one precedence rule
+    // (from > surprise > combo > leader) decides which single seeder runs.
     return (
       <DeckEditor
         deckId={null}
         draftGame={chosen.id as GameId}
         draftFormat={chosen.formats[0].code}
-        draftLeaderKey={fromSlug || surprise ? undefined : (leaderKey ?? undefined)}
+        draftLeaderKey={leaderKey ?? undefined}
         draftFromSlug={fromSlug ?? undefined}
         draftSurprise={surprise || undefined}
+        draftComboKey={comboKey ?? undefined}
         draftAutofill={autofill || undefined}
       />
     );

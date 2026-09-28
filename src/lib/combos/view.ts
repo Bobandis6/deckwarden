@@ -52,3 +52,43 @@ export function orderDeckCombos<T extends DeckComboLike>(combos: readonly T[]): 
     (a, b) => STATUS_ORDER[deckComboStatus(a)] - STATUS_ORDER[deckComboStatus(b)],
   );
 }
+
+/**
+ * The combo a starter shell is built around (X3, WAVE3.md D3) — the
+ * autofill sheet's pinned context, built here once for both of its
+ * sources: the hub door's seeded draft and the Combo Radar's "Suggest full
+ * list". `pieceIds` holds EVERY card piece, the commander included — the
+ * sheet keeps leader-zone ids out of `keep` (the autofill route answers
+ * 400 to a leader-zone keep) and out of its "Combo pieces · N" count.
+ */
+export interface ComboPin {
+  /** Every card piece's name joined with " + " in name order — the sheet's lead. */
+  label: string;
+  pieceIds: string[];
+  /** Non-card requirements — the sheet's "Also needs …" line (alsoNeedsLine). */
+  templates: string[];
+}
+
+export function comboPin(
+  pieces: readonly { id: string; name: string }[],
+  templates: readonly string[],
+): ComboPin {
+  // Name order, like every combo row: a deck-relative combo arrives split
+  // into held and missing pieces, so the pin re-sorts rather than trusts.
+  const ordered = [...pieces].sort((a, b) => a.name.localeCompare(b.name, "en"));
+  return {
+    label: ordered.map((p) => p.name).join(" + "),
+    pieceIds: ordered.map((p) => p.id),
+    templates: [...templates],
+  };
+}
+
+/**
+ * The combo door's href (X3, D3): a draft with this commander and this
+ * combo's pieces, then the review sheet — the `?leader=` seam plus `combo`
+ * and the W9c `autofill=1` latch. A GET parameter only ever seeds a draft.
+ */
+export function comboDoorHref(game: string, leaderKey: string, comboKey: string): string {
+  const q = (v: string) => encodeURIComponent(v);
+  return `/decks/new?game=${q(game)}&leader=${q(leaderKey)}&combo=${q(comboKey)}&autofill=1`;
+}

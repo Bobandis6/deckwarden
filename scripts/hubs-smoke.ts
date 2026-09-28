@@ -6,7 +6,10 @@
  * re-ingests can't rot the script. No auth — hubs are public card data.
  * X2 adds the name filter on both indexes (REC-3, the shared ranked
  * matcher) and GET /api/cards/suggest — pinned by rule (classes, word
- * starts), never by an EDHREC position.
+ * starts), never by an EDHREC position. X3 (REC-7) pins the hub's W9c
+ * starter-shell anchor and its combo door, "Build around this combo" — by
+ * rule (one door per combo row, the most-played row first), never by a
+ * combo count.
  *
  *   pnpm smoke:hubs
  *   BASE_URL=http://localhost:3111 pnpm smoke:hubs
@@ -58,8 +61,41 @@ async function main() {
         AND l.status = 'banned'
       WHERE ci.game_id = 1 AND ci.is_leader_candidate AND ci.slug IS NOT NULL
       ORDER BY ci.popularity ASC NULLS LAST LIMIT 1`;
+    // X3 (REC-7): the most-played LEGAL commander with a combo that fits
+    // its identity (combos-smoke's fixture plus a legality filter — the
+    // door renders only where the build CTA does), its most-played fitting
+    // combo (loadCombosForCard's order), and a not-legal commander whose
+    // hub still lists combos (the door must be absent there).
+    const [comboHub] = await sql`
+      SELECT ci.id::text AS id, ci.name, ci.slug, ci.external_key, ci.ci_mask
+      FROM card_identities ci
+      WHERE ci.game_id = 1 AND ci.is_leader_candidate AND ci.slug IS NOT NULL
+        AND NOT ci.is_removed
+        AND NOT EXISTS (
+          SELECT 1 FROM legalities l WHERE l.card_identity_id = ci.id AND l.format_id = 1
+            AND l.effective_to IS NULL AND l.condition IS NULL AND l.status <> 'legal')
+        AND EXISTS (
+          SELECT 1 FROM combo_pieces p JOIN combos c ON c.id = p.combo_id
+          WHERE p.card_identity_id = ci.id AND (c.ci_mask & ~ci.ci_mask::int) = 0)
+      ORDER BY ci.popularity ASC NULLS LAST LIMIT 1`;
+    const [comboTop] = await sql`
+      SELECT c.external_key FROM combos c JOIN combo_pieces p ON p.combo_id = c.id
+      WHERE p.card_identity_id = ${comboHub.id} AND (c.ci_mask & ~${comboHub.ci_mask}::int) = 0
+      ORDER BY c.popularity DESC NULLS LAST, c.id LIMIT 1`;
+    const [doorless] = await sql`
+      SELECT ci.name, ci.slug FROM card_identities ci
+      JOIN legalities l ON l.card_identity_id = ci.id AND l.format_id = 1
+        AND l.effective_to IS NULL AND l.condition IS NULL AND l.status <> 'legal'
+      WHERE ci.game_id = 1 AND ci.is_leader_candidate AND ci.slug IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM combo_pieces p JOIN combos c ON c.id = p.combo_id
+          WHERE p.card_identity_id = ci.id AND (c.ci_mask & ~ci.ci_mask::int) = 0)
+      ORDER BY ci.popularity ASC NULLS LAST LIMIT 1`;
     console.log(
       `  using top="${top?.name}" monoW="${monoW?.name}" banned="${banned?.name ?? "(none)"}"`,
+    );
+    console.log(
+      `  using comboHub="${comboHub?.name}" (top combo ${comboTop?.external_key}) doorless="${doorless?.name ?? "(none)"}"`,
     );
 
     // ---- /commanders index ------------------------------------------------
@@ -227,6 +263,56 @@ async function main() {
           (hub.text.includes(`/decks/new?game=mtg&amp;leader=${top.external_key as string}`) ||
             hub.text.includes(`/decks/new?game=mtg&leader=${top.external_key as string}`))),
     );
+    // ---- the W9c starter-shell anchor + the X3 combo door (REC-7) ----------
+    // No smoke pinned either page surface before X3. Both are server HTML
+    // (the hub is ISR); the door rides each row of the fit-filtered list,
+    // under the build CTA's gate, into the ?leader= seam plus `combo` and
+    // the autofill latch.
+    const comboHubPage = await page(`/c/${comboHub.slug as string}`);
+    const hubKey = comboHub.external_key as string;
+    check(
+      `combo hub (${comboHub.name as string}) 200 + its combo section`,
+      comboHubPage.status === 200 && comboHubPage.text.includes("Combos with"),
+    );
+    check(
+      "hub starter-shell anchor seeds the commander and latches the sheet (W9c)",
+      new RegExp(
+        `<a[^>]*href="/decks/new\\?game=mtg&amp;leader=${hubKey}&amp;autofill=1"[^>]*>Start with a starter shell</a>`,
+      ).test(comboHubPage.text),
+    );
+    check(
+      "hub combo door on the most-played fitting combo: leader + combo + autofill (X3)",
+      new RegExp(
+        `<a[^>]*href="/decks/new\\?game=mtg&amp;leader=${hubKey}&amp;combo=${comboTop.external_key as string}&amp;autofill=1"[^>]*>Build around this combo</a>`,
+      ).test(comboHubPage.text),
+    );
+    const doors = comboHubPage.text.match(/>Build around this combo<\/a>/g)?.length ?? 0;
+    const walkthroughs =
+      comboHubPage.text.match(/>How it works on <!-- -->Commander Spellbook/g)?.length ?? 0;
+    check(
+      "one combo door per combo row (every walkthrough link has its door)",
+      doors > 0 && doors === walkthroughs,
+      { doors, walkthroughs },
+    );
+    check(
+      "the door's words stay out of the pinned build CTA (its anchor is unchanged)",
+      new RegExp(
+        `<a[^>]*href="/decks/new\\?game=mtg&amp;leader=${hubKey}"[^>]*>Build with this commander</a>`,
+      ).test(comboHubPage.text),
+    );
+    if (doorless) {
+      const doorlessHub = await page(`/c/${doorless.slug as string}`);
+      check(
+        `not-legal commander (${doorless.name as string}) lists its combos with no door and no build CTA`,
+        doorlessHub.status === 200 &&
+          doorlessHub.text.includes("Combos with") &&
+          !doorlessHub.text.includes("Build around this combo") &&
+          !doorlessHub.text.includes("Build with this commander"),
+      );
+    } else {
+      console.log("  note  no not-legal commander lists a fitting combo — door-absence unasserted");
+    }
+
     // The artwork header (R5b, G3): the crop banner is never unattributed.
     check(
       "hub art banner, when present, carries the visible artist / © credit",

@@ -3,15 +3,18 @@
  * GET /api/cards/[id]/combos?fit= so it renders in a seeded DRAFT with no
  * deck row; "in deck" marks and the missing count are client-side over
  * inDeckQty; "Add N pieces" hydrates every missing piece in ONE resolve
- * call (by externalKey) and lands ONE toast; "Build around" adds quietly
- * and opens the autofill sheet; without the door callback (the adapter
- * gate) no Build around renders. The deck-relative sections (P3.3) are
- * proven by their own smokes and the editor suite — here they just show
- * their honest draft placeholder.
+ * call (by externalKey) and lands ONE toast. "Suggest full list" (X3 —
+ * W9c's "Build around", renamed) adds quietly and opens the autofill sheet
+ * with the combo PINNED, on all three kinds of row: "With your commander",
+ * "In your deck" (a saved deck's detection) and "One card away" (which adds
+ * its missing piece first); without the door callback (the adapter gate)
+ * no row renders it. The deck-relative rows need a deck id, a saved state
+ * and the /api/decks/<id>/combos answer.
  */
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { DeckComboView } from "@/lib/combos/queries";
 import type { EditorCard } from "@/lib/decks/editor-state";
 import { getAdapter } from "@/lib/games/registry";
 import { card } from "@/lib/games/mtg/test-fixtures";
@@ -143,21 +146,32 @@ describe("ComboRadarPanel — With your commander (W9c)", () => {
     });
   });
 
-  it("Build around adds the pieces quietly and opens the sheet — no toast", async () => {
+  it("Suggest full list adds the pieces quietly and opens the sheet with the combo PINNED — no toast", async () => {
     const onOpenAutofill = vi.fn();
     const { onAdd } = renderPanel({ onOpenAutofill });
-    fireEvent.click(await screen.findByRole("button", { name: "Build around" }));
+    const button = await screen.findByRole("button", { name: "Suggest full list" });
+    expect(button.getAttribute("title")).toBe(
+      "Keeps these pieces and suggests the rest of the deck",
+    );
+    fireEvent.click(button);
     await act(async () => {});
     expect(resolvePosts()).toHaveLength(1);
     expect(onAdd).toHaveBeenCalledTimes(2);
     expect(onOpenAutofill).toHaveBeenCalledTimes(1);
+    // Every piece, the commander included (the sheet drops leader-zone ids), name order.
+    expect(onOpenAutofill).toHaveBeenCalledWith({
+      label: "Deceiver Exarch + Kiki-Jiki, Mirror Breaker + Pestermite",
+      pieceIds: [exarch.id, commander.id, pestermite.id],
+      templates: [],
+    });
     expect(vi.mocked(toast.add)).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Build around" })).toBeNull();
   });
 
-  it("without the door callback (adapter gate) no Build around renders", async () => {
+  it("without the door callback (adapter gate) no Suggest full list renders", async () => {
     renderPanel();
     await screen.findByRole("heading", { name: "With your commander" });
-    expect(screen.queryByRole("button", { name: "Build around" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Suggest full list" })).toBeNull();
   });
 
   it("every piece already in deck: no Add button, 'All pieces in deck ✓'", async () => {
@@ -170,5 +184,101 @@ describe("ComboRadarPanel — With your commander (W9c)", () => {
     });
     expect(await screen.findByText("All pieces in deck ✓")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Add \d+ piece/ })).toBeNull();
+  });
+});
+
+describe("ComboRadarPanel — Suggest full list on the deck's own rows (X3)", () => {
+  const DECK = "deck-1";
+  const ref = (c: ReturnType<typeof card>) => ({
+    id: c.id,
+    name: c.name,
+    externalKey: c.externalKey,
+  });
+  const reversal = card({ name: "Dramatic Reversal", ciMask: 2, externalKey: "oracle-reversal" });
+  const scepter = card({ name: "Isochron Scepter", ciMask: 0, externalKey: "oracle-scepter" });
+  const inDeck: DeckComboView = {
+    id: 201,
+    externalKey: "1-2",
+    results: ["Infinite mana"],
+    templates: ["Nonland mana rocks producing 3+ mana"],
+    popularity: 900,
+    inDeckPieces: [ref(reversal), ref(scepter)],
+    missingPieces: [],
+  };
+  const oneAway: DeckComboView = {
+    id: 202,
+    externalKey: "3-4",
+    results: ["Infinite hasty tokens"],
+    templates: [],
+    popularity: 700,
+    inDeckPieces: [ref(commander)],
+    missingPieces: [ref(pestermite)],
+  };
+
+  function deckRoute(input: RequestInfo | URL) {
+    const url = String(input);
+    if (url === `/api/decks/${DECK}/combos`) {
+      return ok({ inDeck: [inDeck], oneAway: [oneAway], truncated: false });
+    }
+    if (url.startsWith(`/api/cards/${commander.id}/combos`)) return ok({ total: 0, combos: [] });
+    if (url === "/api/cards/resolve") {
+      return ok({ results: [{ match: { ...pestermite, image: null } }] });
+    }
+    return ok({});
+  }
+
+  it("In your deck: every piece is held — opens the pinned sheet at once, no resolve", async () => {
+    fetchMock.mockImplementation(deckRoute);
+    const onOpenAutofill = vi.fn();
+    const { onAdd } = renderPanel({
+      deckId: DECK,
+      onOpenAutofill,
+      inDeckQty: new Map([
+        [commander.id, 1],
+        [reversal.id, 1],
+        [scepter.id, 1],
+      ]),
+    });
+    await screen.findByRole("heading", { name: "In your deck" });
+    const [inDeckButton] = screen.getAllByRole("button", { name: "Suggest full list" });
+    fireEvent.click(inDeckButton);
+    await act(async () => {});
+    expect(resolvePosts()).toHaveLength(0);
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(onOpenAutofill).toHaveBeenCalledWith({
+      label: "Dramatic Reversal + Isochron Scepter",
+      pieceIds: [reversal.id, scepter.id],
+      templates: ["Nonland mana rocks producing 3+ mana"],
+    });
+  });
+
+  it("One card away: adds the missing piece first (ONE resolve by externalKey), then opens the pinned sheet", async () => {
+    fetchMock.mockImplementation(deckRoute);
+    const onOpenAutofill = vi.fn();
+    const { onAdd } = renderPanel({ deckId: DECK, onOpenAutofill });
+    await screen.findByRole("heading", { name: "One card away" });
+    const buttons = screen.getAllByRole("button", { name: "Suggest full list" });
+    expect(buttons).toHaveLength(2); // In your deck + One card away (no commander combos here)
+    fireEvent.click(buttons[1]);
+    await act(async () => {});
+    expect(resolvePosts()).toHaveLength(1);
+    const body = JSON.parse(resolvePosts()[0][1].body as string) as { names: string[] };
+    expect(body.names).toEqual([pestermite.externalKey]);
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ id: pestermite.id }));
+    expect(onOpenAutofill).toHaveBeenCalledWith({
+      label: "Kiki-Jiki, Mirror Breaker + Pestermite",
+      pieceIds: [commander.id, pestermite.id],
+      templates: [],
+    });
+    // The plain Add stays beside it, unchanged.
+    expect(screen.getByRole("button", { name: "Add Pestermite to the deck" })).toBeTruthy();
+  });
+
+  it("without the door callback, the deck's own rows carry no Suggest full list either", async () => {
+    fetchMock.mockImplementation(deckRoute);
+    renderPanel({ deckId: DECK });
+    await screen.findByRole("heading", { name: "One card away" });
+    expect(screen.queryByRole("button", { name: "Suggest full list" })).toBeNull();
   });
 });

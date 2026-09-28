@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { alsoNeedsLine, deckComboStatus, orderDeckCombos } from "./view";
+import { alsoNeedsLine, comboDoorHref, comboPin, deckComboStatus, orderDeckCombos } from "./view";
 
 const combo = (missing: number, templates: string[] = []) => ({
   templates,
@@ -48,5 +48,45 @@ describe("orderDeckCombos — complete first, stable within", () => {
     const input = [combo(0, ["T"]), combo(0)];
     orderDeckCombos(input);
     expect(deckComboStatus(input[0])).toBe("needs-template");
+  });
+});
+
+describe("comboPin — the sheet's pinned context (X3)", () => {
+  it("names every piece in name order, keeps every id (the commander too) and the templates", () => {
+    const pin = comboPin(
+      [
+        { id: "z", name: "Zealous Conscripts" },
+        { id: "k", name: "Kiki-Jiki, Mirror Breaker" },
+      ],
+      ["A sacrifice outlet"],
+    );
+    expect(pin).toEqual({
+      label: "Kiki-Jiki, Mirror Breaker + Zealous Conscripts",
+      pieceIds: ["k", "z"],
+      templates: ["A sacrifice outlet"],
+    });
+  });
+
+  it("does not mutate its inputs", () => {
+    const pieces = [
+      { id: "b", name: "B" },
+      { id: "a", name: "A" },
+    ];
+    const templates = ["T"];
+    const pin = comboPin(pieces, templates);
+    expect(pieces.map((p) => p.id)).toEqual(["b", "a"]);
+    pin.templates.push("U");
+    expect(templates).toEqual(["T"]);
+  });
+});
+
+describe("comboDoorHref — the hub door's draft link (X3)", () => {
+  it("is the ?leader= seam plus the combo key and the autofill latch", () => {
+    expect(comboDoorHref("mtg", "a34b7416-cfe3-4a1e-a8c1-a3056b747519", "618-1537")).toBe(
+      "/decks/new?game=mtg&leader=a34b7416-cfe3-4a1e-a8c1-a3056b747519&combo=618-1537&autofill=1",
+    );
+    expect(comboDoorHref("mtg", "k", "4153-4247--5--195")).toBe(
+      "/decks/new?game=mtg&leader=k&combo=4153-4247--5--195&autofill=1",
+    );
   });
 });

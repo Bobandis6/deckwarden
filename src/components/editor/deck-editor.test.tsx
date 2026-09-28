@@ -816,6 +816,315 @@ describe("DeckEditor — Start from this precon (W8b)", () => {
   });
 });
 
+describe("DeckEditor — Build around this combo (X3)", () => {
+  const kiki = card({
+    name: "Kiki-Jiki, Mirror Breaker",
+    primaryType: "Creature",
+    costValue: 5,
+    isLeaderCandidate: true,
+    ciMask: 8,
+    externalKey: "a34b7416-cfe3-4a1e-a8c1-a3056b747519",
+  });
+  const conscripts = card({
+    name: "Zealous Conscripts",
+    primaryType: "Creature",
+    costValue: 5,
+    ciMask: 8,
+    cheapestUsd: 0.35,
+    externalKey: "1dae6f39-2cbd-485c-b190-017a26401fd4",
+  });
+  const tower = card({ name: "Command Tower", primaryType: "Land", costValue: null });
+  const comboResponse = {
+    combo: {
+      id: 106877,
+      externalKey: "618-1537",
+      results: ["Infinite creature tokens with haste"],
+      templates: [],
+      popularity: 28185,
+      pieces: [
+        { id: kiki.id, name: kiki.name, externalKey: kiki.externalKey },
+        { id: conscripts.id, name: conscripts.name, externalKey: conscripts.externalKey },
+      ],
+    },
+    cards: [
+      { ...kiki, image: null },
+      { ...conscripts, image: null },
+    ],
+  };
+  const shellResponse = {
+    game: "mtg",
+    format: "commander",
+    seed: 42,
+    picks: [
+      {
+        cardId: tower.id,
+        name: "Command Tower",
+        zone: "main",
+        qty: 1,
+        group: "base",
+        tier: "locked",
+        score: 0.9,
+        cheapestUsd: "0.23",
+        evidence: [
+          {
+            source: "land-template",
+            why: "Fills the land template",
+            with: [],
+            howOften: null,
+            confidence: "medium",
+          },
+        ],
+      },
+    ],
+    groups: [{ id: "base", label: "Lands", picks: 1 }],
+    notes: [],
+    totals: { picks: 1, estUsd: 0.23, unpriced: 0 },
+    issues: [],
+    cards: [
+      { ...kiki, image: null },
+      { ...conscripts, image: null },
+      { ...tower, image: null },
+    ],
+  };
+
+  function comboRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    if (url === "/api/combos/618-1537") return ok(comboResponse);
+    if (url.startsWith("/api/combos/")) {
+      return { ok: false, status: 404, json: async () => ({ error: "Unknown combo" }) };
+    }
+    if (url === "/api/cards/resolve") {
+      return ok({ results: [{ match: { ...kiki, image: null } }] });
+    }
+    if (url === "/api/decks/autofill") return { ...ok(shellResponse), headers: new Headers() };
+    return route(input, init);
+  }
+
+  const autofillBodies = () =>
+    fetchMock.mock.calls
+      .filter(([url, init]) => String(url) === "/api/decks/autofill" && init?.method === "POST")
+      .map(
+        ([, init]) => JSON.parse((init as RequestInit).body as string) as Record<string, unknown>,
+      );
+
+  /** The last-describe pattern: findBy/waitFor hang under this file's faked setTimeout. */
+  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
+    for (let i = 0; i < 40; i++) {
+      const el = query();
+      if (el) return el;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: element never appeared");
+  }
+
+  it("?leader=&combo=&autofill=1: ONE combo GET seeds the commander and the pieces, and the sheet opens only after they land — its first POST keeps the pieces, never the commander; zero creates", async () => {
+    fetchMock.mockImplementation(comboRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor
+        deckId={null}
+        draftGame="mtg"
+        draftFormat="commander"
+        draftLeaderKey={kiki.externalKey}
+        draftComboKey="618-1537"
+        draftAutofill
+      />,
+    );
+    await pollFor(() => screen.queryByRole("button", { name: "Add 1 card" }));
+    const [first, ...rest] = autofillBodies();
+    expect(rest).toHaveLength(0);
+    expect(first.leaderIds).toEqual([kiki.id]);
+    expect(first.keep).toEqual([{ cardId: conscripts.id, zone: "main", qty: 1 }]);
+    // One seeder: the combo GET, never the leader seeder's resolve POST.
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url) === "/api/combos/618-1537"),
+    ).toHaveLength(1);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url) === "/api/cards/resolve"),
+    ).toHaveLength(0);
+    expect(posts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+    // The sheet is built around the combo: its title, its lead, the piece pinned first.
+    expect(screen.getByRole("dialog", { name: "Build around this combo" })).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Kiki-Jiki, Mirror Breaker + Zealous Conscripts. The rest comes from real play data — every pick shows why.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Combo pieces · 1")).toBeTruthy();
+    // The draft holds the commander in the command zone and the piece in the deck.
+    expect(within(section("Deck list")).getAllByText("Zealous Conscripts").length).toBeGreaterThan(
+      0,
+    );
+  });
+
+  const comboDraft = (over: Partial<Parameters<typeof DeckEditor>[0]> = {}) => (
+    <DeckEditor
+      deckId={null}
+      draftGame="mtg"
+      draftFormat="commander"
+      draftLeaderKey={kiki.externalKey}
+      draftComboKey="618-1537"
+      {...over}
+    />
+  );
+
+  it("Apply is ONE edit: one create + one PUT with the commander, the piece and the picks; Undo restores the seeded pair", async () => {
+    fetchMock.mockImplementation(comboRoute);
+    stubViewport(1440);
+    render(comboDraft({ draftAutofill: true }));
+    const apply = await pollFor(() => screen.queryByRole("button", { name: "Add 1 card" }));
+    fireEvent.click(apply);
+    await pollFor(() => screen.queryByText("Added 1 card"));
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+    expect(lastPutEntries().map((e) => e.cardId)).toEqual(
+      expect.arrayContaining([kiki.id, conscripts.id, tower.id]),
+    );
+    expect(lastPutEntries()).toHaveLength(3);
+    // The sheet is gone (the toast is Base UI's other role="dialog").
+    expect(screen.queryByRole("dialog", { name: "Build around this combo" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(puts()).toBe(2);
+    expect(
+      lastPutEntries()
+        .map((e) => e.cardId)
+        .sort(),
+    ).toEqual([kiki.id, conscripts.id].sort());
+    expect(posts()).toBe(1);
+  });
+
+  it("without ?autofill=1 (a reload keeps `combo`, the chooser strips `autofill`): the pair seeds state-only, no sheet, no POST at all", async () => {
+    fetchMock.mockImplementation(comboRoute);
+    stubViewport(1440);
+    render(comboDraft());
+    await pollFor(
+      () => within(section("Deck list")).queryAllByText("Zealous Conscripts")[0] ?? null,
+    );
+    await settle(1500);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      fetchMock.mock.calls.filter(
+        ([, init]) => (init as RequestInit | undefined)?.method === "POST",
+      ),
+    ).toHaveLength(0);
+    expect(saveStatus()).toBe("saved");
+  });
+
+  it("no latch, no pin: More → Autofill… on a combo-seeded draft opens the PLAIN sheet — the piece is an ordinary keep there", async () => {
+    fetchMock.mockImplementation(comboRoute);
+    stubViewport(1440);
+    render(comboDraft());
+    await pollFor(
+      () => within(section("Deck list")).queryAllByText("Zealous Conscripts")[0] ?? null,
+    );
+    const trigger = screen.getByRole("button", { name: "More" });
+    fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
+    fireEvent.mouseDown(trigger, { button: 0 });
+    fireEvent.click(trigger, { button: 0 });
+    const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Autofill…" }));
+    await pollFor(() => screen.queryByRole("button", { name: "Add 1 card" }));
+    expect(screen.getByRole("dialog", { name: "Autofill a starter shell" })).toBeTruthy();
+    expect(screen.queryByText(/Combo pieces/)).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Keep my 1 card" })).toBeTruthy();
+    expect(posts()).toBe(0);
+  });
+
+  it("an unknown (or since-deleted) key seeds nothing and SAYS so; with ?autofill=1 the sheet degrades to its no-commander sentence, POST-free", async () => {
+    fetchMock.mockImplementation(comboRoute);
+    stubViewport(1440);
+    render(comboDraft({ draftComboKey: "999-999", draftAutofill: true }));
+    await pollFor(() =>
+      screen.queryByText("Couldn't find that combo — starting an empty deck instead."),
+    );
+    await pollFor(() => screen.queryByText(/Set a commander first/));
+    expect(autofillBodies()).toHaveLength(0);
+    expect(posts()).toBe(0);
+    expect(screen.queryByText("Kiki-Jiki, Mirror Breaker")).toBeNull();
+  });
+
+  it("a combo link with no leader seeds nothing and says so — without even asking for the combo", async () => {
+    fetchMock.mockImplementation(comboRoute);
+    stubViewport(1440);
+    render(comboDraft({ draftLeaderKey: undefined }));
+    await pollFor(() =>
+      screen.queryByText("That combo link names no commander — starting an empty deck instead."),
+    );
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/combos/")),
+    ).toHaveLength(0);
+    expect(posts()).toBe(0);
+  });
+
+  it("a leader that is not one of the combo's pieces — or not a commander — seeds nothing and says so", async () => {
+    fetchMock.mockImplementation(comboRoute);
+    stubViewport(1440);
+    // Zealous Conscripts IS a piece, but it cannot be the commander.
+    render(comboDraft({ draftLeaderKey: conscripts.externalKey }));
+    await pollFor(() =>
+      screen.queryByText(
+        "That combo doesn't include that commander — starting an empty deck instead.",
+      ),
+    );
+    expect(within(section("Deck list")).queryByText("Zealous Conscripts")).toBeNull();
+    expect(posts()).toBe(0);
+  });
+
+  it("one seeder: a precon (`from`) or a random roll (`surprise`) beats a combo — the combo is never fetched", async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith("/api/leaders/random")) {
+        return ok({ leader: { ...kiki, name: "Rolled Commander", image: null } });
+      }
+      if (url.startsWith("/api/precons/"))
+        return { ok: false, status: 404, json: async () => ({}) };
+      return comboRoute(input, init);
+    });
+    stubViewport(1440);
+    const { unmount } = render(comboDraft({ draftFromSlug: "nope" }));
+    await pollFor(() =>
+      screen.queryByText("Couldn't find that precon — starting an empty deck instead."),
+    );
+    unmount();
+    render(comboDraft({ draftSurprise: true }));
+    await pollFor(() => screen.queryAllByText("Rolled Commander")[0] ?? null);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/combos/")),
+    ).toHaveLength(0);
+    expect(posts()).toBe(0);
+  });
+
+  it("One Piece declares no combos: `combo` is ignored — the leader seeds as if it were absent, no toast", async () => {
+    fetchMock.mockImplementation(comboRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor
+        deckId={null}
+        draftGame="optcg"
+        draftFormat="standard"
+        draftLeaderKey="OP15-058"
+        draftComboKey="618-1537"
+      />,
+    );
+    // The resolve mock answers Kiki's wire; the point is which seeder ran.
+    await pollFor(() => screen.queryAllByText("Kiki-Jiki, Mirror Breaker")[0] ?? null);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/combos/")),
+    ).toHaveLength(0);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url) === "/api/cards/resolve"),
+    ).toHaveLength(1);
+    expect(screen.queryByText(/combo/i)).toBeNull();
+  });
+});
+
 describe("DeckEditor — Autofill review sheet + doors (W9b/W9c)", () => {
   const commander = card({
     name: "Atraxa, Praetors' Voice",

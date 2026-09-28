@@ -513,6 +513,12 @@ async function main() {
     );
     // R5a's hero (REDESIGN.md §2) — game-neutral, updated in the same commit as the copy.
     check("home hero is game-neutral", home.text.includes("Your next great deck starts here."));
+    // W9c's random-commander door on the Magic card (X3, REC-7 — no smoke
+    // pinned it before): the Magic draft with the ?surprise=1 seed latch.
+    check(
+      "home links Surprise me into a Magic draft's random-commander seed (W9c)",
+      /<a[^>]*href="\/decks\/new\?game=mtg&amp;surprise=1"[^>]*>Surprise me<\/a>/.test(home.text),
+    );
     // The template holds: per-page MTG titles must NOT pick up the widening.
     check(
       "MTG hub page title untouched by the two-game default (template pages keep their own)",

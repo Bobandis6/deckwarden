@@ -106,6 +106,47 @@ export async function loadCombosForCard(
   };
 }
 
+/**
+ * One combo by its Spellbook variant key (X3, GET /api/combos/[key] — the
+ * hub door's draft seed). ONE statement: the external_key UNIQUE index is
+ * a single probe, then the combo's piece rows by primary key; pieces come
+ * back in name order like every ComboView. null for an unknown key — the
+ * nightly hard-deletes combos that leave the export, so an hour-old ISR
+ * hub can link a key that is gone — and for a combo holding a removed
+ * piece: resolve refuses removed cards, so no deck could be seeded with it
+ * (0 such combos on 2026-09-28).
+ */
+export async function loadComboByKey(externalKey: string): Promise<ComboView | null> {
+  const rows = await getDb()
+    .select({
+      id: combos.id,
+      externalKey: combos.externalKey,
+      results: combos.results,
+      templates: combos.templates,
+      popularity: combos.popularity,
+      pieceId: cardIdentities.id,
+      pieceName: cardIdentities.name,
+      pieceKey: cardIdentities.externalKey,
+      pieceRemoved: cardIdentities.isRemoved,
+    })
+    .from(combos)
+    .innerJoin(comboPieces, eq(comboPieces.comboId, combos.id))
+    .innerJoin(cardIdentities, eq(cardIdentities.id, comboPieces.cardIdentityId))
+    .where(eq(combos.externalKey, externalKey))
+    .orderBy(cardIdentities.name);
+
+  const [first] = rows;
+  if (!first || rows.some((r) => r.pieceRemoved)) return null;
+  return {
+    id: first.id,
+    externalKey: first.externalKey,
+    results: first.results,
+    templates: first.templates,
+    popularity: first.popularity,
+    pieces: rows.map((r) => ({ id: r.pieceId, name: r.pieceName, externalKey: r.pieceKey })),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Deck-relative detection (P3.3) — THE shared query layer for "what combos
 // does this deck have / nearly have". The recommendation engine's one-away

@@ -26,11 +26,16 @@
  * it works in a seeded DRAFT with no deck row and adds no per-edit request.
  * "In deck" marks are computed client-side from inDeckQty. "Add N pieces"
  * hydrates every missing piece in ONE resolve call by externalKey (pass 0)
- * and lands ONE toast; "Build around" does the same add quietly and opens
- * the autofill sheet — the pieces ride into the plan as normal main-zone
- * entries (keeps), per the W9b sheet contract. No "Combo piece" tag on the
- * seeded entries — the sheet doesn't render tags, so the label would be
- * invisible state (disclosed W9c decision).
+ * and lands ONE toast.
+ *
+ * "Suggest full list" (X3, WAVE3.md D3 — W9c's "Build around", renamed to
+ * say what it does) sits on all three kinds of row: "With your commander",
+ * "In your deck" and "One card away" (which adds its missing piece first).
+ * It does the same add quietly — real edits: they save, and cancelling the
+ * sheet leaves them — then opens the autofill sheet with the combo PINNED
+ * (comboPin): its pieces are always kept and render as their own "Combo
+ * pieces" group, each labeled "Combo piece" (LATER row 104, fired — the
+ * label rides the pinned context, not a `tags` value).
  */
 import { ArrowUpRightIcon } from "lucide-react";
 import Link from "next/link";
@@ -40,7 +45,13 @@ import { Button } from "@/components/ui/button";
 import { useResolvedAdd } from "@/components/editor/use-resolved-add";
 import { toast } from "@/components/ui/toast";
 import type { ComboPieceRef, ComboView, DeckComboView } from "@/lib/combos/queries";
-import { alsoNeedsLine, deckComboStatus, orderDeckCombos } from "@/lib/combos/view";
+import {
+  alsoNeedsLine,
+  comboPin,
+  deckComboStatus,
+  orderDeckCombos,
+  type ComboPin,
+} from "@/lib/combos/view";
 import { toEditorCard, type CardWire, type EditorCard } from "@/lib/decks/editor-state";
 import { deckStateKey, hasLeader } from "@/lib/decks/panel-view";
 import { getDeckToken } from "@/lib/decks/token-store";
@@ -50,6 +61,16 @@ const fmt = (n: number) => n.toLocaleString("en-US");
 
 /** Commander combos shown (W9c) — the API returns its top 10; the panel keeps the densest slice. */
 const LEADER_COMBOS_SHOWN = 5;
+
+/** The combo door's label and title (X3, D3 — the owner kept the default on 2026-09-28). */
+const SUGGEST_LABEL = "Suggest full list";
+const SUGGEST_TITLE = "Keeps these pieces and suggests the rest of the deck";
+
+/** A deck-relative combo's every card piece — held and missing — for its pin and its adds. */
+const allPieces = (combo: DeckComboView): ComboPieceRef[] => [
+  ...combo.inDeckPieces,
+  ...combo.missingPieces,
+];
 
 interface RadarData {
   inDeck: DeckComboView[];
@@ -78,11 +99,12 @@ interface ComboRadarPanelProps {
   /** Quiet add to the main zone via the editor's own edit path. */
   onAdd: (card: EditorCard) => string | undefined;
   /**
-   * "Build around" door (W9c) — opens the autofill review sheet. Passed only
-   * when the adapter declares recommend.autofill (the every-door gate); the
-   * button doesn't render without it.
+   * "Suggest full list" (X3; W9c's "Build around") — opens the autofill
+   * review sheet built around one combo. Passed only when the adapter
+   * declares recommend.autofill (the every-door gate); no row renders the
+   * button without it.
    */
-  onOpenAutofill?: () => void;
+  onOpenAutofill?: (pin: ComboPin) => void;
 }
 
 export function ComboRadarPanel({
@@ -174,8 +196,11 @@ export function ComboRadarPanel({
     });
   };
 
-  /** Shared by both buttons: add the missing pieces, then toast OR open the sheet. */
-  const addComboPieces = async (combo: ComboView, openSheet: boolean) => {
+  /** Shared by every combo button: add the missing pieces, then toast OR open the sheet. */
+  const addComboPieces = async (
+    combo: { id: number; pieces: readonly ComboPieceRef[]; templates: readonly string[] },
+    openSheet: boolean,
+  ) => {
     if (pendingCombo !== null) return;
     setPendingCombo(combo.id);
     try {
@@ -183,9 +208,9 @@ export function ComboRadarPanel({
       const added = missing.length > 0 ? await hydratePieces(missing) : [];
       const errors = added.map((card) => onAdd(card)).filter((e): e is string => Boolean(e));
       if (openSheet) {
-        // Build around: whatever landed rides into the plan as keeps — the
+        // Suggest full list: the pieces ride into the plan PINNED — the
         // sheet opening is the feedback, no toast on top.
-        onOpenAutofill?.();
+        onOpenAutofill?.(comboPin(combo.pieces, combo.templates));
         return;
       }
       if (errors.length > 0) {
@@ -302,9 +327,7 @@ export function ComboRadarPanel({
                     pending={pendingCombo === combo.id}
                     busy={pendingCombo !== null}
                     onAddPieces={() => void addComboPieces(combo, false)}
-                    onBuildAround={
-                      onOpenAutofill ? () => void addComboPieces(combo, true) : undefined
-                    }
+                    onSuggest={onOpenAutofill ? () => void addComboPieces(combo, true) : undefined}
                   />
                 ))}
               </ul>
@@ -355,6 +378,13 @@ export function ComboRadarPanel({
                         key={combo.id}
                         combo={combo}
                         externalUrl={combosMeta.externalUrl}
+                        busy={pendingCombo !== null}
+                        onSuggest={
+                          onOpenAutofill
+                            ? () =>
+                                void addComboPieces({ ...combo, pieces: allPieces(combo) }, true)
+                            : undefined
+                        }
                       />
                     ))}
                   </ul>
@@ -377,6 +407,14 @@ export function ComboRadarPanel({
                           const target = combo.missingPieces[0];
                           if (target) void add({ cardId: target.id, name: target.name });
                         }}
+                        busy={pendingCombo !== null}
+                        suggestPending={pendingCombo === combo.id}
+                        onSuggest={
+                          onOpenAutofill
+                            ? () =>
+                                void addComboPieces({ ...combo, pieces: allPieces(combo) }, true)
+                            : undefined
+                        }
                       />
                     ))}
                   </ul>
@@ -467,6 +505,15 @@ function ComboRowDetails({
   );
 }
 
+/** "Suggest full list" (X3): the same small outline button on every kind of combo row. */
+function SuggestButton({ busy, onClick }: { busy: boolean; onClick: () => void }) {
+  return (
+    <Button size="xs" variant="outline" disabled={busy} title={SUGGEST_TITLE} onClick={onClick}>
+      {SUGGEST_LABEL}
+    </Button>
+  );
+}
+
 /** One commander combo (W9c): pieces with in-deck ✓s, evidence tail, the two doors. */
 function LeaderComboRow({
   combo,
@@ -475,7 +522,7 @@ function LeaderComboRow({
   pending,
   busy,
   onAddPieces,
-  onBuildAround,
+  onSuggest,
 }: {
   combo: ComboView;
   inDeckQty: ReadonlyMap<string, number>;
@@ -485,7 +532,7 @@ function LeaderComboRow({
   /** ANY row is resolving — one in-flight resolve at a time. */
   busy: boolean;
   onAddPieces: () => void;
-  onBuildAround?: () => void;
+  onSuggest?: () => void;
 }) {
   const missing = combo.pieces.filter((p) => (inDeckQty.get(p.id) ?? 0) === 0).length;
   return (
@@ -502,11 +549,7 @@ function LeaderComboRow({
         ) : (
           <span className="text-muted-foreground text-xs">All pieces in deck ✓</span>
         )}
-        {onBuildAround && (
-          <Button size="xs" variant="outline" disabled={busy} onClick={onBuildAround}>
-            Build around
-          </Button>
-        )}
+        {onSuggest && <SuggestButton busy={busy} onClick={onSuggest} />}
       </div>
     </li>
   );
@@ -515,9 +558,14 @@ function LeaderComboRow({
 function InDeckComboRow({
   combo,
   externalUrl,
+  busy,
+  onSuggest,
 }: {
   combo: DeckComboView;
   externalUrl: (externalKey: string) => string;
+  /** ANY combo row is resolving — one in-flight resolve at a time. */
+  busy: boolean;
+  onSuggest?: () => void;
 }) {
   const complete = deckComboStatus(combo) === "complete";
   return (
@@ -537,6 +585,11 @@ function InDeckComboRow({
         </span>
       </div>
       <ComboRowDetails combo={combo} externalUrl={externalUrl} />
+      {onSuggest && (
+        <div className="mt-1.5 flex items-center gap-2">
+          <SuggestButton busy={busy} onClick={onSuggest} />
+        </div>
+      )}
     </li>
   );
 }
@@ -547,12 +600,20 @@ function OneAwayComboRow({
   inDeck,
   pending,
   onAdd,
+  busy,
+  suggestPending,
+  onSuggest,
 }: {
   combo: DeckComboView;
   externalUrl: (externalKey: string) => string;
   inDeck: boolean;
   pending: boolean;
   onAdd: () => void;
+  /** ANY combo row is resolving — one in-flight resolve at a time. */
+  busy: boolean;
+  /** This row's missing piece is resolving for "Suggest full list". */
+  suggestPending: boolean;
+  onSuggest?: () => void;
 }) {
   const target = combo.missingPieces[0];
   if (!target) return null;
@@ -583,6 +644,12 @@ function OneAwayComboRow({
         <PieceNames pieces={combo.inDeckPieces} />
       </p>
       <ComboRowDetails combo={combo} externalUrl={externalUrl} />
+      {onSuggest && (
+        <div className="mt-1.5 flex items-center gap-2">
+          <SuggestButton busy={busy} onClick={onSuggest} />
+          {suggestPending && <span className="text-muted-foreground text-xs">Adding…</span>}
+        </div>
+      )}
     </li>
   );
 }

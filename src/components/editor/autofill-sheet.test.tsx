@@ -7,6 +7,10 @@
  * current list; unchecked = leaders + picks REPLACE the rest), reroll and
  * control changes re-POST without ever sending a seed, and the 429
  * sentence with its disabled Retry. The no-leader open fires nothing.
+ * X3: with a pinned combo the sheet is "Build around this combo" — the
+ * pieces render first as "Combo pieces · N" (always kept, no checkbox),
+ * ride every POST's `keep` and every Apply, the commander never among
+ * them, and "Keep my N cards" governs only the other cards.
  */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -125,10 +129,23 @@ const ok = (body: unknown) => ({
 
 const leaderEntry: EditorEntry = { cardId: atraxa.id, zone: "commander", qty: 1, tags: [] };
 const keptEntry: EditorEntry = { cardId: signet.id, zone: "main", qty: 1, tags: ["ramp"] };
+/** X3's pinned piece: a combo partner of the commander, already in the deck. */
+const piece: CardWire = {
+  ...card({ name: "Zealous Conscripts", costValue: 5, cheapestUsd: 0.35 }),
+  image: null,
+};
+const pieceEntry: EditorEntry = { cardId: piece.id, zone: "main", qty: 1, tags: [] };
 const cardsMap = new Map<string, EditorCard>([
   [atraxa.id, toEditorCard(leaderWire)],
   [signet.id, toEditorCard({ ...signet })],
+  [piece.id, toEditorCard(piece)],
 ]);
+/** The combo, as comboPin builds it: every piece — the commander too — in name order. */
+const pinned = {
+  label: "Atraxa, Praetors' Voice + Zealous Conscripts",
+  pieceIds: [atraxa.id, piece.id],
+  templates: [],
+};
 
 function sheet(over: Partial<React.ComponentProps<typeof AutofillSheet>> = {}) {
   return (
@@ -296,5 +313,87 @@ describe("AutofillSheet", () => {
     expect(await screen.findByText("Lands · 12")).toBeTruthy();
     const popup = document.querySelector("[data-slot=drawer-popup]")!;
     expect(within(popup as HTMLElement).getByText("Autofill a starter shell")).toBeTruthy();
+  });
+
+  // ------------------------------------------------------------------- X3
+  it("pinned: the combo's title and lead, 'Combo pieces · 1' first — always kept, labeled, no checkbox — and 'Keep my N' counts the other cards only", async () => {
+    render(sheet({ entries: [leaderEntry, pieceEntry, keptEntry], pinned }));
+    expect(screen.getByRole("dialog", { name: "Build around this combo" })).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Atraxa, Praetors' Voice + Zealous Conscripts. The rest comes from real play data — every pick shows why.",
+      ),
+    ).toBeTruthy();
+    await screen.findByText("Lands · 12");
+
+    const group = screen.getByRole("region", { name: "Combo pieces" });
+    expect(within(group).getByText("Combo pieces · 1")).toBeTruthy(); // the commander is not counted
+    expect(within(group).getByText("always kept")).toBeTruthy();
+    expect(within(group).getByRole("link", { name: "Zealous Conscripts" })).toBeTruthy();
+    expect(within(group).getByText("Combo piece")).toBeTruthy();
+    expect(within(group).getByText("$0.35")).toBeTruthy();
+    expect(within(group).queryByRole("checkbox")).toBeNull();
+    // First in the list, before the server's groups.
+    expect(
+      group.compareDocumentPosition(screen.getByText("Lands · 12")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // The Signet is the only "other" card; the piece and the commander are not counted.
+    expect(screen.getByRole("checkbox", { name: "Keep my 1 card" })).toBeTruthy();
+    const [body] = bodies();
+    expect(body.leaderIds).toEqual([atraxa.id]);
+    expect(body.keep).toEqual([
+      { cardId: piece.id, zone: "main", qty: 1 },
+      { cardId: signet.id, zone: "main", qty: 1 },
+    ]);
+  });
+
+  it("pinned: unticking 'Keep my N cards' re-POSTs WITH the pieces (never keep: []), and Apply keeps them — leaders + pieces + picks", async () => {
+    const onApply = vi.fn();
+    render(sheet({ entries: [leaderEntry, pieceEntry, keptEntry], pinned, onApply }));
+    await screen.findByText("Lands · 12");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep my 1 card" }));
+    await screen.findByText("Lands · 12");
+    expect(bodies().at(-1)?.keep).toEqual([{ cardId: piece.id, zone: "main", qty: 1 }]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add 13 cards" }));
+    const apply = onApply.mock.calls[0][0] as AutofillApply;
+    // The kept Signet (its "ramp" tag) is replaced by the plan — the shell
+    // picks its own Signet — while the combo piece never is.
+    expect(apply.entries.slice(0, 2)).toEqual([leaderEntry, pieceEntry]);
+    expect(apply.entries).not.toContainEqual(keptEntry);
+    expect(apply.entries).toHaveLength(5);
+  });
+
+  it("pinned with only the pieces in the deck: no 'Keep my N' box, the pieces still ride keep; a template shows as 'Also needs'", async () => {
+    render(
+      sheet({
+        entries: [leaderEntry, pieceEntry],
+        pinned: { ...pinned, templates: ["A sacrifice outlet"] },
+      }),
+    );
+    await screen.findByText("Lands · 12");
+    expect(screen.queryByRole("checkbox", { name: /Keep my/ })).toBeNull();
+    expect(bodies()[0].keep).toEqual([{ cardId: piece.id, zone: "main", qty: 1 }]);
+    expect(screen.getByText("Also needs A sacrifice outlet")).toBeTruthy();
+  });
+
+  it("pinned on a phone: the Drawer carries the combo title", async () => {
+    render(sheet({ entries: [leaderEntry, pieceEntry], pinned, phone: true }));
+    expect(await screen.findByText("Lands · 12")).toBeTruthy();
+    const popup = document.querySelector("[data-slot=drawer-popup]")!;
+    expect(within(popup as HTMLElement).getByText("Build around this combo")).toBeTruthy();
+    expect(within(popup as HTMLElement).getByText("Combo pieces · 1")).toBeTruthy();
+  });
+
+  it("no pin: the title, lead and keep semantics are W9b's, unchanged", async () => {
+    render(sheet({ entries: [leaderEntry, pieceEntry, keptEntry] }));
+    expect(screen.getByRole("dialog", { name: "Autofill a starter shell" })).toBeTruthy();
+    await screen.findByText("Lands · 12");
+    expect(screen.queryByRole("region", { name: "Combo pieces" })).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Keep my 2 cards" })).toBeTruthy();
+    expect(screen.queryByText(/Also needs/)).toBeNull();
   });
 });

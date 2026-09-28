@@ -19,6 +19,10 @@
  * per printing per day, no database statement, nothing per viewer, so the
  * page stays ISR), the hero card overlapping it, and "Build with this
  * commander" (LATER's /c/ CTA row, fired) through the ?leader= seam.
+ *
+ * X3 (WAVE3.md D3): each combo row gains "Build around this combo" — the
+ * same seam plus `combo` and the autofill latch — under the build CTA's
+ * own gate. The CTA island itself is untouched (its anchors are pinned).
  */
 import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import type { Metadata } from "next";
@@ -37,6 +41,7 @@ import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
 import { resolveCardArt } from "@/lib/cards/art";
 import { printingImageUrl } from "@/lib/cards/images";
 import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
+import { comboDoorHref } from "@/lib/combos/view";
 import { releasedLabel } from "@/lib/decks/precon-info";
 import { rowPrinting, tileFromDeck } from "@/lib/decks/tiles";
 import { ciPipsHtml } from "@/lib/games/colors";
@@ -323,6 +328,14 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
             combos={combosData.combos}
             combosMeta={adapter.capabilities.combos}
             anchorCardId={leader.id}
+            // The combo door (X3, D3): only where "Build with this commander"
+            // renders — a legal commander — and the adapter declares the
+            // autofill sheet the door opens. Server HTML; the page stays ISR.
+            buildHref={
+              status === "legal" && adapter.recommend?.autofill
+                ? (combo) => comboDoorHref("mtg", leader.externalKey, combo.externalKey)
+                : undefined
+            }
           />
         </section>
       )}
