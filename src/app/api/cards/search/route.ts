@@ -21,6 +21,15 @@
  * grow a fourth match kind for prefixes, and push classification into two
  * clients — the classifier is core and game-branched by `game`, exactly like
  * the resolve route's pass 0 (P4.1's precedent).
+ *
+ * `sort=best` (X2, REC-2): the /cards grid's order when a name is typed —
+ * the ranked name matcher's (src/lib/search/name-match.ts), so the first
+ * tile is the dropdown's first row. It changes ONLY the ORDER BY: the WHERE
+ * is still the translator's, the rows are the same rows. `dir` is ignored
+ * (the rank has one direction), the id pass ignores it like every sort, and
+ * with no name to rank it falls back to the default order. Every other
+ * request — the editor's list included, which sends no `sort` — is
+ * untouched.
  */
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
@@ -32,6 +41,7 @@ import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { searchIdPrefix } from "@/lib/cards/resolve-token";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import { getAdapter } from "@/lib/games/registry";
+import { nameFieldKey, nameMatchOrder, parseNameQuery } from "@/lib/search/name-match";
 import { translateSearch } from "@/lib/search/translate";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +52,7 @@ const QUERY = z.object({
   game: z.enum(["mtg", "optcg"]).default("mtg"),
   /** When present, results carry legality exceptions for this format (P1.4). */
   format: z.string().max(40).optional(),
-  sort: z.enum(["relevance", "name", "mv", "price", "pop"]).optional(),
+  sort: z.enum(["relevance", "name", "mv", "price", "pop", "best"]).optional(),
   dir: z.enum(["asc", "desc"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).max(10000).default(0),
@@ -74,7 +84,11 @@ export async function GET(request: NextRequest) {
       ? { conditions: [sql`${ci.externalKey} LIKE ${idPrefix + "%"}`], rank: null, warnings: [] }
       : translateSearch(adapter.searchFields, params);
 
-  const orderKey = sort ?? (rank ? "relevance" : "pop");
+  // `best` ranks by the typed name (docblock); with no name it is the default order.
+  const nameField = nameFieldKey(adapter.searchFields);
+  const bestQuery = sort === "best" && nameField ? parseNameQuery(params[nameField]) : null;
+  const defaultKey = rank ? "relevance" : "pop";
+  const orderKey = sort === "best" ? (bestQuery ? "best" : defaultKey) : (sort ?? defaultKey);
   const direction = dir ?? (orderKey === "relevance" ? "desc" : "asc");
   const dirSql = direction === "desc" ? sql`DESC` : sql`ASC`;
   const ORDERS: Record<string, SQL> = {
@@ -83,6 +97,7 @@ export async function GET(request: NextRequest) {
     mv: sql`${ci.costValue} ${dirSql} NULLS LAST`,
     price: sql`${ci.cheapestUsd} ${dirSql} NULLS LAST`,
     pop: sql`${ci.popularity} ${dirSql} NULLS LAST`,
+    ...(bestQuery ? { best: sql.join(nameMatchOrder(bestQuery), sql`, `) } : {}),
   };
   const orderBy = idPrefix !== null ? sql`${ci.externalKey} ASC` : ORDERS[orderKey];
 

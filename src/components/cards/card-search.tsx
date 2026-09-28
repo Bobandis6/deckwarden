@@ -26,6 +26,15 @@
  * params, the API calls, the `ColorChipButton`s and the `autoFocus` are
  * unchanged — a page whose purpose is search focuses its box (phone
  * browsers do not raise the keyboard for `autofocus` without a gesture).
+ *
+ * X2 (WAVE3.md D2): the Name box is the predictive island, still controlled
+ * by `q` (so the chips, Clear all and the grid read the same text), its
+ * input now a `combobox` named "Card name". A row opens the card page — for
+ * leaders too; the card page links the hub — and a pick never rewrites `q`,
+ * so the grid is not re-run on the way out. The grid itself keeps updating
+ * as you type; with a name it asks for `sort=best` (REC-2), the dropdown's
+ * order, so the first tile is the first suggestion. Enter does nothing new:
+ * there is no form, and the grid is already live.
  */
 import { XIcon } from "lucide-react";
 import Link from "next/link";
@@ -33,6 +42,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { ColorChipButton, colorChipDef, colorChipDefs } from "@/components/color-chip";
+import { NameSuggest } from "@/components/search/name-suggest";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAdapter } from "@/lib/games/registry";
@@ -122,9 +132,12 @@ export function CardSearch({
     if (type) params.set("type", type);
     if (colors.length) params.set(colorParam, `within:${colors.join("")}`);
     if (distinctField && distinct.trim()) params.set(distinctField, distinct.trim());
-    // Route default sort is popularity — NULL for every OP row (P4.1 measured
-    // 0/2,785), which orders arbitrarily. Name is the honest OP default.
-    if (game === "optcg" && !q.trim()) params.set("sort", "name");
+    // With a name: the ranked matcher's order (X2, REC-2), both games. Without
+    // one the route's default sort is popularity — NULL for every OP row (P4.1
+    // measured 0/2,785), which orders arbitrarily. Name is the honest OP
+    // default; Magic keeps popularity.
+    if (q.trim()) params.set("sort", "best");
+    else if (game === "optcg") params.set("sort", "name");
     if (offset) params.set("offset", String(offset));
     return `/api/cards/search?${params}`;
   };
@@ -213,14 +226,17 @@ export function CardSearch({
       <div data-slot="filter-groups" className="flex flex-wrap items-end gap-x-4 gap-y-3">
         <fieldset className="min-w-0 flex-1 basis-56">
           <legend className={LEGEND_CLASS}>Name</legend>
-          <input
-            type="search"
+          <NameSuggest
+            game={game}
+            scope="cards"
+            rowHref={{ prefix: "/cards/", key: "id" }}
+            detail={game === "mtg" ? "type" : "number"}
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onValueChange={setQ}
             placeholder="Search card names…"
             aria-label="Card name"
             autoFocus
-            className={`${FIELD_CLASS} w-full max-w-sm`}
+            inputClassName={`${FIELD_CLASS} w-full max-w-sm`}
           />
         </fieldset>
         <fieldset className="min-w-0">

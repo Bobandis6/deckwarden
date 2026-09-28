@@ -4,6 +4,9 @@
  * fit, basics/banned exclusions, banned-leader banner, role template).
  * Fixtures are picked from the live DB, not hardcoded, so meta shifts and
  * re-ingests can't rot the script. No auth — hubs are public card data.
+ * X2 adds the name filter on both indexes (REC-3, the shared ranked
+ * matcher) and GET /api/cards/suggest — pinned by rule (classes, word
+ * starts), never by an EDHREC position.
  *
  *   pnpm smoke:hubs
  *   BASE_URL=http://localhost:3111 pnpm smoke:hubs
@@ -82,6 +85,123 @@ async function main() {
     check(
       "pagination: page 2 renders and drops page-1 leader",
       page2.status === 200 && !page2.text.includes(`/c/${top.slug as string}"`),
+    );
+
+    // ---- the name filter (W4; X2 REC-3: the shared ranked matcher) --------
+    // D2's two acceptance rows: under W4's bare LIKE both answered "No
+    // commanders match" (the normalizer keeps the comma, the apostrophe and
+    // the hyphen). Now every typed word need only start a word.
+    const acceptance = await sql`
+      SELECT name, slug FROM card_identities
+      WHERE game_id = 1 AND is_leader_candidate AND NOT is_removed
+        AND slug IN ('atraxa-praetors-voice', 'kiki-jiki-mirror-breaker')`;
+    check("REC-3 fixtures exist (Atraxa, Praetors' Voice; Kiki-Jiki)", acceptance.length === 2);
+    for (const [typed, slug] of [
+      ["atraxa+praetors", "atraxa-praetors-voice"],
+      ["kiki+jiki", "kiki-jiki-mirror-breaker"],
+    ]) {
+      const filtered = await page(`/commanders?q=${typed}`);
+      check(
+        `/commanders?q=${typed} lists /c/${slug} (REC-3)`,
+        filtered.status === 200 &&
+          filtered.text.includes(`/c/${slug}"`) &&
+          !filtered.text.includes("No commanders match"),
+      );
+    }
+    // An exact name outranks every popular near match: the typed name's own
+    // hub is the list's first row (the first hub link in the page).
+    const exact = await page(`/commanders?q=${encodeURIComponent(top.name as string)}`);
+    check(
+      "the filter ranks: an exact name is the first row",
+      exact.text.match(/href="\/c\/([a-z0-9-]+)"/)?.[1] === top.slug,
+      exact.text.match(/href="\/c\/([a-z0-9-]+)"/)?.[1],
+    );
+    // Without JavaScript the island is still the form's one named field, with
+    // the typed text, beside a default submit button (Base UI adds a second,
+    // unnamed text input; a form with two and no button ignores Enter).
+    const kikiForm =
+      (await page("/commanders?q=kiki+jiki")).text.match(
+        /<form[^>]*action="\/commanders"[\s\S]*?<\/form>/,
+      )?.[0] ?? "";
+    check(
+      "the filter form works without JS: name=q with the value, and a default submit button",
+      /<input[^>]*name="q"[^>]*value="kiki jiki"/.test(kikiForm) &&
+        (kikiForm.match(/ name="/g) ?? []).length === 1 &&
+        /<button[^>]*type="submit"/.test(kikiForm),
+      kikiForm.slice(0, 300),
+    );
+
+    // /leaders runs the same matcher. A word may start after a period
+    // (Monkey.D.Luffy, Edward.Newgate): the dotted leader's last word finds it.
+    const [dotted] = await sql`
+      SELECT name, slug, name_norm FROM card_identities
+      WHERE game_id = 2 AND is_leader_candidate AND slug IS NOT NULL AND NOT is_removed
+        AND name_norm ~ '[a-z]\\.[a-z]{3,}$'
+      ORDER BY name, external_key LIMIT 1`;
+    if (dotted) {
+      const word = (dotted.name_norm as string).split(".").at(-1) as string;
+      const leaders = await page(`/leaders?q=${word}`);
+      check(
+        `/leaders?q=${word} lists /l/${dotted.slug as string} (a word starts after a period)`,
+        leaders.status === 200 && leaders.text.includes(`/l/${dotted.slug as string}"`),
+      );
+    }
+
+    // ---- GET /api/cards/suggest (X2, D2) ------------------------------------
+    type SuggestRow = { name: string; slug: string | null; isLeader: boolean };
+    const suggest = async (query: string) => {
+      const res = await fetch(`${BASE}/api/cards/suggest?${query}`);
+      const body = (await res.json()) as { q?: string; results?: SuggestRow[] };
+      return { res, q: body.q, rows: body.results ?? [] };
+    };
+    // D2's word start: the start, or after a space, hyphen, period, quote or "(".
+    const startsAWord = (name: string, word: string) =>
+      new RegExp(`(^|[ .\\-"(])${word}`, "i").test(
+        name.normalize("NFKD").replace(/\p{M}/gu, "").replace(/[’‘]/g, "'"),
+      );
+
+    const one = await suggest("game=mtg&scope=cards&q=a");
+    check(
+      "suggest: one letter → 200, no rows",
+      one.res.status === 200 && one.rows.length === 0 && one.q === "a",
+    );
+    check(
+      "suggest: the edge may keep it an hour (s-maxage=3600, swr a day)",
+      one.res.headers.get("cache-control") ===
+        "public, s-maxage=3600, stale-while-revalidate=86400",
+      one.res.headers.get("cache-control"),
+    );
+    const opt = await suggest("game=mtg&scope=cards&q=Opt");
+    check(
+      "suggest: an exact name leads (Opt), and the text comes back normalized",
+      opt.rows[0]?.name === "Opt" && opt.q === "opt",
+      opt.rows[0]?.name,
+    );
+    const atr = await suggest("game=mtg&scope=cards&q=atr");
+    check(
+      "suggest: names that START with the text lead, and every row starts a word with it (no inside-a-word noise)",
+      atr.rows.length === 8 &&
+        /^atr/i.test(atr.rows[0].name) &&
+        atr.rows.every((r) => startsAWord(r.name, "atr")),
+      atr.rows.map((r) => r.name),
+    );
+    const kr = await suggest("game=mtg&scope=leaders&q=kr");
+    check(
+      "suggest: scope=leaders is hubs only — every row a slugged leader",
+      kr.rows.length > 0 && kr.rows.every((r) => r.isLeader && r.slug),
+      kr.rows.map((r) => r.slug),
+    );
+    const urza = await suggest("game=mtg&scope=cards&q=urzas+saga");
+    check(
+      "suggest: near misses from four letters (urzas saga → Urza's Saga)",
+      urza.rows.some((r) => r.name === "Urza's Saga"),
+      urza.rows.map((r) => r.name),
+    );
+    const blanks = await suggest("game=mtg&scope=cards&q=__");
+    check(
+      "suggest: typed wildcards match themselves (__ → only names with underscores)",
+      blanks.rows.length > 0 && blanks.rows.every((r) => r.name.includes("__")),
+      blanks.rows.map((r) => r.name),
     );
 
     // ---- hub page ---------------------------------------------------------

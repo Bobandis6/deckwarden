@@ -28,6 +28,21 @@ describe("translateSearch", () => {
     expect(render(t.rank!).sql).toContain("similarity");
   });
 
+  it("escapes LIKE's wildcards in the name arm's bound value only — no ESCAPE clause (X2)", () => {
+    for (const [typed, pattern] of [
+      ["_", "%\\_%"],
+      ["100%", "%100\\%%"],
+      ["a\\b", "%a\\\\b%"],
+      ["\\", "%\\\\%"],
+    ] as const) {
+      const q = render(translateSearch(fields, { name: typed }).conditions[0]);
+      expect(q.sql).toBe(
+        '("card_identities"."name_norm" LIKE $1 OR "card_identities"."name_norm" % $2)',
+      );
+      expect(q.params).toEqual([pattern, typed]);
+    }
+  });
+
   it("translates FTS text search over the tsvector column", () => {
     const t = translateSearch(fields, { text: "draw a card" });
     const q = render(t.conditions[0]);

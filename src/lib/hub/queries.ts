@@ -21,13 +21,13 @@ import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
 import { FORMAT_ID, GAME_ID, type GameCode } from "@/db/seed-data";
-import { normalizeCardName } from "@/lib/cards/normalize";
 import {
   deckCollectionSelect,
   defaultPrintingJoin,
   type DeckCollectionRow,
 } from "@/lib/decks/collections";
 import { META_LENS_LIMIT, META_LENS_MIN_LISTS, type MetaLens } from "@/lib/hub/meta-lens";
+import { nameMatchCondition, nameMatchOrder, parseNameQuery } from "@/lib/search/name-match";
 
 const {
   cardIdentities,
@@ -38,19 +38,6 @@ const {
   legalities,
   users,
 } = schema;
-
-/**
- * A `?q=` name filter as a name_norm condition (W4, REC-2): normalized
- * through THE shared normalizer so "Krenko" and a pasted DFC name match
- * stored values, with LIKE wildcards escaped (the card "_____" exists).
- * `%q%` rides the ci_name_trgm GIN index. Null when nothing survives.
- */
-function nameNormLikeCondition(q: string | undefined) {
-  const norm = q ? normalizeCardName(q) : "";
-  if (!norm) return null;
-  const escaped = norm.replace(/[\\%_]/g, (m) => `\\${m}`);
-  return sql`${cardIdentities.nameNorm} LIKE ${"%" + escaped + "%"}`;
-}
 
 export type LeaderRow = typeof schema.cardIdentities.$inferSelect;
 
@@ -313,7 +300,14 @@ export async function loadLeaderIndex(opts: {
   ciMask: number | null;
   page: number;
   limit?: number;
-  /** Name filter (W4, REC-2) — normalized here; popularity order unchanged. */
+  /**
+   * Name filter (W4; X2 REC-3: the shared ranked matcher). With a name the
+   * list is the matcher's — classes 1–4 plus near misses from four
+   * characters, in rank order, then play — so `atraxa praetors` and `kiki
+   * jiki` find their commanders and the best match leads page 1. Page 2 of
+   * a filtered list is rows 61–120 of that same order. Without a name the
+   * order is the index's own: most played first.
+   */
   q?: string;
 }): Promise<LeaderIndexRow[]> {
   const conditions = [
@@ -323,8 +317,8 @@ export async function loadLeaderIndex(opts: {
     sql`${cardIdentities.slug} IS NOT NULL`,
   ];
   if (opts.ciMask !== null) conditions.push(eq(cardIdentities.ciMask, opts.ciMask));
-  const nameLike = nameNormLikeCondition(opts.q);
-  if (nameLike) conditions.push(nameLike);
+  const nameQuery = parseNameQuery(opts.q);
+  if (nameQuery) conditions.push(nameMatchCondition(nameQuery, "list"));
   return getDb()
     .select({
       id: cardIdentities.id,
@@ -343,7 +337,11 @@ export async function loadLeaderIndex(opts: {
       and(eq(cardPrintings.cardIdentityId, cardIdentities.id), eq(cardPrintings.isDefault, true)),
     )
     .where(and(...conditions))
-    .orderBy(sql`${cardIdentities.popularity} ASC NULLS LAST`, asc(cardIdentities.name))
+    .orderBy(
+      ...(nameQuery
+        ? nameMatchOrder(nameQuery)
+        : [sql`${cardIdentities.popularity} ASC NULLS LAST`, asc(cardIdentities.name)]),
+    )
     .limit(opts.limit ?? LEADERS_PAGE_SIZE)
     .offset((opts.page - 1) * LEADERS_PAGE_SIZE);
 }
@@ -428,7 +426,11 @@ export interface OpLeaderIndexRow {
  */
 export async function loadOpLeaderIndex(opts: {
   colorsMask: number | null;
-  /** Name filter (W4 — /leaders parity with /commanders). */
+  /**
+   * Name filter (W4 — /leaders parity with /commanders; X2 REC-3: the
+   * shared ranked matcher, in rank order, then name and card number — One
+   * Piece has no play signal). Without a name the order is A to Z.
+   */
   q?: string;
 }): Promise<OpLeaderIndexRow[]> {
   const conditions = [
@@ -438,8 +440,8 @@ export async function loadOpLeaderIndex(opts: {
     sql`${cardIdentities.slug} IS NOT NULL`,
   ];
   if (opts.colorsMask !== null) conditions.push(eq(cardIdentities.colorsMask, opts.colorsMask));
-  const nameLike = nameNormLikeCondition(opts.q);
-  if (nameLike) conditions.push(nameLike);
+  const nameQuery = parseNameQuery(opts.q);
+  if (nameQuery) conditions.push(nameMatchCondition(nameQuery, "list"));
   return getDb()
     .select({
       id: cardIdentities.id,
@@ -451,7 +453,11 @@ export async function loadOpLeaderIndex(opts: {
     })
     .from(cardIdentities)
     .where(and(...conditions))
-    .orderBy(asc(cardIdentities.name), asc(cardIdentities.externalKey));
+    .orderBy(
+      ...(nameQuery
+        ? nameMatchOrder(nameQuery)
+        : [asc(cardIdentities.name), asc(cardIdentities.externalKey)]),
+    );
 }
 
 /**

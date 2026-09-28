@@ -9,7 +9,8 @@
  *
  * Caching intent: force-dynamic — ?colors= / ?page= / ?q= (W4, REC-2: a
  * name filter on name_norm over the trgm index, so "browse to choose" works
- * across 4,012 commanders) drive the query, and one partial-indexed read
+ * across 4,012 commanders; X2 REC-3: the shared ranked matcher, best match
+ * first) drive the query, and one partial-indexed read
  * (ci_leaders, now with the default printing joined) per request is cheap;
  * if this page ever shows up in Neon compute, the upgrade path is ISR per
  * filter combination, not a rethink.
@@ -26,7 +27,7 @@ import { EmptyState } from "@/components/empty-state";
 import { GameSwitch } from "@/components/game-switch";
 import { LeaderIndexView, type IndexLeader } from "@/components/hub/leader-index-view";
 import { LeaderPickBanner } from "@/components/hub/leader-pick-banner";
-import { Input } from "@/components/ui/input";
+import { NameSuggest } from "@/components/search/name-suggest";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { leaderTileImage } from "@/lib/decks/tiles";
 import { COLOR_ORDER, lettersToMask, maskToLetters } from "@/lib/games/colors";
@@ -108,19 +109,27 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Name filter (W4, REC-2): a plain GET form — Enter submits; the
             current color selection rides along as a hidden input so q and
-            colors combine instead of fighting. No page input: page resets. */}
+            colors combine instead of fighting. No page input: page resets.
+            X2: the box is the predictive island — its server render is the
+            same <input name="q"> with the typed value, so the form works
+            without JavaScript; a row opens that commander's hub, the last
+            row submits the form. Keyed on the server's q so a navigation
+            that changes it (Clear filter) resets the box. */}
         <form action="/commanders" method="get" role="search" className="w-full sm:w-56">
           <label htmlFor="commanders-q" className="sr-only">
             Filter by name
           </label>
-          <Input
+          <NameSuggest
+            key={rawQ}
             id="commanders-q"
-            type="search"
             name="q"
             defaultValue={rawQ}
             placeholder="Filter by name…"
-            autoComplete="off"
-            spellCheck={false}
+            game="mtg"
+            scope="leaders"
+            rowHref={{ prefix: "/c/", key: "slug" }}
+            detail="colors"
+            footerNoun="commander"
           />
           {activeLetters && (
             <input type="hidden" name="colors" value={activeLetters.toLowerCase()} />

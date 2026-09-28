@@ -29,8 +29,8 @@ import { chipClass, ColorChipLink, ColorChipList } from "@/components/color-chip
 import { EmptyState } from "@/components/empty-state";
 import { GameSwitch } from "@/components/game-switch";
 import { LeaderPickBanner } from "@/components/hub/leader-pick-banner";
+import { NameSuggest } from "@/components/search/name-suggest";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { loadOpLeaderIndex } from "@/lib/hub/queries";
 import { lettersToMask } from "@/lib/games/colors";
@@ -98,19 +98,24 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Name filter (W4 — /commanders parity): plain GET form, colors
-            ride along hidden, Enter submits. */}
+            ride along hidden, Enter submits. X2: the predictive island, in
+            lockstep with /commanders — rows open /l/ hubs and show the
+            card number (17 Luffys). */}
         <form action="/leaders" method="get" role="search" className="w-full sm:w-56">
           <label htmlFor="leaders-q" className="sr-only">
             Filter by name
           </label>
-          <Input
+          <NameSuggest
+            key={rawQ}
             id="leaders-q"
-            type="search"
             name="q"
             defaultValue={rawQ}
             placeholder="Filter by name…"
-            autoComplete="off"
-            spellCheck={false}
+            game="optcg"
+            scope="leaders"
+            rowHref={{ prefix: "/l/", key: "slug" }}
+            detail="number"
+            footerNoun="leader"
           />
           {activeLetters && (
             <input type="hidden" name="colors" value={activeLetters.toLowerCase()} />

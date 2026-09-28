@@ -111,6 +111,39 @@ async function main() {
     bannedRow?.legality,
   );
 
+  // The predictive dropdown (X2, D2): the same card-number pass, and names
+  // ranked by the shared matcher — every row carries its card number (17
+  // Luffys), and the island sends the text lowercased.
+  type SuggestRow = { name: string; externalKey: string; isLeader: boolean; slug: string | null };
+  const suggestRows = async (query: string) =>
+    ((await getJson(`/api/cards/suggest?${query}`)).json as { results?: SuggestRow[] }).results ??
+    [];
+  const sugById = await suggestRows("game=optcg&scope=cards&q=op01-02");
+  check(
+    "suggest?game=optcg&q=op01-02 → the card-number pass: 8 OP01-02x rows in ascending key order",
+    sugById.length === 8 &&
+      sugById.every((row) => row.externalKey.startsWith("OP01-02")) &&
+      sugById.every((row, i) => i === 0 || sugById[i - 1].externalKey < row.externalKey),
+    sugById.map((row) => row.externalKey),
+  );
+  const sugZoro = await suggestRows("game=optcg&scope=cards&q=zoro");
+  check(
+    "suggest?game=optcg&q=zoro → rows whose names start a word with zoro, each with its card number",
+    sugZoro.length > 0 &&
+      sugZoro.every(
+        (row) => /(^|[ .\-"(])zoro/i.test(row.name) && /^[A-Z]+\d*-\d+$/.test(row.externalKey),
+      ),
+    sugZoro.map((row) => `${row.name} ${row.externalKey}`),
+  );
+  const sugLuffy = await suggestRows("game=optcg&scope=leaders&q=luffy");
+  check(
+    "suggest?game=optcg&scope=leaders&q=luffy → slugged leaders only, Monkey.D.Luffy among them",
+    sugLuffy.length > 0 &&
+      sugLuffy.every((row) => row.isLeader && row.slug) &&
+      sugLuffy.some((row) => row.name === "Monkey.D.Luffy"),
+    sugLuffy.map((row) => row.slug),
+  );
+
   // FTS over the type_line/oracle_text keys punk-map writes.
   const byText = await getJson("/api/cards/search?game=optcg&text=rested%20DON&limit=5");
   const textResults = (byText.json as { results?: SearchResult[] })?.results ?? [];

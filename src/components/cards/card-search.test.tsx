@@ -4,7 +4,9 @@
  * skeleton grid while the first page is in flight (the same columns and
  * card aspect), the URL params landing preset from hub links, and Load
  * more keeping its own loading label. Fetch is stubbed; timers are fake
- * for the 250 ms debounce.
+ * for the 250 ms debounce. X2: the Name box is the predictive island — a
+ * `combobox` with the same accessible name — and a typed name sends
+ * `sort=best`; the island's own behavior is name-suggest.test.tsx's.
  */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -64,7 +66,7 @@ describe("CardSearch — groups, chips, skeleton", () => {
     expect(screen.getByRole("group", { name: "Type" })).toBeTruthy();
     expect(screen.getByRole("group", { name: "Color identity" })).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Traits" })).toBeNull();
-    expect(screen.getByRole("searchbox", { name: "Card name" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Card name" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Card type" })).toBeTruthy();
 
     const skeleton = document.querySelector<HTMLElement>("[data-slot=results-skeleton]")!;
@@ -114,8 +116,9 @@ describe("CardSearch — groups, chips, skeleton", () => {
     act(() => {
       vi.advanceTimersByTime(250);
     });
+    // X2 (REC-2): a typed name asks for the dropdown's order.
     expect(requests.at(-1)!.url).toBe(
-      "/api/cards/search?game=optcg&limit=60&name=luffy&type=Character&color=within%3ARG&traits=Straw+Hat+Crew",
+      "/api/cards/search?game=optcg&limit=60&name=luffy&type=Character&color=within%3ARG&traits=Straw+Hat+Crew&sort=best",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Remove filter: Color Red" }));
@@ -129,7 +132,7 @@ describe("CardSearch — groups, chips, skeleton", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
     expect(document.querySelector("[data-slot=active-filters]")).toBeNull();
-    expect((screen.getByRole("searchbox", { name: "Card name" }) as HTMLInputElement).value).toBe(
+    expect((screen.getByRole("combobox", { name: "Card name" }) as HTMLInputElement).value).toBe(
       "",
     );
     act(() => {
@@ -156,7 +159,7 @@ describe("CardSearch — groups, chips, skeleton", () => {
     expect(screen.getAllByRole("link")).toHaveLength(61);
     expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
 
-    fireEvent.change(screen.getByRole("searchbox", { name: "Card name" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "Card name" }), {
       target: { value: "sol" },
     });
     expect(screen.getByRole("button", { name: "Remove filter: Name sol" })).toBeTruthy();

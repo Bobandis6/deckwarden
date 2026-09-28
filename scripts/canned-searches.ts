@@ -1,5 +1,5 @@
 /**
- * P0.6 acceptance harness: 10 canned searches against /api/cards/search, with
+ * P0.6 acceptance harness: 13 canned searches against /api/cards/search, with
  * correctness assertions on real ingested data plus a warm-p95 latency check
  * (budget: < ~150ms). Run against local dev or the deployment:
  *
@@ -102,6 +102,27 @@ const CANNED: Canned[] = [
     params: "text=proliferate&sort=name&limit=100",
     assert: (r) =>
       r.results.some((x) => x.name === "Contagion Clasp") ? null : "Contagion Clasp missing",
+  },
+  {
+    label: "sort=best (X2, REC-2): an exact name leads (opt → Opt)",
+    params: "name=opt&sort=best",
+    assert: (r) => (r.results[0]?.name === "Opt" ? null : `first was ${r.results[0]?.name}`),
+  },
+  {
+    label: "sort=best: names that start with the text lead (atr → Atr…)",
+    params: "name=atr&sort=best&limit=10",
+    assert: (r) =>
+      r.results.length && /^atr/i.test(r.results[0].name)
+        ? null
+        : `first was ${r.results[0]?.name}`,
+  },
+  {
+    label: "a typed _ matches itself, not every card (X2 LIKE escape)",
+    params: "name=_&limit=100",
+    assert: (r) => {
+      const bad = r.results.find((x) => !x.name.includes("_"));
+      return r.total > 0 && !bad ? null : `total ${r.total}; ${bad?.name ?? ""}`;
+    },
   },
   {
     label: "sort=price desc is monotonic",

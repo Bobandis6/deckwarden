@@ -20,6 +20,7 @@ import { inArray, sql, type Column, type SQL } from "drizzle-orm";
 import { cardIdentities } from "@/db/schema";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import type { FieldTarget, SearchFieldDef } from "@/lib/games/types";
+import { escapeLike } from "@/lib/search/name-match";
 
 type ColumnName = Extract<FieldTarget, { column: unknown }>["column"];
 
@@ -99,7 +100,14 @@ export function translateSearch(
           conditions.push(sql`${column} = ${value}`);
         } else if (field.match === "trgm") {
           // Both arms are served by the gin_trgm_ops index; % catches typos.
-          conditions.push(sql`(${column} LIKE ${"%" + value + "%"} OR ${column} % ${value})`);
+          // X2: the LIKE arm's bound value escapes `\`, `%` and `_` (Postgres's
+          // default LIKE escape, no ESCAPE clause), so a typed "_" matches the
+          // card named "_____", not every card, and a trailing "\" is no
+          // longer a malformed pattern. Values with none of the three bind
+          // exactly as before; the similarity arm takes the text as typed.
+          conditions.push(
+            sql`(${column} LIKE ${"%" + escapeLike(value) + "%"} OR ${column} % ${value})`,
+          );
           rank ??= sql`similarity(${column}, ${value})`;
         } else {
           conditions.push(sql`${column} @@ websearch_to_tsquery('english', ${value})`);
