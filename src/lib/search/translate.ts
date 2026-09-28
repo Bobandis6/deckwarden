@@ -6,7 +6,10 @@
  * Targets resolve to Drizzle column objects (compile-time exhaustive over the
  * FieldTarget whitelist) or to validated JSONB paths; every user value is a
  * bound parameter. Unknown params are ignored (pagination etc. live beside
- * filter params); malformed values produce warnings, never SQL.
+ * filter params); malformed values produce warnings, never SQL built from
+ * them. One exception to "a malformed filter is dropped": a malformed set
+ * code scopes to nothing (a constant FALSE) — dropping it would widen the
+ * rows to every card under the set the reader asked for.
  *
  * Param value grammar, by field kind:
  *   text        q=lightning
@@ -14,13 +17,16 @@
  *   multiselect type=Creature,Instant            (mode comes from the def)
  *   colorset    ci=within:WUG | colors=including:R | ci=exactly:WU
  *               (bare masks default to `within` — the deck-building question)
+ *   set         set=blb                          (one code, any case; X4a)
  */
-import { inArray, sql, type Column, type SQL } from "drizzle-orm";
+import { and, eq, exists, inArray, sql, type Column, type SQL } from "drizzle-orm";
+import { alias, QueryBuilder } from "drizzle-orm/pg-core";
 
-import { cardIdentities } from "@/db/schema";
+import { cardIdentities, cardPrintings, sets } from "@/db/schema";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import type { FieldTarget, SearchFieldDef } from "@/lib/games/types";
 import { escapeLike } from "@/lib/search/name-match";
+import { releasedPaperSet } from "@/lib/sets/sql";
 
 type ColumnName = Extract<FieldTarget, { column: unknown }>["column"];
 
@@ -45,11 +51,60 @@ type NumberOp = keyof typeof NUMBER_OPS;
 const COLORSET_MODES = ["within", "including", "exactly"] as const;
 type ColorsetMode = (typeof COLORSET_MODES)[number];
 
+/** The set a request is scoped to (X4a): the route shows each card's printing in it. */
+export interface SetScope {
+  /** The field's key, for the route's warnings ("set"). */
+  field: string;
+  /** Lowercased and shape-checked — Magic stores set codes lowercase. */
+  code: string;
+}
+
 export interface SearchTranslation {
   conditions: SQL[];
   /** Relevance expression (higher = better) when a ranked text field matched. */
   rank: SQL | null;
   warnings: string[];
+  /**
+   * X4a: present when a well-formed set code scoped the rows. Optional, so
+   * the route's hand-built id-pass translation keeps its shape.
+   */
+  scope?: SetScope;
+}
+
+/**
+ * A set code's shape. Magic codes are 3–6 lowercase letters and digits
+ * (every one of 1,053, 2026-09-28); the bound is looser so a future code
+ * still reaches the database and gets an honest answer. Anything else is
+ * refused before SQL.
+ */
+const SET_CODE = /^[a-z0-9]{2,12}$/;
+
+const setPrinting = alias(cardPrintings, "set_printing");
+const setRow = alias(sets, "set_row");
+
+/**
+ * The set scope's filter: the card has a live printing in the released set
+ * with this code, in the card's own game (the translator knows no game —
+ * the correlation carries it). Driven from the set by the planner: one
+ * `sets_game_code` probe and one `cp_by_set` scan (Bloomburrow: 398 index
+ * entries). "Released" is the one definition in src/lib/sets/sql.ts.
+ */
+function inSetCondition(code: string): SQL {
+  return exists(
+    new QueryBuilder()
+      .select({ one: sql`1` })
+      .from(setPrinting)
+      .innerJoin(setRow, eq(setRow.id, setPrinting.setId))
+      .where(
+        and(
+          eq(setPrinting.cardIdentityId, cardIdentities.id),
+          eq(setPrinting.isRemoved, false),
+          eq(setRow.gameId, cardIdentities.gameId),
+          eq(setRow.code, code),
+          releasedPaperSet(setRow),
+        ),
+      ),
+  );
 }
 
 /** JSONB text access for a validated path (single segment: attrs->>'key'). */
@@ -79,6 +134,7 @@ export function translateSearch(
   const conditions: SQL[] = [];
   const warnings: string[] = [];
   let rank: SQL | null = null;
+  let scope: SetScope | undefined;
 
   for (const field of fields) {
     const raw = params[field.key]?.trim();
@@ -191,8 +247,28 @@ export function translateSearch(
         }
         break;
       }
+
+      case "set": {
+        // X4a: one code; Magic stores codes lowercase, so any case finds it.
+        const code = raw.toLowerCase();
+        if (!SET_CODE.test(code)) {
+          warnings.push(`${field.key}: "${raw}" is not a set code`);
+          conditions.push(sql`false`);
+          break;
+        }
+        conditions.push(inSetCondition(code));
+        scope ??= { field: field.key, code };
+        break;
+      }
+
+      default: {
+        // Exhaustive (X4a): a kind added to SearchFieldDef without a case
+        // here fails to compile instead of silently ignoring its parameter.
+        const unhandled: never = field;
+        throw new Error(`Unhandled search field kind: ${JSON.stringify(unhandled)}`);
+      }
     }
   }
 
-  return { conditions, rank, warnings };
+  return { conditions, rank, warnings, ...(scope ? { scope } : {}) };
 }

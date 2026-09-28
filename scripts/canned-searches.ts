@@ -1,5 +1,5 @@
 /**
- * P0.6 acceptance harness: 13 canned searches against /api/cards/search, with
+ * P0.6 acceptance harness: 15 canned searches against /api/cards/search, with
  * correctness assertions on real ingested data plus a warm-p95 latency check
  * (budget: < ~150ms). Run against local dev or the deployment:
  *
@@ -21,11 +21,14 @@ interface Result {
   ciMask: number;
   cheapestUsd: number | null;
   image: string | null;
+  /** X4a: present only on a set-scoped answer. */
+  printingId?: string;
 }
 
 interface SearchResponse {
   results: Result[];
   total: number;
+  warnings?: string[];
 }
 
 interface Canned {
@@ -123,6 +126,24 @@ const CANNED: Canned[] = [
       const bad = r.results.find((x) => !x.name.includes("_"));
       return r.total > 0 && !bad ? null : `total ${r.total}; ${bad?.name ?? ""}`;
     },
+  },
+  {
+    label: "set scope (X4a): Bloomburrow, one row per card, each showing its own printing",
+    params: "set=blb&sort=number&limit=100",
+    assert: (r) => {
+      if (r.total < 250) return `only ${r.total} cards`;
+      if (new Set(r.results.map((x) => x.id)).size !== r.results.length) return "a card repeats";
+      const bad = r.results.find((x) => !x.printingId || !x.image?.includes(x.printingId));
+      return bad ? `${bad.name} shows no in-set printing` : null;
+    },
+  },
+  {
+    label: "set scope (X4a): an unknown code is an honest empty answer with a warning",
+    params: "set=zzz",
+    assert: (r) =>
+      r.total === 0 && r.warnings?.some((w) => w.includes('no set has the code "zzz"'))
+        ? null
+        : `total ${r.total}, warnings ${JSON.stringify(r.warnings)}`,
   },
   {
     label: "sort=price desc is monotonic",

@@ -12,12 +12,18 @@
  * Caching intent: dynamic (reads searchParams for the game + initial filter
  * values so hub browse links land preset) — the shell is tiny and all card
  * data still flows through the client component hitting /api/cards/search.
+ *
+ * X4a: `?set=<code>` presets the Set group — read only when the game's
+ * adapter declares a `"set"` field (Magic), like CardSearch's own gate, and
+ * canonicalized away like every other filter (the canonical stays bare).
  */
 import type { Metadata } from "next";
 
 import { CardSearch } from "@/components/cards/card-search";
 import { GameSwitch } from "@/components/game-switch";
 import { OptcgPostureLine } from "@/components/optcg-posture-line";
+import { getAdapter } from "@/lib/games/registry";
+import { setFieldKey } from "@/lib/sets/lines";
 
 function gameFrom(sp: Record<string, string | string[] | undefined>): "mtg" | "optcg" {
   return sp.game === "optcg" ? "optcg" : "mtg";
@@ -46,6 +52,7 @@ export async function generateMetadata({ searchParams }: PageProps<"/cards">): P
 export default async function CardsPage({ searchParams }: PageProps<"/cards">) {
   const sp = await searchParams;
   const game = gameFrom(sp);
+  const setField = setFieldKey(getAdapter(game).searchFields);
 
   return (
     <main className="max-w-wide mx-auto w-full flex-1 px-4 py-8" data-game={game}>
@@ -67,6 +74,7 @@ export default async function CardsPage({ searchParams }: PageProps<"/cards">) {
         initialColors={game === "mtg" ? str(sp.ci) : str(sp.color)}
         distinctField={game === "optcg" ? "traits" : undefined}
         initialDistinct={game === "optcg" ? str(sp.traits) : ""}
+        initialSet={setField ? str(sp[setField]) : ""}
       />
 
       {game === "optcg" ? (

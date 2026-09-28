@@ -35,21 +35,49 @@
  * as you type; with a name it asks for `sort=best` (REC-2), the dropdown's
  * order, so the first tile is the first suggestion. Enter does nothing new:
  * there is no form, and the grid is already live.
+ *
+ * X4a (WAVE3.md D4 + the owner's answers of 2026-09-28): a Set group, only
+ * when the game's adapter declares a `"set"` field (Magic; its one
+ * declaration is the rollback). Its box is the SetPicker over GET
+ * /api/sets — fetched the first time the picker opens, or at mount when
+ * the page arrived with `?set=` (the chip and the header need the name);
+ * otherwise mount still costs exactly one request. A chosen set:
+ * - joins the requests as `set=<code>` (after the other filters, before
+ *   `sort`); with no name the grid asks for `sort=number` — collector-number
+ *   order — and with a name keeps `sort=best`, the dropdown's order;
+ * - shows as a chip ("Set: Eldritch Moon (EMN)", the code alone until the
+ *   list has named it) that × clears, like Clear all;
+ * - heads the results with its place in its line ("Eldritch Moon — the 71st
+ *   expansion set"), then — while no name is typed — "Most played in
+ *   Eldritch Moon": the 12 best EDHREC-ranked cards (a second request,
+ *   `sort=pop&limit=12`, unranked cards dropped, hidden when the whole list
+ *   fits in 12), then the full list;
+ * - makes every tile show and link its printing in the set:
+ *   `/cards/<id>?printing=<printingId>` (the card page restores it after
+ *   hydration).
+ * The Name box's dropdown stays unscoped while a set scopes the grid — a
+ * suggestion is "go to this card" (LATER row 124). Filters are still read
+ * once at load and never written back to the URL.
  */
 import { XIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { PRINTING_PARAM } from "@/app/(site)/cards/[id]/printing-param";
 import { CardImage } from "@/components/cards/card-image";
+import { SetPicker } from "@/components/cards/set-picker";
 import { ColorChipButton, colorChipDef, colorChipDefs } from "@/components/color-chip";
 import { NameSuggest } from "@/components/search/name-suggest";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAdapter } from "@/lib/games/registry";
+import { setFieldKey, setPlace, type ReleasedSet } from "@/lib/sets/lines";
 
 const PAGE_SIZE = 60;
 /** Two rows of the widest grid (5 columns) while the first page loads. */
 export const SKELETON_CARDS = 10;
+/** "Most played in {set}": the owner's 12 (2026-09-28). */
+export const MOST_PLAYED = 12;
 
 const GRID_CLASS = "mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
 const LEGEND_CLASS = "text-muted-foreground mb-1 text-xs font-medium";
@@ -60,11 +88,32 @@ interface SearchResult {
   id: string;
   name: string;
   image: string | null;
+  /** EDHREC rank for Magic (lower = more played); null when unranked. */
+  popularity?: number | null;
+  /** X4a: the printing in the chosen set — present only on a set-scoped answer. */
+  printingId?: string;
 }
 
 interface SearchResponse {
   results: SearchResult[];
   total: number;
+}
+
+/** The card page, on the tile's printing when the answer was set-scoped (X4a). */
+function tileHref(card: SearchResult): string {
+  return card.printingId
+    ? `/cards/${card.id}?${PRINTING_PARAM}=${card.printingId}`
+    : `/cards/${card.id}`;
+}
+
+/** "Jul 22, 2016", UTC-pinned like every other date on the site. */
+function releasedOn(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 function typeOptions(game: "mtg" | "optcg"): { value: string; label: string }[] {
@@ -82,6 +131,8 @@ export interface CardSearchProps {
   /** Key of a distinct-from-db multiselect to expose as a typeahead (OP traits). */
   distinctField?: string;
   initialDistinct?: string;
+  /** X4a: a set code (`?set=`), honored only when the game declares a set field. */
+  initialSet?: string;
 }
 
 /** One selected filter as the chip row shows it: the group's word and the value. */
@@ -99,6 +150,7 @@ export function CardSearch({
   initialColors = "",
   distinctField,
   initialDistinct = "",
+  initialSet = "",
 }: CardSearchProps) {
   const [q, setQ] = useState(initialName);
   const [type, setType] = useState(initialType);
@@ -124,19 +176,43 @@ export function CardSearch({
   const offsetRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
+  // X4a: the set scope — only for a game whose adapter declares the field.
+  const setField = setFieldKey(getAdapter(game).searchFields);
+  const [setCode, setSetCode] = useState(() => (setField ? initialSet.trim().toLowerCase() : ""));
+  /** The list is wanted once the picker opens, or at mount for a preset set. */
+  const [wantSets, setWantSets] = useState(() => setField !== null && setCode !== "");
+  const [setsAttempt, setSetsAttempt] = useState(0);
+  const [sets, setSets] = useState<ReleasedSet[] | null>(null);
+  const [setsFailed, setSetsFailed] = useState(false);
+  /** "Most played in {set}", with the set and the total it was asked for. */
+  const [strip, setStrip] = useState<{ code: string; rows: SearchResult[]; total: number } | null>(
+    null,
+  );
+  const stripAbortRef = useRef<AbortController | null>(null);
+  const chosenSet = setCode ? (sets?.find((set) => set.code === setCode) ?? null) : null;
+  const scoped = setField !== null && setCode !== "";
+
   const colorParam = game === "mtg" ? "ci" : "color";
 
-  const buildUrl = (offset: number) => {
-    const params = new URLSearchParams({ game, limit: String(PAGE_SIZE) });
-    if (q.trim()) params.set("name", q.trim());
+  /** The grid's request — or, with `mostPlayed`, the set's "Most played" strip. */
+  const buildUrl = (offset: number, mostPlayed = false) => {
+    const params = new URLSearchParams({
+      game,
+      limit: String(mostPlayed ? MOST_PLAYED : PAGE_SIZE),
+    });
+    if (q.trim() && !mostPlayed) params.set("name", q.trim());
     if (type) params.set("type", type);
     if (colors.length) params.set(colorParam, `within:${colors.join("")}`);
     if (distinctField && distinct.trim()) params.set(distinctField, distinct.trim());
+    if (setField && scoped) params.set(setField, setCode);
     // With a name: the ranked matcher's order (X2, REC-2), both games. Without
     // one the route's default sort is popularity — NULL for every OP row (P4.1
     // measured 0/2,785), which orders arbitrarily. Name is the honest OP
-    // default; Magic keeps popularity.
-    if (q.trim()) params.set("sort", "best");
+    // default; Magic keeps popularity. X4a: a set with no name lists in
+    // collector-number order, and its strip asks for popularity outright.
+    if (mostPlayed) params.set("sort", "pop");
+    else if (q.trim()) params.set("sort", "best");
+    else if (scoped) params.set("sort", "number");
     else if (game === "optcg") params.set("sort", "name");
     if (offset) params.set("offset", String(offset));
     return `/api/cards/search?${params}`;
@@ -164,12 +240,64 @@ export function CardSearch({
     }
   };
 
+  // X4a: the strip rides the grid's debounce — asked for only with a set and
+  // no name. Unranked cards are dropped: "most played" needs a rank to say so.
+  const loadStrip = async () => {
+    stripAbortRef.current?.abort();
+    stripAbortRef.current = null;
+    if (!scoped || q.trim()) {
+      setStrip(null);
+      return;
+    }
+    const controller = new AbortController();
+    stripAbortRef.current = controller;
+    try {
+      const res = await fetch(buildUrl(0, true), { signal: controller.signal });
+      if (!res.ok) throw new Error(`Search failed (${res.status})`);
+      const json: SearchResponse = await res.json();
+      const rows = json.results.filter((card) => card.popularity != null);
+      setStrip({ code: setCode, rows, total: json.total });
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === "AbortError")) setStrip(null);
+    }
+  };
+
   // Debounced re-search whenever any filter changes.
   useEffect(() => {
-    const t = setTimeout(() => void load(0, false), 250);
+    const t = setTimeout(() => {
+      void load(0, false);
+      void loadStrip();
+    }, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, type, colors.join(""), distinct]);
+  }, [q, type, colors.join(""), distinct, setCode]);
+
+  // X4a: the released-set list, once — on the picker's first open, or at
+  // mount for a preset `?set=`. A failure retries on the picker's next open.
+  useEffect(() => {
+    if (!wantSets || sets) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch(`/api/sets?game=${game}`, { signal: controller.signal });
+        if (!res.ok) throw new Error(`Sets failed (${res.status})`);
+        const json = (await res.json()) as { sets: ReleasedSet[] };
+        setSets(json.sets);
+        setSetsFailed(false);
+      } catch {
+        if (!controller.signal.aborted) setSetsFailed(true);
+      }
+    })();
+    return () => controller.abort();
+  }, [game, wantSets, sets, setsAttempt]);
+
+  const wantSetList = () => {
+    setWantSets(true);
+    if (setsFailed) {
+      setSetsFailed(false);
+      setSetsAttempt((n) => n + 1);
+    }
+  };
 
   // Distinct options (traits) load once per mount — they change only at ingest.
   useEffect(() => {
@@ -207,13 +335,35 @@ export function CardSearch({
     ...(distinctField && distinct.trim()
       ? [{ key: "trait", group: "Trait", value: distinct.trim(), clear: () => setDistinct("") }]
       : []),
+    ...(scoped
+      ? [
+          {
+            key: "set",
+            group: "Set",
+            value: chosenSet
+              ? `${chosenSet.name} (${setCode.toUpperCase()})`
+              : setCode.toUpperCase(),
+            clear: () => setSetCode(""),
+          },
+        ]
+      : []),
   ];
   const clearAll = () => {
     setQ("");
     setType("");
     setColors([]);
     setDistinct("");
+    setSetCode("");
   };
+  /** The set view: a set chosen and no name typed (the strip and the collector order). */
+  const setView = scoped && !q.trim();
+  const showStrip =
+    setView &&
+    strip !== null &&
+    strip.code === setCode &&
+    strip.rows.length > 0 &&
+    strip.total > MOST_PLAYED;
+  const otherFilters = type !== "" || colors.length > 0 || (!!distinctField && !!distinct.trim());
 
   // The skeleton stands in for the FIRST page only: nothing has ever
   // rendered, so the grid's shape is all there is to show. A later
@@ -292,6 +442,19 @@ export function CardSearch({
             </datalist>
           </fieldset>
         )}
+        {setField && (
+          <fieldset className="min-w-0 flex-1 basis-56">
+            <legend className={LEGEND_CLASS}>Set</legend>
+            <SetPicker
+              sets={sets}
+              failed={setsFailed}
+              chosen={chosenSet}
+              onWantSets={wantSetList}
+              onPick={(set) => setSetCode(set.code)}
+              inputClassName={`${FIELD_CLASS} w-full max-w-sm`}
+            />
+          </fieldset>
+        )}
       </div>
 
       {active.length > 0 && (
@@ -317,11 +480,54 @@ export function CardSearch({
         </div>
       )}
 
+      {scoped && (chosenSet || sets) && (
+        <div data-slot="set-header" className="mt-6">
+          {chosenSet ? (
+            <>
+              <h2 className="font-display text-xl font-semibold tracking-tight">
+                {chosenSet.name}{" "}
+                <span className="text-muted-foreground font-normal">— {setPlace(chosenSet)}</span>
+              </h2>
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                {setCode.toUpperCase()} · Released {releasedOn(chosenSet.releasedAt)}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm">No released set has the code “{setCode.toUpperCase()}”.</p>
+          )}
+        </div>
+      )}
+
+      {showStrip && strip && (
+        <section aria-labelledby="most-played-heading" data-slot="most-played" className="mt-6">
+          <h3 id="most-played-heading" className="font-display text-lg font-semibold">
+            Most played in {chosenSet?.name ?? setCode.toUpperCase()}
+          </h3>
+          <p className="text-muted-foreground mt-0.5 text-xs">
+            Ranked by EDHREC play data via Scryfall.
+          </p>
+          <ul className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
+            {strip.rows.map((card) => (
+              <li key={card.id}>
+                <Link
+                  href={tileHref(card)}
+                  className="focus-visible:ring-accent-game block rounded-[4.75%/3.5%] outline-none focus-visible:ring-2"
+                >
+                  <CardImage src={card.image} alt={card.name} width={488} height={680} frame />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <p className="text-muted-foreground mt-3 text-sm" aria-live="polite">
         {error
           ? `Error: ${error}`
           : data
-            ? `${data.total.toLocaleString()} card${data.total === 1 ? "" : "s"}`
+            ? setView && data.total > 0
+              ? `${otherFilters ? "" : "All "}${data.total.toLocaleString()} card${data.total === 1 ? "" : "s"}, in collector-number order`
+              : `${data.total.toLocaleString()} card${data.total === 1 ? "" : "s"}`
             : "Loading…"}
       </p>
 
@@ -341,7 +547,7 @@ export function CardSearch({
           {results.map((card) => (
             <li key={card.id}>
               <Link
-                href={`/cards/${card.id}`}
+                href={tileHref(card)}
                 className="focus-visible:ring-accent-game block rounded-[4.75%/3.5%] outline-none focus-visible:ring-2"
               >
                 <CardImage src={card.image} alt={card.name} width={488} height={680} frame />

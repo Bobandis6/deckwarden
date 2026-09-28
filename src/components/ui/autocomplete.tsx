@@ -21,6 +21,10 @@
  * D0's parts for the pickers that filter client-side (X4a's sets); X2's
  * name box renders its own "No matches" line, because its footer row keeps
  * the list from ever being empty. No Separator: a listbox owns options only.
+ *
+ * X4a adds Collection: Base UI renders a grouped `items` list only as
+ * List → Group (with that group's `items`) → Collection → Item, so the Set
+ * picker's "Main sets" / "Other products" need it.
  */
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
 
@@ -132,6 +136,9 @@ function AutocompleteGroup({ ...props }: AutocompletePrimitive.Group.Props) {
   return <AutocompletePrimitive.Group data-slot="autocomplete-group" {...props} />;
 }
 
+/** The rows of one Group, rendered from the Group's `items` (a render function child). */
+const AutocompleteCollection = AutocompletePrimitive.Collection;
+
 function AutocompleteGroupLabel({ className, ...props }: AutocompletePrimitive.GroupLabel.Props) {
   return (
     <AutocompletePrimitive.GroupLabel
@@ -144,6 +151,7 @@ function AutocompleteGroupLabel({ className, ...props }: AutocompletePrimitive.G
 
 export {
   Autocomplete,
+  AutocompleteCollection,
   AutocompleteContent,
   AutocompleteEmpty,
   AutocompleteGroup,

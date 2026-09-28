@@ -178,6 +178,15 @@ export type FieldTarget =
     }
   | { jsonbPath: string[]; indexed: "gin" | "expression" | "post-filter" };
 
+/**
+ * A printing-level target (X4a): the set of a card's printings, by the
+ * set's code. Its own type, not a FieldTarget variant — every other kind
+ * narrows FieldTarget by `"column" in`, and a set is neither an identity
+ * column nor a JSONB path. The translator turns it into a bound EXISTS
+ * over card_printings and sets (src/lib/search/translate.ts).
+ */
+export type SetTarget = { printing: "set_code" };
+
 export type SearchFieldDef =
   | {
       key: string;
@@ -202,7 +211,13 @@ export type SearchFieldDef =
       options: { value: string; label: string }[] | "distinct-from-db";
     }
   /** Mask semantics chosen at query time: exactly | within | including. */
-  | { key: string; label: string; kind: "colorset"; target: FieldTarget };
+  | { key: string; label: string; kind: "colorset"; target: FieldTarget }
+  /**
+   * One released set, by code (X4a: `set=blb`). Scopes the rows to cards
+   * with a live printing in that set, and the search route shows that
+   * printing. A game that declares none has no set filter (One Piece).
+   */
+  | { key: string; label: string; kind: "set"; target: SetTarget };
 
 // ---------------------------------------------------------------------------
 // Recommendation signal metadata (P3.1)

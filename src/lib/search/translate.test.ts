@@ -100,14 +100,49 @@ describe("translateSearch", () => {
     expect(t.warnings).toHaveLength(1);
   });
 
+  it("set (X4a): a bound EXISTS over printings in one released set, the code lowercased, and the scope", () => {
+    const t = translateSearch(fields, { set: " BLB " });
+    expect(t.warnings).toEqual([]);
+    expect(t.scope).toEqual({ field: "set", code: "blb" });
+    expect(t.conditions).toHaveLength(1);
+    const q = render(t.conditions[0]);
+    expect(q.sql).toBe(
+      `exists (select 1 from "card_printings" "set_printing" inner join "sets" "set_row" on "set_row"."id" = "set_printing"."set_id" where ("set_printing"."card_identity_id" = "card_identities"."id" and "set_printing"."is_removed" = $1 and "set_row"."game_id" = "card_identities"."game_id" and "set_row"."code" = $2 and (NOT "set_row"."digital" AND "set_row"."released_at" <= (now() AT TIME ZONE 'UTC')::date)))`,
+    );
+    expect(q.params).toEqual([false, "blb"]);
+  });
+
+  it("set (X4a): a malformed code warns and scopes to nothing — never widens to every card", () => {
+    for (const bad of ["bl%b", "b", "blb;drop", "a".repeat(13)]) {
+      const t = translateSearch(fields, { set: bad });
+      expect(t.scope).toBeUndefined();
+      expect(t.warnings).toEqual([`set: "${bad}" is not a set code`]);
+      expect(t.conditions).toHaveLength(1);
+      const q = render(t.conditions[0]);
+      expect(q.sql).toBe("false");
+      expect(q.params).toEqual([]);
+    }
+  });
+
+  it("set (X4a): no set, no scope — the translation's shape is what it was", () => {
+    const t = translateSearch(fields, { name: "sol", set: "  " });
+    expect(Object.keys(t)).toEqual(["conditions", "rank", "warnings"]);
+  });
+
   it("binds every user value as a parameter — nothing user-supplied lands in SQL text", () => {
     const evil = "'; DROP TABLE card_identities; --";
-    const t = translateSearch(fields, { name: evil, text: evil, type: evil });
+    const t = translateSearch(fields, { name: evil, text: evil, type: evil, set: "zzz9" });
     for (const c of t.conditions) {
       const q = render(c);
       expect(q.sql).not.toContain("DROP TABLE");
+      expect(q.sql).not.toContain("zzz9");
       expect(
-        q.params.some((p) => String(p).includes("drop table") || String(p).includes("DROP TABLE")),
+        q.params.some(
+          (p) =>
+            String(p).includes("drop table") ||
+            String(p).includes("DROP TABLE") ||
+            String(p) === "zzz9",
+        ),
       ).toBe(true);
     }
   });

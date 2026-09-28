@@ -84,6 +84,10 @@ const SEARCH_FIELDS: SearchFieldDef[] = [
     target: { jsonbPath: ["toughness_num"], indexed: "post-filter" },
     ops: ["eq", "lte", "gte"],
   },
+  // X4a: one released paper set (`set=blb`) — served by sets_game_code and
+  // cp_by_set. This one declaration is the Set group's gate on /cards and
+  // `?set=`'s: remove it and both are gone (WAVE3.md E, Rollback).
+  { key: "set", label: "Set", kind: "set", target: { printing: "set_code" } },
 ];
 
 function escapeHtml(s: string): string {
