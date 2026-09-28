@@ -1,5 +1,60 @@
 # X4b session prompt — Sets page (every released Magic set on one static page, each a way into `/cards?set=`)
 
+## Ship note — 2026-09-28, feat `879db10`, deployed (Vercel status success on the full sha, 12:55 Z)
+
+**Shipped. The prompt below is history; `X5-session-prompt.md` is next.**
+
+`pnpm check` 1,163 → **1,177 tests** (136 → 139 files, the same 6 pre-existing `no-unused-vars` warnings, 0 errors). `pnpm db:size` 269.5 MB before and after (alert 350). Census unchanged before and after: 27 user decks (26 Magic, 12 guest-owned, plus the One Piece fixture), 181 precons, 1 user; likes 2 · bookmarks 0 · folders 1 · versions 1 · collections 0; no `@smoke.invalid` user. X4b created no deck (`smoke:seo`'s fixtures came and went). Route table diff: **exactly `○ /sets 1d 1y`**; `/cards` stays `ƒ`; `/c/[slug]`, `/l/[slug]`, `/cards/[id]` stay `●`; `/api/sets` stays `ƒ`. Smokes green on dev: `sets` (31 checks, 6 new), `seo` (+ "core sitemap lists /sets"), after `counters:reset`; `smoke:sets` green on prod too (33 — the two ISR checks run only where `x-vercel-cache` exists), GETs and read-only queries only. Pre-flight: nightlies green through 2026-09-27 15:16 Z; one closed issue, zero open; the owner confirmed nothing new, granted read-only database access plus the self-cleaning dev smokes, and answered both questions (below). P4.9 stays its own session.
+
+**The owner's answers (2026-09-28, X4b's start)**: build the page — *"yes build it id like it be be a page option when you click the browse tab to view every set if someone doesn't know what sets they are"*; on a follow-up, **main sets first, one click for all**; and X4a's four wording defaults **all kept** (the first answer ticked both "Keep all four" and "Masters read 'Masters set'"; asked which was meant, the owner chose keep all four). WAVE3 §F's two rows are marked answered.
+
+**Proven on prod, signed out, zero creates**
+
+| Check | Result |
+|---|---|
+| `/sets` | 200, `x-nextjs-prerender: 1`, `x-vercel-cache` PRERENDER then HIT, `Cache-Control: public, max-age=0, must-revalidate` |
+| Server HTML | 706 distinct `href="/cards?set=<code>"` links = the rule's count read from the database (`smoke:sets`); 465 `<li hidden="">` = 706 − 241 main; "Showing 241 of 706 sets"; canonical `https://deckwarden.gg/sets`; 34 year headings, 2026 → 1993 |
+| Bytes | 712,289 B raw · 43,666 B gzip · 41,908 B brotli (the pane's `transferSize` 42,208) — `/precons` is 700,107 / 46,029 |
+| `/sitemap.xml` | lists `/sets`, beside `/cards` |
+| The Browse entry | the pane's Browse menu on prod: Commanders, Leaders, Cards, **Sets**, Precons, Tournaments; `smoke:sets` finds `{href:"/sets",label:"Sets"}` after Cards and before Precons in the header's own JS |
+| A row | `/sets` → `eld` (box unticked: 13 sets, page order) → Wilds of Eldraine: Enchanting Tales → `/cards?set=wot`: "Wilds of Eldraine: Enchanting Tales — a bonus sheet", "WOT · Released Sep 8, 2023", its most played, "All 63 cards, in collector-number order" |
+| Typing | Event Timing on prod: 1–2 ms of input processing per keystroke, 4 ms for the checkbox, no long task; the URL never changed |
+| Console | nothing on a clean load |
+
+**Proven on dev**: one statement per render (`DB_LOG=1`; prod renders at build and at each daily revalidation). `blo` → Bloomburrow and Bloomburrow Commander; unticked, + Bloomburrow Promos and Bloomburrow Commander Tokens; `blb` → Bloomburrow alone; `tokens` → "No main sets match" + "Show 16 other products", which unticked the box and showed 16; `zzzq` → "No sets match" + "Clear filter" → "Showing all 706 sets"; the URL never changed. A row's click opened `/cards?set=soi` ("Shadows over Innistrad — the 70th expansion set"); **Correction 8 held**: `/cards?set=soi` → Browse → Sets → Eldritch Moon landed on "Eldritch Moon — the 71st expansion set", chip EMN, "All 208 cards" — a route change mounts `/cards` fresh, so LATER row 129 does not fire from `/sets`. Both themes at 390 (two-line rows, 64 px, `scrollWidth` 390, the phone dots `content: "·" / ""`) and 1440 (every row's five columns at the same x, no overflow, dots off); the phone menu lists Build, Commanders, Leaders, Cards, Sets, Precons, Tournaments, My decks; no hydration warning on clean loads.
+
+**Measured**
+
+- **Where the bytes go** (the local build's `sets.html`, 710,876 B / 40,326 B `gzip -9`): 142,019 B of RSC payload — the 706 rows as island props — and 568,857 B of markup, ~800 B a row (the Tailwind class strings repeat; LATER row 134). `/precons` on the same build: 199,086 + 499,528.
+- **Correction 3's "lighter" alternative is the heavier one**: the App Router repeats a server component's rendered markup in the RSC payload. On prod `/tournaments` (server-rendered rows) the row class string appears 50 times in the HTML and 50 times in the payload; on `/sets` (client rows) 706 times in the HTML and 0 in the payload. Server-rendered rows would carry the ~570 KB of row markup in the payload a second time (an estimate from that mechanism, not a build), in place of 142 KB of row data.
+- **Typing**: before the list was deferred, dev's input handlers spent 53–71 ms per keystroke (StrictMode renders twice in dev); with `useDeferredValue` and a memoized list, 2–5 ms on dev and 1–2 ms on prod.
+
+**Decisions made (each pinned by a test or a smoke)** — the full list is REDESIGN.md's "X4b decisions" section.
+
+1. **The row**: name · code · place in its line (`setPlaceShort`) · date · "N cards", one link to `/cards?set=<code>` (`prefetch={false}` — 706 of them); five aligned columns from `md`, two lines below; no arrow, no icon.
+2. **Years**: `h2`s newest first under the serif `h1`; a day's sets by line inside a year; an empty year hidden.
+3. **Rows as island props**, the `/precons` precedent — measured lighter (above).
+4. **The first paint is the default view**: the server renders the island's initial state, the other products `hidden`, never dropped; without JavaScript the controls do nothing (LATER row 135).
+5. **The match**: `matchSets` decides what shows, the page keeps its order.
+6. **The words**: "Filter sets…" (label "Filter sets by name or code"), "Main sets only", "Showing 241 of 706 sets" / "Showing all 706 sets" (`role="status"`), "No sets match" + "Clear filter", "No main sets match" + "Show N other products", "Set names, types and release dates via Scryfall."
+7. **Deferred typing, memoized rows.**
+8. **The game line**: the `/precons` pills — "Magic: The Gathering" current, "One Piece — soon" disabled, "One Piece sets are coming." — in a `role="group"` named "Game".
+9. **No `Layers` icon.**
+10. **Metadata**: "Sets", a description naming Magic sets, canonical `/sets`; the root's Open Graph block (the site has no default OG image).
+11. **The Browse entry and the sitemap line**: "Sets" after "Cards" in both menus; `/sets` after the `/cards` pair in `staticPages` (new `sitemap.test.ts` pins the whole hand list).
+
+**Things this prompt had wrong**
+
+- **Verify item 9's "home's server HTML carries the Browse entry"**: nothing does. Base UI renders a menu's items only when it opens, so prod home's server HTML held no `/precons` or `/tournaments` link before this change either. The proof moved to the header's JS (`smoke:sets`) and the pane; crawlers find `/sets` through the sitemap (LATER row 133).
+- **Correction 3's "lighter"** — heavier; measured above.
+- **"The site's default OG image"** — there is none; `/sets` inherits the root layout's Open Graph block, as `/precons` does.
+- **Verify item 1**: Next 16.3.2's route-segment-config docs no longer carry a `revalidate` page — Cache Components removes the option — and `revalidate` is documented in "Caching and Revalidating (Previous Model)" (`01-app/02-guides/caching-without-cache-components.md`), which applies: `cacheComponents` is off here.
+- Correction 1's line numbers were right (`BROWSE_LINKS` 33–40, the header-test arrays 93–99 and 204–212, `staticPages` 53–66).
+
+**Owner**: nothing owed — X4b has no signed-in surface. `/sets` is in the Browse menu now; a look on your phone is the only click worth making.
+
+---
+
 Pull latest, then run X4b — the fifth Wave-3 package. **`WAVE3.md` is the contract.** Read, in this order: section A's rows on "Released" and on the set filter; **D0** (the shared rules — the `Layers` icon is named for sets and X4a left it unused) and **D4** (its `/sets` sketch is X4b's half; the owner's answers of 2026-09-28 in WAVE3.md's Context amend it — a set is shown by its place in its line); the **X4b block** in E and the X4b row of the pin matrix in its appendix; F (the Sets page is itself a default the owner has not confirmed — see pre-flight 4 — and X4a's wording defaults are a row there now). X4a is live (`335576c` + `101ff83`, docs in the commit after); its ship note at the top of `X4a-session-prompt.md` and REDESIGN.md's "X4a decisions" hold what this session inherits — `loadReleasedSets`, `GET /api/sets`, the place words, the day order, the picker's matcher.
 
 X4b is the cheap half of idea 4 once the list exists: **one static page** (`src/app/(site)/sets/page.tsx`, ISR `revalidate = 86400`, no `searchParams`) listing every row of `loadReleasedSets(GAME_ID.mtg)` as a link to `/cards?set=<code>`, grouped by year, newest first, **with a client filter island** — a name/code box and "Main sets only", on by default — that only hides rows the server already shipped (the `/precons` pattern); **a Browse entry** ("Sets", after Cards) in the header's menus; and **the sitemap line**. No new route beyond the page, no migration, no new dependency.
