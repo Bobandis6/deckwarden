@@ -1,5 +1,48 @@
 # X3 session prompt — Combo doors (a door on the hub, a seeded draft, pinned pieces, a button that says what it does)
 
+## Ship note — 2026-09-28, feat `69636a4`, deployed (Vercel status success on the full sha, 06:04 Z)
+
+**Shipped. The prompt below is history; `X4a-session-prompt.md` is next.**
+
+`pnpm check` 1,094 → **1,120 tests** (129 → 131 files, the same 6 pre-existing `no-unused-vars` warnings, 0 errors). `pnpm db:size` 269.5 MB before and after (alert 350). Census unchanged before and after: 27 user decks (26 Magic, 12 guest-owned, plus the One Piece fixture), 181 precons, 1 user; likes 2 · bookmarks 0 · folders 1 · versions 1 · collections 0 — re-proven after the dev pass's one QA deck (`4a566d1f…`) was deleted through the editor. Route table diff: **exactly `ƒ /api/combos/[key]`**; `/c/[slug]`, `/l/[slug]`, `/cards/[id]` stay `●`. Smokes green on dev: `combos` (15), `hubs` (51 checks, 6 new), `autofill` (12 new), `recommend`, `seo` (1 new). Pre-flight: nightlies green through 2026-09-27 15:16 Z; the owner confirmed nothing posted and no feedback, granted read-only database access plus the self-cleaning dev writes, and **kept "Suggest full list"**.
+
+**Proven on prod, signed out, zero creates**
+
+| Check | Result |
+|---|---|
+| `GET /api/combos/618-1537` | 200 — Kiki-Jiki, Mirror Breaker + Zealous Conscripts, both as full wires in name order (Kiki-Jiki a leader candidate); MISS, then HIT (`age: 1`) |
+| `GET /api/combos/999999999-999999999` · `/api/combos/not-a-key` | 404 `{"error":"Unknown combo"}` MISS, then 404 HIT · 400 |
+| `/c/kiki-jiki-mirror-breaker`, `/c/syr-konrad-the-grim` | 10 doors each in the server HTML, the 618-1537 door's href exact; `x-nextjs-prerender: 1` |
+| `/c/spock-logical-choice` (not legal, one fitting combo) · `/c/etali-primal-storm` (legal, no fitting combo) | the combo listed with no door and no build CTA · no combo section, no door |
+| The pinned anchors | "Build with this commander" and "Start with a starter shell" **byte-identical** to the pre-change capture on all four hubs; no "Use for" in server HTML |
+| Home | still links "Surprise me" |
+
+**Proven on dev**: the door → a draft with Kiki-Jiki in the command zone and Zealous Conscripts in the deck, the sheet open, one `GET /api/combos/618-1537`, **zero `POST /api/decks`**, and the sheet's `keep` = [Zealous Conscripts] (never the commander); Apply = one create + one PUT (100 cards), Undo PUTs the prior list back; on the saved deck the Radar's "Suggest full list" opened the pinned sheet with "Keep my 98 cards" counting only the other cards, and unticking it re-POSTed `keep` = [the piece] — never `[]` — and Apply kept the piece; "One card away" (Repercussion, with Blasphemous Act) spent one resolve by key and a PUT, opened "Combo pieces · 2", and Cancel left Repercussion in the deck (101 cards, saved); the three bad URLs toast and seed nothing (the no-leader one makes no request at all); One Piece ignores `combo` (the leader seeds, no toast); `/l/` and the card page carry no door; the hub door and the sheet in both themes at 390 (Drawer, 44 px targets) and 1440 (Modal), no horizontal overflow; no hydration warning (the one console error is the unknown key's expected 404); statements with `DB_LOG=1` — a known key 3, an unknown key 1, an off-shape key 0.
+
+**Measured (read-only transactions)**: all 66,135 keys match `^[0-9]+(-{1,2}[0-9]+)*$` (3–49 characters, 204 with more than one template group); 0 combos hold a removed piece; 1 holds a non-legal piece (Spock's own, `4067-7801`); 11,168 hold two or more leader-candidate pieces; the lookup's plan is one probe of `combos_external_key_unique` → the `combo_pieces` primary key (index only) → `card_identities_pkey` per piece, 0.05–0.08 ms warm, 1.26 ms with one cold buffer, planning 3.4–3.8 ms. The door fixture: Syr Konrad, the Grim — the most-played legal commander with a fitting combo; Kiki-Jiki's fit total read 69 (the nightly moves it; nothing pins it).
+
+**Decisions made (each pinned by a test or a smoke)**
+
+1. **One seeder, one precedence rule, decided in the editor**: `from` > `surprise` > `combo` > `leader` (`draftSeed`); only the winner runs and only it settles the latch. The chooser passes every latched seed through.
+2. **The route**: `{ combo, cards }`, cards in the pieces' name order, Commander legality; an unknown key and a combo holding a removed piece are a 404 with the cache header; an off-shape or over-64-character key is a 400; no rate limit.
+3. **The door**: "Build around this combo", an extra-small outline button-styled link (no prefetch) beside the walkthrough link, no icon, under the build CTA's gate; href `/decks/new?game=mtg&leader=<oracle id>&combo=<key>&autofill=1` (`comboDoorHref`).
+4. **The toasts**: "Couldn't find that combo — starting an empty deck instead." · "That combo link names no commander — starting an empty deck instead." · "That combo doesn't include that commander — starting an empty deck instead."
+5. **The pin** (`ComboPin`, `comboPin()`): set by the combo seeder only for its `?autofill=1` sheet and by the Radar's buttons; cleared on every close; the empty-deck door and More → Autofill… open the plain sheet.
+6. **The sheet with a pin**: D3's title and lead, "Combo pieces · N" first (always kept, no checkbox, "Combo piece" on each row, emerald ✓), "Also needs …" for a combo with a non-card requirement, "Keep my N cards" over the other cards only.
+7. **"Suggest full list"** with its title on all three kinds of Radar row; the adds stay real edits.
+8. **LATER**: 104 fired; 101 and 103 kept deferred with sharper triggers (X3's fence forbade the planner change 101 needs; 103 needs a control inside the sheet and X3 added none); 113 unchanged; new rows 125–128 (a removed piece on the hub list, the dead door's degraded sheet, partner pairs through a door, the NUL separators).
+
+**Deviations from the contract, and things this prompt had wrong**
+
+- **The ten corrections held.** Correction 1 was resolved on the editor side, the stronger of its two options — any caller gets one seeder. Correction 8 became "no icon". Correction 9's fixture is Syr Konrad, the Grim (`hubs-smoke`, `comboHub`), with a not-legal commander's hub as the door-absence pin (Spock, Logical Choice — no banned commander lists a fitting combo today).
+- **A fourth door to the sheet**: More → Autofill… (`openFromHeader`) was not in the prompt's list; without a reset it would have shown a seeded combo's pin on a draft reloaded without `?autofill=1`. It now opens the plain sheet, pinned in RTL.
+- **`text-primary` fails as a glyph color on the dark sheet** (1.49:1): the pinned ✓ uses the Radar's emerald (7.82:1 dark, 5.36:1 light).
+- **A dead door still opens a sheet**: with `?autofill=1`, a failed combo seed toasts and the latch opens W9c's degraded no-commander sheet (POST-free). Kept, as W9c pinned it; LATER row 126.
+- **Git shows `autofill-sheet.tsx` as binary** — a literal NUL in `pickKey` (since W9b); `git diff --text` reads it. LATER row 128.
+- **Pane lessons**: HMR does not repaint a hidden tab (re-measure after a reload); a 5-second toast expires between two tool calls — press Undo inside the same script that pressed Apply; in dev every sheet open shows an aborted autofill POST before the real one (Strict Mode).
+
+---
+
 Pull latest, then run X3 — the third Wave-3 package. **`WAVE3.md` is the contract.** Read, in this order: section A's rows on the combo door ("seeds a draft, nothing is saved until you accept") and on pinned pieces; B's "Validation corrections" (combo totals move with the nightly; the starter-shell anchor; no smoke covers W9c's page surfaces; card-page combo lists are not filtered by color identity) and "Strengths to preserve"; **D3** (the ASCII spec is the design); the **X3 block** in E and the X3 row of the pin matrix in its appendix; F (the editor button's default). X2 is live (`d88c70e`, docs `c4ebd29`); its ship note at the top of `X2-session-prompt.md` holds lessons this session inherits.
 
 X3 is a way in from outside the editor, and a clearer way in from inside it. **A door on the commander hub** ("Build around this combo", a plain link in the hub's server HTML), **a lookup route** (`GET /api/combos/[key]`), **a seeded draft** (the commander and the pieces, state only, then the autofill sheet), **pinned pieces** (the sheet always keeps the combo, and shows it), and **the editor's button**, renamed "Suggest full list" and offered on all three kinds of combo row. REC-7 rides along: smoke pins for the door and for W9c's page anchors. No migration, no new dependency, exactly one new route.
