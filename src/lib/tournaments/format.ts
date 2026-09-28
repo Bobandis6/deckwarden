@@ -1,10 +1,11 @@
 /**
  * Display helpers for the tournament surfaces (W10) — the /c/ and /l/ hub
  * shelves grew these locally first (P3.5/P4.5); the /tournaments pages share
- * one copy instead of a third and fourth mirror.
+ * one copy instead of a third and fourth mirror. X4a's set places ("the
+ * 71st expansion set") and set release dates read them too.
  */
 
-/** 1 → "1st", 12 → "12th" — placements only ever hit 1..16. */
+/** 1 → "1st", 12 → "12th", 102 → "102nd", 113 → "113th". */
 export function ordinal(n: number): string {
   const rem10 = n % 10;
   const rem100 = n % 100;

@@ -12,6 +12,7 @@
  */
 import { normalizeCardName } from "@/lib/cards/normalize";
 import type { SearchFieldDef } from "@/lib/games/types";
+import { ordinal } from "@/lib/tournaments/format";
 
 export type SetGroup = "main" | "other";
 
@@ -155,13 +156,6 @@ export function placeSets(rows: readonly Omit<ReleasedSet, "group" | "ordinal">[
     }));
 }
 
-/** 1 → "1st", 2 → "2nd", 11 → "11th", 71 → "71st", 102 → "102nd", 113 → "113th". */
-export function ordinalWord(n: number): string {
-  const lastTwo = n % 100;
-  if (lastTwo >= 11 && lastTwo <= 13) return `${n}th`;
-  return `${n}${{ 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th"}`;
-}
-
 /**
  * How a line is named: `noun` after an ordinal ("the 71st expansion set"),
  * `one` without one ("a core set"). Masters are "reprint sets" — Scryfall's
@@ -210,13 +204,13 @@ type Placed = Pick<ReleasedSet, "code" | "setType" | "ordinal">;
 /** The set header's words: "the 71st expansion set", "a core set", "a bonus sheet". */
 export function setPlace(set: Placed): string {
   const words = lineWords(set.setType, set.code);
-  return set.ordinal ? `the ${ordinalWord(set.ordinal)} ${words.noun}` : words.one;
+  return set.ordinal ? `the ${ordinal(set.ordinal)} ${words.noun}` : words.one;
 }
 
 /** A picker row's words: "71st expansion set", "core set", "bonus sheet". */
 export function setPlaceShort(set: Placed): string {
   const words = lineWords(set.setType, set.code);
-  return set.ordinal ? `${ordinalWord(set.ordinal)} ${words.noun}` : words.noun;
+  return set.ordinal ? `${ordinal(set.ordinal)} ${words.noun}` : words.noun;
 }
 
 /**

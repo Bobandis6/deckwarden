@@ -72,6 +72,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAdapter } from "@/lib/games/registry";
 import { setFieldKey, setPlace, type ReleasedSet } from "@/lib/sets/lines";
+import { eventDateLabel } from "@/lib/tournaments/format";
 
 const PAGE_SIZE = 60;
 /** Two rows of the widest grid (5 columns) while the first page loads. */
@@ -104,16 +105,6 @@ function tileHref(card: SearchResult): string {
   return card.printingId
     ? `/cards/${card.id}?${PRINTING_PARAM}=${card.printingId}`
     : `/cards/${card.id}`;
-}
-
-/** "Jul 22, 2016", UTC-pinned like every other date on the site. */
-function releasedOn(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 }
 
 function typeOptions(game: "mtg" | "optcg"): { value: string; label: string }[] {
@@ -489,7 +480,7 @@ export function CardSearch({
                 <span className="text-muted-foreground font-normal">— {setPlace(chosenSet)}</span>
               </h2>
               <p className="text-muted-foreground mt-0.5 text-xs">
-                {setCode.toUpperCase()} · Released {releasedOn(chosenSet.releasedAt)}
+                {setCode.toUpperCase()} · Released {eventDateLabel(chosenSet.releasedAt)}
               </p>
             </>
           ) : (

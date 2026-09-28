@@ -14,7 +14,6 @@ import { optcgAdapter } from "@/lib/games/optcg/adapter";
 import {
   lineOrdinals,
   matchSets,
-  ordinalWord,
   placeSets,
   setFieldKey,
   setGroup,
@@ -168,28 +167,16 @@ describe("placeSets — groups, numbers, and a day's order", () => {
 });
 
 describe("the words", () => {
-  it("ordinalWord", () => {
-    expect(
-      [1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 71, 101, 102, 111, 112, 113, 114].map(ordinalWord),
-    ).toEqual([
-      "1st",
-      "2nd",
-      "3rd",
-      "4th",
-      "11th",
-      "12th",
-      "13th",
-      "21st",
-      "22nd",
-      "23rd",
-      "71st",
-      "101st",
-      "102nd",
-      "111th",
-      "112th",
-      "113th",
-      "114th",
-    ]);
+  it("the shared ordinal words reach three-digit places (tournaments/format.ts)", () => {
+    for (const [n, word] of [
+      [1, "the 1st"],
+      [102, "the 102nd"],
+      [111, "the 111th"],
+      [113, "the 113th"],
+      [121, "the 121st"],
+    ] as const) {
+      expect(setPlace(set({ code: "x", ordinal: n }))).toBe(`${word} expansion set`);
+    }
   });
 
   it("a set's place: the owner's sentence for the numbered lines, a kind for the rest", () => {
