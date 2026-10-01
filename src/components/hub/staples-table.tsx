@@ -4,13 +4,16 @@
  * Hub staples list with the budget-tier toggle (P2.4). The tier filter is
  * client-side over the server-fetched top-N — no extra queries, and the hub
  * page stays ISR-cacheable because nothing here is per-viewer. Budget
- * figures are computed from the same real rows ("N of these staples are
- * under $5"); an empty tier says so honestly instead of padding the list.
+ * figures are computed from the same real rows ("N at $5 or less"); an
+ * empty tier says so honestly instead of padding the list. The tiers are the
+ * site's one budget vocabulary (Y1, `@/lib/recommend/budget`) — inclusive,
+ * so a card at exactly $5.00 shows under "≤ $5 a card".
  */
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { Segmented } from "@/components/deck/segmented";
+import { BUDGET_OPTIONS, type BudgetTier, withinBudget } from "@/lib/recommend/budget";
 
 export interface StapleItem {
   id: string;
@@ -21,18 +24,8 @@ export interface StapleItem {
   cheapestUsd: string | null;
 }
 
-type BudgetTier = "all" | "5" | "1";
-
-const TIER_OPTIONS: { value: BudgetTier; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "5", label: "Under $5" },
-  { value: "1", label: "Under $1" },
-];
-
 function underTier(staple: StapleItem, tier: BudgetTier): boolean {
-  if (tier === "all") return true;
-  if (staple.cheapestUsd === null) return false;
-  return Number(staple.cheapestUsd) < Number(tier);
+  return withinBudget(staple.cheapestUsd === null ? null : Number(staple.cheapestUsd), tier);
 }
 
 export function StaplesTable({ staples }: { staples: StapleItem[] }) {
@@ -50,15 +43,15 @@ export function StaplesTable({ staples }: { staples: StapleItem[] }) {
   return (
     <div className="mt-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Segmented label="Budget" options={TIER_OPTIONS} value={tier} onChange={setTier} />
+        <Segmented label="Budget" options={BUDGET_OPTIONS} value={tier} onChange={setTier} />
         <p className="text-muted-foreground text-xs tabular-nums">
-          {counts.under5} of {staples.length} under $5 · {counts.under1} under $1
+          {counts.under5} of {staples.length} at $5 or less · {counts.under1} at $1 or less
         </p>
       </div>
 
       {shown.length === 0 ? (
         <p className="text-muted-foreground mt-3 text-sm">
-          None of these staples fall under that price right now.
+          None of these staples fit that budget right now.
         </p>
       ) : (
         <div className="mt-3 overflow-x-auto">

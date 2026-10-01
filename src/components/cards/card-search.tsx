@@ -48,7 +48,7 @@
  * - shows as a chip ("Set: Eldritch Moon (EMN)", the code alone until the
  *   list has named it) that × clears, like Clear all;
  * - heads the results with its place in its line ("Eldritch Moon — the 71st
- *   expansion set"), then — while no name is typed — "Most played in
+ *   expansion set"), then — while no name is typed — "Most popular in
  *   Eldritch Moon": the 12 best EDHREC-ranked cards (a second request,
  *   `sort=pop&limit=12`, unranked cards dropped, hidden when the whole list
  *   fits in 12), then the full list;
@@ -77,7 +77,7 @@ import { eventDateLabel } from "@/lib/tournaments/format";
 const PAGE_SIZE = 60;
 /** Two rows of the widest grid (5 columns) while the first page loads. */
 export const SKELETON_CARDS = 10;
-/** "Most played in {set}": the owner's 12 (2026-09-28). */
+/** "Most popular in {set}": the owner's 12 (2026-09-28; worded by Y1). */
 export const MOST_PLAYED = 12;
 
 const GRID_CLASS = "mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
@@ -175,7 +175,7 @@ export function CardSearch({
   const [setsAttempt, setSetsAttempt] = useState(0);
   const [sets, setSets] = useState<ReleasedSet[] | null>(null);
   const [setsFailed, setSetsFailed] = useState(false);
-  /** "Most played in {set}", with the set and the total it was asked for. */
+  /** "Most popular in {set}", with the set and the total it was asked for. */
   const [strip, setStrip] = useState<{ code: string; rows: SearchResult[]; total: number } | null>(
     null,
   );
@@ -185,7 +185,7 @@ export function CardSearch({
 
   const colorParam = game === "mtg" ? "ci" : "color";
 
-  /** The grid's request — or, with `mostPlayed`, the set's "Most played" strip. */
+  /** The grid's request — or, with `mostPlayed`, the set's "Most popular" strip. */
   const buildUrl = (offset: number, mostPlayed = false) => {
     const params = new URLSearchParams({
       game,
@@ -232,7 +232,7 @@ export function CardSearch({
   };
 
   // X4a: the strip rides the grid's debounce — asked for only with a set and
-  // no name. Unranked cards are dropped: "most played" needs a rank to say so.
+  // no name. Unranked cards are dropped: "most popular" needs a rank to say so.
   const loadStrip = async () => {
     stripAbortRef.current?.abort();
     stripAbortRef.current = null;
@@ -492,10 +492,10 @@ export function CardSearch({
       {showStrip && strip && (
         <section aria-labelledby="most-played-heading" data-slot="most-played" className="mt-6">
           <h3 id="most-played-heading" className="font-display text-lg font-semibold">
-            Most played in {chosenSet?.name ?? setCode.toUpperCase()}
+            Most popular in {chosenSet?.name ?? setCode.toUpperCase()}
           </h3>
           <p className="text-muted-foreground mt-0.5 text-xs">
-            Ranked by EDHREC play data via Scryfall.
+            Ranked by EDHREC decklist popularity via Scryfall.
           </p>
           <ul className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
             {strip.rows.map((card) => (

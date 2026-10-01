@@ -275,7 +275,13 @@ export function DeckEditor({
   // then); the `?` sheet returns to wherever `?` was pressed (R3).
   const [dialogFromMenu, setDialogFromMenu] = useState(false);
   const moreRef = useRef<HTMLButtonElement>(null);
-  const [share, setShare] = useState<{ publicId: string; visibility: DeckVisibility } | null>(null);
+  // accountDeck (Y1): owned through the session — this browser holds no
+  // claim token — so the Share dialog's Private line reads "Only you".
+  const [share, setShare] = useState<{
+    publicId: string;
+    visibility: DeckVisibility;
+    accountDeck: boolean;
+  } | null>(null);
   const [forkedFrom, setForkedFrom] = useState<ForkCredit | null>(null);
   // Collection (P3.7): the owned identity set, grown lazily as cards are
   // added; ownedCheckedRef remembers every id already asked about so the
@@ -351,7 +357,11 @@ export function DeckEditor({
       // exists either way, and retrying must not mint duplicates.
       deckIdRef.current = json.deck.id;
       setLiveDeckId(json.deck.id);
-      setShare({ publicId: json.deck.publicId, visibility: json.deck.visibility });
+      setShare({
+        publicId: json.deck.publicId,
+        visibility: json.deck.visibility,
+        accountDeck: json.claimToken === null,
+      });
       // Same editor, real URL from here on — reloads and back/forward land on
       // /decks/[id]/edit; no remount, no lost pane state.
       window.history.replaceState(null, "", `/decks/${json.deck.id}/edit`);
@@ -451,7 +461,11 @@ export function DeckEditor({
     setCards(new Map(json.cards.map((c) => [c.cardId, toEditorCard(c.card)])));
     setDeckName(json.deck.name);
     setDetails({ description: json.deck.description ?? "", notes: json.deck.notes ?? "" });
-    setShare({ publicId: json.deck.publicId, visibility: json.deck.visibility });
+    setShare({
+      publicId: json.deck.publicId,
+      visibility: json.deck.visibility,
+      accountDeck: token === null,
+    });
     setForkedFrom(json.deck.forkedFrom ?? null);
     setOwned(new Set(json.owned ?? []));
     setHasCollection(json.hasCollection ?? false);
@@ -1583,6 +1597,7 @@ export function DeckEditor({
             <ShareDialog
               publicId={share.publicId}
               visibility={share.visibility}
+              accountDeck={share.accountDeck}
               onSetVisibility={setVisibility}
               onClose={() => setDialog(null)}
             />

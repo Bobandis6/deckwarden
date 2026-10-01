@@ -180,6 +180,7 @@ function DataTable({ block }: { block: Extract<AnalyticsBlock, { kind: "table" }
           </tbody>
         </table>
       </div>
+      {block.hint && <p className="text-muted-foreground mt-1 text-[0.65rem]">{block.hint}</p>}
     </div>
   );
 }

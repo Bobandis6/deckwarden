@@ -949,7 +949,7 @@ describe("DeckEditor — Build around this combo (X3)", () => {
     expect(screen.getByRole("dialog", { name: "Build around this combo" })).toBeTruthy();
     expect(
       screen.getByText(
-        "Kiki-Jiki, Mirror Breaker + Zealous Conscripts. The rest comes from real play data — every pick shows why.",
+        "Kiki-Jiki, Mirror Breaker + Zealous Conscripts. The rest comes from real decklists and tournament results — every pick shows why.",
       ),
     ).toBeTruthy();
     expect(screen.getByText("Combo pieces · 1")).toBeTruthy();

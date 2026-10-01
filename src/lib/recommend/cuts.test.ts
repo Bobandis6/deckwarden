@@ -141,7 +141,7 @@ describe("popularity signal", () => {
   });
 
   it("trails a keep-side popularity line behind the cut reasons that ranked the card", () => {
-    // Widely played (keep) but its bucket is overloaded (cut): the lead line
+    // In many decklists (keep) but its bucket is overloaded (cut): the lead line
     // must be why it's ranked — the curve slack — with the keep line as the
     // trailing cost, never a top cut fronted by "it earns its slot".
     const overload = Array.from({ length: 5 }, (_, i) =>

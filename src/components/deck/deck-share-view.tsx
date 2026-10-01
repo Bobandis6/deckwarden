@@ -104,6 +104,12 @@ export interface ShareDeckMeta {
   leaderIds: string[];
   /** OR of the leaders' color identity (R2: the gradient fallback). */
   ciMask: number;
+  /**
+   * The signed-in viewer owns this account deck (Y1) — the server's session
+   * check, so "Open in editor" shows without a claim token (account decks
+   * never hold one). Absent or false for everyone else.
+   */
+  isOwner?: boolean;
 }
 
 export interface ShareDeckCard {
@@ -395,7 +401,7 @@ export function DeckShareView({
               owned={owned}
             />
           )}
-          {editToken !== null && (
+          {(editToken !== null || deck.isOwner === true) && (
             <Button
               nativeButton={false}
               variant="outline"

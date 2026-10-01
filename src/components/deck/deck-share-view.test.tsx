@@ -119,6 +119,32 @@ describe("DeckShareView — the artwork header", () => {
     expect(actions).toEqual(["♡ Like", "Bookmark", "Fork", "Copy decklist", "Buy this deck"]);
   });
 
+  it("an account owner (isOwner, no claim token) also sees Open in editor, after Buy this deck (Y1)", () => {
+    render(<DeckShareView deck={{ ...deck, isOwner: true }} cards={cards} author={author} />);
+    const header = screen.getByRole("banner");
+    const actions = [
+      ...header.querySelectorAll<HTMLElement>(
+        "a[data-slot=button], button[data-slot=button], button[data-slot=dropdown-menu-trigger]",
+      ),
+    ].map((el) => el.textContent);
+    expect(actions).toEqual([
+      "♡ Like",
+      "Bookmark",
+      "Fork",
+      "Copy decklist",
+      "Buy this deck",
+      "Open in editor",
+    ]);
+    expect(header.querySelector(`a[href="/decks/${deck.id}/edit"]`)?.textContent).toBe(
+      "Open in editor",
+    );
+  });
+
+  it("isOwner false is a visitor: no Open in editor", () => {
+    render(<DeckShareView deck={{ ...deck, isOwner: false }} cards={cards} author={author} />);
+    expect(screen.queryByText("Open in editor")).toBeNull();
+  });
+
   it("without art (One Piece, the private gate): the gradient band and no credit anywhere in the header", () => {
     render(<DeckShareView deck={deck} cards={cards} author={author} art={null} />);
     expect(band()?.dataset.banner).toBe("gradient");

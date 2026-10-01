@@ -209,7 +209,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
                 <h2 className="font-display text-lg font-semibold">Combos using this card</h2>
                 <p className="text-muted-foreground mt-0.5 text-xs">
                   {combosData.total > COMBOS_SHOWN
-                    ? `The ${combosData.combos.length} most-played of ${combosData.total} combos`
+                    ? `The ${combosData.combos.length} most popular of ${combosData.total} combos (by EDHREC decklist count)`
                     : `${combosData.total === 1 ? "One combo" : `${combosData.total} combos`}`}{" "}
                   featuring this card, from {adapter.capabilities.combos.sourceLabel}.
                 </p>

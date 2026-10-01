@@ -27,6 +27,7 @@ import { getDb, schema } from "@/db";
 import { getSessionUserId } from "@/lib/auth";
 import { deckOwnedForViewer } from "@/lib/collection/owned";
 import { deckOwnership } from "@/lib/collection/ownership";
+import { isDeckOwner } from "@/lib/decks/access";
 import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
 import { viewerEngagement } from "@/lib/decks/engagement";
 import { forkCredit } from "@/lib/decks/forks";
@@ -138,7 +139,7 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
         />
       )}
       <DeckShareView
-        deck={deckMetaJson(deck, { isOwner: false })}
+        deck={deckMetaJson(deck, { isOwner: isDeckOwner(deck, null, sessionUserId) })}
         cards={cards}
         author={author}
         viewer={viewer}

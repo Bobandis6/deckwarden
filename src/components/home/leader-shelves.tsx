@@ -1,8 +1,8 @@
 /**
  * The homepage leader shelves (R5a, §2 item 2): six real leader cards per
- * game card. Magic shows the most-played commanders with their `small`
- * renditions under the index's honest label (EDHREC play rate via
- * Scryfall). One Piece shows the leaders with the most recent Top finishes
+ * game card. Magic shows the commanders in the most EDHREC decklists with
+ * their `small` renditions under the index's honest label (decklist
+ * popularity via Scryfall — not games played, Y1). One Piece shows the leaders with the most recent Top finishes
  * under a label that names the source — the ordering IS tournament data,
  * so the Limitless credit sits with it (the attribution rule) — or, when no
  * finish exists anywhere (the cold-start branch `opShelf` pins), leaders in
@@ -90,10 +90,11 @@ const SHELF_GRID_CLASS = "mt-2 grid grid-cols-3 gap-2";
 export function MagicShelf({ cards }: { cards: MagicShelfCard[] }) {
   if (cards.length === 0) return null;
   return (
-    <section aria-label="Most-played commanders">
-      <h3 className={SHELF_LABEL_CLASS}>Most-played commanders</h3>
+    <section aria-label="Popular in Commander decklists">
+      <h3 className={SHELF_LABEL_CLASS}>Popular in Commander decklists</h3>
       <p className="text-muted-foreground mt-0.5 text-xs">
-        Ranked by how much each commander is actually played (EDHREC data via Scryfall).
+        Commander-eligible cards ranked by how many EDHREC decklists include them — as commander or
+        in the 99 (via Scryfall). Not games played.
       </p>
       <ul className={SHELF_GRID_CLASS}>
         {cards.map((card) => (

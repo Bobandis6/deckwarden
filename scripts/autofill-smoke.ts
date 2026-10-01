@@ -296,7 +296,9 @@ async function main() {
     cards?: CardWireLite[];
     error?: string;
   }
-  console.log("\nGET /api/combos/[key] (X3) — Kiki-Jiki's most-played fitting combo, edge-cached:");
+  console.log(
+    "\nGET /api/combos/[key] (X3) — Kiki-Jiki's most popular fitting combo, edge-cached:",
+  );
   const kikiFit = (await (await fetch(`${BASE}/api/cards/${kiki.id}/combos?fit=8`)).json()) as {
     combos: { externalKey: string }[];
   };

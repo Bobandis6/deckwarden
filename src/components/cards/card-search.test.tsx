@@ -9,7 +9,7 @@
  * `sort=best`; the island's own behavior is name-suggest.test.tsx's.
  * X4a: the Set group (Magic only), its list fetched once — on the picker's
  * first press, or at mount for a preset `?set=` — and a chosen set's
- * requests, chip, header, "Most played" strip and `?printing=` tile links;
+ * requests, chip, header, "Most popular" strip and `?printing=` tile links;
  * the picker's own behavior is set-picker.test.tsx's.
  */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
@@ -267,14 +267,16 @@ describe("CardSearch — the Set group (X4a)", () => {
       results: scopedResults(3, [46, 177, null]),
       total: 279,
     });
-    const strip = screen.getByRole("region", { name: "Most played in Bloomburrow" });
-    // Unranked cards are dropped: "most played" needs a rank to say so.
+    const strip = screen.getByRole("region", { name: "Most popular in Bloomburrow" });
+    // Unranked cards are dropped: "most popular" needs a rank to say so.
     const stripLinks = within(strip).getAllByRole("link");
     expect(stripLinks).toHaveLength(2);
     expect(stripLinks[0].getAttribute("href")).toBe(
       "/cards/00000000-0000-4000-8000-000000000000?printing=11111111-1111-4111-8111-000000000000",
     );
-    expect(within(strip).getByText("Ranked by EDHREC play data via Scryfall.")).toBeTruthy();
+    expect(
+      within(strip).getByText("Ranked by EDHREC decklist popularity via Scryfall."),
+    ).toBeTruthy();
     expect(screen.getByText("All 279 cards, in collector-number order")).toBeTruthy();
     const gridLinks = screen
       .getAllByRole("link")
@@ -342,7 +344,7 @@ describe("CardSearch — the Set group (X4a)", () => {
     ]);
     await answer("/api/sets", { sets: SETS });
     await answer("/api/cards/search", { results: scopedResults(2), total: 2 });
-    expect(screen.queryByRole("region", { name: /Most played/ })).toBeNull();
+    expect(screen.queryByRole("region", { name: /Most popular/ })).toBeNull();
     expect(screen.getByText("2 cards")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(
       "Bloomburrow — the 102nd expansion set",
@@ -358,7 +360,7 @@ describe("CardSearch — the Set group (X4a)", () => {
       results: scopedResults(5, [1, 2, 3, 4, 5]),
       total: 5,
     });
-    expect(screen.queryByRole("region", { name: /Most played/ })).toBeNull();
+    expect(screen.queryByRole("region", { name: /Most popular/ })).toBeNull();
     // With another filter the count is not "All".
     expect(screen.getByText("5 cards, in collector-number order")).toBeTruthy();
   });

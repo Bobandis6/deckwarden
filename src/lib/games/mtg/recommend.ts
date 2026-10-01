@@ -4,7 +4,8 @@
  *
  * Evidence honesty rules (the product identity — "explainable deck lab"):
  * every sentence names what the data actually is. edhrec_rank is global
- * Commander play data, not deck-specific advice, and the tier words below
+ * Commander DECKLIST popularity — how many EDHREC decklists include a card,
+ * not games played (Y1) — not deck-specific advice, and the tier words below
  * are scoped so a rank-20k card is never called a staple. The curve template
  * is EDITORIAL (the widely-taught deck-building shape), and its evidence
  * says "template", mirroring the hub template's labeling (cold-start rule:
@@ -150,10 +151,10 @@ export const mtgRecommend: RecommendMeta = {
     evidence(rank) {
       const why =
         rank <= STAPLE_RANK
-          ? "A Commander staple by EDHREC play data"
+          ? "A Commander staple in EDHREC decklists"
           : rank <= WIDELY_PLAYED_RANK
-            ? "Widely played in Commander decks"
-            : "Sees Commander play";
+            ? "In many Commander decklists"
+            : "In some Commander decklists";
       return { why, howOften: `EDHREC rank #${fmt(rank)}` };
     },
   },
@@ -182,7 +183,7 @@ export const mtgRecommend: RecommendMeta = {
       const cmd = commanderNames.join(" + ");
       const pct = Math.round(share * 100);
       return {
-        why: `Played in ${pct}% of top-16 lists with ${cmd}`,
+        why: `Played in ${pct}% of competitive top-16 lists with ${cmd}`,
         howOften: topdeckHowOften(lists, ofLists, since, top4),
       };
     },
@@ -222,14 +223,14 @@ export const mtgRecommend: RecommendMeta = {
         const howOften = `EDHREC rank #${fmt(rank)}`;
         if (rank <= STAPLE_RANK) {
           return {
-            why: "A Commander staple by EDHREC play data — cutting it gives up a proven card",
+            why: "A Commander staple in EDHREC decklists — cutting it gives up a proven card",
             howOften,
             side: "keep",
           };
         }
         if (rank <= WIDELY_PLAYED_RANK) {
           return {
-            why: "Widely played in Commander decks — it usually earns its slot",
+            why: "In many Commander decklists — it usually earns its slot",
             howOften,
             side: "keep",
           };
@@ -292,20 +293,20 @@ export const mtgRecommend: RecommendMeta = {
         const pct = share >= 1 ? 100 : Math.min(99, Math.round(share * 100));
         if (share >= TOURNAMENT_STAPLE_SHARE) {
           return {
-            why: `Played in ${pct}% of top-16 lists with ${cmd} — cutting it gives up a measured staple`,
+            why: `Played in ${pct}% of competitive top-16 lists with ${cmd} — cutting it gives up a measured staple`,
             howOften,
             side: "keep" as const,
           };
         }
         if (share >= TOURNAMENT_PLAYED_SHARE) {
           return {
-            why: `Played in ${pct}% of top-16 lists with ${cmd} — it sees real measured play`,
+            why: `Played in ${pct}% of competitive top-16 lists with ${cmd} — it sees real measured play`,
             howOften,
             side: "keep" as const,
           };
         }
         return {
-          why: `Played in ${fmt(lists)} of ${fmt(ofLists)} top-16 lists with ${cmd}`,
+          why: `Played in ${fmt(lists)} of ${fmt(ofLists)} competitive top-16 lists with ${cmd}`,
           howOften,
           side: "cut" as const,
         };

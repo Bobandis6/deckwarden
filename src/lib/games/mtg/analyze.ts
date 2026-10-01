@@ -26,7 +26,8 @@ function isLand(card: MtgCard): boolean {
  * Bitmask of colors this card's rules text can produce, from "Add …" clauses
  * (WUBRGC; "any color"/"any combination" counts as all five). Heuristic v1:
  * conditional producers (Command Tower's "…in your commander's color identity")
- * count for every color — refinement is LATER territory.
+ * and Treasure makers (through their reminder text) count for every color here;
+ * `analyzeMtg` clamps the mask to the commander's identity (Y1, LATER row 31).
  */
 export function producedMask(card: MtgCard): number {
   const bits: Record<string, number> = { W: 1, U: 2, B: 4, R: 8, G: 16, C: 32 };
@@ -59,6 +60,15 @@ export function analyzeMtg(
   const colorQty = new Map<string, number>();
   // label → [land qty, other qty] of cards producing that color.
   const sourceQty = new Map<string, [number, number]>();
+  // Y1: with a commander, a source counts only for the colors the commander
+  // allows (plus colorless) — validate.ts's commanderCi. With none, every
+  // produced color counts, as before.
+  const commanders = (deck.zones["commander"] ?? [])
+    .map((e) => cards.get(e.cardId))
+    .filter((c): c is MtgCard => c != null);
+  const sourceClamp = commanders.length
+    ? commanders.reduce((mask, c) => mask | c.ciMask, 0) | 32
+    : 63;
 
   for (const { qty, card } of entries) {
     typeQty.set(card.primaryType ?? "Other", (typeQty.get(card.primaryType ?? "Other") ?? 0) + qty);
@@ -66,7 +76,7 @@ export function analyzeMtg(
       priceSum += card.cheapestUsd * qty;
       pricedQty += qty;
     }
-    const produced = producedMask(card);
+    const produced = producedMask(card) & sourceClamp;
     for (const { bit, label } of COLOR_SLICES) {
       if (!(produced & bit)) continue;
       const row = sourceQty.get(label) ?? [0, 0];
@@ -122,6 +132,7 @@ export function analyzeMtg(
       id: "mana-sources",
       title: "Mana sources",
       columns: ["Color", "Lands", "Other"],
+      hint: "Cards that make \u201cany color\u201d count once for each color your commander allows; Treasure makers count through their reminder text.",
       rows: COLOR_SLICES.filter((c) => sourceQty.has(c.label)).map((c) => {
         const [lands, other] = sourceQty.get(c.label)!;
         return [c.label, lands, other];

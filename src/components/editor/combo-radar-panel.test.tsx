@@ -122,7 +122,7 @@ describe("ComboRadarPanel — With your commander (W9c)", () => {
     expect(screen.getByLabelText("Kiki-Jiki, Mirror Breaker is in the deck")).toBeTruthy();
     expect(screen.queryByLabelText("Pestermite is in the deck")).toBeNull();
     expect(screen.getByRole("button", { name: "Add 2 pieces" })).toBeTruthy();
-    expect(screen.getByText("Showing the 1 most-played of 7.")).toBeTruthy();
+    expect(screen.getByText("Showing the 1 most popular of 7.")).toBeTruthy();
     const comboFetch = fetchMock.mock.calls.find(([url]) =>
       String(url).startsWith(`/api/cards/${commander.id}/combos`),
     );

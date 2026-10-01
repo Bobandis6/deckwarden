@@ -40,16 +40,9 @@ import type { EditorCard } from "@/lib/decks/editor-state";
 import { deckStateKey, hasLeader } from "@/lib/decks/panel-view";
 import { getDeckToken } from "@/lib/decks/token-store";
 import type { Confidence, Recommendation } from "@/lib/recommend/types";
+import { BUDGET_OPTIONS, type BudgetTier } from "@/lib/recommend/budget";
 import { orderEvidence } from "@/lib/recommend/view";
 import type { FormatDef, GameAdapter } from "@/lib/games/types";
-
-/** Matches the hub staples table's tiers — one budget vocabulary site-wide. */
-type BudgetTier = "all" | "5" | "1";
-const BUDGET_OPTIONS: { value: BudgetTier; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "5", label: "Under $5" },
-  { value: "1", label: "Under $1" },
-];
 
 interface RecommendationsPanelProps {
   adapter: GameAdapter;
@@ -235,7 +228,7 @@ export function RecommendationsPanel({
             ? "Nothing you own fits this deck right now — untick “Only cards I own” for the full list."
             : budget === "all"
               ? "No suggestions right now."
-              : `No suggestions with a known price under ${budget} — try a wider budget.`}
+              : `No suggestions with a known price of $${budget} or less — try a wider budget.`}
         </p>
       ) : (
         <ul className="mt-1 space-y-1.5">

@@ -114,7 +114,7 @@ async function main() {
       partner !== undefined && hotPage.text.includes(esc(partner.name)),
       partner?.name,
     );
-    const totalMatch = hotPage.text.match(/most-played of (\d+) combos/);
+    const totalMatch = hotPage.text.match(/most popular of (\d+) combos/);
     check(
       "page's honest total matches the DB",
       totalMatch !== null && Number(totalMatch[1]) === hot.n,
@@ -151,7 +151,7 @@ async function main() {
       SELECT count(*)::int AS n FROM combos c
       WHERE c.id IN (SELECT combo_id FROM combo_pieces WHERE card_identity_id = ${leader.id})
         AND (c.ci_mask & ~${leader.ciMask}::int) = 0`;
-    const hubTotal = hubPage.text.match(/most-played of (\d+) combos/);
+    const hubTotal = hubPage.text.match(/most popular of (\d+) combos/);
     check(
       "hub total matches the DB's CI-fit count",
       Number(fitTotal) <= 10 || (hubTotal !== null && Number(hubTotal[1]) === Number(fitTotal)),

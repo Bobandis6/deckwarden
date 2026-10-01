@@ -257,8 +257,8 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       <section aria-label="Staples" className="mt-10">
         <h2 className="font-display text-lg font-semibold">Staples in these colors</h2>
         <p className="text-muted-foreground mt-0.5 text-xs">
-          The {STAPLES_LIMIT} most-played cards that fit this color identity, ranked by EDHREC play
-          data via Scryfall.
+          The {STAPLES_LIMIT} cards that fit this color identity in the most EDHREC decklists
+          (EDHREC rank via Scryfall).
         </p>
         {staples.length === 0 ? (
           <p className="text-muted-foreground mt-3 text-sm">
@@ -319,7 +319,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           <h2 className="font-display text-lg font-semibold">Combos with {leader.name}</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             {combosData.total > COMBOS_SHOWN
-              ? `The ${combosData.combos.length} most-played of ${combosData.total} combos`
+              ? `The ${combosData.combos.length} most popular of ${combosData.total} combos (by EDHREC decklist count)`
               : `${combosData.total === 1 ? "One combo" : `${combosData.total} combos`}`}{" "}
             using this commander that fit its color identity, from{" "}
             {adapter.capabilities.combos.sourceLabel}.
@@ -478,7 +478,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
         <a href="https://scryfall.com" className="underline" rel="noreferrer" target="_blank">
           Scryfall
         </a>
-        ; play-rate ranking from EDHREC data included in Scryfall bulk.
+        ; popularity ranking from EDHREC decklist data included in Scryfall bulk.
         {combosData.total > 0 && (
           <>
             {" "}

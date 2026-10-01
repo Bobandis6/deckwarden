@@ -156,7 +156,15 @@ export type AnalyticsBlock =
       hint?: string;
       tone?: "ok" | "warn" | "bad";
     }
-  | { kind: "table"; id: string; title: string; columns: string[]; rows: (string | number)[][] };
+  | {
+      kind: "table";
+      id: string;
+      title: string;
+      columns: string[];
+      rows: (string | number)[][];
+      /** One quiet line under the table on how it was counted (Y1). */
+      hint?: string;
+    };
 
 // ---------------------------------------------------------------------------
 // Search fields (declarative — core translates whitelisted targets to SQL,

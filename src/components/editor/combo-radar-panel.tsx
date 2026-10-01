@@ -20,7 +20,7 @@
  * deck row known, autosave settled, key changed) and useResolvedAdd
  * (resolve with the id guard → quiet add → autosave).
  *
- * "With your commander" (W9c): the leader's own most-played combos off
+ * "With your commander" (W9c): the leader's own most popular combos off
  * GET /api/cards/[id]/combos?fit= — fetched once per leader change (the
  * useLeaderArt discipline: keyed on (anchor, fit), aborted when stale), so
  * it works in a seeded DRAFT with no deck row and adds no per-edit request.
@@ -297,7 +297,7 @@ export function ComboRadarPanel({
         {notice?.text ?? (fetching && data !== null ? "Updating…" : "")}
       </p>
 
-      {/* With your commander (W9c): the leader's own most-played lines —
+      {/* With your commander (W9c): the leader's own most popular lines —
           renders in a seeded draft too (no deck row needed). */}
       {anchorId !== null && combosMeta && (
         <section className="mt-2">
@@ -333,8 +333,8 @@ export function ComboRadarPanel({
               </ul>
               {leaderCombos.total > Math.min(leaderCombos.combos.length, LEADER_COMBOS_SHOWN) && (
                 <p className="text-muted-foreground mt-1 text-xs">
-                  Showing the {Math.min(leaderCombos.combos.length, LEADER_COMBOS_SHOWN)}{" "}
-                  most-played of {fmt(leaderCombos.total)}.
+                  Showing the {Math.min(leaderCombos.combos.length, LEADER_COMBOS_SHOWN)} most
+                  popular of {fmt(leaderCombos.total)}.
                 </p>
               )}
             </>
@@ -430,7 +430,7 @@ export function ComboRadarPanel({
               <ArrowUpRightIcon aria-hidden className="ml-0.5 inline size-3.5 align-[-0.15em]" />
             </a>{" "}
             — detection covers combos with recorded play there, plus unranked new ones.
-            {data.truncated ? " Scan capped at the most-played matches for this deck." : ""}
+            {data.truncated ? " Scan capped at the most popular matches for this deck." : ""}
           </p>
         </>
       )}

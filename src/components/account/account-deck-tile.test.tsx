@@ -95,7 +95,7 @@ describe("AccountDeckTile", () => {
       .getAllByRole("menuitem")
       .map((item) => [item.textContent, item.getAttribute("href"), item.getAttribute("target")]);
     expect(links).toEqual([
-      ["Open in builder", `/decks/${DECK_ID}/edit`, null],
+      ["Open in editor", `/decks/${DECK_ID}/edit`, null],
       ["Open in new tab", `/decks/${DECK_ID}/edit`, "_blank"],
       ["View share page", "/d/krenko123abc", null],
       ["Copy share link", null, null],
@@ -119,7 +119,7 @@ describe("AccountDeckTile", () => {
     const defaultNotPrevented = fireEvent.contextMenu(li);
     expect(defaultNotPrevented).toBe(false); // preventDefault ran — no native menu, no navigation
     const menu = await screen.findByRole("menu");
-    expect(within(menu).getByRole("menuitem", { name: "Open in builder" })).toBeTruthy();
+    expect(within(menu).getByRole("menuitem", { name: "Open in editor" })).toBeTruthy();
     expect(within(menu).getByRole("menuitemradio", { name: "Public" })).toBeTruthy();
     expect(within(menu).getByRole("menuitem", { name: "Delete deck…" })).toBeTruthy();
   });

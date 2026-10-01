@@ -234,7 +234,7 @@ async function main() {
         `/api/cards/search?game=mtg&limit=12&set=${fixture.code}&sort=pop`,
       );
       check(
-        `set=${fixture.code}&sort=pop&limit=12: the "Most played" request answers from the set`,
+        `set=${fixture.code}&sort=pop&limit=12: the "Most popular" request answers from the set`,
         strip.status === 200 && strip.json.results.length > 0 && strip.json.total === fixture.cards,
         { status: strip.status, total: strip.json.total },
       );

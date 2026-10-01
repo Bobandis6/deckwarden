@@ -101,7 +101,7 @@ async function main() {
     // ---- /commanders index ------------------------------------------------
     const index = await page("/commanders");
     check(
-      "index 200 + most-played commander on page 1",
+      "index 200 + most popular commander on page 1",
       index.status === 200 && index.text.includes(top.name as string),
     );
     check("index links hub slugs", index.text.includes(`/c/${top.slug as string}`));
@@ -281,7 +281,7 @@ async function main() {
       ).test(comboHubPage.text),
     );
     check(
-      "hub combo door on the most-played fitting combo: leader + combo + autofill (X3)",
+      "hub combo door on the most popular fitting combo: leader + combo + autofill (X3)",
       new RegExp(
         `<a[^>]*href="/decks/new\\?game=mtg&amp;leader=${hubKey}&amp;combo=${comboTop.external_key as string}&amp;autofill=1"[^>]*>Build around this combo</a>`,
       ).test(comboHubPage.text),

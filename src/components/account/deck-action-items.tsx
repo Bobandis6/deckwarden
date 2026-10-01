@@ -88,7 +88,7 @@ export function DeckActionItems({
   return (
     <>
       <DropdownMenuLinkItem render={<Link href={editHref} />} closeOnClick>
-        Open in builder
+        Open in editor
       </DropdownMenuLinkItem>
       <DropdownMenuLinkItem
         render={<a href={editHref} target="_blank" rel="noreferrer" />}

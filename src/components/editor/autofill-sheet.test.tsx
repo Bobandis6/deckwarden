@@ -56,14 +56,14 @@ const shell = {
       evidence: [
         {
           source: "topdeck-top16",
-          why: "Played in 62% of top-16 lists with Atraxa",
+          why: "Played in 62% of competitive top-16 lists with Atraxa",
           with: [],
           howOften: "62% of 100 lists",
           confidence: "high",
         },
         {
           source: "edhrec_rank",
-          why: "A Commander staple by EDHREC play data",
+          why: "A Commander staple in EDHREC decklists",
           with: [],
           howOften: null,
           confidence: "medium",
@@ -101,7 +101,7 @@ const shell = {
       evidence: [
         {
           source: "edhrec_rank",
-          why: "A Commander staple by EDHREC play data",
+          why: "A Commander staple in EDHREC decklists",
           with: [],
           howOften: null,
           confidence: "medium",
@@ -227,9 +227,9 @@ describe("AutofillSheet", () => {
 
     // Collapsed, the staple sentence shows once (Signet's own top evidence);
     // expanding Command Tower's "+1 more" reveals its second entry too.
-    expect(screen.getAllByText(/A Commander staple by EDHREC play data/)).toHaveLength(1);
+    expect(screen.getAllByText(/A Commander staple in EDHREC decklists/)).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "+1 more" }));
-    expect(screen.getAllByText(/A Commander staple by EDHREC play data/)).toHaveLength(2);
+    expect(screen.getAllByText(/A Commander staple in EDHREC decklists/)).toHaveLength(2);
   });
 
   it("Apply with keep CHECKED hands back the current list plus the checked picks", async () => {
@@ -321,7 +321,7 @@ describe("AutofillSheet", () => {
     expect(screen.getByRole("dialog", { name: "Build around this combo" })).toBeTruthy();
     expect(
       screen.getByText(
-        "Atraxa, Praetors' Voice + Zealous Conscripts. The rest comes from real play data — every pick shows why.",
+        "Atraxa, Praetors' Voice + Zealous Conscripts. The rest comes from real decklists and tournament results — every pick shows why.",
       ),
     ).toBeTruthy();
     await screen.findByText("Lands · 12");
