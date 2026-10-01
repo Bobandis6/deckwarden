@@ -1,5 +1,53 @@
 # X5 session prompt — Change picture (your Discord or Google picture, a Magic card's art, or your initial — from a pencil on /account)
 
+## Ship note — 2026-10-01, feat `8ead5db`, deployed (Vercel status success on the full sha, 06:52 Z)
+
+**Shipped. Wave 3 is complete. The prompt below is history. Next is Wave 4: `Y1-session-prompt.md` (WAVE4.md). Y1's pre-flight checks that X5 is ticked and that `0015` is the last migration; both are true.**
+
+`pnpm check` 1,177 → **1,227 tests** (139 → 143 files, the same 6 pre-existing `no-unused-vars` warnings, 0 errors), measured on `76ccca6` + the feature. Route table: exactly one new line, `ƒ /api/profile/avatar`. `/account` and `/u/[username]` stay `ƒ`, `/c/[slug]`, `/l/[slug]` and `/cards/[id]` stay `●`, `/sets` and `/precons` stay `○`. `pnpm db:size` 270.9 MB before and after `0015` (269.5 on 2026-09-28; the nightlies grew it). Census before and after the smokes: 27 user decks (12 guest-owned), 181 precons, 1 user; likes 2 · bookmarks 0 · folders 1 · versions 1 · collections 0; no `@smoke.invalid` user left behind. Nightlies green through 2026-09-30.
+
+**The owner's answers (2026-10-01, X5's start)**: nothing was posted and no feedback arrived (no P2.9 or P4.7 round). Database: reads allowed, and the migration only after showing the SQL — shown, and approved ("Yes, apply 0015"). The refresh changes **the picture only**. The credit line **also shows in the account menu**.
+
+**Migration `0015`** (`drizzle/0015_striped_scream.sql`): exactly `ALTER TABLE "users" ADD COLUMN "avatar" jsonb;`. The snapshot diff against `0014` is that one nullable column. Applied to production before the push (the live code ignored it); `information_schema` then listed `avatar:jsonb:YES`, and `__drizzle_migrations` gained id 16. No backfill: every user reads NULL, which is the provider picture they saw before.
+
+**Step 1, verify first** (`src/lib/auth/sign-in-refresh.test.ts`, on the `callback-url.test.ts` harness, two Discord round trips with a changed picture, name and email):
+- (a) As configured before, a second sign-in moves nothing but emailVerified; `image` stays the sign-up picture.
+- (b) `overrideUserInfoOnSignIn` alone rewrites the name, the email and the picture. With another user holding the new email, the memory adapter ends with two holders, which on Postgres is the UNIQUE violation Correction 2 described.
+- (c) With the switch and `narrowSignInRefresh`, only the picture moves, the colliding email never reaches the write, and the hook sees `ctx.path === "/callback/:id"`. Changing the path check to `/callback/discord` fails both (c) tests.
+- (d) `input: false` fields reach `getSession` and stay untouched by a later sign-in. **Measured correction to Correction 11:** the raw provider profile never reaches the user (Discord's `avatar` hash included); only `mapProfileToUser`'s output does. So the test uses a mapper that offers both fields; flipping to `input: true` lets the mapper fill them and fails (d).
+- (e) After a direct write, a read through the cache gives the old value; `disableCookieCache` gives the new value with a fresh `session_data` cookie; adding `disableRefresh` gives the new value with no cookie.
+
+**Decisions** (each in REDESIGN.md's X5 section):
+- The card box is a pick mode on `NameSuggest` (`onPick` instead of `rowHref`).
+- The stored shape and `parseAvatarChoice`'s tolerant read; the fallback chain art → provider → initial.
+- `lookupScryfallArtMeta` carries a reason; `fetchScryfallArtMeta`'s callers did not change.
+- The refusal sentences: 404 / 400 One Piece / 404 no printing / 422 no artist / 503 unreachable / 401.
+- The `profileAvatar` limiter: 20 an hour per user, its own bucket.
+- "Your sign-in picture" when both providers are linked, with one refresh button per provider.
+- The credit line in three places, and beside the saved crop inside the dialog, never truncated.
+- `/account` reads the picture from the users row.
+- REC-5's username field and "Public profile ↗".
+- The privacy copy.
+
+**Verified, beyond Vitest**:
+- The derived crop equals the API's `image_uris.art_crop` minus its `?` stamp for Sol Ring (normal) and for Delver of Secrets and Fable of the Mirror-Breaker (transform, front face).
+- `smoke:account` (40 checks) and `smoke:profile` green on dev. `smoke:account` now runs the route on a live server: a signed-out PUT is 401 and writes nothing; signed in, the three kinds; Sol Ring resolves its live default printing and Scryfall's artist, with no URL stored; a One Piece card is refused; `{kind:"upload"}` is refused; the field rides in `get-session`.
+- Statements with `DB_LOG=1`: signed-out PUT 0. Provider/initial: the session (2 without a cache cookie, 0 with one) + limiter + update. Card art: the same + one lookup. A refusal never writes.
+- In the pane, on a throwaway local page (deleted, never committed): the dialog renders and fits at 375 px; the pencil shows on a coarse pointer (opacity 1); the suggest popup paints over the modal; a real click picks a row without closing the dialog; Save hit the real route signed out and showed "Sign in to change your picture." with the dialog kept open.
+- Signed out on dev: `/account`'s sign-in view is unchanged and `/u/bobandis6` renders.
+- Prod, signed out, zero creates: the PUT is 401 `no-store` with the sentence; `/update-user`, `/get-access-token`, `/refresh-token` and `/account-info` are 404; `get-session` is 200; `/u/bobandis6` renders "B" at 64 px with no credit; the new privacy copy is live.
+
+**The owner's clicks, signed in on prod** (the pane cannot sign in):
+1. On `/account`, the picture shows a pencil on hover. Tab to it, press Enter: the dialog opens. Esc closes it and focus is back on the picture. On a phone the pencil is always visible; tap it.
+2. Card art: type `sol` and pick Sol Ring, then Save. The crop shows on `/account` with "Picture: Sol Ring · Art: … · ™ & © Wizards of the Coast" under the name, in the header at once (no reload), with the same line under your name in the account menu, and on `/u/bobandis6`.
+3. "Just my initial", then Save. Sign out and back in: still the initial.
+4. Choose "Discord picture", then Save, then "Refresh now". After the round trip your live Discord picture replaces the dead link everywhere (it shows "B" today), and your display name and email are unchanged on `/account`'s Settings.
+5. The menu shows "Public profile ↗" and it opens `/u/bobandis6`.
+
+**LATER**: rows 80 (REC-5) and 110 (the header on `UserAvatar`) FIRED with `8ead5db`. 108 is unchanged (no token route opened). 114, 119, 120 and 121 stay deferred. New: 137 (the credit follows the choice, not the loaded image), 138 (the preview is the full card until Save), 139 ("Refresh now" leaves a session behind), 140 (other tabs catch up within 5 minutes).
+
+---
+
 Pull latest, then run X5 — the sixth and last Wave-3 package. **`WAVE3.md` is the contract.** Read, in this order: section A's rows "The chosen picture lives in its own column", "Card-art pictures store a printing id and the artist's name, never a URL" and "No uploads"; **D0** (the `Pencil` icon — the one icon allowed without visible text, `aria-label="Change picture"`) and **D5** (the design: the picture as a button, the three choices, where the picture shows, the credit line, what is stored, the refresh, the header's session field, Save's route, keyboard and touch); the **X5 block** in E — its step 1 is "verify first", and it goes first — and the X5 row of the pin matrix in its appendix; F — the deferred rows (uploads, a printing's art, One Piece art, "Refresh now" without the round trip) and the two defaults still open (what the refresh changes, the credit line in the header menu). Then LATER rows **80** and **110** (X5 fires both) and **108** (the token routes X1 closed — nothing in X5 reopens them). X4b is live (`879db10`, docs in the commit after); nothing it built is X5's, but its ship note's pane and test notes hold.
 
 X5 is the only Wave-3 package with a migration and the only one whose whole surface is signed in: **one nullable jsonb column** (`users.avatar`, migration `0015`), **the provider refresh at sign-in narrowed to the picture**, **Better Auth additional fields the client cannot write** (the choice, and REC-5's `username`), **`PUT /api/profile/avatar`**, **`UserAvatar` taking the choice** in three places (the header adopts it — row 110), **the pencil and its dialog** (the card box built on X2's autocomplete), and **the credit line**. The browser pane is signed out on prod and on localhost, so every signed-in flow is Vitest/RTL plus the owner's own clicks at the end.
