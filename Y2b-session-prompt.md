@@ -6,12 +6,12 @@ Y2b puts the fastest ways into a deck on the first screen, lets a seeded draft s
 
 Pre-flight, in order.
 1. **Y2a has shipped.** `WAVE4.md`'s tracker ticks Y2a (feat `4fd9b10`), and `drizzle/meta/_journal.json`'s last entry is still idx 15.
-2. **LATER row 161 (the per-render keepalive PUT).** If the owner started its task chip, that fix is its own session — let it land first (Y2b's draft panel reads `saveStatus`, and the fix changes when PUTs fire). If it's still open, ask the owner whether to run it before Y2b; don't fold it into this package.
+2. **LATER row 161 (the per-render keepalive PUT) LANDED 2026-10-01** (`01b2232`, test teardown `dce142e`; the row is FIRED). A saved deck's edits wait out the 1 s debounce again: one PUT per burst, sent by the debounced save that drives `saveStatus`; a keepalive PUT leaves only on pagehide or unmount. `deck-editor.test.tsx`'s `afterEach` now unmounts before it unstubs `fetch`; keep that order, because a test that ends mid-debounce on a live deck flushes on unmount. Nothing to ask; row 163 (what pagehide can't cover) isn't Y2b's.
 3. **Nightlies green** (`gh run list --workflow=nightly-ingest.yml`). A red run is P4.7 branch F and preempts everything.
 4. **A warm beta signal outranks a package.** Ask the owner whether anything was posted or arrived; a warm signal gets its own P2.9 / P4.7 round first.
 5. **Ask for read-only database access once, at the start**, in plain words: the census before and after (users, user decks, precons), nothing written. Y2b's doors mint nothing; `smoke:recommend`'s new snapshot section must create nothing either.
 6. **Working tree clean** at or after Y2a's docs commit. Another session may share this working copy: stage explicit paths only; re-read `LATER.md`, `REDESIGN.md`, `WAVE4.md` and `MEMORY.md` immediately before editing them.
-7. **State your baseline**: `pnpm check` = Y2a's count (1,276 tests / 149 files / 6 warnings / 0 errors on `4fd9b10`, more if row 161 landed) and `pnpm db:size`. Save `pnpm build`'s route table; the diff at the end must be **exactly one added line**, `ƒ /api/recommendations`.
+7. **State your baseline**: `pnpm check` = Y2a's count plus row 161's (1,282 tests / 150 files / 0 errors on `dce142e`; row 161 left the warnings unchanged) and `pnpm db:size`. Save `pnpm build`'s route table; the diff at the end must be **exactly one added line**, `ƒ /api/recommendations`.
 
 ## What Y2b is NOT (scope fence)
 
