@@ -18,7 +18,8 @@
  * is the author's. Folders stay rows (folders are not decks).
  *
  * P2.9 round 2: the avatar is UserAvatar — a stored provider URL that has
- * gone stale shows the initial instead of an empty ring.
+ * gone stale shows the initial instead of an empty ring. X5: it shows the
+ * chosen picture, and card art carries its credit under the handle.
  */
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { Metadata } from "next";
@@ -29,12 +30,13 @@ import { cache } from "react";
 
 import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
 import { EmptyState } from "@/components/empty-state";
-import { UserAvatar } from "@/components/profile/user-avatar";
+import { AvatarCredit, UserAvatar } from "@/components/profile/user-avatar";
 import { getDb, schema } from "@/db";
 import { getSessionUserId } from "@/lib/auth";
 import { deckCollection } from "@/lib/decks/collections";
 import { joinedLabel } from "@/lib/decks/display";
 import { rowPrinting, tileFromDeck } from "@/lib/decks/tiles";
+import { parseAvatarChoice } from "@/lib/profile/avatar";
 import { isUsernameShaped } from "@/lib/profile/username";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +49,7 @@ const getProfile = cache(async (raw: string) => {
       id: schema.users.id,
       name: schema.users.name,
       image: schema.users.image,
+      avatar: schema.users.avatar,
       username: schema.users.username,
       createdAt: schema.users.createdAt,
     })
@@ -75,6 +78,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
   const { username } = await params;
   const user = await getProfile(username);
   if (!user) notFound();
+  const avatar = parseAvatarChoice(user.avatar);
 
   const db = getDb();
   const [decks, folders, sessionUserId] = await Promise.all([
@@ -107,7 +111,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
   return (
     <main className="max-w-reading mx-auto w-full flex-1 px-4 py-12">
       <section className="flex items-center gap-4">
-        <UserAvatar name={user.name} image={user.image} size={64} />
+        <UserAvatar name={user.name} image={user.image} avatar={avatar} size={64} />
         <div className="min-w-0">
           <h1 className="font-display truncate text-2xl font-semibold tracking-tight">
             {user.name}
@@ -115,6 +119,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
           <p className="text-muted-foreground truncate text-sm">
             @{user.username} · Joined {joinedLabel(user.createdAt)}
           </p>
+          <AvatarCredit avatar={avatar} />
         </div>
       </section>
 

@@ -39,6 +39,9 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
+// Type-only (erased at load): drizzle-kit and the ingest scripts read this file.
+import type { AvatarChoice } from "../lib/profile/avatar";
+
 /** Postgres `tsvector`; Drizzle has no built-in, so a custom type is declared. */
 const tsvector = customType<{ data: string; driverData: string }>({
   dataType: () => "tsvector",
@@ -278,6 +281,14 @@ export const users = pgTable("users", {
    * Choosing one is the opt-in that makes name/avatar publicly browsable.
    */
   username: text("username").unique(),
+  /**
+   * The chosen picture (X5, WAVE3.md D5). Ours, not better-auth's, and NOT
+   * `image`: a sign-in refresh rewrites `image`, so a choice stored there
+   * would be lost at the next sign-in. NULL = the provider picture; the
+   * shapes are src/lib/profile/avatar.ts'. No URL is ever stored — card art
+   * keeps a printing id, the card's name and the artist for the credit line.
+   */
+  avatar: jsonb("avatar").$type<AvatarChoice>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

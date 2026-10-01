@@ -49,6 +49,11 @@
  * one non-link row; its value stringifies to the current text, so Base UI's
  * fill-on-press is a no-op, and its click submits the owning form.
  *
+ * X5's pick mode: with `onPick` in place of `rowHref`, rows are plain
+ * options and a pick (click, or Enter on a highlighted row) hands the row
+ * to the caller and writes its name into the box — the change-picture
+ * dialog's card box, which chooses a card instead of leaving the page.
+ *
  * `mode="none"`: the server ranked and filtered; Base UI neither re-filters
  * (its default `contains` filter drops Urza's Saga for "urzas saga") nor
  * re-orders.
@@ -80,7 +85,9 @@ export interface NameSuggestProps {
   /** "leaders": leader candidates with a hub (the index boxes); "cards": every card. */
   scope: "cards" | "leaders";
   /** Where a row goes: `prefix` + the row's slug or id ("/c/" + slug, "/cards/" + id). */
-  rowHref: { prefix: string; key: "slug" | "id" };
+  rowHref?: { prefix: string; key: "slug" | "id" };
+  /** Pick mode (X5): a row is chosen, not followed. Takes the place of `rowHref`. */
+  onPick?: (row: SuggestRow) => void;
   /** The row's one quiet detail: color chips, the type line, or the card number. */
   detail: "colors" | "type" | "number";
   /** The input's form name (the GET forms: "q"). */
@@ -102,6 +109,7 @@ export interface NameSuggestProps {
 }
 
 function rowHref(row: SuggestRow, target: NameSuggestProps["rowHref"]): string | null {
+  if (!target) return null;
   const key = target.key === "slug" ? row.slug : row.id;
   return key ? `${target.prefix}${encodeURIComponent(key)}` : null;
 }
@@ -110,6 +118,7 @@ export function NameSuggest({
   game,
   scope,
   rowHref: target,
+  onPick,
   detail,
   name,
   id,
@@ -158,7 +167,7 @@ export function NameSuggest({
     };
   }, [want, key, answerKey, game, scope]);
 
-  const rows = (answer?.rows ?? []).filter((row) => rowHref(row, target) !== null);
+  const rows = (answer?.rows ?? []).filter((row) => onPick || rowHref(row, target) !== null);
   const open = want && active && answer !== null && !failed;
   const entries: Entry[] = footerNoun ? [...rows, FOOTER] : rows;
   const typed = text.trim();
@@ -228,6 +237,17 @@ export function NameSuggest({
                 separated={rows.length > 0}
                 onPick={() => inputRef.current?.form?.requestSubmit()}
               />
+            ) : onPick ? (
+              <AutocompleteItem
+                key={entry.id}
+                value={entry}
+                onClick={() => {
+                  setWant(false);
+                  onPick(entry);
+                }}
+              >
+                <RowBody row={entry} detail={detail} game={game} />
+              </AutocompleteItem>
             ) : (
               <AutocompleteItem
                 key={entry.id}
@@ -239,29 +259,40 @@ export function NameSuggest({
                   if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) setWant(false);
                 }}
               >
-                <span
-                  aria-hidden
-                  data-slot="thumb"
-                  className="h-9 w-[1.625rem] shrink-0 overflow-hidden rounded-[2px]"
-                >
-                  {entry.image && (
-                    <CardImage
-                      src={entry.image}
-                      alt=""
-                      width={146}
-                      height={204}
-                      className="h-9 w-auto"
-                    />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                <RowDetail row={entry} detail={detail} game={game} />
+                <RowBody row={entry} detail={detail} game={game} />
               </AutocompleteItem>
             )
           }
         </AutocompleteList>
       </AutocompleteContent>
     </Autocomplete>
+  );
+}
+
+/** A row's thumbnail, name and detail — the same in both modes. */
+function RowBody({
+  row: entry,
+  detail,
+  game,
+}: {
+  row: SuggestRow;
+  detail: NameSuggestProps["detail"];
+  game: NameSuggestProps["game"];
+}) {
+  return (
+    <>
+      <span
+        aria-hidden
+        data-slot="thumb"
+        className="h-9 w-[1.625rem] shrink-0 overflow-hidden rounded-[2px]"
+      >
+        {entry.image && (
+          <CardImage src={entry.image} alt="" width={146} height={204} className="h-9 w-auto" />
+        )}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+      <RowDetail row={entry} detail={detail} game={game} />
+    </>
   );
 }
 

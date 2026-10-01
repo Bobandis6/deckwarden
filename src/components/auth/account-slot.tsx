@@ -16,19 +16,27 @@
  * Base UI names the popup after its trigger, so the menu announces as the
  * user's name — consistent with "Browse" / "Menu". Sign out stays an Item
  * (not a link): closeOnClick off, the menu closes itself only on success;
- * on failure it stays open and the item reads the retry copy (D1). No
- * "Public profile ↗" item — the client session has no username (LATER).
+ * on failure it stays open and the item reads the retry copy (D1).
  *
  * X1 (WAVE3.md D1): the name is the menu's first item, a link to /account
  * that lands at the very top of the page — see landAtTop for the measured
  * reason a plain link is not enough.
+ *
+ * X5 (WAVE3.md D5): the picture is UserAvatar at 24 px (LATER row 110 —
+ * one initial rule, the first code point, in all three places), from the
+ * session's `avatar` and `image`. When card art is the picture, its credit
+ * is one quiet line under the name row (the owner's answer, 2026-10-01).
+ * REC-5 (LATER row 80): the session carries `username`, so "Public profile
+ * ↗" is an item once one exists. Both are Better Auth additional fields;
+ * after a change the writer refetches the session with the cookie cache
+ * bypassed, which updates this menu at once.
  */
 import { LogOutIcon } from "lucide-react";
 import Link from "next/link";
 import { useState, type MouseEvent } from "react";
 
 import { signOutLabel, useSignOut } from "@/components/auth/use-sign-out";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarCredit, UserAvatar } from "@/components/profile/user-avatar";
 import { buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -40,6 +48,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
+import { parseAvatarChoice } from "@/lib/profile/avatar";
 import { cn } from "@/lib/utils";
 
 /** The /account sections the menu links into (D1; #bookmarks is W3's new id). */
@@ -94,11 +103,15 @@ export function AccountSlot() {
  * error/404 shells and every server render show) never touches useRouter —
  * useSignOut needs the app router mounted.
  */
-function AccountMenu({ user }: { user: { name: string; image?: string | null } }) {
+function AccountMenu({
+  user,
+}: {
+  user: { name: string; image?: string | null; avatar?: unknown; username?: string | null };
+}) {
   const [open, setOpen] = useState(false);
   const { pending, failed, reset, signOut } = useSignOut();
 
-  const initial = user.name.trim().charAt(0).toUpperCase() || "?";
+  const avatar = parseAvatarChoice(user.avatar);
   return (
     <DropdownMenu
       open={open}
@@ -108,12 +121,8 @@ function AccountMenu({ user }: { user: { name: string; image?: string | null } }
       }}
     >
       <DropdownMenuTrigger className="focus-visible:ring-ring/50 hover:bg-muted aria-expanded:bg-muted flex items-center gap-2 rounded-full py-0.5 pr-2.5 pl-0.5 outline-none focus-visible:ring-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11">
-        {/* Decorative: the name span is the trigger's label; the initial must not leak into it. */}
-        <Avatar size="sm" aria-hidden>
-          {/* Provider avatars are cross-origin; no-referrer matches /account's own <img>. */}
-          {user.image && <AvatarImage src={user.image} alt="" referrerPolicy="no-referrer" />}
-          <AvatarFallback>{initial}</AvatarFallback>
-        </Avatar>
+        {/* Decorative (aria-hidden inside): the name span is the trigger's label. */}
+        <UserAvatar name={user.name} image={user.image} avatar={avatar} size={24} />
         <span className="max-w-32 truncate text-sm font-medium max-sm:sr-only">{user.name}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
@@ -128,12 +137,19 @@ function AccountMenu({ user }: { user: { name: string; image?: string | null } }
             {/* min-w-0: a flex child will not shrink below its text without it, and the name would overflow instead of truncating. */}
             <span className="min-w-0 truncate">{user.name}</span>
           </DropdownMenuLinkItem>
+          {/* Card art's credit, nearby (X5): text, not an item — arrows skip it. */}
+          <AvatarCredit avatar={avatar} className="max-w-56 px-1.5 pb-1" />
           <DropdownMenuSeparator />
           {ACCOUNT_MENU_LINKS.map((entry) => (
             <DropdownMenuLinkItem key={entry.href} render={<Link href={entry.href} />} closeOnClick>
               {entry.label}
             </DropdownMenuLinkItem>
           ))}
+          {user.username && (
+            <DropdownMenuLinkItem render={<Link href={`/u/${user.username}`} />} closeOnClick>
+              Public profile ↗
+            </DropdownMenuLinkItem>
+          )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem

@@ -5,16 +5,20 @@
  * /u/[username] — the copy says so, since this is the opt-in moment. Server
  * is the validator of record (regex, reserved list, uniqueness → 400/409
  * with a message); this form just relays what it says and refreshes so the
- * server-rendered profile link picks up the change.
+ * server-rendered profile link picks up the change. X5 (REC-5, LATER row
+ * 80): the session carries `username` now (the header's "Public profile
+ * ↗"), so a save also refetches it with the 5-minute cookie cache bypassed.
  */
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { authClient } from "@/lib/auth-client";
 import { USERNAME_MAX } from "@/lib/profile/username";
 
 export function UsernameForm({ current }: { current: string | null }) {
   const router = useRouter();
+  const { refetch } = authClient.useSession();
   const [value, setValue] = useState(current ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +44,7 @@ export function UsernameForm({ current }: { current: string | null }) {
       }
       setValue(json.username ?? value);
       setSaved(true);
+      await refetch({ query: { disableCookieCache: true } });
       router.refresh();
     } catch {
       setError("Couldn't save — check your connection and try again.");

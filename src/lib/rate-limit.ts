@@ -116,6 +116,15 @@ export const RATE_LIMITS = {
   profileWrite: (userId: string): RateLimit[] => [
     { key: `profile:user:${userId}`, max: 10, windowSeconds: 3600 },
   ],
+  /**
+   * PUT /api/profile/avatar (X5) — session-only, so the principal is the
+   * user id. Its own bucket: sharing profileWrite would let picture saves
+   * spend username changes. A card-art Save costs one Scryfall API call
+   * (data-cached a day per printing); 20 an hour covers trying a few cards.
+   */
+  profileAvatar: (userId: string): RateLimit[] => [
+    { key: `profile-avatar:user:${userId}`, max: 20, windowSeconds: 3600 },
+  ],
   /** POST /api/folders — session-only; FOLDER_LIMITS.perUser is the real cap. */
   folderCreate: (userId: string): RateLimit[] => [
     { key: `folder-create:user:${userId}`, max: 30, windowSeconds: 3600 },

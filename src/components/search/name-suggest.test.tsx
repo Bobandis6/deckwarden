@@ -262,6 +262,45 @@ describe("NameSuggest", () => {
     }
   });
 
+  it("pick mode (X5): rows are plain options; click or Enter hands the row over and closes the popup", async () => {
+    const onPick = vi.fn();
+    render(
+      <NameSuggest
+        game="mtg"
+        scope="cards"
+        detail="type"
+        type="text"
+        aria-label="Search a Magic card"
+        onPick={onPick}
+      />,
+    );
+    const input = screen.getByRole("combobox", { name: "Search a Magic card" }) as HTMLInputElement;
+    typeText(input, "atr");
+    await debounce();
+    expect(Object.fromEntries(pending[0].url.searchParams)).toEqual({
+      game: "mtg",
+      scope: "cards",
+      q: "atr",
+    });
+    await answer([ATRAXA, GRAND]);
+    expect(options().map((o) => o.tagName)).toEqual(["DIV", "DIV"]);
+    expect(options().some((o) => o.hasAttribute("href"))).toBe(false);
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledTimes(1);
+    expect(onPick).toHaveBeenLastCalledWith(GRAND);
+    expect(listbox()).toBeNull();
+
+    typeText(input, "atra");
+    await debounce();
+    await answer([ATRAXA]);
+    fireEvent.click(options()[0]);
+    expect(onPick).toHaveBeenLastCalledWith(ATRAXA);
+    expect(listbox()).toBeNull();
+  });
+
   it("Esc closes the popup and keeps the text", async () => {
     const { input } = renderInForm();
     typeText(input, "atr");

@@ -16,6 +16,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 
 import { getDb, schema } from "@/db";
+import {
+  narrowSignInRefresh,
+  SIGN_IN_REFRESH,
+  USER_ADDITIONAL_FIELDS,
+} from "@/lib/auth/user-fields";
 import { AUTH_DISABLED_PATHS } from "@/lib/auth-disabled-paths";
 import { betterAuthRateLimitStorage } from "@/lib/rate-limit";
 
@@ -50,16 +55,25 @@ export const auth = betterAuth({
       verifications: schema.verifications,
     },
   }),
+  // X5: every sign-in refreshes the provider picture (a stale Discord URL
+  // heals by signing in again) — and ONLY the picture: the hook below drops
+  // the name and the email from that write (user-fields.ts has the why).
   socialProviders: {
     discord: {
       clientId: requireEnv("DISCORD_CLIENT_ID"),
       clientSecret: requireEnv("DISCORD_CLIENT_SECRET"),
+      ...SIGN_IN_REFRESH,
     },
     google: {
       clientId: requireEnv("GOOGLE_CLIENT_ID"),
       clientSecret: requireEnv("GOOGLE_CLIENT_SECRET"),
+      ...SIGN_IN_REFRESH,
     },
   },
+  // The chosen picture and the username ride in the session (the header
+  // reads both with no server read); no client can write either.
+  user: { additionalFields: USER_ADDITIONAL_FIELDS },
+  databaseHooks: { user: { update: { before: narrowSignInRefresh } } },
   session: {
     // Signed cookie cache: deck routes check the session without a DB read
     // for up to 5 minutes (Neon compute is a budget); sign-out revocation lag

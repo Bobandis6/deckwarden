@@ -13,6 +13,12 @@
  * to the stock profile write is proven refused on the real server, with the
  * row read back unchanged. X1: the three provider-token routes join it.
  *
+ * X5: the change-picture route on a live server and the real database —
+ * PUT /api/profile/avatar signed out (401, nothing written) and signed in
+ * (the three kinds; card art resolves the default printing and Scryfall's
+ * artist, One Piece is refused), the jsonb row read back, and the choice
+ * riding in get-session (the Better Auth additional field).
+ *
  *   pnpm smoke:account                                  # http://localhost:3000
  *   BASE_URL=http://localhost:3111 pnpm smoke:account   # another port
  *
@@ -215,6 +221,86 @@ async function main() {
       bobSession.status === 200 &&
         j<{ user?: { id?: string } }>(bobSession.json).user?.id === bob.id,
       bobSession.status,
+    );
+
+    // ---- change picture (X5) ---------------------------------------------------
+    const avatarOf = async (id: string) =>
+      (await sql`select avatar, image from users where id = ${id}`)[0];
+    const signedOutPut = await api("PUT", "/api/profile/avatar", { body: { kind: "initial" } });
+    check("signed-out PUT /api/profile/avatar → 401", signedOutPut.status === 401);
+    check("…and wrote nothing", (await avatarOf(bob.id)).avatar === null);
+    check(
+      "signed-in /account renders the picture button",
+      (await api("GET", "/account", { cookie: bob.cookie })).text.includes(
+        'aria-label="Change picture"',
+      ),
+    );
+
+    const initial = await api("PUT", "/api/profile/avatar", {
+      cookie: bob.cookie,
+      body: { kind: "initial" },
+    });
+    check("PUT {initial} → 200", initial.status === 200, initial.json);
+    check(
+      "the row holds {kind:'initial'} (jsonb), image untouched",
+      JSON.stringify((await avatarOf(bob.id)).avatar) === '{"kind":"initial"}' &&
+        (await avatarOf(bob.id)).image === null,
+    );
+    const withChoice = await api("GET", "/api/auth/get-session?disableCookieCache=true", {
+      cookie: bob.cookie,
+    });
+    check(
+      "get-session carries the choice (Better Auth additional field)",
+      JSON.stringify(j<{ user?: { avatar?: unknown } }>(withChoice.json).user?.avatar) ===
+        '{"kind":"initial"}',
+      withChoice.json,
+    );
+
+    const [solRing] = await sql`
+      select c.id, p.id as printing_id from card_identities c
+      join card_printings p on p.card_identity_id = c.id and p.is_default and not p.is_removed
+      where c.game_id = 1 and c.name = 'Sol Ring' and not c.is_removed limit 1`;
+    const art = await api("PUT", "/api/profile/avatar", {
+      cookie: bob.cookie,
+      body: { kind: "art", cardId: solRing.id },
+    });
+    const stored = j<{ kind?: string; printingId?: string; cardName?: string; artist?: string }>(
+      (await avatarOf(bob.id)).avatar,
+    );
+    check(
+      "PUT {art: Sol Ring} → 200; the default printing, the name, Scryfall's artist; no URL",
+      art.status === 200 &&
+        stored.kind === "art" &&
+        stored.printingId === solRing.printing_id &&
+        stored.cardName === "Sol Ring" &&
+        typeof stored.artist === "string" &&
+        stored.artist.length > 0 &&
+        !JSON.stringify(stored).includes("http"),
+      { status: art.status, stored },
+    );
+
+    const [opCard] = await sql`
+      select id from card_identities where game_id = 2 and not is_removed limit 1`;
+    const op = await api("PUT", "/api/profile/avatar", {
+      cookie: bob.cookie,
+      body: { kind: "art", cardId: opCard.id },
+    });
+    check("PUT {art: a One Piece card} → 400", op.status === 400, op.json);
+    check("…and the card-art choice stays", j((await avatarOf(bob.id)).avatar).kind === "art");
+    const bad = await api("PUT", "/api/profile/avatar", {
+      cookie: bob.cookie,
+      body: { kind: "upload", url: "https://example.invalid/x.png" },
+    });
+    check("PUT {upload} → 400", bad.status === 400, bad.status);
+
+    const provider = await api("PUT", "/api/profile/avatar", {
+      cookie: bob.cookie,
+      body: { kind: "provider" },
+    });
+    check(
+      "PUT {provider} → 200, the row back to NULL",
+      provider.status === 200 && (await avatarOf(bob.id)).avatar === null,
+      provider.json,
     );
 
     // ---- the deletion -----------------------------------------------------

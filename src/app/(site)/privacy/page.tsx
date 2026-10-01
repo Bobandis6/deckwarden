@@ -34,12 +34,19 @@ export default function PrivacyPage() {
           across browsers. Sign-in is via Discord or Google only; there are no passwords here. From
           the provider we store your display name, email address, and avatar URL, used solely to
           show you your account and tie your decks to it — never for marketing, and never shared.
+          The avatar URL is refreshed each time you sign in; your name and email are not.
+        </p>
+        <p>
+          You can also choose a different picture on the account page. Then we store that choice:
+          for a Magic card’s art, the card’s name, which printing the art comes from, and the
+          artist’s name for the credit line; or simply that you chose your initial. Nothing is
+          uploaded.
         </p>
         <p>
           Choosing a username is optional and is the one thing that makes any of that public: it
-          publishes a profile page at /u/&lt;username&gt; showing your display name, avatar, and
-          your public decks and folders. Never your email. Skip the username and nothing about your
-          account is browsable.
+          publishes a profile page at /u/&lt;username&gt; showing your display name, your picture
+          (with its artist credit when it is card art), and your public decks and folders. Never
+          your email. Skip the username and nothing about your account is browsable.
         </p>
         <p>
           Importing a collection is optional too. If you upload a ManaBox or Moxfield CSV export on

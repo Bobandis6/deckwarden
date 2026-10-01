@@ -28,6 +28,12 @@
  * claim step and its status line: the visitor is about to leave, so the
  * account's six queries never run for a page nobody reads. The claim still
  * runs first; that is why the return passes through /account.
+ *
+ * X5 (WAVE3.md D5): the picture is a button (ChangePicture — the pencil and
+ * its dialog), and card art carries its credit under the name. The picture
+ * is read from the users row, not the session: the session cookie caches
+ * the user for up to 5 minutes, and Save's router.refresh() must show the
+ * new choice at once.
  */
 import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
 import { ArrowRightIcon, FolderIcon } from "lucide-react";
@@ -49,7 +55,8 @@ import { RemoveBookmarkButton } from "@/components/deck/engagement-buttons";
 import { EmptyState } from "@/components/empty-state";
 import { FolderControls } from "@/components/folders/folder-controls";
 import { NewFolderForm } from "@/components/folders/new-folder-form";
-import { UserAvatar } from "@/components/profile/user-avatar";
+import { ChangePicture, type SignInProvider } from "@/components/profile/change-picture";
+import { AvatarCredit } from "@/components/profile/user-avatar";
 import { UsernameForm } from "@/components/profile/username-form";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toast";
@@ -60,6 +67,7 @@ import { collectionSummary } from "@/lib/collection/owned";
 import { formatLabel, updatedLabel } from "@/lib/decks/display";
 import { tileFromDeck } from "@/lib/decks/tiles";
 import { loadDefaultPrintings, type DefaultPrinting } from "@/lib/hub/queries";
+import { parseAvatarChoice } from "@/lib/profile/avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -151,10 +159,14 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
       .select({ providerId: schema.accounts.providerId })
       .from(schema.accounts)
       .where(eq(schema.accounts.userId, session.user.id)),
-    // The session's user object is better-auth's shape — username is our
-    // column, so it's read from the row.
+    // Read from the row, not the session (whose cookie cache can be up to
+    // 5 minutes old): the username, and X5's picture.
     db
-      .select({ username: schema.users.username })
+      .select({
+        username: schema.users.username,
+        image: schema.users.image,
+        avatar: schema.users.avatar,
+      })
       .from(schema.users)
       .where(eq(schema.users.id, session.user.id))
       .limit(1),
@@ -200,6 +212,10 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
   const providers = [...new Set(linked.map((a) => a.providerId))]
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join(", ");
+  const signInProviders = [...new Set(linked.map((a) => a.providerId))].filter(
+    (p): p is SignInProvider => p === "discord" || p === "google",
+  );
+  const avatar = parseAvatarChoice(profile?.avatar);
 
   const folderOptions: FolderOption[] = folders.map((f) => ({ id: f.id, name: f.name }));
   const decksByFolder = new Map<string | null, DeckRow[]>();
@@ -213,7 +229,12 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
   return (
     <main className="max-w-reading mx-auto w-full flex-1 px-4 py-12">
       <section className="flex items-center gap-4">
-        <UserAvatar name={session.user.name} image={session.user.image} size={48} />
+        <ChangePicture
+          name={session.user.name}
+          image={profile?.image ?? session.user.image ?? null}
+          avatar={avatar}
+          providers={signInProviders}
+        />
         <div className="min-w-0">
           <h1 className="font-display truncate text-2xl font-semibold tracking-tight">
             {session.user.name}
@@ -221,6 +242,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
           <p className="text-muted-foreground truncate text-sm">
             {profile?.username ? `@${profile.username}` : "No username yet — pick one in Settings"}
           </p>
+          <AvatarCredit avatar={avatar} />
         </div>
       </section>
 

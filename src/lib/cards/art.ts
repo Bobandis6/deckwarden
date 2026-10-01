@@ -7,7 +7,13 @@
  *
  * Source of truth is the Scryfall API by PRINTING id — never a derived CDN
  * URL — because the artist credit lives only there (LATER row 49: no
- * artist column; the lean-row rule). Two consequences worth stating:
+ * artist column; the lean-row rule). X5's chosen picture is the one
+ * reconciled exception: it captures the artist from this API once, at Save,
+ * and stores it beside the printing id (src/lib/profile/avatar.ts), so a
+ * render — the header is a client island on every page — derives the crop
+ * from the printing id with no API call; the derived URL is the API's
+ * `image_uris.art_crop` minus its `?` stamp (proven in X5's ship note).
+ * Two consequences worth stating:
  * `image_override` never applies to art (it overrides a printing's
  * FULL-CARD image; the API's `image_uris.art_crop` is authoritative for the
  * crop), and the blocked-host gate in images.ts is moot here — Scryfall's
@@ -60,28 +66,46 @@ export function artCredit(artist: string): string {
 }
 
 /**
- * Art crop + artist for a printing, from the Scryfall API. Double-faced
- * cards use the FRONT face (`card_faces[0]`) — a per-face choice is not a
- * feature anyone has asked for. A missing crop OR artist is null (the
- * attribution rule); so is any non-OK response or thrown fetch — callers
- * degrade to their artless rendering, never to a 500.
+ * Why a lookup has no art (X5): `"no-art"` — Scryfall answered and the
+ * printing has no crop or no artist (or Scryfall does not know it: a 404);
+ * `"unreachable"` — any other non-OK answer, or the fetch threw. The
+ * picture route words the two differently; every other caller reads both
+ * as "no art" through fetchScryfallArtMeta.
  */
-export async function fetchScryfallArtMeta(printingId: string): Promise<ScryfallArtMeta | null> {
+export type ArtLookup = { meta: ScryfallArtMeta } | { reason: "no-art" | "unreachable" };
+
+/**
+ * Art crop + artist for a printing, from the Scryfall API, with the reason
+ * when there is none. Double-faced cards use the FRONT face
+ * (`card_faces[0]`) — a per-face choice is not a feature anyone has asked
+ * for. A missing crop OR artist is no art (the attribution rule).
+ */
+export async function lookupScryfallArtMeta(printingId: string): Promise<ArtLookup> {
   try {
     const res = await fetch(`https://api.scryfall.com/cards/${printingId}`, {
       headers: { "User-Agent": SCRYFALL_USER_AGENT, Accept: "application/json" },
       next: { revalidate: SCRYFALL_REVALIDATE_S },
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { reason: res.status === 404 ? "no-art" : "unreachable" };
     const card = (await res.json()) as ScryfallArtCard;
     const face = card.card_faces?.[0];
     const artCropUrl = card.image_uris?.art_crop ?? face?.image_uris?.art_crop;
     const artist = card.artist ?? face?.artist;
-    if (!artCropUrl || !artist) return null;
-    return { artCropUrl, artist };
+    if (!artCropUrl || !artist) return { reason: "no-art" };
+    return { meta: { artCropUrl, artist } };
   } catch {
-    return null;
+    return { reason: "unreachable" };
   }
+}
+
+/**
+ * The same lookup as a nullable — what the OG images, the hub banners, the
+ * art endpoint and the editor's ambient layer read: any reason is null, and
+ * callers degrade to their artless rendering, never to a 500.
+ */
+export async function fetchScryfallArtMeta(printingId: string): Promise<ScryfallArtMeta | null> {
+  const lookup = await lookupScryfallArtMeta(printingId);
+  return "meta" in lookup ? lookup.meta : null;
 }
 
 /** The descriptor for a resolved crop — the credit built once, here. */

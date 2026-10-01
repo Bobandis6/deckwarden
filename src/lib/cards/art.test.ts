@@ -13,6 +13,7 @@ import {
   artCredit,
   artCropCardArt,
   fetchScryfallArtMeta,
+  lookupScryfallArtMeta,
   resolveCardArt,
   SCRYFALL_REVALIDATE_S,
   SCRYFALL_USER_AGENT,
@@ -32,8 +33,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function respond(body: unknown, ok = true) {
-  fetchMock.mockResolvedValueOnce({ ok, json: async () => body });
+function respond(body: unknown, ok = true, status = ok ? 200 : 500) {
+  fetchMock.mockResolvedValueOnce({ ok, status, json: async () => body });
 }
 
 describe("fetchScryfallArtMeta", () => {
@@ -80,6 +81,33 @@ describe("fetchScryfallArtMeta", () => {
     await expect(fetchScryfallArtMeta(PRINTING)).resolves.toBeNull();
     fetchMock.mockRejectedValueOnce(new Error("network down"));
     await expect(fetchScryfallArtMeta(PRINTING)).resolves.toBeNull();
+  });
+});
+
+describe("lookupScryfallArtMeta (X5): the same lookup, with the reason", () => {
+  it("art and artist → the meta", async () => {
+    respond({ artist: "Anna Podedworna", image_uris: { art_crop: CROP } });
+    await expect(lookupScryfallArtMeta(PRINTING)).resolves.toEqual({
+      meta: { artCropUrl: CROP, artist: "Anna Podedworna" },
+    });
+  });
+
+  it("no artist, no crop, or a 404 from Scryfall → no-art", async () => {
+    respond({ image_uris: { art_crop: CROP } });
+    await expect(lookupScryfallArtMeta(PRINTING)).resolves.toEqual({ reason: "no-art" });
+    respond({ artist: "Someone", image_uris: {} });
+    await expect(lookupScryfallArtMeta(PRINTING)).resolves.toEqual({ reason: "no-art" });
+    respond({ object: "error" }, false, 404);
+    await expect(lookupScryfallArtMeta(PRINTING)).resolves.toEqual({ reason: "no-art" });
+  });
+
+  it("any other non-OK answer, or a thrown fetch → unreachable", async () => {
+    respond({ object: "error" }, false, 503);
+    await expect(lookupScryfallArtMeta(PRINTING)).resolves.toEqual({ reason: "unreachable" });
+    respond({ object: "error" }, false, 429);
+    await expect(lookupScryfallArtMeta(PRINTING)).resolves.toEqual({ reason: "unreachable" });
+    fetchMock.mockRejectedValueOnce(new Error("network down"));
+    await expect(lookupScryfallArtMeta(PRINTING)).resolves.toEqual({ reason: "unreachable" });
   });
 });
 

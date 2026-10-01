@@ -9,14 +9,19 @@
  * exactly one appearance control. The session is mocked at the Better Auth
  * client: the header never touches request data, so this is the only place
  * the signed-in shape is provable (the browser pane is signed out on prod).
- * The negative smoke pins ride along: no header string may read "Staples",
+ * X5: the slot's picture is UserAvatar at 24 px (the chosen picture, the
+ * first-code-point initial), card art's credit is one quiet line under the
+ * name row, and "Public profile ↗" appears once the session carries a
+ * username (REC-5). The negative smoke pins ride along: no header string may read "Staples",
  * "Budget", "Top finishes", "You own" or link a hub.
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const session = vi.hoisted(() => ({
-  current: null as null | { user: { name: string; image: string | null } },
+  current: null as null | {
+    user: { name: string; image: string | null; avatar?: unknown; username?: string | null };
+  },
   signOut: vi.fn(),
   refresh: vi.fn(),
 }));
@@ -130,6 +135,63 @@ describe("SiteHeader", () => {
       ["Sign out", null],
     ]);
     expect(within(menu).getAllByRole("menuitem")[0].tagName).toBe("A");
+  });
+
+  it("X5: the 24 px UserAvatar, the first code point, no credit line without card art", async () => {
+    session.current = { user: { name: "🦊 Fox", image: null, avatar: null } };
+    render(<SiteHeader />);
+    const trigger = screen.getByRole("button", { name: "🦊 Fox" });
+    const avatar = trigger.querySelector('[data-slot="avatar"]')!;
+    expect(avatar.className).toContain("size-6");
+    expect(avatar.getAttribute("aria-hidden")).toBe("true");
+    expect(within(trigger).getByText("🦊")).toBeTruthy(); // charAt(0) would split it
+    open(trigger);
+    const menu = await screen.findByRole("menu", { name: "🦊 Fox" });
+    expect(within(menu).queryByText(/Picture:/)).toBeNull();
+  });
+
+  it("X5: card art's credit is one quiet line under the name row — text, not an item", async () => {
+    session.current = {
+      user: {
+        name: "Bobandis6",
+        image: null,
+        avatar: {
+          kind: "art",
+          printingId: "1b59533a-3e16-4ab4-9b7a-4bd6a5d1f2d6",
+          cardName: "Sol Ring",
+          artist: "Mark Tedin",
+        },
+      },
+    };
+    render(<SiteHeader />);
+    open(screen.getByRole("button", { name: "Bobandis6" }));
+    const menu = await screen.findByRole("menu", { name: "Bobandis6" });
+    const credit = within(menu).getByText(
+      "Picture: Sol Ring · Art: Mark Tedin · ™ & © Wizards of the Coast",
+    );
+    expect(credit.closest('[role="menuitem"]')).toBeNull();
+    // Right under the name row: the next element after it.
+    const nameRow = within(menu).getAllByRole("menuitem")[0];
+    expect(nameRow.nextElementSibling).toBe(credit);
+  });
+
+  it("X5 (REC-5): 'Public profile ↗' once the session carries a username", async () => {
+    session.current = { user: { name: "Bobandis6", image: null, username: "bobandis6" } };
+    render(<SiteHeader />);
+    open(screen.getByRole("button", { name: "Bobandis6" }));
+    const menu = await screen.findByRole("menu", { name: "Bobandis6" });
+    const items = within(menu)
+      .getAllByRole("menuitem")
+      .map((item) => [item.textContent, item.getAttribute("href")]);
+    expect(items).toEqual([
+      ["Bobandis6", "/account"],
+      ["My decks", "/account#decks"],
+      ["Bookmarks", "/account#bookmarks"],
+      ["Collection", "/account#collection"],
+      ["Profile & settings", "/account#settings"],
+      ["Public profile ↗", "/u/bobandis6"],
+      ["Sign out", null],
+    ]);
   });
 
   it("the name row scrolls to the very top in the same click, every time (X1)", async () => {
