@@ -1504,14 +1504,16 @@ describe("DeckEditor — an honest first screen (Y2a)", () => {
     fireEvent.click(within(list).getByRole("button", { name: "One more Seed Card 2" }));
     fireEvent.click(within(list).getByRole("button", { name: "Remove Seed Card 2" }));
     expect(within(list).queryByText("Seed Card 2")).toBeNull();
+    // Two edits inside the debounce send nothing yet — before LATER row 161's
+    // fix, a per-render keepalive flush PUT each one at once.
+    expect(puts()).toBe(1);
     const toastEl = (await pollFor(() => screen.queryByText("Removed 2× Seed Card 2"))).closest(
       '[data-slot="toast"]',
     ) as HTMLElement;
-    // PUT counts are not pinned here: a live deck's edits also leave through
-    // the keepalive flush (LATER row 161) — what was saved is the contract.
     await settle(1500);
     await act(async () => {});
     expect(saveStatus()).toBe("saved");
+    expect(puts()).toBe(2);
     expect(lastPutEntries().some((e) => e.cardId === extras[1].id)).toBe(false);
 
     fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
@@ -1521,6 +1523,7 @@ describe("DeckEditor — an honest first screen (Y2a)", () => {
     await act(async () => {});
     expect(saveStatus()).toBe("saved");
     expect(posts()).toBe(1);
+    expect(puts()).toBe(3);
     const restored = lastPutEntries() as { cardId: string; qty?: number }[];
     expect(restored.map((e) => e.cardId)).toEqual([atraxa.id, ...extras.map((c) => c.id)]);
     expect(restored[2].qty).toBe(2);
@@ -1541,5 +1544,114 @@ describe("DeckEditor — an honest first screen (Y2a)", () => {
     ) as HTMLElement;
     fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
     expect(within(list).getByText("Seed Card 3")).toBeTruthy();
+  });
+});
+
+describe("DeckEditor — autosave on a saved deck (LATER row 161)", () => {
+  /** A hydrated two-card deck: no leader, so no panel fetches. */
+  async function renderSaved() {
+    stubViewport(1440);
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/decks/deck-1" && (init?.method ?? "GET") === "GET") {
+        return ok({
+          deck: {
+            id: "deck-1",
+            publicId: "abcdefgh1234",
+            game: "mtg",
+            format: "commander",
+            name: "Saved",
+            description: null,
+            notes: null,
+            visibility: "unlisted",
+            isOwner: true,
+            forkedFrom: null,
+            leaderIds: [],
+          },
+          cards: [sol, signet].map((c) => ({
+            cardId: c.id,
+            zone: "main",
+            qty: 1,
+            tags: [],
+            printingId: null,
+            card: c,
+          })),
+          owned: [],
+          hasCollection: false,
+        });
+      }
+      return route(input, init);
+    });
+    const view = render(<DeckEditor deckId="deck-1" />);
+    await act(async () => {});
+    await act(async () => {});
+    return view;
+  }
+  const list = () => section("Deck list");
+  const writes = (method: "PUT" | "PATCH") =>
+    fetchMock.mock.calls
+      .map(([, init]) => init as RequestInit | undefined)
+      .filter((init) => init?.method === method) as RequestInit[];
+
+  it("two quick edits are ONE PUT, a full debounce after the last — never one per edit", async () => {
+    await renderSaved();
+    fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+    await settle(500);
+    fireEvent.click(within(list()).getByRole("button", { name: "One more Arcane Signet" }));
+    expect(puts()).toBe(0);
+    expect(saveStatus()).toBe("dirty");
+    await settle(999);
+    expect(puts()).toBe(0);
+    await settle(1);
+    await act(async () => {});
+    expect(puts()).toBe(1);
+    expect(writes("PUT")[0].keepalive).toBeUndefined();
+    expect(
+      (lastPutEntries() as { cardId: string; qty: number }[]).map((e) => [e.cardId, e.qty]),
+    ).toEqual([
+      [sol.id, 2],
+      [signet.id, 2],
+    ]);
+    expect(saveStatus()).toBe("saved");
+  });
+
+  it("typing a name is ONE PATCH after the debounce, never one per keystroke", async () => {
+    await renderSaved();
+    const name = screen.getByRole("textbox", { name: "Deck name" });
+    for (const value of ["Saved!", "Saved!!", "Saved!!!"]) {
+      fireEvent.change(name, { target: { value } });
+    }
+    expect(writes("PATCH")).toHaveLength(0);
+    await settle(1100);
+    await act(async () => {});
+    expect(writes("PATCH")).toHaveLength(1);
+    expect(JSON.parse(writes("PATCH")[0].body as string)).toMatchObject({ name: "Saved!!!" });
+    expect(puts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+  });
+
+  it("closing the tab mid-debounce flushes ONE keepalive PUT; the debounce then has nothing left to send", async () => {
+    await renderSaved();
+    fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+    expect(puts()).toBe(0);
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    expect(puts()).toBe(1);
+    expect(writes("PUT")[0].keepalive).toBe(true);
+    await settle(1100);
+    await act(async () => {});
+    expect(puts()).toBe(1);
+    expect(saveStatus()).toBe("saved");
+  });
+
+  it("leaving the editor mid-debounce (an unmount) flushes ONE keepalive PUT", async () => {
+    const view = await renderSaved();
+    fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+    expect(puts()).toBe(0);
+    view.unmount();
+    expect(puts()).toBe(1);
+    expect(writes("PUT")[0].keepalive).toBe(true);
+    await settle(1100);
+    expect(puts()).toBe(1);
   });
 });

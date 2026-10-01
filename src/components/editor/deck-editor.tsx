@@ -800,7 +800,10 @@ export function DeckEditor({
   // the page; the await-less send is the best a closing tab allows. A draft
   // whose deck doesn't exist yet has nothing persisted to protect — leaving
   // inside the first debounce window drops that sliver of input rather than
-  // minting the empty deck this feature exists to prevent.
+  // minting the empty deck this feature exists to prevent. The deps must
+  // stay stable (useAutosave's isDirty is): the cleanup's flush then runs on
+  // unmount only. A dep that changed per render sent every edit at once
+  // through an unchecked keepalive PUT, bypassing the debounce (LATER row 161).
   useEffect(() => {
     const flushKeepalive = () => {
       const deckId = deckIdRef.current;

@@ -10,6 +10,11 @@
  * a save always sends the latest list, never a stale snapshot.
  *
  * Failure keeps the state dirty and reports "error"; retry() re-flushes.
+ *
+ * markDirty, flush and isDirty keep their identity across renders, so they
+ * are safe in effect deps. A fresh isDirty per render once re-ran the
+ * editor's pagehide/unmount effect on every render, and its cleanup PUT
+ * every edit at once through a keepalive fetch (LATER row 161).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -19,7 +24,7 @@ export interface Autosave {
   status: SaveStatus;
   markDirty: () => void;
   flush: () => Promise<void>;
-  /** True while unsaved edits exist (for pagehide/unmount keepalive saves). */
+  /** True while unsaved edits exist (for pagehide/unmount keepalive saves). Stable. */
   isDirty: () => boolean;
 }
 
@@ -60,6 +65,8 @@ export function useAutosave(save: () => Promise<void>, delayMs = 1000): Autosave
     timerRef.current = setTimeout(() => void flush(), delayMs);
   }, [flush, delayMs]);
 
+  const isDirty = useCallback(() => dirtyRef.current, []);
+
   useEffect(
     () => () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -67,5 +74,5 @@ export function useAutosave(save: () => Promise<void>, delayMs = 1000): Autosave
     [],
   );
 
-  return { status, markDirty, flush, isDirty: () => dirtyRef.current };
+  return { status, markDirty, flush, isDirty };
 }
