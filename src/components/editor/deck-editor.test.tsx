@@ -11,7 +11,7 @@
  * first Enter creates exactly ONE deck, swaps the URL in place, and the
  * autosave PUTs the list once.
  */
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { massEntryUrl } from "@/lib/buy/links";
@@ -183,6 +183,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Unmount while fetch is still the mock: an editor left dirty on a live
+  // deck sends its keepalive PUT on unmount (LATER row 161's fix), and
+  // setup.ts's cleanup only runs after this hook has unstubbed fetch.
+  cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
   window.localStorage.clear();
