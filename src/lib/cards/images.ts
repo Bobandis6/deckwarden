@@ -64,6 +64,42 @@ export function embeddablePrintingImageUrl(
 }
 
 /**
+ * The One Piece mirror's public host (P4.9): the R2 bucket `deckwarden-public`
+ * behind its Cloudflare custom domain. The ingest writes
+ * `<host>/optcg/images/<KEY>.png` into image_override (punk-map.ts); the
+ * bucket's r2.dev development URL is rate-limited, so thumbnails never
+ * derive from it.
+ */
+export const OPTCG_IMAGE_HOST = "https://img.deckwarden.gg";
+
+/** The mirror job's small-rendition prefix, beside `optcg/images/` (mirror-optcg-images.sh; test-pinned). */
+export const OPTCG_SMALL_PREFIX = "optcg/small";
+
+/**
+ * The One Piece `small` rendition (P4.9, LATER row 51's consumer half). It
+ * uses Scryfall's `small` box, 146 × 204. Bandai's 600 × 838 PNGs are the
+ * same 63 × 88 card, so nothing is cropped and the © line stays in the
+ * pixels. The format is WebP q80 with the alpha kept: the mirror PNGs'
+ * rounded corners are transparent over white on some cards and black on
+ * others, so JPEG would bake mismatched corners in at the same size.
+ * Measured 2026-10-01 over twelve mirror PNGs, the mean is 10,141 B, against
+ * 174,375 B for the full PNG and about 11.7 KB for a Scryfall `small` JPG.
+ */
+export const OPTCG_SMALL_IMAGE = { width: 146, height: 204, quality: 80 } as const;
+
+const OPTCG_MIRROR_URL = /^https:\/\/img\.deckwarden\.gg\/optcg\/images\/([A-Za-z0-9_-]+)\.png$/;
+
+/**
+ * The small rendition of a full-size mirror URL on img.deckwarden.gg
+ * (`…/optcg/images/OP15-058.png` → `…/optcg/small/OP15-058.webp`), or null
+ * for any other URL, r2.dev included.
+ */
+export function optcgSmallImageUrl(url: string): string | null {
+  const key = OPTCG_MIRROR_URL.exec(url)?.[1];
+  return key ? `${OPTCG_IMAGE_HOST}/${OPTCG_SMALL_PREFIX}/${key}.webp` : null;
+}
+
+/**
  * Downsize an already-resolved display URL to the `small` CDN rendition.
  * Exists for consumers that only hold the wire's `card.image` (the default
  * printing was resolved server-side, so the printing id isn't available to

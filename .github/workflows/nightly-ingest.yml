@@ -49,8 +49,10 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       # Skips clean on most nights (upstream commits every 3-7 days; the sha
-      # check is one GitHub API call). R2_PUBLIC_IMAGE_BASE is unset until the
-      # bucket has a public domain — until then image_override hotlinks Bandai.
+      # check is one GitHub API call). R2_PUBLIC_IMAGE_BASE is the BARE host
+      # https://img.deckwarden.gg (P4.9, the public bucket's custom domain);
+      # the ingest appends /optcg/images/<KEY>.png itself. The skip check
+      # compares the image base too, so changing it re-stages every printing.
       - name: Ingest punk-records One Piece corpus (pins upstream sha; re-ingests on change)
         run: pnpm ingest:punk-records
         env:
@@ -76,7 +78,9 @@ jobs:
           TOPDECK_API_KEY: ${{ secrets.TOPDECK_API_KEY }}
 
       # Self-healing delta mirror: manifest from the DB, then upload only what
-      # the bucket is missing (first run = the full backfill, resumable).
+      # the bucket is missing (first run = the full backfill, resumable) —
+      # the full PNG under optcg/images/ and, since P4.9, the WebP `small`
+      # rendition under optcg/small/, resized from the bucket's own copies.
       # Step-level cap so a slow backfill FAILS THIS STEP instead of hitting
       # the job timeout — a job-timeout cancellation takes the !cancelled()
       # safety steps down with it (learned 2026-09-03, first backfill run).

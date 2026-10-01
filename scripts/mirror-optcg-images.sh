@@ -15,13 +15,26 @@
 # pre-flip archival mode). When both are set, a legacy seed pass first copies
 # anything the private bucket's optcg/images/ already holds — bucket-to-bucket
 # through the runner, so Bandai is never re-asked for images we already have.
+#
+# Small renditions (P4.9): every key also gets optcg/small/<KEY>.webp, the
+# 146×204 WebP that thumbnailUrl() derives for the small boxes (search rows,
+# deck tiles, the home shelf, the /leaders grid). Same delta shape: list
+# optcg/small/ once, resize only what is missing (scripts/optcg-image-small.ts
+# — sharp, since the runner image ships no image tools), upload once
+# recursively. The sources are never Bandai: tonight's fresh downloads first,
+# then — only when a missing key was not downloaded tonight (the one-time
+# backfill, or a repair) — ONE recursive sync of the bucket's own
+# optcg/images/ (R2 egress is free). Public bucket only.
+#
 # Same skip-clean env pattern as archive-topdeck-raw.sh: no R2 secrets or no
 # manifest → exit 0.
-# Volume: ~4,843 PNGs ≈ low single-digit GB, inside R2's 10GB free tier.
+# Volume: ~4,843 PNGs ≈ 0.85 GB at the measured 174 KB mean, plus ~50 MB of
+# small WebP — inside R2's 10GB free tier.
 set -euo pipefail
 
 MANIFEST=".optcg-images/manifest.tsv"
 PREFIX="optcg/images"
+SMALL_PREFIX="optcg/small"
 
 if [ -z "${R2_ENDPOINT:-}" ] || [ -z "${R2_ACCESS_KEY_ID:-}" ] || [ -z "${R2_SECRET_ACCESS_KEY:-}" ] || [ -z "${R2_BUCKET:-}" ]; then
   echo "R2 secrets not configured — skipping image mirror."
@@ -74,11 +87,70 @@ if [ "$downloaded" -gt 0 ]; then
   aws s3 cp "$stage" "s3://$DEST_BUCKET/$PREFIX/" --recursive \
     --endpoint-url "$R2_ENDPOINT" --content-type image/png --only-show-errors
 fi
-rm -rf "$stage" "$existing"
 
 echo "mirror → $DEST_BUCKET: $total in manifest, $present already mirrored, $downloaded uploaded, $failed failed"
+
+# Small renditions (P4.9, see the header). $stage still holds tonight's
+# downloads. The pre-flip archival mode serves nothing, so it needs none.
+small_present=0 small_tried=0 small_written=0 small_failed=0
+if [ -n "${R2_PUBLIC_BUCKET:-}" ]; then
+  have_small=$(mktemp)
+  aws s3 ls "s3://$DEST_BUCKET/$SMALL_PREFIX/" --recursive --endpoint-url "$R2_ENDPOINT" \
+    | awk '{print $NF}' | sed "s|^$SMALL_PREFIX/||" > "$have_small" || true
+  # FILENAME, not NR == FNR: the backfill night's listing is EMPTY, and
+  # NR == FNR would then read the manifest as the "have" list.
+  missing_small=$(mktemp)
+  awk -F'\t' 'FILENAME == ARGV[1] { have[$0] = 1; next }
+    $1 != "" && !(($1 ".webp") in have) { print $1 }' "$have_small" "$MANIFEST" > "$missing_small"
+  missing_count=$(wc -l < "$missing_small" | tr -d ' ')
+  small_present=$((total - missing_count))
+  if [ "$missing_count" -gt 0 ]; then
+    full=$(mktemp -d)
+    # The sync is only for keys the bucket holds and tonight did not stage
+    # (a key Bandai failed to serve is in neither, so it does not trigger it).
+    needs_bucket=0
+    while IFS= read -r key; do
+      if [ ! -f "$stage/$key.png" ] && grep -qxF "$key.png" "$existing"; then
+        needs_bucket=1
+        break
+      fi
+    done < "$missing_small"
+    if [ "$needs_bucket" -eq 1 ]; then
+      aws s3 sync "s3://$DEST_BUCKET/$PREFIX/" "$full" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+    fi
+    small_list=$(mktemp)
+    while IFS= read -r key; do
+      if [ -f "$stage/$key.png" ]; then
+        printf '%s\t%s\n' "$key" "$stage/$key.png"
+      elif [ -f "$full/$key.png" ]; then
+        printf '%s\t%s\n' "$key" "$full/$key.png"
+      fi
+    done < "$missing_small" > "$small_list"
+    small_tried=$(wc -l < "$small_list" | tr -d ' ')
+    small_stage=$(mktemp -d)
+    if [ "$small_tried" -gt 0 ]; then
+      # Its exit code only says "nothing written"; the count below decides.
+      pnpm optcg:image-small "$small_list" "$small_stage" || true
+    fi
+    small_written=$(find "$small_stage" -name '*.webp' | wc -l | tr -d ' ')
+    small_failed=$((missing_count - small_written))
+    if [ "$small_written" -gt 0 ]; then
+      aws s3 cp "$small_stage" "s3://$DEST_BUCKET/$SMALL_PREFIX/" --recursive \
+        --endpoint-url "$R2_ENDPOINT" --content-type image/webp --only-show-errors
+    fi
+    rm -rf "$full" "$small_stage" "$small_list"
+  fi
+  rm -f "$have_small" "$missing_small"
+  echo "small → $DEST_BUCKET: $total in manifest, $small_present already resized, $small_written uploaded, $small_failed failed"
+fi
+rm -rf "$stage" "$existing"
+
 # Individual misses are warned above and retried next night; only total
-# failure (likely a blocked UA or layout change) should go red.
+# failure should go red: every download failing (likely a blocked UA or a
+# layout change), or a resizer that wrote nothing from staged PNGs.
 if [ "$failed" -gt 0 ] && [ "$downloaded" -eq 0 ] && [ "$present" -eq 0 ]; then
+  exit 1
+fi
+if [ "$small_tried" -gt 0 ] && [ "$small_written" -eq 0 ]; then
   exit 1
 fi

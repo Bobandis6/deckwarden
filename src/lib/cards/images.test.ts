@@ -1,8 +1,16 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
+
+import { TILE_IMAGE } from "@/lib/decks/tiles";
 
 import {
   embeddablePrintingImageUrl,
   isEmbeddableImageUrl,
+  OPTCG_IMAGE_HOST,
+  OPTCG_SMALL_IMAGE,
+  OPTCG_SMALL_PREFIX,
+  optcgSmallImageUrl,
   printingImageUrl,
   scryfallImageUrl,
   thumbnailUrl,
@@ -73,6 +81,48 @@ describe("embeddablePrintingImageUrl", () => {
     );
     // MTG's derived Scryfall URLs are untouched by the gate.
     expect(embeddablePrintingImageUrl({ id: ID })).toBe(scryfallImageUrl(ID));
+  });
+});
+
+describe("optcgSmallImageUrl (P4.9)", () => {
+  it("derives the mirror's small WebP from a full img.deckwarden.gg PNG, variants included", () => {
+    expect(optcgSmallImageUrl(`${OPTCG_IMAGE_HOST}/optcg/images/OP15-058.png`)).toBe(
+      "https://img.deckwarden.gg/optcg/small/OP15-058.webp",
+    );
+    expect(optcgSmallImageUrl("https://img.deckwarden.gg/optcg/images/OP01-025_p1.png")).toBe(
+      "https://img.deckwarden.gg/optcg/small/OP01-025_p1.webp",
+    );
+    expect(optcgSmallImageUrl("https://img.deckwarden.gg/optcg/images/P-001_r1.png")).toBe(
+      "https://img.deckwarden.gg/optcg/small/P-001_r1.webp",
+    );
+  });
+
+  it("is null for r2.dev, Bandai, Scryfall and anything off the mirror's exact shape", () => {
+    expect(
+      optcgSmallImageUrl(
+        "https://pub-6d142676dd964e79abf609637297c45d.r2.dev/optcg/images/OP15-058.png",
+      ),
+    ).toBeNull();
+    expect(
+      optcgSmallImageUrl("https://en.onepiece-cardgame.com/images/cardlist/card/OP15-058.png"),
+    ).toBeNull();
+    expect(optcgSmallImageUrl(scryfallImageUrl(ID))).toBeNull();
+    expect(
+      optcgSmallImageUrl("https://img.deckwarden.gg/optcg/images/OP15-058.png?v=2"),
+    ).toBeNull();
+    expect(optcgSmallImageUrl("https://img.deckwarden.gg/optcg/images/x/OP15-058.png")).toBeNull();
+    expect(optcgSmallImageUrl("https://img.deckwarden.gg/optcg/small/OP15-058.webp")).toBeNull();
+    expect(optcgSmallImageUrl("http://img.deckwarden.gg/optcg/images/OP15-058.png")).toBeNull();
+  });
+
+  it("fills the box every tile and shelf reserves, under the prefix the mirror job writes", () => {
+    expect({ width: OPTCG_SMALL_IMAGE.width, height: OPTCG_SMALL_IMAGE.height }).toEqual(
+      TILE_IMAGE,
+    );
+    const mirror = readFileSync("scripts/mirror-optcg-images.sh", "utf8");
+    expect(mirror).toContain(`SMALL_PREFIX="${OPTCG_SMALL_PREFIX}"`);
+    expect(mirror).toContain('PREFIX="optcg/images"');
+    expect(mirror).toContain("--content-type image/webp");
   });
 });
 
