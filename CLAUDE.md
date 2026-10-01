@@ -18,6 +18,8 @@ follow it or flag the conflict.
   under the same rules.
 - Wave-3 packages (Xn from `WAVE3.md`, build plan §6d) count as work packages
   under the same rules.
+- Wave-4 packages (Yn from `WAVE4.md`, build plan §6e) count as work packages
+  under the same rules.
 - Anything out of scope goes to `LATER.md` with a revisit trigger — no discussion,
   no "while I'm here" changes.
 - `pnpm check` = typecheck + lint + format check + tests. Run it before every commit.

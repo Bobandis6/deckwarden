@@ -280,6 +280,31 @@ Wave 3 (the owner's seven ideas of 2026-09-27: getting into your account, findin
 
 **Status:** progress is tracked in `WAVE3.md`'s tracker (tick per package with date + sha; deviations recorded beside the tick).
 
+## 6e. Y-series — Wave-4 packages (added 2026-10-01)
+
+Wave 4 (the owner's direction of 2026-09-30: an explainable bracket advisor, then recommendations tailored to the deck's bracket and budget, then game statistics tied to deck versions, plus anything that makes the experience simpler) runs as its own numbered packages, governed by [WAVE4.md](WAVE4.md) (drafted from the owner's nine answers, landed 2026-09-30 in `76ccca6`) under the same session protocol as Pn.m, Rn, Wn and Xn packages: one package per session, deployed and `pnpm check`-green or not done, out-of-scope items to LATER.md with a trigger. The standing P2.9 / P4.7 beta-response triggers keep their priority — a warm signal gets its own session, never a slice of a Y-session. The defaults in `WAVE4.md` section F stay open until the owner says otherwise. Migrations `0016` (Y3a), `0017` (Y4b) and `0018` (Y9a) are applied **before** their push (generate → eyeball → the owner's yes → migrate → confirm). The announce point is after Y5.
+
+| Package | Deliverable | Done when |
+|---|---|---|
+| Y1 Honest labels | decklist wording for every EDHREC-rank surface, "competitive" on Topdeck evidence, the Mana sources clamp to the commander's identity with a table hint, one inclusive budget vocabulary (Suggestions, Autofill, hub staples), "Open in editor" for an account owner on their share page and on `/account`, true Share-dialog lines | the phrase grep returns only the Meta Lens and comments; a mono-white deck's Mana sources list White and Colorless only; the visitor row byte-identical; route table unchanged |
+| Y2a Honest first screen | the "Draft" save-slot state, "Keep this deck" for seeded drafts, progress (not problems) for an empty or short deck, the quiet first screen, Undo for removals | a fresh draft reads "Draft · Choose a commander · 100 to go"; a precon draft's Keep creates exactly one deck; the cards PUT returns the same issues; the `data-status` pins green |
+| Y2b Start doors | Pick a commander · Paste a list · Start from a precon · Surprise me on the empty draft and `/decks/new`; `POST /api/recommendations` for drafts; the first-approval Share link | Paste a list is two clicks from home; Suggestions answer a seeded draft with zero deck rows; the zero-POST pins hold; the route table gains exactly that line |
+| Y3a Bracket data | migration `0016` (combo tag + relevant), Game Changers via Scryfall, Tagger land-denial and extra-turn flags behind an override file with last-good fallback, the ruleset watch in the nightly | 53 identities carry `game_changer`; kept combos carry tags; freshness in stats; the Radar, Suggestions, Autofill and hub totals unchanged; the watch step green |
+| Y3b Bracket engine | the adapter's `brackets` declaration, `src/lib/games/mtg/brackets.ts` (Spellbook's MIT ladder adjusted to Wizards' text), `loadCompleteCombos`, fixtures, the precon spread | WAVE4 D4's table and D11's fixtures pinned in Vitest; One Piece declares nothing; the spread recorded |
+| Y4a Bracket line + Why sheet | `GET /api/combos/complete`, `BracketLine` on the legality line, the Why sheet (what the cards show, what the read assumes), the "approve" copy guard | a combo-seeded draft shows its combo with zero POSTs; the facts route MISS then HIT on prod; One Piece renders nothing; exactly one new route |
+| Y4b Your target | migration `0017` (`decks.goals`), the goals PATCH (no `updated_at` bump), How it plays, Your target, the conflict callout | goals survive a reload for account and guest decks; a goals save leaves "recent" order alone; a visitor never sees the budget; One Piece answers 400 |
+| Y5 At the table | the share page's bracket line, the "At the table" card, Copy for the table, the owner row and Copy menu, OG and tile chips (declared only) | the copy text pinned; the visitor row byte-identical; the owner row only for the owner; **announce point** |
+| Y6a Goals in Suggestions | `applyGoals` (rank → goals → slice), hidden counts, impact flags, the saved budget | a target-2 fixture hides and counts every over-target card; with no target, impact flags only; `smoke:recommend` green |
+| Y6b Goals in Autofill + Radar | the autofill body's goals, caps, skips and notes; the Radar's badges | goals absent → fixed-seed shells byte-identical; a target-2 shell reads "Bracket 1–2"; Radar membership unchanged |
+| Y7a Swap Lab | Tagger function roles (whitelist + kill-switch), `POST /api/alternatives`, the Card tab's Alternatives | Sol Ring in mono-white offers mana rocks; the gold set's hit rate recorded; exactly one new route |
+| Y7b Swap in place | "Swap…" on deck rows, "Swap in…" at 100/100, swaps on the conflict callout | the deck stays at 100; one Undo restores both cards; the `applyListSwap` pins green |
+| Y8 Budget Twin | the total budget in goals, the "Fit my budget" sheet, the running total, one apply | a $300 fixture at $150 lands at or under it or says how close; unpriced cards disclosed |
+| Y9a Journal core | migration `0018` (`deck_games`, `deck_versions.list_hash` + `kind`), `playableListHash`, played snapshots with their own allowance, the games routes, the Games dialog | two logs on an unchanged list → one played snapshot; Save version and Restore never blocked; deleting a deck or account removes its games; exactly two new routes |
+| Y9b Log at the table | "Log a game" on the share page's owner row and `/account`, the quick log, opponents through X2's box, Undo | three taps on a phone; the visitor row untouched |
+| Y10 Results | the record (W–L–D with the pod baseline), per-version rows, History's rows | fixture numbers pinned; a percentage only from 10 games; nothing public |
+
+**Status:** progress is tracked in `WAVE4.md`'s tracker (tick per package with date + sha; deviations recorded beside the tick).
+
 ## 7. Feature Additions Beyond the Original Doc
 
 Adoption- and ease-of-use-focused additions, each slotted into a milestone above:
