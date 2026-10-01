@@ -1,5 +1,34 @@
 # Y2a session prompt — Honest first screen (the "Draft" slot, "Keep this deck", progress not problems, a quiet first screen, Undo for removals)
 
+## Ship note — 2026-10-01, feat `4fd9b10`, deployed (Vercel status success on the full sha, 14:14 Z)
+
+**Shipped. The prompt below is history. Next is `Y2b-session-prompt.md` (start doors).**
+
+**Pre-flight**: Y1 ticked and `0015` the last migration; the nightlies green (07:38 Z's red was P4.9's flaky GET, re-dispatched green at 07:57 Z). The owner's answers at the start: **nothing posted, no feedback** (no beta round) and **read-only database access granted** (plus deleting the one QA deck). Baseline on `d40d70d`: 1,251 tests / 147 files / 6 warnings / 0 errors; `pnpm db:size` 271.1 MB; census 208 deck rows = 27 user decks + 181 precons, 1 user.
+
+**Results.** `pnpm check` **1,276 tests in 149 files**, the same 6 warnings, 0 errors (+`progress.test.ts`, +`use-is-mac.test.ts`; new cases in the editor header, the panel, both validators, `validation.test.ts`, `editor-state.test.ts`, the search pane, the leader zone and five in `deck-editor.test.tsx`). Every `data-status` pin (19) and the create-count tests stayed green untouched. Route table identical (`/decks/new` stays `○`). The cards PUT's `validation` byte-identical: empty / short / no-commander decks of both games through `validate` snapshotted before any edit, then through the route's `toWireIssues` after — `cmp` clean. Census unchanged after the dev QA deck's delete; `pnpm db:size` 271.1 MB after. No migration, route or dependency.
+
+**What changed** (D2's Y2a paragraphs, as drawn unless noted):
+- **The draft slot.** "Draft" at rest, titled "Saves on your first change", no check; `data-draft` on every render without a server row; `data-status` unchanged.
+- **"Keep this deck"** for seeded drafts (precon, combo, Surprise me, a chosen leader), where Share will be: `markDirty()` + `flush()` → one POST + one PUT; the button leaves with the "saved" state.
+- **`/decks/new`**: `new-deck-fallback.tsx` (header strip with the mark, skeleton bars, `aria-busy`, sr-only status) replaces `fallback={null}` — the page's static HTML.
+- **Progress, not problems.** `progress?: true` on `ValidationIssue` from both adapters (under-minimum `ZONE_SIZE` / `DECK_SIZE`; never over), stripped from the PUT by `toWireIssues`. `src/lib/decks/progress.ts` owns "Choose a commander · 100 to go" / "Choose a leader · 50 to go" / "N to go"; the editor's `ValidationPanel` shows it as one neutral line, real problems red beneath; the summary reads "98 / 100 · 2 to go". The approval line still never shows on an empty deck.
+- **A quiet first screen.** View / Group / Sort once the list has a card; one Add cards on phones; the search pane's keycap line **and the empty leader zone's "or press Ctrl+Enter…" clause** on fine pointers only, ⌘ on a Mac (`src/components/use-is-mac.ts`).
+- **One Undo for removals.** The ✕, the leader's remove and a stepper reaching zero → "Removed X" / "Removed 7× Forest" + Undo through `restoreEntry` (qty, tags, printing, position; refuses if the zone filled). LATER row 60's cheap half FIRED.
+
+**Decisions and deviations** (also in `WAVE4.md`'s tracker and REDESIGN.md's "Y2a decisions"):
+1. The flag rides no wire — the editor and the share page call `validate` themselves; only the PUT returns issues.
+2. **The share page is unchanged**: without a `progress` prop the panel lists every issue as before, so a visitor is never told to "Choose a commander" (LATER row 162 for a visitor voice).
+3. "· N to go" follows the counted-up number; over the minimum the label keeps "cards" and says nothing more.
+4. The leader zone's keyboard clause was not in the contract — found on the 390 dev pass and hidden the same way (`EmptyState.hint` widened to a node; the leader-zone pin rewritten to read the whole sentence on a fine pointer).
+5. **Found, not fixed (LATER row 161, offered as its own task):** the editor's pagehide/unmount keepalive effect depends on `isDirty`, which `useAutosave` re-creates every render — so on a saved deck every edit PUTs immediately through an un-awaited keepalive fetch, and a failed one is silent. Y2a's removal test pins what was saved, not PUT counts.
+
+**Dev pass** (signed out, against prod data): a fresh Magic draft at 390 dark (coarse pointer — the hint line `display: none`, one Add cards, no View, "0 / 100 · 100 to go"); a Surprise draft at 768 light (Draft · Keep this deck, "1 / 100 · 99 to go", ⌘ keycaps, the Autofill door); One Piece at 1200 dark ("Choose a leader · 50 to go"); a fresh draft at 1440 dark; the Breed Lethality precon draft at 1024 — **one Keep this deck click: one POST 201 + one PUT 200, census 208 → 209**; on that deck "Remove Forest" toasted "Removed 7× Forest", the summary read "94 / 100 · 6 to go", Undo restored "100 / 100 cards"; the deck was then deleted with its token (204, GET 404) and the census re-proved at 208. Reduced motion could not be toggled in the pane — the fallback pulse and the slot fade are `motion-safe:` classes. The hidden pane stalled the precon seed and the slot's fade until a screenshot painted it (the known freeze), and stalled the Tools drawer's exit — the Keep click was dispatched on the button element.
+
+**Prod pass** (signed out, zero creates): `/decks/new?game=mtg`'s server HTML is the fallback (`data-slot="new-deck-fallback"`, `aria-busy`), then the client renders "Draft", "Choose a commander · 100 to go" and "0 / 100 · 100 to go" with no View / Group / Sort; no `/api/decks` request.
+
+---
+
 Pull latest, then run Y2a — the second Wave-4 package. **`WAVE4.md` is the contract.** Read, in this order: **D0** (copy rules, reuse-don't-add); **D2**'s Y2a paragraphs (the draft slot, "Keep this deck", `/decks/new`, progress not problems, a quiet first screen, one Undo for removals); the **Y2a** block in section E and its row in E's **pin matrix**; and Y1's ship note at the top of `Y1-session-prompt.md` (what Y1 changed, and its deviations).
 
 Y2a makes a new player's first screen tell the truth and point at the next step. **No migration, no new route, no new dependency.** Server legality and the cards PUT's validation do not change — progress is a rendering of the same issues.
