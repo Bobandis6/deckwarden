@@ -1,5 +1,40 @@
 # Y1 session prompt — Honest labels (decklist wording, "competitive" evidence, the mana-sources clamp, one budget vocabulary, the owner's "Open in editor", the Share dialog)
 
+## Ship note — 2026-10-01, feat `dcfcdcf` (step 0 `0e55ec2`), deployed (Vercel status success on the full sha, 08:51 Z)
+
+**Shipped. The prompt below is history. Next is `Y2a-session-prompt.md` (honest first screen).**
+
+**Pre-flight**: X5 ticked and `0015` the last migration; the nightlies green (07:38 Z's red was P4.9's flaky GET, its 07:57 Z re-dispatch green). The owner's answers at the start: **nothing posted, no feedback** (no P2.9 or P4.7 round) and **read-only database access granted** for the census. Baseline on `4a7ce75`: 1,238 tests / 144 files / 6 warnings / 0 errors (the prompt's 1,177 predates X5 and P4.9); `pnpm db:size` 271.1 MB; census 27 user decks / 181 precons / 1 user.
+
+**Results.** `pnpm check` **1,251 tests in 147 files**, the same 6 warnings, 0 errors (+2 `budget.test.ts`, +2 `staples-table.test.tsx`, +5 `share-dialog.test.tsx`, +2 `analyze.test.ts`, +2 owner cases in `deck-share-view.test.tsx`). Route table **byte-identical** — built with Y1 stashed and again with it; `/c/[slug]`, `/l/[slug]` and `/cards/[id]` stay `●`, `/sets` and `/precons` stay `○`. `smoke:combos`, `smoke:hubs` and `smoke:recommend` green on dev (local deck-create counters 2 → 4); the census unchanged after their fixtures were deleted; `pnpm db:size` 271.1 MB after. No migration, route or dependency.
+
+**What changed** (D1, as drawn unless noted below):
+- **Wording.** Home's shelf "Popular in Commander decklists" + "Commander-eligible cards ranked by how many EDHREC decklists include them — as commander or in the 99 (via Scryfall). Not games played."; `/commanders`; the hub staples sentence and footer; combo totals "The N most popular of M combos (by EDHREC decklist count)" on hubs and card pages (`combos-smoke` regexes moved with them); the Combo Radar's two lines; `/cards`' "Most popular in {set}" + "Ranked by EDHREC decklist popularity via Scryfall."; evidence tiers "A Commander staple in EDHREC decklists" / "In many Commander decklists" / "In some Commander decklists" (cut-side tails unchanged); the Autofill sheet's "real decklists and tournament results — every pick shows why."; Topdeck's `why` lines "… competitive top-16 lists with …". The Meta Lens is byte-identical.
+- **Mana sources.** With a commander, `producedMask(card) & (commanderCi | C)`; with none, today's counting. The `table` block gained an optional `hint`, rendered by `DataTable`. LATER row 31 FIRED.
+- **One budget vocabulary.** `src/lib/recommend/budget.ts` (`BUDGET_OPTIONS` All · ≤ $5 a card · ≤ $1 a card, `withinBudget` inclusive, unpriced never in a tier) imported by Suggestions, Autofill and the hub staples. **The hub's `<` became `<=`: a card at exactly $5.00 now shows under "≤ $5 a card" on hubs, as it already did in Suggestions** (pinned by `staples-table.test.tsx`). Suggestions' empty state: "No suggestions with a known price of $5 or less — try a wider budget."
+- **Owners on their share page.** `/d/[publicId]` passes `isOwner = isDeckOwner(deck, null, sessionUserId)`; `DeckShareView` shows "Open in editor" for a claim token **or** `isOwner`. The visitor row pin is untouched. `/account`'s ⋯ menu says "Open in editor".
+- **The Share dialog.** Public: "Anyone with the link can view. Public decks also appear on the home page, their commander's page and your profile."; Private: "Only you can view it." (account deck) / "Only this browser can view it." (guest deck); Copy link confirms in a status slot. The RTL was written against the old dialog first (2 tests, green), then moved with the copy.
+
+**Decisions and deviations** (also in `WAVE4.md`'s tracker and REDESIGN.md's Wave-4 addendum):
+1. "competitive" sits in the `why` lines — all four, the cut side's included. The scope sentence is unchanged; both `recommend-smoke` regexes were run against the new strings before the edit.
+2. The table hint names Treasure makers, with typographic quotes around "any color".
+3. The clamp masks every produced bit, explicit symbols included (the contract's formula): an off-identity card — already a color-identity error — counts only its on-identity colors.
+4. The no-commander case keeps today's counting (pinned).
+5. The account/guest split in the Share dialog is "this browser holds no claim token" (`claimToken === null` at create, `token === null` at hydrate) — account decks never hold one.
+6. Copy confirmation: "✓ Link copied" for 1.8 s (the share page's reset), and a failure line the old dialog never had; the button keeps its name.
+7. The hub's count line now reads "N of 100 at $5 or less · M at $1 or less"; its empty tier "None of these staples fit that budget right now."
+8. Left by the grep on purpose: the Meta Lens (exempt); `card-search.tsx`'s `most-played-heading` id and `data-slot="most-played"` (identifiers, not copy); code comments about internal ordering (hub queries, Topdeck maps, the engine). Smoke check labels were reworded to "most popular".
+
+**Mana sources on real decks** (dev against prod data, then prod): Sram (mono-W, `/d/k88m2jdjtykk`) White 34/2 · Colorless 3/2 — the four 0/1 rows gone; Niv-Mizzet (UR, `/d/bn4v_765mej9`) Blue 24/9 · Red 22/9 · Colorless 2/2 unchanged, White/Black/Green 2/6 gone; Queza (WUB, `/d/xg2_k9mejm4y`) White 15/5 · Blue 17/6 · Black 17/6 · Colorless 4/5 unchanged, Red/Green 4/3 gone. One Piece is untouched (its own `analyze`).
+
+**Dev pass** (signed out): home's shelf at 1440 dark; the Sram share page at 390 light (two rows + the hint); the Atraxa hub's pills at 390 light ("57 of 100 at $5 or less · 40 at $1 or less"); `/commanders`; Thassa's Oracle's card page ("The 10 most popular of 59 combos …"); `/cards?set=blb` at 1440; a seeded Atraxa draft with `?autofill=1` — the Suggestions drawer and the Autofill sheet both read "All · ≤ $5 a card · ≤ $1 a card", the sheet's lead "Built from real decklists and tournament results for Atraxa, Praetors' Voice — every pick shows why.", zero `POST /api/decks`. Not every surface was seen in both themes at both widths — the copy is theme-neutral text in existing classes, and the RTL pins carry the rest.
+
+**Prod pass** (signed out, zero creates, `x-vercel-cache: MISS` on the first hit after the deploy): home's server HTML carries the heading and sentence (no "Most-played commanders", no "actually played"); `/commanders`' sentence; the Atraxa hub's staples sentence and footer; Kinnan's hub "The 10 most popular of 119 combos (by EDHREC decklist count)"; `/cards?set=blb` "Most popular in Bloomburrow" (client strip, read in the pane); `/d/k88m2jdjtykk`'s server-rendered table White 34/2 · Colorless 3/2 with the hint.
+
+**Handed to the owner — one click, signed in on prod:** open the share page of one of your own decks (for example `/account` → ⋯ → View share page). "Open in editor" is in the action row, after "Buy this deck". (The ⋯ menu itself now says "Open in editor" too.)
+
+---
+
 Pull latest, then run Y1 — the first Wave-4 package. **`WAVE4.md` is the contract.** Read, in this order: section A's rows on named sources and plain words; **D0** (copy rules, attribution) and **D1** (the phrase inventory table, the mana-sources clamp, the budget vocabulary, owners on their share page, the Share dialog); the Y1 rows of E's **pin matrix**; **G** (scope and the completion checklist); and section F's deferred table, which step 0 turns into `LATER.md` rows.
 
 Y1 is the smallest Wave-4 package and the one with the widest reach: copy that says what the data is, a Mana sources table that stops inventing off-color sources, one budget vocabulary, and two owner-facing fixes. **No migration, no new route, no new dependency.** Its step 0 lands the Wave-4 contract in the build plan, CLAUDE.md, REDESIGN.md and LATER.md.

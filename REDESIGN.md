@@ -645,3 +645,15 @@ The Y-series (`WAVE4.md`, build plan §6e) changes recorded wording and one reco
 - **Y1 changes P1.5's Mana sources table**: with a commander, a card that makes "any color" counts only for the colors the commander allows; the table carries a one-line hint saying so.
 - **Y2a will change R3's save-slot states**: a fourth state, "Draft", for a deck that has no row yet; and the empty-deck validation reads as progress ("Choose a commander · 100 to go"), not problems.
 - **The Warden's approval line stays legality-only for the whole wave.** No bracket, goal or journal copy says "approve" (WAVE4 D0's copy guard, from Y4a).
+
+### Y1 decisions and deviations from `WAVE4.md` D1 (2026-10-01, `dcfcdcf`)
+
+D1 shipped as drawn — every default wording kept. What it left to the package, and what was decided:
+
+- **"competitive" rides the Topdeck `why` lines, all four** (the add side and the three cut-side lines); the scope sentence ("N of M top-16 lists at 16+ player events on Topdeck.gg …") is unchanged, so `recommend-smoke`'s two regexes hold — both were run against the new strings before the edit.
+- **The Mana sources hint names Treasure makers**: "Cards that make “any color” count once for each color your commander allows; Treasure makers count through their reminder text." One quiet line under the table (`text-[0.65rem]`, the stat blocks' hint size), from an optional `hint` on the `table` block.
+- **The clamp masks every produced bit** (`producedMask & (commanderCi | C)`, the contract's formula), so an off-identity card — already a color-identity error — counts only its on-identity colors. **No commander → today's counting**, pinned.
+- **The budget list** is `src/lib/recommend/budget.ts` (`BUDGET_OPTIONS`, `withinBudget`), Autofill's labels; unpriced cards never pass a tier. The hub's count line reads "N of 100 at $5 or less · M at $1 or less", its empty tier "None of these staples fit that budget right now."
+- **The share page's owner** is `isDeckOwner(deck, null, sessionUserId)` — access.ts's own rule, so a guest deck is never an owner there without its token, and the private gate inherits `isOwner` from the deck GET. "Open in editor" keeps its place after "Buy this deck"; the visitor row is byte-identical.
+- **The Share dialog's Private line** splits on "this browser holds no claim token" (account decks never hold one): "Only you can view it." / "Only this browser can view it." Copy link keeps its name and confirms "✓ Link copied" in a status slot for 1.8 s (the share page's F12 reset), with a failure line ("Couldn't copy — select the link and copy it.") the old dialog never had.
+- **Left by the phrase grep on purpose**: the Meta Lens (exempt), `card-search.tsx`'s `most-played-heading` id and `data-slot="most-played"` (identifiers, not copy), and code comments about internal ordering.
