@@ -94,6 +94,31 @@ describe("validateOptcg", () => {
     expect(issues.every((i) => i.severity === "error")).toBe(true);
   });
 
+  it("marks a missing Leader and a short Deck as progress (Y2a); two Leaders are a problem", () => {
+    const { entries, cards } = legalMain();
+    entries[0] = { ...entries[0], qty: 1 }; // 49
+    const short = validate({ leader: [], main: entries }, cards);
+    expect(
+      short
+        .filter((i) => i.progress)
+        .map((i) => `${i.code}:${i.zone ?? ""}`)
+        .sort(),
+    ).toEqual(["DECK_SIZE:", "ZONE_SIZE:leader", "ZONE_SIZE:main"]);
+    const second = card({
+      name: "Roronoa Zoro",
+      externalKey: "OP01-025",
+      isLeaderCandidate: true,
+      attrs: { category: "leader", life: 5 },
+    });
+    const full = legalMain();
+    const two = validate({ leader: [entry(leader), entry(second)], main: full.entries }, [
+      leader,
+      second,
+      ...full.cards,
+    ]);
+    expect(two.find((i) => i.code === "ZONE_SIZE")?.progress).toBeUndefined();
+  });
+
   it("requires exactly one leader", () => {
     const { entries, cards } = legalMain();
     const noLeader = validate({ leader: [], main: entries }, cards);

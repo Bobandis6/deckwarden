@@ -125,6 +125,14 @@ export interface ValidationIssue {
   message: string;
   cardIds?: string[];
   zone?: string;
+  /**
+   * Progress, not a problem (Y2a, WAVE4 D2): the deck is merely unfinished —
+   * a leader zone under its minimum (empty) or the deck under its minimum
+   * size. Still an error for legality (the Warden never approves it); the
+   * editor renders flagged issues as one neutral progress line. Client-side
+   * only: the cards PUT strips it (`toWireIssues`) so its wire is unchanged.
+   */
+  progress?: true;
 }
 
 export type AnalyticsBlock =

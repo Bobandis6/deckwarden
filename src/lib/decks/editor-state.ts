@@ -108,6 +108,35 @@ export function removeCard(
   return entries.filter((e) => !(e.zone === zoneId && e.cardId === cardId));
 }
 
+/**
+ * Undo a removal (Y2a): put the removed entry back — quantity, tags and
+ * chosen printing intact — at its old position (clamped to the list), so a
+ * partner deck's first commander is first again. If the card came back to
+ * that zone meanwhile, the removed entry replaces it in place. The zone
+ * maximum is re-checked the way addCard does: a zone filled since (a new
+ * Leader) refuses the Undo rather than bouncing on save.
+ */
+export function restoreEntry(
+  entries: readonly EditorEntry[],
+  format: FormatDef,
+  removed: EditorEntry,
+  index: number,
+): EditResult {
+  const zone = format.zones.find((z) => z.id === removed.zone);
+  if (!zone) return { entries: [...entries], error: `Unknown zone "${removed.zone}"` };
+  const existing = entries.find((e) => e.zone === removed.zone && e.cardId === removed.cardId);
+  const others = zoneQty(entries, removed.zone) - (existing?.qty ?? 0);
+  if (zone.max !== null && others + removed.qty > zone.max) {
+    return {
+      entries: [...entries],
+      error: `${zone.label} is full (max ${zone.max} card${zone.max === 1 ? "" : "s"})`,
+    };
+  }
+  if (existing) return { entries: entries.map((e) => (e === existing ? removed : e)) };
+  const at = Math.min(Math.max(index, 0), entries.length);
+  return { entries: [...entries.slice(0, at), removed, ...entries.slice(at)] };
+}
+
 /** Set an entry's quantity; 0 or less removes it. Zone maximums re-checked on increase. */
 export function setQty(
   entries: readonly EditorEntry[],

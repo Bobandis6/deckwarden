@@ -18,6 +18,14 @@
  * R5b (F5): `preview` wraps each card-name chip in the share page's hover
  * and focus card preview; the editor's instance passes nothing and keeps
  * plain chips (its detail pane already previews).
+ *
+ * Y2a (WAVE4 D2, progress not problems): with a `progress` line (the
+ * editor's, from `src/lib/decks/progress.ts`), issues the adapter flagged
+ * `progress` — an empty leader zone, a deck under its minimum — leave the
+ * red count and render as that one neutral line instead; real problems
+ * stay red beneath it. The Warden line is unchanged: flagged issues are
+ * still issues, so an empty deck never gets it. Without the prop (the
+ * share page) every issue renders as before.
  */
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useState } from "react";
@@ -25,6 +33,7 @@ import { useState } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { CardNamePreview } from "@/components/deck/card-name-preview";
 import type { EditorCard } from "@/lib/decks/editor-state";
+import { isProgressIssue } from "@/lib/decks/progress";
 import { countIssues } from "@/lib/decks/validation";
 import type { ValidationIssue } from "@/lib/games/types";
 import { cn } from "@/lib/utils";
@@ -38,6 +47,12 @@ interface ValidationPanelProps {
   onPreview: (card: EditorCard) => void;
   /** Share pages: hover / focus card previews on the name chips (F5). */
   preview?: boolean;
+  /**
+   * The editor's progress line (Y2a) — "Choose a commander · 100 to go".
+   * A string moves flagged issues out of the problem count into this line;
+   * null or absent renders every issue as a problem (the share page).
+   */
+  progress?: string | null;
 }
 
 export function ValidationPanel({
@@ -46,6 +61,7 @@ export function ValidationPanel({
   cards,
   onPreview,
   preview = false,
+  progress = null,
 }: ValidationPanelProps) {
   const [open, setOpen] = useState(false);
   const zero = issues.length === 0;
@@ -59,7 +75,9 @@ export function ValidationPanel({
     setPrevZero(zero);
     if (zero) setSettleKey((k) => k + 1);
   }
-  const { errors, warnings } = countIssues(issues);
+  // Progress (Y2a) leaves the problem list only when there is a line to say it.
+  const problems = progress !== null ? issues.filter((i) => !isProgressIssue(i)) : issues;
+  const { errors, warnings } = countIssues(problems);
 
   if (zero) {
     const settle = settleKey > 0;
@@ -101,77 +119,90 @@ export function ValidationPanel({
 
   return (
     <div className="mt-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 rounded text-xs font-medium hover:underline pointer-coarse:min-h-11 ${
-          errors > 0 ? "text-destructive" : "text-amber-700 dark:text-amber-400"
-        }`}
-      >
-        <span
-          aria-hidden
-          className={`size-1.5 rounded-full ${errors > 0 ? "bg-destructive" : "bg-amber-500"}`}
-        />
-        {summary}
-        {open ? (
-          <ChevronUpIcon aria-hidden className="size-3.5" />
-        ) : (
-          <ChevronDownIcon aria-hidden className="size-3.5" />
-        )}
-      </button>
+      {progress !== null && (
+        <p
+          data-slot="progress-line"
+          className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium"
+        >
+          <span aria-hidden className="bg-muted-foreground/60 size-1.5 rounded-full" />
+          {progress}
+        </p>
+      )}
+      {problems.length > 0 && (
+        <>
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}
+            className={`flex items-center gap-1.5 rounded text-xs font-medium hover:underline pointer-coarse:min-h-11 ${
+              errors > 0 ? "text-destructive" : "text-amber-700 dark:text-amber-400"
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`size-1.5 rounded-full ${errors > 0 ? "bg-destructive" : "bg-amber-500"}`}
+            />
+            {summary}
+            {open ? (
+              <ChevronUpIcon aria-hidden className="size-3.5" />
+            ) : (
+              <ChevronDownIcon aria-hidden className="size-3.5" />
+            )}
+          </button>
 
-      {open && (
-        <ul className="mt-1.5 space-y-1.5">
-          {issues.map((issue, i) => (
-            <li key={`${issue.code}:${issue.zone ?? ""}:${i}`} className="text-xs">
-              <span className="flex items-start gap-1.5">
-                <span
-                  aria-hidden
-                  className={`mt-1 size-1.5 shrink-0 rounded-full ${
-                    issue.severity === "error" ? "bg-destructive" : "bg-amber-500"
-                  }`}
-                />
-                <span>
-                  <span className="sr-only">
-                    {issue.severity === "error" ? "Error: " : "Warning: "}
+          {open && (
+            <ul className="mt-1.5 space-y-1.5">
+              {problems.map((issue, i) => (
+                <li key={`${issue.code}:${issue.zone ?? ""}:${i}`} className="text-xs">
+                  <span className="flex items-start gap-1.5">
+                    <span
+                      aria-hidden
+                      className={`mt-1 size-1.5 shrink-0 rounded-full ${
+                        issue.severity === "error" ? "bg-destructive" : "bg-amber-500"
+                      }`}
+                    />
+                    <span>
+                      <span className="sr-only">
+                        {issue.severity === "error" ? "Error: " : "Warning: "}
+                      </span>
+                      {issue.message}
+                    </span>
                   </span>
-                  {issue.message}
-                </span>
-              </span>
-              {issue.cardIds && issue.cardIds.length > 0 && (
-                <span className="mt-0.5 ml-3 flex flex-wrap gap-1">
-                  {issue.cardIds.slice(0, CHIP_LIMIT).map((cardId) => {
-                    const card = cards.get(cardId);
-                    if (!card) return null;
-                    const chip = (
-                      <button
-                        key={cardId}
-                        type="button"
-                        onClick={() => onPreview(card)}
-                        className="bg-muted hover:bg-muted/70 inline-flex items-center rounded px-1.5 py-0.5 hover:underline pointer-coarse:min-h-11 pointer-coarse:px-3"
-                      >
-                        {card.name}
-                      </button>
-                    );
-                    return preview ? (
-                      <CardNamePreview key={cardId} name={card.name} image={card.image}>
-                        {chip}
-                      </CardNamePreview>
-                    ) : (
-                      chip
-                    );
-                  })}
-                  {issue.cardIds.length > CHIP_LIMIT && (
-                    <span className="text-muted-foreground px-1 py-0.5">
-                      +{issue.cardIds.length - CHIP_LIMIT} more
+                  {issue.cardIds && issue.cardIds.length > 0 && (
+                    <span className="mt-0.5 ml-3 flex flex-wrap gap-1">
+                      {issue.cardIds.slice(0, CHIP_LIMIT).map((cardId) => {
+                        const card = cards.get(cardId);
+                        if (!card) return null;
+                        const chip = (
+                          <button
+                            key={cardId}
+                            type="button"
+                            onClick={() => onPreview(card)}
+                            className="bg-muted hover:bg-muted/70 inline-flex items-center rounded px-1.5 py-0.5 hover:underline pointer-coarse:min-h-11 pointer-coarse:px-3"
+                          >
+                            {card.name}
+                          </button>
+                        );
+                        return preview ? (
+                          <CardNamePreview key={cardId} name={card.name} image={card.image}>
+                            {chip}
+                          </CardNamePreview>
+                        ) : (
+                          chip
+                        );
+                      })}
+                      {issue.cardIds.length > CHIP_LIMIT && (
+                        <span className="text-muted-foreground px-1 py-0.5">
+                          +{issue.cardIds.length - CHIP_LIMIT} more
+                        </span>
+                      )}
                     </span>
                   )}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </div>
   );

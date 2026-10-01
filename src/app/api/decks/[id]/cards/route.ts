@@ -25,7 +25,7 @@ import { fetchLegalityMap } from "@/lib/decks/legality";
 import { clientIp } from "@/lib/decks/access";
 import { requireOwnedDeck } from "@/lib/decks/route-helpers";
 import { writeDeckCards } from "@/lib/decks/save-cards";
-import { toDeckSnapshot } from "@/lib/decks/validation";
+import { toDeckSnapshot, toWireIssues } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import type { CardData } from "@/lib/games/types";
@@ -173,7 +173,10 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
       },
     ]),
   );
-  const validation = adapter.validate(toDeckSnapshot(adapter.id, formatDef, entries), cardData);
+  // toWireIssues (Y2a): the client-side progress flag never rides this wire.
+  const validation = toWireIssues(
+    adapter.validate(toDeckSnapshot(adapter.id, formatDef, entries), cardData),
+  );
 
   // The write + denorms live in save-cards.ts (P3.6): version restore
   // replaces the list through the very same function.

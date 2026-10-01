@@ -50,6 +50,31 @@ describe("validateMtg", () => {
     expect(issues.find((i) => i.code === "ZONE_SIZE")?.zone).toBe("commander");
   });
 
+  it("marks under-minimum issues as progress (Y2a) — over the limit stays a plain problem", () => {
+    const { deck, cards } = legalDeck();
+    deck.zones.commander = [];
+    deck.zones.main = deck.zones.main.slice(1);
+    const short = validateMtg(deck, cards);
+    expect(
+      short
+        .filter((i) => i.progress)
+        .map((i) => i.code)
+        .sort(),
+    ).toEqual(["DECK_SIZE", "ZONE_SIZE"]);
+    expect(short.every((i) => i.severity === "error")).toBe(true);
+
+    const over = legalDeck();
+    over.deck.zones.main = [...over.deck.zones.main, entry(lightningBolt)];
+    over.deck.zones.commander = [entry(atraxa), entry(thrasios), entry(tymna)];
+    const issues = validateMtg(
+      over.deck,
+      cardMap([...over.cards.values(), lightningBolt, thrasios, tymna]),
+    );
+    const sizes = issues.filter((i) => i.code === "DECK_SIZE" || i.code === "ZONE_SIZE");
+    expect(sizes.map((i) => i.code).sort()).toEqual(["DECK_SIZE", "ZONE_SIZE"]);
+    expect(sizes.some((i) => i.progress)).toBe(false);
+  });
+
   it("flags zones the format doesn't define", () => {
     const { deck, cards } = legalDeck();
     deck.zones.sideboard = [entry(solRing)];

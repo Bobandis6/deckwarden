@@ -32,6 +32,7 @@ import { useId } from "react";
 import { CardImage } from "@/components/cards/card-image";
 import { EmptyState } from "@/components/empty-state";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { useIsMac } from "@/components/use-is-mac";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import { leaderCaption } from "@/lib/decks/leader-caption";
 import type { ViewItem } from "@/lib/decks/view-model";
@@ -71,6 +72,7 @@ export function LeaderZone({
 }: LeaderZoneProps) {
   const noun = zone.label.toLowerCase();
   const readOnly = !onRemove;
+  const isMac = useIsMac();
   const browse = adapter?.display.leaderBrowse;
   // R6 (status never color-only): the validation ring's severity as text,
   // described onto the card button — the name stays "Show {name}".
@@ -86,9 +88,16 @@ export function LeaderZone({
           className="mt-2 py-3"
           title={`No ${noun} yet`}
           hint={
-            onRemove
-              ? "Pick one from the full list, or press Ctrl+Enter on a search result."
-              : undefined
+            onRemove ? (
+              // The keyboard half is a fine-pointer line (Y2a), ⌘ on a Mac.
+              <>
+                Pick one from the full list
+                <span className="pointer-coarse:hidden">
+                  , or press {isMac ? "⌘" : "Ctrl"}+Enter on a search result
+                </span>
+                .
+              </>
+            ) : undefined
           }
           action={
             // W4 (D3): Browse is the primary path — a styled Link, not a

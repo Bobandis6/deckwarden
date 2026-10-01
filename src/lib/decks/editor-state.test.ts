@@ -11,6 +11,7 @@ import {
   parseQuickAdd,
   removeCard,
   replaceLeader,
+  restoreEntry,
   setPrinting,
   setQty,
   setTags,
@@ -309,5 +310,38 @@ describe("mergeEntries (W9b — the whole-list swap's dedupe)", () => {
   it("returns an already-merged list with unchanged rows", () => {
     const a = [entry({ cardId: "sol" }), entry({ cardId: "sig" })];
     expect(mergeEntries(a)).toEqual(a);
+  });
+});
+
+describe("restoreEntry (Y2a — Undo for a removal)", () => {
+  const tagged = entry({ cardId: "b", qty: 3, tags: ["ramp"], printingId: "p-1" });
+  const list = [entry({ cardId: "a" }), tagged, entry({ cardId: "c" })];
+
+  it("puts the entry back where it was, quantity, tags and printing intact", () => {
+    const removed = removeCard(list, "main", "b");
+    const { entries, error } = restoreEntry(removed, COMMANDER, tagged, 1);
+    expect(error).toBeUndefined();
+    expect(entries).toEqual(list);
+  });
+
+  it("clamps a stale index and replaces a re-added copy in place", () => {
+    expect(restoreEntry([], COMMANDER, tagged, 7).entries).toEqual([tagged]);
+    const readded = [entry({ cardId: "a" }), entry({ cardId: "c" }), entry({ cardId: "b" })];
+    expect(
+      restoreEntry(readded, COMMANDER, tagged, 1).entries.map((e) => [e.cardId, e.qty]),
+    ).toEqual([
+      ["a", 1],
+      ["c", 1],
+      ["b", 3],
+    ]);
+  });
+
+  it("refuses when the zone filled meanwhile (a new Leader), like addCard", () => {
+    const standard = optcgAdapter.formats[0];
+    const luffy = entry({ cardId: "luffy", zone: "leader" });
+    const now = [entry({ cardId: "zoro", zone: "leader" })];
+    const result = restoreEntry(now, standard, luffy, 0);
+    expect(result.error).toBe("Leader is full (max 1 card)");
+    expect(result.entries).toEqual(now);
   });
 });

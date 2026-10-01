@@ -19,6 +19,14 @@
  * `extras` false drops the analytics and sample hand (the phone's Tools tab
  * hosts them); the segmented controls, rows and steppers grow to 44 px on
  * coarse pointers.
+ *
+ * Y2a (WAVE4 D2, a quiet first screen): the summary reads "98 / 100 · 2 to
+ * go" under the minimum (the count otherwise); the validation slot gets the
+ * progress line ("Choose a commander · 100 to go"); View / Group / Sort
+ * render only once the list has a card; the summary's "Add cards" steps
+ * aside while the empty state shows its own, so a phone sees one. A stepper
+ * reaching zero is a removal (`onRemove`), which the editor answers with
+ * one Undo.
  */
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
@@ -41,6 +49,7 @@ import {
   type EditorCard,
   type EditorEntry,
 } from "@/lib/decks/editor-state";
+import { deckProgress, progressLine, toGoPhrase } from "@/lib/decks/progress";
 import { issueSeverityByCard } from "@/lib/decks/validation";
 import {
   groupDeckEntries,
@@ -134,7 +143,11 @@ export function DeckListPane({
   const total = deckSizeCount(entries, format);
   const shownTotal = useCountUp(total);
   const max = format.deckSize.max;
-  const sizeLabel = max !== null ? `${shownTotal} / ${max}` : `${shownTotal}`;
+  // "· N to go" follows the counted-up number so the two never disagree
+  // mid-animation; at or over the minimum the label keeps saying "cards".
+  const toGo = toGoPhrase(format.deckSize.min - shownTotal);
+  const sizeLabel = `${max !== null ? `${shownTotal} / ${max}` : `${shownTotal}`}${toGo ? ` · ${toGo}` : " cards"}`;
+  const progress = progressLine(deckProgress(entries, format), adapter.display.leaderNoun);
 
   const { leader, rest } = splitLeaderEntries(entries, format);
   const groups = groupDeckEntries(rest, cards, groupBy, sortBy);
@@ -145,9 +158,16 @@ export function DeckListPane({
     return card ? [{ entry, card }] : [];
   });
 
+  // A stepper reaching zero is a plain removal (Y2a): the editor's Undo path.
   const setQtyChecked = (zoneId: string, cardId: string, qty: number) => {
+    if (qty <= 0) {
+      setError(null);
+      onRemove(zoneId, cardId);
+      return;
+    }
     setError(onSetQty(zoneId, cardId, qty) ?? null);
   };
+  const listed = rest.length > 0;
 
   return (
     <div className="p-3">
@@ -155,7 +175,8 @@ export function DeckListPane({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold">Deck</h2>
-          {onAddCards && (
+          {/* The empty state carries its own (Y2a: a phone shows one). */}
+          {onAddCards && listed && (
             <Button size="sm" className="pointer-coarse:min-h-11 md:hidden" onClick={onAddCards}>
               <PlusIcon aria-hidden />
               Add cards
@@ -185,7 +206,9 @@ export function DeckListPane({
               {ownershipLine(ownership)} ·
             </span>
           )}
-          <span className="text-muted-foreground text-sm tabular-nums">{sizeLabel} cards</span>
+          <span className="text-muted-foreground text-sm tabular-nums" data-slot="deck-size">
+            {sizeLabel}
+          </span>
           <CompletionRing value={total} max={max} />
         </div>
       </div>
@@ -195,6 +218,7 @@ export function DeckListPane({
         issues={issues}
         cards={cards}
         onPreview={onPreview}
+        progress={progress}
       />
 
       {leaderZoneDef && (
@@ -210,38 +234,41 @@ export function DeckListPane({
         />
       )}
 
-      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
-        <Segmented
-          label="View"
-          touch
-          options={VIEW_OPTIONS}
-          value={view}
-          onChange={(v) => {
-            setView(v);
-            persist({ view: v });
-          }}
-        />
-        <Segmented
-          label="Group"
-          touch
-          options={GROUP_OPTIONS}
-          value={groupBy}
-          onChange={(v) => {
-            setGroupBy(v);
-            persist({ groupBy: v });
-          }}
-        />
-        <Segmented
-          label="Sort"
-          touch
-          options={SORT_OPTIONS}
-          value={sortBy}
-          onChange={(v) => {
-            setSortBy(v);
-            persist({ sortBy: v });
-          }}
-        />
-      </div>
+      {/* A quiet first screen (Y2a): nothing to view, group or sort yet. */}
+      {listed && (
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
+          <Segmented
+            label="View"
+            touch
+            options={VIEW_OPTIONS}
+            value={view}
+            onChange={(v) => {
+              setView(v);
+              persist({ view: v });
+            }}
+          />
+          <Segmented
+            label="Group"
+            touch
+            options={GROUP_OPTIONS}
+            value={groupBy}
+            onChange={(v) => {
+              setGroupBy(v);
+              persist({ groupBy: v });
+            }}
+          />
+          <Segmented
+            label="Sort"
+            touch
+            options={SORT_OPTIONS}
+            value={sortBy}
+            onChange={(v) => {
+              setSortBy(v);
+              persist({ sortBy: v });
+            }}
+          />
+        </div>
+      )}
 
       {error && (
         <p aria-live="polite" className="text-destructive mt-1 text-xs">
@@ -249,7 +276,7 @@ export function DeckListPane({
         </p>
       )}
 
-      {rest.length === 0 ? (
+      {!listed ? (
         // C8 copy fix (R1b): a phone has no "left" — R4 puts Search in a tab.
         <EmptyState
           className="mt-4"

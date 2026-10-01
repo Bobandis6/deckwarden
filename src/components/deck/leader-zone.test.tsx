@@ -51,9 +51,14 @@ describe("LeaderZone", () => {
       />,
     );
     expect(screen.getByText("No commander yet")).toBeTruthy();
-    expect(
-      screen.getByText("Pick one from the full list, or press Ctrl+Enter on a search result."),
-    ).toBeTruthy();
+    // The same sentence on a fine pointer; its keyboard half hides on coarse ones (Y2a).
+    const hint = screen.getByText(
+      (_, el) => el?.tagName === "P" && /^Pick one/.test(el.textContent ?? ""),
+    );
+    expect(hint.textContent).toBe(
+      "Pick one from the full list, or press Ctrl+Enter on a search result.",
+    );
+    expect(screen.getByText(/or press Ctrl\+Enter/).className).toBe("pointer-coarse:hidden");
     const link = screen.getByRole("link", { name: "Browse commanders" });
     expect(link.getAttribute("href")).toBe("/commanders");
     fireEvent.click(link);

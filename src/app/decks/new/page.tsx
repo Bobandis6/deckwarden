@@ -8,7 +8,9 @@
  *
  * Caching intent: fully static shell — the game choice is a ?game= search
  * param read CLIENT-side (useSearchParams behind Suspense), so no dynamic
- * rendering; everything interesting happens client-side.
+ * rendering; everything interesting happens client-side. The Suspense
+ * fallback (Y2a) is that static shell's visible face: a header strip and a
+ * skeleton instead of a blank page.
  */
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
@@ -16,6 +18,7 @@ import { Suspense } from "react";
 import { dark } from "@/lib/theme/tokens";
 
 import { NewDeckChooser } from "./new-deck-chooser";
+import { NewDeckFallback } from "./new-deck-fallback";
 
 export const metadata: Metadata = {
   title: "New deck",
@@ -40,7 +43,7 @@ export const viewport: Viewport = {
 
 export default function NewDeckPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<NewDeckFallback />}>
       <NewDeckChooser />
     </Suspense>
   );

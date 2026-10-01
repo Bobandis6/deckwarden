@@ -71,3 +71,17 @@ export function countIssues(issues: readonly ValidationIssue[]): {
   }
   return { errors, warnings };
 }
+
+/**
+ * The cards PUT's `validation` (Y2a): issues without the client-side
+ * `progress` flag, so the route's JSON is byte-identical to before the
+ * flag existed. The editor and the share page call `validate` themselves.
+ */
+export function toWireIssues(issues: readonly ValidationIssue[]): ValidationIssue[] {
+  return issues.map((issue) => {
+    if (!issue.progress) return issue;
+    const wire = { ...issue };
+    delete wire.progress;
+    return wire;
+  });
+}

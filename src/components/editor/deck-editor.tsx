@@ -94,6 +94,7 @@ import {
   mergeEntries,
   removeCard,
   replaceLeader,
+  restoreEntry,
   setPrinting,
   setQty,
   setTags,
@@ -1072,12 +1073,41 @@ export function DeckEditor({
     else if (tier === "md") setToolsOpen(true);
   }, [tier]);
 
+  // One Undo for removals (Y2a, LATER row 60's cheap half): a plain
+  // removal — the row's ✕, the leader's remove, a stepper reaching zero
+  // (the pane routes that here) — toasts "Removed X" with an Undo that is a
+  // REAL edit: restoreEntry puts the entry back (quantity, tags, printing,
+  // position) through applyEdit, so the next autosave PUTs it. A zone filled
+  // meanwhile refuses the Undo and says so. Steppers above zero, imports
+  // and restores keep LATER row 60.
   const handleRemove = useCallback(
     (zoneId: string, cardId: string) => {
-      applyEdit({ entries: removeCard(entriesRef.current, zoneId, cardId) });
+      if (!format) return;
+      const before = entriesRef.current;
+      const index = before.findIndex((e) => e.zone === zoneId && e.cardId === cardId);
+      if (index < 0) return;
+      const removed = before[index];
+      applyEdit({ entries: removeCard(before, zoneId, cardId) });
+      const name = cards.get(cardId)?.name ?? "the card";
+      notify(`Removed ${removed.qty > 1 ? `${removed.qty}× ` : ""}${name}`, () => {
+        const error = applyEdit(restoreEntry(entriesRef.current, format, removed, index));
+        if (error) {
+          toast.add({ title: `Couldn't undo — ${error}.`, type: "error", timeout: TOAST_MS });
+        }
+      });
     },
-    [applyEdit],
+    [format, cards, applyEdit, notify],
   );
+
+  // "Keep this deck" (Y2a): a seeded draft's explicit acceptance is a real
+  // edit — markDirty, then flush now instead of waiting out the debounce.
+  // save() runs ensureDeck (single-flight) and PUTs the seeded list; the
+  // button leaves with the "saved" state, so a second click has nothing to
+  // press: exactly one deck.
+  const keepDeck = useCallback(() => {
+    markDirty();
+    void flush();
+  }, [markDirty, flush]);
 
   // Whole-list swap with Undo (W9b): Import and Autofill both land here.
   // The previous list is captured for the toast's Undo, which restores it
@@ -1523,6 +1553,16 @@ export function DeckEditor({
             onOpen={openFromHeader}
             moreRef={moreRef}
             onOpenTools={() => setToolsOpen(true)}
+            draft={liveDeckId === null}
+            onKeep={
+              draftSeed !== null &&
+              seedSettled &&
+              liveDeckId === null &&
+              entries.length > 0 &&
+              autosave.status === "saved"
+                ? keepDeck
+                : undefined
+            }
           />
         </>
       }

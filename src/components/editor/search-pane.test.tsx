@@ -75,6 +75,13 @@ function type(input: HTMLElement, value: string) {
 }
 
 describe("SearchPane", () => {
+  it("the keycap hints are a fine-pointer line (Y2a): hidden on coarse pointers, Ctrl off a Mac", () => {
+    renderPane();
+    const hints = document.querySelector('[data-slot="search-hints"]') as HTMLElement;
+    expect(hints.className).toContain("pointer-coarse:hidden");
+    expect(hints.textContent).toContain("Ctrl+Enter add as Commander");
+  });
+
   it("keycap hint, no 'No cards match' before the response, then rows with a thumbnail box each", async () => {
     const { input } = renderPane();
     expect(document.querySelectorAll("kbd").length).toBeGreaterThanOrEqual(5);

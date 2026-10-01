@@ -93,6 +93,8 @@ export function validateOptcg(
         severity: "error",
         message: `${zone.label} must have ${bound} card${zone.max === 1 ? "" : "s"} (has ${zoneQty}).`,
         zone: zoneId,
+        // Under the minimum is progress (Y2a — no Leader yet, a short Deck); over is a problem.
+        ...(zoneQty < zone.min ? { progress: true as const } : {}),
       });
     }
   }
@@ -114,6 +116,7 @@ export function validateOptcg(
       code: "DECK_SIZE",
       severity: "error",
       message: `${format.label} decks are exactly ${format.deckSize.min} cards plus your Leader (has ${deckSize}).`,
+      ...(deckSize < format.deckSize.min ? { progress: true as const } : {}),
     });
   }
 

@@ -1364,3 +1364,182 @@ describe("DeckEditor — Autofill review sheet + doors (W9b/W9c)", () => {
     expect(posts()).toBe(0);
   });
 });
+
+// ------------------------------------------------------------------- Y2a
+describe("DeckEditor — an honest first screen (Y2a)", () => {
+  const atraxa = card({
+    name: "Atraxa, Praetors' Voice",
+    primaryType: "Creature",
+    isLeaderCandidate: true,
+  });
+  const extras = Array.from({ length: 3 }, (_, i) =>
+    card({ name: `Seed Card ${i + 1}`, primaryType: "Artifact", costValue: 2 }),
+  );
+  const seedResponse = {
+    deck: { name: "Tiny Precon", game: "mtg", format: "commander", leaderIds: [atraxa.id] },
+    cards: [
+      {
+        cardId: atraxa.id,
+        zone: "commander",
+        qty: 1,
+        tags: [],
+        printingId: null,
+        card: { ...atraxa, image: null },
+      },
+      ...extras.map((c) => ({
+        cardId: c.id,
+        zone: "main",
+        qty: 1,
+        tags: [],
+        printingId: null,
+        card: { ...c, image: null },
+      })),
+    ],
+  };
+  function seedRoute(input: RequestInfo | URL, init?: RequestInit) {
+    if (String(input) === "/api/precons/tiny") return ok(seedResponse);
+    return route(input, init);
+  }
+  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
+    for (let i = 0; i < 40; i++) {
+      const el = query();
+      if (el) return el;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: element never appeared");
+  }
+  const slot = () => document.querySelector<HTMLElement>("[data-slot=save-slot]")!;
+  const progressLine = () =>
+    section("Deck list").querySelector<HTMLElement>('[data-slot="progress-line"]');
+
+  it("a fresh Magic draft: Draft (no check, data-draft), the progress line, no View / Group / Sort, one Add cards; the first edit ends the draft with one create", async () => {
+    stubViewport(375);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+    expect(saveStatus()).toBe("saved");
+    expect(slot().dataset.draft).toBe("true");
+    expect(slot().textContent).toBe("Draft");
+    expect(slot().getAttribute("title")).toBe("Saves on your first change");
+    expect(slot().querySelector("svg")).toBeNull();
+    expect(progressLine()?.textContent).toBe("Choose a commander · 100 to go");
+    expect(within(section("Deck list")).getByText("0 / 100 · 100 to go")).toBeTruthy();
+    // Progress is not a problem: no red count, and never the approval line.
+    expect(within(section("Deck list")).queryByRole("button", { name: /problem/ })).toBeNull();
+    expect(screen.queryByText(/The Warden approves/)).toBeNull();
+    expect(screen.queryByRole("group", { name: "View" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Sort" })).toBeNull();
+    expect(within(section("Deck list")).getAllByRole("button", { name: "Add cards" })).toHaveLength(
+      1,
+    );
+    // An unseeded draft has nothing to keep.
+    expect(screen.queryByRole("button", { name: "Keep this deck" })).toBeNull();
+
+    // The first real edit: Unsaved…, then one create, and the draft is over.
+    fireEvent.click(within(section("Deck list")).getByRole("button", { name: "Add cards" }));
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    fireEvent.change(input, { target: { value: "sol" } });
+    await settle();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(slot().textContent).toBe("Unsaved…");
+    await settle(1100);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(saveStatus()).toBe("saved");
+    expect(slot().hasAttribute("data-draft")).toBe(false);
+    expect(slot().textContent).toBe("Saved");
+    expect(slot().querySelector("svg")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /^Deck/ }));
+    expect(screen.getByRole("group", { name: "View" })).toBeTruthy();
+    expect(progressLine()?.textContent).toBe("Choose a commander · 99 to go");
+  });
+
+  it("One Piece says its own progress through its adapter", () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="optcg" draftFormat="standard" />);
+    expect(slot().textContent).toBe("Draft");
+    expect(progressLine()?.textContent).toBe("Choose a leader · 50 to go");
+    expect(within(section("Deck list")).getByText("0 / 50 · 50 to go")).toBeTruthy();
+  });
+
+  it("a precon draft offers Keep this deck: one click = exactly one create + one PUT, then Share", async () => {
+    fetchMock.mockImplementation(seedRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftFromSlug="tiny" />,
+    );
+    const keep = await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+    expect(slot().textContent).toBe("Draft");
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+    expect(progressLine()?.textContent).toBe("96 to go");
+    await settle(1500);
+    expect(posts()).toBe(0);
+
+    fireEvent.click(keep);
+    // Gone at once — the slot leaves "saved", so a second click has nothing to press.
+    expect(screen.queryByRole("button", { name: "Keep this deck" })).toBeNull();
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+    expect(lastPutEntries()).toHaveLength(4);
+    expect(window.location.pathname).toBe("/decks/deck-1/edit");
+    expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Keep this deck" })).toBeNull();
+    expect(slot().hasAttribute("data-draft")).toBe(false);
+  });
+
+  it("removing a card toasts Removed X · Undo; Undo restores it (quantity, position) and autosaves", async () => {
+    fetchMock.mockImplementation(seedRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftFromSlug="tiny" />,
+    );
+    fireEvent.click(await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" })));
+    await settle(1500);
+    await act(async () => {});
+    expect(puts()).toBe(1);
+    await settle(5500); // the slate is clean: no earlier toast on screen
+
+    const list = section("Deck list");
+    fireEvent.click(within(list).getByRole("button", { name: "One more Seed Card 2" }));
+    fireEvent.click(within(list).getByRole("button", { name: "Remove Seed Card 2" }));
+    expect(within(list).queryByText("Seed Card 2")).toBeNull();
+    const toastEl = (await pollFor(() => screen.queryByText("Removed 2× Seed Card 2"))).closest(
+      '[data-slot="toast"]',
+    ) as HTMLElement;
+    // PUT counts are not pinned here: a live deck's edits also leave through
+    // the keepalive flush (LATER row 161) — what was saved is the contract.
+    await settle(1500);
+    await act(async () => {});
+    expect(saveStatus()).toBe("saved");
+    expect(lastPutEntries().some((e) => e.cardId === extras[1].id)).toBe(false);
+
+    fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+    expect(within(list).getByText("Seed Card 2")).toBeTruthy();
+    expect(saveStatus()).toBe("dirty");
+    await settle(1500);
+    await act(async () => {});
+    expect(saveStatus()).toBe("saved");
+    expect(posts()).toBe(1);
+    const restored = lastPutEntries() as { cardId: string; qty?: number }[];
+    expect(restored.map((e) => e.cardId)).toEqual([atraxa.id, ...extras.map((c) => c.id)]);
+    expect(restored[2].qty).toBe(2);
+  });
+
+  it("a stepper reaching zero is a removal with the same Undo", async () => {
+    fetchMock.mockImplementation(seedRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftFromSlug="tiny" />,
+    );
+    await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+    const list = section("Deck list");
+    fireEvent.click(within(list).getByRole("button", { name: "One fewer Seed Card 3" }));
+    expect(within(list).queryByText("Seed Card 3")).toBeNull();
+    const toastEl = (await pollFor(() => screen.queryByText("Removed Seed Card 3"))).closest(
+      '[data-slot="toast"]',
+    ) as HTMLElement;
+    fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+    expect(within(list).getByText("Seed Card 3")).toBeTruthy();
+  });
+});

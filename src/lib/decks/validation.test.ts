@@ -4,7 +4,13 @@ import { COMMANDER } from "@/lib/games/mtg/formats";
 import { atraxa, cardMap, island, solRing } from "@/lib/games/mtg/test-fixtures";
 import { validateMtg } from "@/lib/games/mtg/validate";
 import type { ValidationIssue } from "@/lib/games/types";
-import { countIssues, issueSeverityByCard, toDeckSnapshot, type SnapshotEntry } from "./validation";
+import {
+  countIssues,
+  issueSeverityByCard,
+  toDeckSnapshot,
+  toWireIssues,
+  type SnapshotEntry,
+} from "./validation";
 
 function entry(cardId: string, zone: string, qty = 1): SnapshotEntry {
   return { cardId, zone, qty, tags: [] };
@@ -81,5 +87,34 @@ describe("countIssues", () => {
       ]),
     ).toEqual({ errors: 2, warnings: 1 });
     expect(countIssues([])).toEqual({ errors: 0, warnings: 0 });
+  });
+});
+
+describe("toWireIssues (Y2a)", () => {
+  it("strips the progress flag so the cards PUT's JSON is byte-identical to before it existed", () => {
+    const issues = validateMtg(toDeckSnapshot("mtg", COMMANDER, []), cardMap([]));
+    expect(issues.every((i) => i.progress)).toBe(true);
+    expect(JSON.stringify(toWireIssues(issues))).toBe(
+      JSON.stringify([
+        {
+          code: "ZONE_SIZE",
+          severity: "error",
+          message: "Commander must have 1–2 cards (has 0).",
+          zone: "commander",
+        },
+        {
+          code: "DECK_SIZE",
+          severity: "error",
+          message: "Commander decks are exactly 100 cards (has 0).",
+        },
+      ]),
+    );
+    // The input is untouched (the editor keeps its flags).
+    expect(issues[0].progress).toBe(true);
+  });
+
+  it("passes unflagged issues through as the same objects", () => {
+    const issue: ValidationIssue = { code: "BANNED", severity: "error", message: "x" };
+    expect(toWireIssues([issue])[0]).toBe(issue);
   });
 });

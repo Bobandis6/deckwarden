@@ -22,6 +22,13 @@
  * is never rendered on the editor (a workspace has no room for site nav),
  * and the `← Deckwarden` text link is gone: the mark is the way home, with
  * the same F13 tilt as the site header's.
+ *
+ * Y2a (WAVE4 D2): a draft — no server row yet — says "Draft" in the save
+ * slot ("Saves on your first change", no check mark) instead of a "Saved"
+ * that nothing earned. `data-status` keeps the autosave state and
+ * `data-draft` marks the draft, so every `data-status` pin holds. A SEEDED
+ * draft (a precon, a combo, Surprise me, a chosen leader) shows "Keep this
+ * deck" where Share will be: the explicit acceptance that mints the row.
  */
 import { CheckIcon, EllipsisIcon, PanelRightIcon } from "lucide-react";
 import Link from "next/link";
@@ -61,6 +68,8 @@ export function EditorHeader({
   onOpen,
   moreRef,
   onOpenTools,
+  draft = false,
+  onKeep,
 }: {
   adapter: GameAdapter;
   format: FormatDef;
@@ -78,6 +87,10 @@ export function EditorHeader({
   moreRef?: Ref<HTMLButtonElement>;
   /** Opens the md tier's tools drawer (R4); the button renders only when given. */
   onOpenTools?: () => void;
+  /** No server row exists yet (Y2a): the slot says "Draft" until the first change. */
+  draft?: boolean;
+  /** "Keep this deck" (Y2a) — a seeded draft's explicit save; the button renders only when given. */
+  onKeep?: () => void;
 }) {
   return (
     <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2 lg:h-14 lg:flex-nowrap lg:py-0">
@@ -107,7 +120,12 @@ export function EditorHeader({
         />
       )}
       <div className="ml-auto flex items-center gap-1.5 lg:ml-0">
-        <SaveIndicator status={saveStatus} onRetry={onRetry} />
+        <SaveIndicator status={saveStatus} onRetry={onRetry} draft={draft} />
+        {onKeep && (
+          <Button size="sm" onClick={onKeep}>
+            Keep this deck
+          </Button>
+        )}
         {canShare && (
           <Button size="sm" onClick={() => onOpen("share")}>
             Share
@@ -166,14 +184,33 @@ export function EditorHeader({
  * The save slot (F9): a fixed-width, right-aligned box so "Saved" →
  * "Saving…" → "Unsaved…" → "Save failed + Retry" never move the header.
  * Each state's label fades in (`motion-safe:`); the check zooms in on
- * "Saved". The live region announces the change as before.
+ * "Saved". The live region announces the change as before. A draft (Y2a)
+ * at rest reads "Draft" with no check — its first edit turns the slot to
+ * "Unsaved…" like any other, and the minted row ends the draft.
  */
-function SaveIndicator({ status, onRetry }: { status: SaveStatus; onRetry: () => void }) {
-  const label = status === "saving" ? "Saving…" : status === "dirty" ? "Unsaved…" : "Saved";
+function SaveIndicator({
+  status,
+  onRetry,
+  draft,
+}: {
+  status: SaveStatus;
+  onRetry: () => void;
+  draft: boolean;
+}) {
+  const resting = draft && status === "saved";
+  const label = resting
+    ? "Draft"
+    : status === "saving"
+      ? "Saving…"
+      : status === "dirty"
+        ? "Unsaved…"
+        : "Saved";
   return (
     <span
       data-slot="save-slot"
       data-status={status}
+      data-draft={draft || undefined}
+      title={resting ? "Saves on your first change" : undefined}
       aria-live="polite"
       className="inline-flex h-7 w-36 shrink-0 items-center justify-end gap-2 text-sm tabular-nums"
     >
@@ -186,10 +223,10 @@ function SaveIndicator({ status, onRetry }: { status: SaveStatus; onRetry: () =>
         </>
       ) : (
         <span
-          key={status}
+          key={resting ? "draft" : status}
           className="text-muted-foreground inline-flex items-center gap-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
         >
-          {status === "saved" && (
+          {status === "saved" && !resting && (
             <CheckIcon
               aria-hidden
               className="size-3.5 motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200"

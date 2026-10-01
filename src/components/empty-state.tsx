@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils";
 
 export interface EmptyStateProps {
   title: string;
-  hint?: string;
+  /** Plain text, or a node when part of it is pointer-specific (Y2a's leader-zone hint). */
+  hint?: ReactNode;
   action?: ReactNode;
   /** Show the shield mark above the title (the main empty state of a surface). */
   mark?: boolean;

@@ -28,6 +28,10 @@
  * the box takes focus back — the repeated-adds flow at every tier. Rows
  * and their actions grow to 44 px on coarse pointers (`pointer-coarse:`).
  *
+ * Y2a (a quiet first screen): the keycap hint line renders on fine
+ * pointers only — a phone has no keyboard to hint at — and says ⌘ on a Mac
+ * (decided after hydration, `useIsMac`).
+ *
  * Game knowledge (zone ids/labels, leader noun, pips, subtitles) comes off the
  * adapter — this component never mentions a specific game.
  */
@@ -37,6 +41,7 @@ import { useEffect, useImperativeHandle, useReducer, useRef, type Ref } from "re
 import { CardImage } from "@/components/cards/card-image";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
+import { useIsMac } from "@/components/use-is-mac";
 import { Kbd } from "@/components/ui/kbd";
 import { thumbnailUrl } from "@/lib/cards/images";
 import { toEditorCard, type CardWire, type EditorCard } from "@/lib/decks/editor-state";
@@ -99,6 +104,7 @@ export function SearchPane({
   const mainZone = format.zones.find((z) => !z.isLeaderZone);
   const leaderZone = format.zones.find((z) => z.isLeaderZone);
   const leaderNoun = adapter.display.leaderNoun;
+  const isMac = useIsMac();
 
   // Debounced fetch, keyed on the reducer's request token: every new query,
   // retry, add and clear mints a new one, so this effect runs exactly once
@@ -196,12 +202,15 @@ export function SearchPane({
           aria-label="Card search"
           className="border-input bg-background focus-visible:ring-ring/50 h-9 w-full shrink-0 rounded-lg border px-3 text-sm outline-none focus-visible:ring-3"
         />
-        <p className="text-muted-foreground mt-1.5 text-xs leading-5">
+        <p
+          data-slot="search-hints"
+          className="text-muted-foreground mt-1.5 text-xs leading-5 pointer-coarse:hidden"
+        >
           <Kbd>↑</Kbd> <Kbd>↓</Kbd> select · <Kbd>Enter</Kbd> add
           {leaderZone && (
             <>
               {" "}
-              · <Kbd>Ctrl</Kbd>+<Kbd>Enter</Kbd> add as {leaderNoun}
+              · <Kbd>{isMac ? "⌘" : "Ctrl"}</Kbd>+<Kbd>Enter</Kbd> add as {leaderNoun}
             </>
           )}{" "}
           · “4 Name” sets quantity · <Kbd>?</Kbd> shortcuts

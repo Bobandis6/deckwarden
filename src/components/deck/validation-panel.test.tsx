@@ -73,6 +73,63 @@ describe("ValidationPanel — the Warden line", () => {
   });
 });
 
+describe("ValidationPanel — progress, not problems (Y2a)", () => {
+  const EMPTY_COMMANDER: ValidationIssue = {
+    code: "ZONE_SIZE",
+    severity: "error",
+    message: "Commander must have 1–2 cards (has 0).",
+    zone: "commander",
+    progress: true,
+  };
+  const SHORT: ValidationIssue = { ...DECK_SIZE, progress: true };
+  const BANNED: ValidationIssue = {
+    code: "BANNED",
+    severity: "error",
+    message: "Mana Crypt is banned in Commander.",
+  };
+
+  it("with a progress line, flagged issues are one neutral line — no red count, never the approval", () => {
+    render(
+      <ValidationPanel
+        formatLabel="Commander"
+        issues={[EMPTY_COMMANDER, SHORT]}
+        cards={new Map()}
+        onPreview={() => {}}
+        progress="Choose a commander · 100 to go"
+      />,
+    );
+    const line = document.querySelector('[data-slot="progress-line"]') as HTMLElement;
+    expect(line.textContent).toBe("Choose a commander · 100 to go");
+    expect(line.className).toContain("text-muted-foreground");
+    expect(screen.queryByRole("button", { name: /problem/ })).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("real problems stay red beneath the line, counted without the progress", () => {
+    render(
+      <ValidationPanel
+        formatLabel="Commander"
+        issues={[SHORT, BANNED]}
+        cards={new Map()}
+        onPreview={() => {}}
+        progress="2 to go"
+      />,
+    );
+    expect(document.querySelector('[data-slot="progress-line"]')?.textContent).toBe("2 to go");
+    const problems = screen.getByRole("button", { name: /^1 problem/ });
+    expect(problems.className).toContain("text-destructive");
+    fireEvent.click(problems);
+    expect(screen.getByText("Mana Crypt is banned in Commander.")).toBeTruthy();
+    expect(screen.queryByText(DECK_SIZE.message)).toBeNull();
+  });
+
+  it("without a line (the share page) a flagged issue is still a problem", () => {
+    render(panel([SHORT]));
+    expect(document.querySelector('[data-slot="progress-line"]')).toBeNull();
+    expect(screen.getByRole("button", { name: /1 problem/ })).toBeTruthy();
+  });
+});
+
 describe("ValidationPanel — F5 previews (share pages)", () => {
   it("with `preview`, an issue's card chips are hover-card triggers that still call onPreview on click", () => {
     const sol: EditorCard = {

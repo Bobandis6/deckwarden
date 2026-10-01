@@ -108,6 +108,38 @@ describe("EditorHeader", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  it("a draft at rest says Draft (titled, no check, data-draft) in the same w-36 slot; data-status keeps the autosave state (Y2a)", () => {
+    const { rerender } = render(header({ draft: true }));
+    const slot = () => document.querySelector('[data-slot="save-slot"]') as HTMLElement;
+    expect(slot().dataset.status).toBe("saved");
+    expect(slot().dataset.draft).toBe("true");
+    expect(slot().textContent).toBe("Draft");
+    expect(slot().getAttribute("title")).toBe("Saves on your first change");
+    expect(slot().querySelector("svg")).toBeNull();
+    expect(slot().className).toContain("w-36");
+    // The first edit reads like any other; the draft mark stays until a row exists.
+    rerender(header({ draft: true, saveStatus: "dirty" }));
+    expect(slot().textContent).toBe("Unsaved…");
+    expect(slot().hasAttribute("title")).toBe(false);
+    expect(slot().dataset.draft).toBe("true");
+    rerender(header({ draft: true, saveStatus: "error" }));
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+    // A saved deck: no data-draft, "Saved" with its check.
+    rerender(header({ saveStatus: "saved" }));
+    expect(slot().hasAttribute("data-draft")).toBe(false);
+    expect(slot().textContent).toBe("Saved");
+    expect(slot().querySelector("svg")).toBeTruthy();
+  });
+
+  it("Keep this deck renders only with onKeep and calls it (Y2a)", () => {
+    const onKeep = vi.fn();
+    const { rerender } = render(header({ draft: true }));
+    expect(screen.queryByRole("button", { name: "Keep this deck" })).toBeNull();
+    rerender(header({ draft: true, onKeep }));
+    fireEvent.click(screen.getByRole("button", { name: "Keep this deck" }));
+    expect(onKeep).toHaveBeenCalledTimes(1);
+  });
+
   it("Share is the primary action only once a server row exists", () => {
     const onOpen = vi.fn();
     const { rerender } = render(header({ onOpen }));
