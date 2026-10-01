@@ -46,6 +46,10 @@ if [ ! -s "$MANIFEST" ]; then
 fi
 
 export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+# aws-cli's standard retry mode, more patient than the legacy default: the
+# first small backfill (2026-10-01) lost one 1.4 MB GET to "Max Retries
+# Exceeded" in a 4,843-object sync.
+export AWS_RETRY_MODE=standard AWS_MAX_ATTEMPTS=10
 
 DEST_BUCKET="${R2_PUBLIC_BUCKET:-$R2_BUCKET}"
 
@@ -106,18 +110,28 @@ if [ -n "${R2_PUBLIC_BUCKET:-}" ]; then
   small_present=$((total - missing_count))
   if [ "$missing_count" -gt 0 ]; then
     full=$(mktemp -d)
-    # The sync is only for keys the bucket holds and tonight did not stage
-    # (a key Bandai failed to serve is in neither, so it does not trigger it).
-    needs_bucket=0
-    while IFS= read -r key; do
-      if [ ! -f "$stage/$key.png" ] && grep -qxF "$key.png" "$existing"; then
-        needs_bucket=1
-        break
-      fi
-    done < "$missing_small"
-    if [ "$needs_bucket" -eq 1 ]; then
-      aws s3 sync "s3://$DEST_BUCKET/$PREFIX/" "$full" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+    # Sources from the bucket: only keys it holds that tonight did not stage
+    # (a key Bandai failed to serve is in neither). A few come one by one;
+    # many (the one-time backfill) come in ONE recursive sync. A failed
+    # transfer is a warning, never fatal: whatever arrived is resized, and
+    # the next night retries the rest.
+    bucket_keys=$(mktemp)
+    awk 'FILENAME == ARGV[1] { held[$0] = 1; next } (($0 ".png") in held) { print }' \
+      "$existing" "$missing_small" | while IFS= read -r key; do
+      [ -f "$stage/$key.png" ] || echo "$key"
+    done > "$bucket_keys"
+    bucket_count=$(wc -l < "$bucket_keys" | tr -d ' ')
+    if [ "$bucket_count" -gt 50 ]; then
+      aws s3 sync "s3://$DEST_BUCKET/$PREFIX/" "$full" --endpoint-url "$R2_ENDPOINT" --only-show-errors \
+        || echo "WARN: the bucket sync missed some PNGs; their small renditions wait for the next night."
+    elif [ "$bucket_count" -gt 0 ]; then
+      while IFS= read -r key; do
+        aws s3 cp "s3://$DEST_BUCKET/$PREFIX/$key.png" "$full/$key.png" \
+          --endpoint-url "$R2_ENDPOINT" --only-show-errors \
+          || echo "WARN: could not fetch $key.png from the bucket; retried next night."
+      done < "$bucket_keys"
     fi
+    rm -f "$bucket_keys"
     small_list=$(mktemp)
     while IFS= read -r key; do
       if [ -f "$stage/$key.png" ]; then
