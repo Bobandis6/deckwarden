@@ -1,7 +1,7 @@
 /**
  * The tile helpers (R5a): the row → tile step behind every deck collection
- * — the `small` image through the Scryfall-only gate (a One Piece mirror
- * URL answers null, so the tile makes no request until LATER row 51), the
+ * — the `small` image (Scryfall's for Magic; since P4.9 the mirror's WebP
+ * for One Piece on img.deckwarden.gg, while an r2.dev URL stays null), the
  * 3 px identity strip from `ci_mask` in each game's display order with
  * partners OR'd and mask 0 neutral, the gradient slot paint, the byline
  * opt-in, the owner-only visibility word, and the UTC-pinned date.
@@ -20,10 +20,16 @@ import {
 const QUEZA_PRINTING = { id: "064a84dd-bb7c-4980-a031-23c778e37f73", imageOverride: null };
 const ENEL_PRINTING = {
   id: "2b673a2b-b8cb-5b50-92de-f919bd839b49",
+  imageOverride: { front: "https://img.deckwarden.gg/optcg/images/OP15-058.png" },
+};
+/** The same printing as it stood before the P4.9 flip. */
+const ENEL_R2DEV_PRINTING = {
+  ...ENEL_PRINTING,
   imageOverride: {
     front: "https://pub-6d142676dd964e79abf609637297c45d.r2.dev/optcg/images/OP15-058.png",
   },
 };
+const ENEL_SMALL = "https://img.deckwarden.gg/optcg/small/OP15-058.webp";
 
 const base = {
   publicId: "q9j9uxphwp9n",
@@ -45,8 +51,12 @@ describe("leaderTileImage", () => {
     );
   });
 
-  it("is null for the One Piece mirror (LATER row 51) and for no printing", () => {
-    expect(leaderTileImage(ENEL_PRINTING)).toBeNull();
+  it("is the mirror's small WebP for a One Piece default printing (P4.9)", () => {
+    expect(leaderTileImage(ENEL_PRINTING)).toBe(ENEL_SMALL);
+  });
+
+  it("is null for an r2.dev mirror URL and for no printing", () => {
+    expect(leaderTileImage(ENEL_R2DEV_PRINTING)).toBeNull();
     expect(leaderTileImage(null)).toBeNull();
     expect(leaderTileImage(undefined)).toBeNull();
   });
@@ -121,7 +131,7 @@ describe("tileFromDeck", () => {
     expect(tile.slotGradient).toContain("var(--mana-w)");
   });
 
-  it("a One Piece row: no image (gated), Purple strip and slot, format Standard, ♥ 1", () => {
+  it("a One Piece row: the small WebP, Purple strip and slot, format Standard, ♥ 1", () => {
     const tile = tileFromDeck(
       {
         ...base,
@@ -135,7 +145,7 @@ describe("tileFromDeck", () => {
       ENEL_PRINTING,
       { href: "/d/jhr5ax43ewx7" },
     );
-    expect(tile.leaderImage).toBeNull();
+    expect(tile.leaderImage).toBe(ENEL_SMALL);
     expect(tile.gameLabel).toBe("One Piece");
     expect(tile.formatLabel).toBe("Standard");
     expect(tile.strip).toBe("#6a1b9a");

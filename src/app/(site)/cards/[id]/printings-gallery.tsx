@@ -527,9 +527,8 @@ function PrintingRow({
   onActivate: (row: GalleryPrinting) => void;
 }) {
   const image = embeddablePrintingImageUrl(printing, "normal");
-  // Same rule as search rows (R3 F6): `small` for the Scryfall CDN, a blank
-  // spacer for everything else — One Piece included, until the
-  // img.deckwarden.gg flip decides OP thumbnail sizing.
+  // Same rule as search rows (R3 F6): the `small` rendition — Scryfall's, or
+  // since P4.9 the One Piece mirror's WebP — and a blank spacer otherwise.
   const thumb = thumbnailUrl(image);
 
   return (

@@ -11,13 +11,14 @@
  * /api/cards/search params and result limit, but "No cards match" renders
  * only once a response says so, "Search failed" carries a Retry, and the
  * live line clears on the next input. Rows show a tiny full-card thumbnail
- * (never cropped; the same-width spacer keeps One Piece rows aligned until
- * LATER row 51 gives them one), the Add / Commander actions are visible on
- * the ACTIVE row and on coarse pointers (the listbox owns focus, so
- * focus-within cannot), and the hint line is keycaps. Successful adds are
- * announced by the editor's toast (F3); the pane's live line carries only
- * rejections. The `/` and `?` keys live in DeckEditor's useEditorHotkeys —
- * the editor focuses this pane through its ref.
+ * (never cropped; One Piece rows have had the mirror's small WebP since
+ * P4.9, and a row without one keeps a same-width spacer), the Add /
+ * Commander actions are visible on the ACTIVE row and on coarse pointers
+ * (the listbox owns focus, so focus-within cannot), and the hint line is
+ * keycaps. Successful adds are announced by the editor's toast (F3); the
+ * pane's live line carries only rejections. The `/` and `?` keys live in
+ * DeckEditor's useEditorHotkeys — the editor focuses this pane through its
+ * ref.
  *
  * R4: two preview channels. Responses and arrow moves are PASSIVE
  * (`onPreview` — the detail pane updates silently, on a phone too); a
@@ -243,7 +244,7 @@ export function SearchPane({
             >
               {/* Thumbnail (F6): the full card at 36 px tall — never cropped —
                   in a box of that width whether or not an image exists, so
-                  Magic and One Piece rows align (row 51's flip changes no layout). */}
+                  every row aligns (P4.9's One Piece thumbnails changed no layout). */}
               <span
                 aria-hidden
                 data-slot="thumb"

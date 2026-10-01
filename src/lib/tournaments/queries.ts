@@ -251,6 +251,8 @@ type FinishLeaderRaw = Record<string, unknown> & {
   attrs: unknown;
   latest: string | null;
   finishes: number | null;
+  printing_id: string | null;
+  image_override: unknown;
 };
 
 /**
@@ -262,6 +264,8 @@ type FinishLeaderRaw = Record<string, unknown> & {
  * keeps only the finish rows when any exist and takes the name-ordered
  * rows as the cold-start shelf otherwise. Reads `tournaments_game_date`
  * for the game, then the standings by event; ~2k One Piece standings today.
+ * P4.9: the default printing is LEFT JOINed too (one per identity, as on
+ * /commanders) for the shelf's small image — still one statement.
  */
 export async function loadRecentFinishLeaders(
   gameId: number,
@@ -279,9 +283,10 @@ export async function loadRecentFinishLeaders(
       GROUP BY leader_id
     )
     SELECT ci.id, ci.name, ci.slug, ci.external_key, ci.colors_mask, ci.attrs,
-           r.latest, r.finishes
+           r.latest, r.finishes, cp.id AS printing_id, cp.image_override
     FROM card_identities ci
     LEFT JOIN ranked r ON r.leader_id = ci.id
+    LEFT JOIN card_printings cp ON cp.card_identity_id = ci.id AND cp.is_default
     WHERE ci.game_id = ${gameId}
       AND ci.is_leader_candidate
       AND NOT ci.is_removed
@@ -297,5 +302,7 @@ export async function loadRecentFinishLeaders(
     attrs: row.attrs,
     latestFinish: row.latest,
     finishes: row.finishes ?? 0,
+    printingId: row.printing_id,
+    imageOverride: row.image_override,
   }));
 }

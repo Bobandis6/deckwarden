@@ -101,6 +101,39 @@ describe("SearchPane", () => {
     expect(screen.queryByText(/No cards match/)).toBeNull();
   });
 
+  it("One Piece rows (P4.9): the mirror's small WebP in the same 36 px box; r2.dev keeps the spacer", async () => {
+    const op = getAdapter("optcg");
+    render(
+      <SearchPane
+        adapter={op}
+        format={op.formats[0]}
+        inDeckQty={new Map()}
+        onAdd={vi.fn()}
+        onPreview={() => {}}
+      />,
+    );
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    respond([
+      {
+        ...card({ name: "Enel", externalKey: "OP15-058", isLeaderCandidate: true }),
+        image: "https://img.deckwarden.gg/optcg/images/OP15-058.png",
+      },
+      {
+        ...card({ name: "Enel", externalKey: "OP05-098" }),
+        image: "https://pub-6d142676dd964e79abf609637297c45d.r2.dev/optcg/images/OP05-098.png",
+      },
+    ]);
+    type(input, "enel");
+    await settle();
+    const thumbs = document.querySelectorAll('[data-slot="thumb"]');
+    expect(thumbs).toHaveLength(2);
+    const img = thumbs[0].querySelector("img") as HTMLImageElement;
+    expect(img.getAttribute("src")).toBe("https://img.deckwarden.gg/optcg/small/OP15-058.webp");
+    expect(img.className).toContain("h-9 w-auto");
+    expect(thumbs[0].className).toContain("w-[1.625rem]");
+    expect(thumbs[1].querySelector("img")).toBeNull();
+  });
+
   it("Enter adds the prefixed quantity to the main zone, clears and refocuses, and shows no success line", async () => {
     const { input, onAdd } = renderPane();
     respond([sol]);

@@ -131,9 +131,15 @@ describe("thumbnailUrl", () => {
     expect(thumbnailUrl(scryfallImageUrl(ID))).toBe(scryfallImageUrl(ID, "small"));
   });
 
-  it("returns null for the OP mirror, overrides, foreign URLs, and null (row 51 gates OP)", () => {
+  it("returns the mirror's small WebP for an img.deckwarden.gg PNG (P4.9 — row 51 fired)", () => {
+    expect(thumbnailUrl("https://img.deckwarden.gg/optcg/images/ST01-001.png")).toBe(
+      "https://img.deckwarden.gg/optcg/small/ST01-001.webp",
+    );
+  });
+
+  it("returns null for r2.dev, overrides, foreign URLs, and null", () => {
+    // r2.dev is rate-limited ("not for production"): small boxes never point at it.
     expect(thumbnailUrl("https://pub-0123.r2.dev/optcg/images/OP15-058.png")).toBeNull();
-    expect(thumbnailUrl("https://img.deckwarden.gg/optcg/images/ST01-001.png")).toBeNull();
     expect(thumbnailUrl("https://example.com/normal/hosted.jpg")).toBeNull();
     expect(thumbnailUrl(`https://cards.scryfall.io/png/front/e/3/${ID}.png`)).toBeNull();
     expect(thumbnailUrl(null)).toBeNull();

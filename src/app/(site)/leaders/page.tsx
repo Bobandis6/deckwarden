@@ -18,20 +18,25 @@
  * "leaders that include Red") — mirrors /commanders' exact-identity call.
  *
  * R5a: the filter and the row dots are the shared ColorChip (C14), and the
- * main carries `data-game="optcg"`. No List / Grid toggle here until LATER
- * row 51 fires — 142 r2.dev images on one page is exactly the throttling
- * the row warns about; the grid arrives with `img.deckwarden.gg`.
+ * main carries `data-game="optcg"`. P4.9: the rows render through
+ * LeaderIndexView's One Piece flavor — the same list in the server HTML, and
+ * the image grid behind the List / Grid toggle /commanders already has (one
+ * stored preference for both). The grid became affordable with
+ * img.deckwarden.gg and the mirror's small WebP: 142 leaders × ~10 KB ≈
+ * 1.4 MB, lazy, where the full PNGs would have been ~24.8 MB.
  */
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { chipClass, ColorChipLink, ColorChipList } from "@/components/color-chip";
+import { chipClass, ColorChipLink } from "@/components/color-chip";
 import { EmptyState } from "@/components/empty-state";
 import { GameSwitch } from "@/components/game-switch";
+import { LeaderIndexView, type IndexLeader } from "@/components/hub/leader-index-view";
 import { LeaderPickBanner } from "@/components/hub/leader-pick-banner";
 import { NameSuggest } from "@/components/search/name-suggest";
 import { Button } from "@/components/ui/button";
 import { normalizeCardName } from "@/lib/cards/normalize";
+import { leaderTileImage } from "@/lib/decks/tiles";
 import { loadOpLeaderIndex } from "@/lib/hub/queries";
 import { lettersToMask } from "@/lib/games/colors";
 import { OPTCG_COLORS } from "@/lib/games/optcg/colors";
@@ -74,6 +79,26 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
   const qActive = normalizeCardName(rawQ) !== "";
 
   const leaders = await loadOpLeaderIndex({ colorsMask, q: rawQ });
+  const rows: IndexLeader[] = leaders.flatMap((leader) =>
+    leader.slug === null
+      ? []
+      : [
+          {
+            id: leader.id,
+            name: leader.name,
+            slug: leader.slug,
+            rank: null,
+            ciMask: leader.colorsMask,
+            image: leaderTileImage(
+              leader.printingId
+                ? { id: leader.printingId, imageOverride: leader.imageOverride }
+                : null,
+            ),
+            externalKey: leader.externalKey,
+            life: (leader.attrs as OptcgAttrs).life ?? null,
+          },
+        ],
+  );
 
   return (
     <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="optcg">
@@ -147,7 +172,7 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
         </nav>
       </div>
 
-      {leaders.length === 0 ? (
+      {rows.length === 0 ? (
         qActive ? (
           <EmptyState
             className="mt-6"
@@ -170,37 +195,11 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
           />
         )
       ) : (
-        <>
-          <p className="text-muted-foreground mt-6 text-sm" aria-live="polite">
-            {leaders.length} leader{leaders.length === 1 ? "" : "s"}
-          </p>
-          <ul className="mt-2 divide-y rounded-lg border">
-            {leaders.map((leader) => {
-              const attrs = leader.attrs as OptcgAttrs;
-              return (
-                <li key={leader.id}>
-                  <Link
-                    href={`/l/${leader.slug}`}
-                    className="flex items-center justify-between gap-3 px-3 py-2 hover:underline"
-                  >
-                    <span className="min-w-0">
-                      <span className="text-sm font-medium">{leader.name}</span>
-                      <span className="text-muted-foreground ml-2 text-xs tabular-nums uppercase">
-                        {leader.externalKey}
-                      </span>
-                      {attrs.life != null && (
-                        <span className="text-muted-foreground ml-2 text-xs">
-                          {attrs.life} Life
-                        </span>
-                      )}
-                    </span>
-                    <ColorChipList game="optcg" mask={leader.colorsMask} className="text-xs" />
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </>
+        <LeaderIndexView
+          game="optcg"
+          leaders={rows}
+          summary={`${rows.length} leader${rows.length === 1 ? "" : "s"}`}
+        />
       )}
 
       <p className="text-muted-foreground mt-12 text-xs">

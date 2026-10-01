@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     .filter((deck) => isDeckOwner(deck, tokenById.get(deck.id) ?? null))
     .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   // R5a: the ONE additive field — the first leader's `small` rendition for
-  // the home tiles (null while a game's images are gated, LATER row 51).
+  // the home tiles (One Piece's since P4.9; null when a deck has no leader).
   // deckMetaJson and every existing field are untouched.
   const printings = await loadDefaultPrintings(
     owned.flatMap((deck) => (deck.leaderIds[0] ? [deck.leaderIds[0]] : [])),

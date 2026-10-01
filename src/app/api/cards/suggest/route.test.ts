@@ -179,7 +179,7 @@ describe("GET /api/cards/suggest", () => {
           externalKey: "OP01-020",
           typeLine: "Character — Land of Wano",
           printingId: "00000000-0000-4000-8000-000000000001",
-          imageOverride: { front: "https://pub-example.r2.dev/OP01-020.png" },
+          imageOverride: { front: "https://img.deckwarden.gg/optcg/images/OP01-020.png" },
         }),
       ],
     ];
@@ -189,8 +189,11 @@ describe("GET /api/cards/suggest", () => {
     expect(statements[0].params).toContain("OP01-02%");
     expect(statements[0].sql).toContain('order by "card_identities"."external_key" ASC');
     expect(statements[0].sql).not.toContain("CASE");
-    // One Piece thumbnails follow thumbnailUrl(): a spacer until LATER row 51.
-    expect(body.results[0]).toMatchObject({ externalKey: "OP01-020", image: null });
+    // One Piece thumbnails follow thumbnailUrl(): the mirror's small WebP (P4.9).
+    expect(body.results[0]).toMatchObject({
+      externalKey: "OP01-020",
+      image: "https://img.deckwarden.gg/optcg/small/OP01-020.webp",
+    });
   });
 
   it("Magic never takes the id pass", async () => {

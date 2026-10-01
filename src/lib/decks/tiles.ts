@@ -6,11 +6,11 @@
  * printing (joined or batched) and hand it in.
  *
  * Images: the leader image is the `small` full-card rendition through
- * `thumbnailUrl`, which answers null for everything but the Scryfall CDN —
- * so a One Piece tile makes no image request until LATER row 51 flips
- * `img.deckwarden.gg` on. Its slot paints the deck's color gradient instead
- * (R2's `ambientGradient` over `display.colorSwatches`), so a One Piece tile
- * is never a grey box and the flip only swaps the slot's contents.
+ * `thumbnailUrl`: Scryfall's `small` for Magic, and since P4.9 the mirror's
+ * 146 × 204 WebP for One Piece (img.deckwarden.gg only). A tile with no
+ * image paints the deck's color gradient in its slot (R2's
+ * `ambientGradient` over `display.colorSwatches`), so it is never a grey
+ * box; the image only swaps the slot's contents.
  *
  * The identity strip (G8): a 3 px `background` built here from
  * `decks.ci_mask` — the adapter's swatches in the game's display order
@@ -51,7 +51,7 @@ export interface DeckTileData {
   /** Rendered as `♥ N` only when > 0. */
   likesCount: number;
   ciMask: number;
-  /** The `small` rendition, or null when the game's images are gated or the deck has no leader. */
+  /** The `small` rendition, or null when the deck has no leader or its image has no small rendition. */
   leaderImage: string | null;
   /** The identity strip's CSS background. */
   strip: string;
@@ -100,8 +100,8 @@ export function stripBackground(swatches: readonly string[]): string {
 
 /**
  * The tile image for a default printing: the `small` rendition of the
- * embeddable URL, null when the URL is not Scryfall's (the One Piece
- * mirror — the LATER row 51 gate) or when there is no printing.
+ * embeddable URL (Scryfall's, or the One Piece mirror's WebP), null when
+ * the URL has none (r2.dev, anything foreign) or there is no printing.
  */
 export function leaderTileImage(
   printing: { id: string; imageOverride?: unknown } | null | undefined,

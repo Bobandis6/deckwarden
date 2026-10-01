@@ -16,8 +16,8 @@
  * `scope: "leaders"` is the hub scope: leader candidates WITH a slug (every
  * one has one, measured 2026-09-27; the condition is the hub's own). Banned
  * commanders stay in — their hubs exist for reference. The image is the
- * `small` thumbnail through `thumbnailUrl()`, the single gate that keeps One
- * Piece rows on a same-width spacer until LATER row 51 sizes their images.
+ * `small` thumbnail through `thumbnailUrl()`, the single gate: Scryfall's
+ * `small` for Magic, the mirror's small WebP for One Piece since P4.9.
  */
 import { and, eq, notInArray, sql, type SQL } from "drizzle-orm";
 
@@ -52,7 +52,7 @@ export interface SuggestRow {
   ciMask: number;
   /** Magic: the oracle id; One Piece: the card number ("OP01-025"). */
   externalKey: string;
-  /** The `small` thumbnail, or null (One Piece until LATER row 51; a card with no printing). */
+  /** The `small` thumbnail, or null (a card with no printing or no small rendition). */
   image: string | null;
 }
 

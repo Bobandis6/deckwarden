@@ -24,8 +24,8 @@ const SPOTS = ["18% 22%", "82% 30%", "50% 80%", "20% 78%", "82% 82%", "50% 42%"]
 
 /**
  * The color-identity gradient (R2, G7) — the ambient layer's fallback paint
- * and, since R5a, the deck tiles' and leader shelves' image-slot paint for
- * games whose images are gated (LATER row 51). Pure CSS string.
+ * and, since R5a, the deck tiles' and leader shelves' image-slot paint when
+ * a leader has no small image. Pure CSS string.
  */
 export function ambientGradient(swatches: readonly string[]): string {
   if (swatches.length === 1) {

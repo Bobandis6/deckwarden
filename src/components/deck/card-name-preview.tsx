@@ -13,7 +13,7 @@
  * blur and Escape (the primitive's defaults).
  *
  * The popup is the card's normal rendition — the wire's `card.image`, so
- * no request of its own; One Piece names preview the r2.dev normal image
+ * no request of its own; One Piece names preview the mirror's full image
  * the share page's grid already renders — through `CardImage` at an
  * explicit size, `alt=""` with the name as screen-reader text beside it (a
  * card image shows nothing the name does not say). A card without an

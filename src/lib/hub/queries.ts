@@ -416,13 +416,20 @@ export interface OpLeaderIndexRow {
   attrs: unknown;
 }
 
+/** An index row plus its default printing (P4.9: the /leaders grid's small image). */
+export interface OpLeaderIndexEntry extends OpLeaderIndexRow {
+  printingId: string | null;
+  imageOverride: unknown;
+}
+
 /**
  * OP leader index (P4.4): every slugged OP leader, name order — the honest
  * zero-signal ordering (popularity/prices are all-NULL for OP, and
  * external_key order interleaves EB/OP/P/ST prefixes, a poor "newest first"
  * proxy; LATER row 55 holds the release-date map). 142 rows today, no
  * pagination needed; exact colors_mask filter mirrors /commanders semantics
- * (colors_mask == ci_mask for OP by ingest contract).
+ * (colors_mask == ci_mask for OP by ingest contract). P4.9: the default
+ * printing is LEFT JOINed, as on /commanders — still one statement.
  */
 export async function loadOpLeaderIndex(opts: {
   colorsMask: number | null;
@@ -432,7 +439,7 @@ export async function loadOpLeaderIndex(opts: {
    * Piece has no play signal). Without a name the order is A to Z.
    */
   q?: string;
-}): Promise<OpLeaderIndexRow[]> {
+}): Promise<OpLeaderIndexEntry[]> {
   const conditions = [
     eq(cardIdentities.gameId, GAME_ID.optcg),
     eq(cardIdentities.isLeaderCandidate, true),
@@ -450,8 +457,14 @@ export async function loadOpLeaderIndex(opts: {
       externalKey: cardIdentities.externalKey,
       colorsMask: cardIdentities.colorsMask,
       attrs: cardIdentities.attrs,
+      printingId: cardPrintings.id,
+      imageOverride: cardPrintings.imageOverride,
     })
     .from(cardIdentities)
+    .leftJoin(
+      cardPrintings,
+      and(eq(cardPrintings.cardIdentityId, cardIdentities.id), eq(cardPrintings.isDefault, true)),
+    )
     .where(and(...conditions))
     .orderBy(
       ...(nameQuery

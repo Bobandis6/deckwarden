@@ -271,8 +271,8 @@ function PrintingsList({
       <ul className="space-y-px">
         {rows.map((p) => {
           const image = embeddablePrintingImageUrl(p, "normal");
-          // Same rule as search rows (R3 F6): `small` for the Scryfall CDN, a
-          // blank spacer for everything else — One Piece included.
+          // Same rule as search rows (R3 F6): the `small` rendition (Scryfall's,
+          // or the One Piece mirror's WebP), a blank spacer otherwise.
           const thumb = thumbnailUrl(image);
           const isSelected = selectedRow?.id === p.id;
           return (

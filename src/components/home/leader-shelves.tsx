@@ -6,10 +6,10 @@
  * under a label that names the source — the ordering IS tournament data,
  * so the Limitless credit sits with it (the attribution rule) — or, when no
  * finish exists anywhere (the cold-start branch `opShelf` pins), leaders in
- * name order with no label and no popularity wording. One Piece cards paint
- * the leader's color gradient in the image slot and carry the printed id
- * top-left (C13's corner rule): no r2.dev request leaves this page until
- * LATER row 51 fires, and the flip only swaps the slot's contents.
+ * name order with no label and no popularity wording. One Piece cards carry
+ * the printed id top-left (C13's corner rule) and, since P4.9, the mirror's
+ * small WebP in the image slot; a leader with no image paints its color
+ * gradient there instead.
  *
  * Each card is one link — its hub — named by the leader (plus the printed
  * id for One Piece, which is what tells the seventeen Luffys apart).
@@ -135,7 +135,7 @@ export function OpShelf({ shelf }: { shelf: OpShelfData }) {
             key={leader.id}
             href={leader.href}
             name={leader.name}
-            image={null}
+            image={leader.image}
             gradient={ambientGradient(tileSwatches("optcg", leader.colorsMask))}
             badge={leader.externalKey}
             meta={

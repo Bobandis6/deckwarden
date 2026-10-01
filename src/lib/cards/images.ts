@@ -46,8 +46,8 @@ export function printingImageUrl(
  * (verified 2026-09-03 on en. and asia-en.onepiece-cardgame.com), so browsers
  * REFUSE cross-site embeds — a Bandai URL in image_override is data
  * provenance and the mirror job's download source, never a renderable src.
- * OP images become displayable when the R2 mirror gets its public domain
- * (owner step) and a re-ingest re-points overrides at it.
+ * OP images render from the R2 mirror instead: image_override has pointed
+ * there since P4.1 (r2.dev), and at img.deckwarden.gg since P4.9.
  */
 export function isEmbeddableImageUrl(url: string): boolean {
   return !/^https:\/\/[^/]*onepiece-cardgame\.com\//.test(url);
@@ -105,20 +105,33 @@ export function optcgSmallImageUrl(url: string): string | null {
  * printing was resolved server-side, so the printing id isn't available to
  * re-derive from) — e.g. the sample-hand widget's 7-card fan. Rewrites only
  * the documented cards.scryfall.io pattern; override URLs (stored at `normal`,
- * served as-is for every version) and anything else pass through untouched.
+ * served as-is for every version) and anything else pass through untouched,
+ * the One Piece mirror's full PNG included (LATER: the sample hand's small
+ * rendition).
  */
 export function toSmallImage(url: string): string {
   return url.replace(/^(https:\/\/cards\.scryfall\.io\/)normal(\/)/, "$1small$2");
 }
 
 /**
- * The tiny full-card thumbnail for search rows (R3, F6): the `small`
- * rendition for the Scryfall CDN's `normal` URLs, null for everything else —
- * the One Piece mirror included, until `img.deckwarden.gg` serves and LATER
- * row 51's flip decides how OP thumbnails are sized. Null means "no <img>"
- * (the row keeps a same-width spacer), never a broken src.
+ * The `small` thumbnail for every small box: search and suggest rows, the
+ * printings lists, deck tiles, the home shelves and the index grids (R3 F6,
+ * R5a). Magic gets Scryfall's `small` for its `normal` CDN URLs. One Piece
+ * gets the mirror's small WebP for an img.deckwarden.gg PNG (P4.9). Anything
+ * else is null, which means "no <img>": the box keeps its spacer or
+ * gradient, never a broken src. r2.dev URLs stay null too.
+ *
+ * Why a second rendition instead of the full PNG (P4.9, decided on bytes
+ * measured 2026-10-01): a full mirror PNG averages 174,375 B, the small WebP
+ * 10,141 B. The full PNG would make a 20-row search page about 3.5 MB and
+ * the 142-leader /leaders grid about 24.8 MB; the small renditions make
+ * them about 0.2 MB and 1.4 MB, Magic's own `small` budget. Cloudflare Image
+ * Transformations were the third option, but the Free plan's 5,000 unique
+ * transformations a month barely covers the 4,843 printings at one size,
+ * and past the cap new ones fail with error 9422.
  */
 export function thumbnailUrl(image: string | null): string | null {
-  if (!image || !/^https:\/\/cards\.scryfall\.io\/normal\//.test(image)) return null;
-  return toSmallImage(image);
+  if (!image) return null;
+  if (/^https:\/\/cards\.scryfall\.io\/normal\//.test(image)) return toSmallImage(image);
+  return optcgSmallImageUrl(image);
 }

@@ -14,7 +14,8 @@
  * serves both branches: rows with a finish → the labeled shelf of exactly
  * those rows (never padded with unranked leaders); no finish anywhere →
  * the cold-start shelf, name order, no label, no popularity wording (§2's
- * words). One Piece images stay off the shelf until LATER row 51.
+ * words). Both shelves take the `small` rendition of each default printing
+ * (One Piece's since P4.9: the mirror's WebP on img.deckwarden.gg).
  */
 import { leaderTileImage } from "@/lib/decks/tiles";
 
@@ -63,6 +64,8 @@ export interface FinishLeaderRow {
   /** ISO date of the most recent kept finish; null = none on record. */
   latestFinish: string | null;
   finishes: number;
+  printingId: string | null;
+  imageOverride: unknown;
 }
 
 export interface OpShelfCard {
@@ -73,6 +76,8 @@ export interface OpShelfCard {
   colorsMask: number;
   life: number | null;
   finishes: number;
+  /** The `small` rendition; null when the leader has no default printing. */
+  image: string | null;
 }
 
 export interface OpShelf {
@@ -91,6 +96,9 @@ function opCard(row: FinishLeaderRow): OpShelfCard {
     colorsMask: row.colorsMask,
     life: typeof attrs.life === "number" ? attrs.life : null,
     finishes: row.finishes,
+    image: leaderTileImage(
+      row.printingId ? { id: row.printingId, imageOverride: row.imageOverride } : null,
+    ),
   };
 }
 

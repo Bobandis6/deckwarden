@@ -3,7 +3,8 @@
  * (no printing → no image, no slug → no card); the One Piece shelf's two
  * branches over one query — finishes present → labeled, exactly the
  * finish rows and never padded with unranked leaders; no finishes at all
- * → the cold-start shelf in the query's name order with no label.
+ * → the cold-start shelf in the query's name order with no label — and,
+ * since P4.9, the mirror's small WebP on each One Piece card.
  */
 import { describe, expect, it } from "vitest";
 
@@ -53,6 +54,8 @@ const leader = (
   attrs: { life },
   latestFinish: latest,
   finishes,
+  printingId: `printing-${key}`,
+  imageOverride: { front: `https://img.deckwarden.gg/optcg/images/${key}.png` },
 });
 
 describe("opShelf", () => {
@@ -75,7 +78,21 @@ describe("opShelf", () => {
       colorsMask: 32,
       life: 5,
       finishes: 231,
+      image: "https://img.deckwarden.gg/optcg/small/OP15-058.webp",
     });
+  });
+
+  it("a leader with no default printing, or an r2.dev image, keeps the gradient (image null)", () => {
+    const shelf = opShelf([
+      { ...leader("Enel", "OP15-058", 231, "2026-09-08"), printingId: null, imageOverride: null },
+      {
+        ...leader("Dracule Mihawk", "OP14-020", 173, "2026-09-08"),
+        imageOverride: {
+          front: "https://pub-6d142676dd964e79abf609637297c45d.r2.dev/optcg/images/OP14-020.png",
+        },
+      },
+    ]);
+    expect(shelf.leaders.map((l) => l.image)).toEqual([null, null]);
   });
 
   it("cold start (no finishes anywhere): unlabeled, every row in name order, life kept", () => {
