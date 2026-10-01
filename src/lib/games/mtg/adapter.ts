@@ -149,6 +149,9 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
     leaderNoun: "Commander",
     // W4: the empty leader zone's browse destination (D3).
     leaderBrowse: { href: "/commanders", label: "Browse commanders" },
+    // Y2b: the start doors' precon door (the W8b index, then a product's
+    // "Start from this precon").
+    preconBrowse: { href: "/precons", label: "Start from a precon" },
     searchPlaceholder: "Add cards — try “4 Sol Ring”",
     importPlaceholder:
       "1 Sol Ring\n1 Arcane Signet (AFC) 95\n…paste from Moxfield, Arena, Archidekt, anywhere.",

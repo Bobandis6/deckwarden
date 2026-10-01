@@ -10,6 +10,12 @@
  * server row until the first real edit, the P2.8 contract); no param renders
  * the picker. useSearchParams keeps the page shell static (Suspense at the
  * page level).
+ *
+ * Y2b (WAVE4 D2): each game card carries the start doors under it — Pick
+ * a commander / leader, Paste a list, Start from a precon, Surprise me,
+ * whichever the adapter declares (src/lib/decks/start-doors.ts) — and
+ * `?import=1` is a one-shot latch like `?surprise=1`: the draft opens with
+ * the Import dialog, and the param leaves the URL.
  */
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -18,6 +24,7 @@ import { useEffect, useState } from "react";
 import { DeckEditor } from "@/components/editor/deck-editor";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { startDoorHref, startDoors } from "@/lib/decks/start-doors";
 import { listAdapters } from "@/lib/games/registry";
 import type { GameId } from "@/lib/games/types";
 
@@ -49,11 +56,16 @@ export function NewDeckChooser() {
   const [surprise, setSurprise] = useState(paramSurprise);
   const paramAutofill = params.get("autofill") !== null;
   const [autofill, setAutofill] = useState(paramAutofill);
+  // ?import=1 (Y2b): the Paste a list door — the same one-shot latch; a
+  // reload must never re-open the dialog.
+  const paramImport = params.get("import") !== null;
+  const [pasteList, setPasteList] = useState(paramImport);
   // Adjust-state-during-render (the React-docs pattern): latch a present
   // param, ignore its later disappearance.
   if (paramGame && paramGame !== gameId) setGameId(paramGame);
   if (paramSurprise && !surprise) setSurprise(true);
   if (paramAutofill && !autofill) setAutofill(true);
+  if (paramImport && !pasteList) setPasteList(true);
   const chosen = adapters.find((a) => a.id === gameId);
 
   // Strip the latched one-shot params without a history entry; ?game=,
@@ -61,9 +73,9 @@ export function NewDeckChooser() {
   // before).
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (!url.searchParams.has("surprise") && !url.searchParams.has("autofill")) return;
-    url.searchParams.delete("surprise");
-    url.searchParams.delete("autofill");
+    const oneShot = ["surprise", "autofill", "import"];
+    if (!oneShot.some((name) => url.searchParams.has(name))) return;
+    for (const name of oneShot) url.searchParams.delete(name);
     window.history.replaceState(window.history.state, "", url);
   }, [params]);
 
@@ -82,6 +94,7 @@ export function NewDeckChooser() {
         draftSurprise={surprise || undefined}
         draftComboKey={comboKey ?? undefined}
         draftAutofill={autofill || undefined}
+        draftImport={pasteList || undefined}
       />
     );
   }
@@ -109,29 +122,42 @@ export function NewDeckChooser() {
               ? `${adapter.display.leaderNoun} + ${format.deckSize.min} cards`
               : `${format.deckSize.min} cards`;
             return (
+              // The cards keep their own height (no flex-1): the door rows
+              // below them differ per game (Y2b), and a stretched card would
+              // grow by the difference.
               <div key={adapter.id} className="flex flex-col gap-2">
                 <Link
                   href={`/decks/new?game=${adapter.id}`}
                   replace
-                  className="hover:border-foreground/40 focus-visible:ring-ring/50 flex flex-1 flex-col gap-1 rounded-lg border p-6 outline-none focus-visible:ring-2"
+                  className="hover:border-foreground/40 focus-visible:ring-ring/50 flex flex-col gap-1 rounded-lg border p-6 outline-none focus-visible:ring-2"
                 >
                   <span className="text-lg font-medium">{adapter.name}</span>
                   <span className="text-muted-foreground text-sm">
                     {format.label} · {size}
                   </span>
                 </Link>
-                {/* Surprise me (W9c): only where the adapter declares
-                    autofill — the roll leads into the starter-shell flow.
-                    The other game's roll stays reachable by URL, doorless. */}
-                {adapter.recommend?.autofill && (
-                  <Link
-                    href={`/decks/new?game=${adapter.id}&surprise=1`}
-                    replace
-                    className="text-muted-foreground hover:text-foreground self-start text-sm underline underline-offset-4"
-                  >
-                    Surprise me — random {adapter.display.leaderNoun.toLowerCase()}
-                  </Link>
-                )}
+                {/* The start doors (Y2b) — whichever the adapter declares;
+                    Surprise me (W9c) only where it declares autofill, so
+                    the other game's roll stays reachable by URL, doorless.
+                    Paste a list and Surprise me land on this game's draft
+                    through the latches above (replace, like the card);
+                    the index doors are ordinary pages. */}
+                <ul
+                  aria-label={`Other ways to start a ${adapter.name} deck`}
+                  className="flex flex-wrap gap-x-4 gap-y-1"
+                >
+                  {startDoors(adapter, format).map((door) => (
+                    <li key={door.kind}>
+                      <Link
+                        href={startDoorHref(door, adapter.id)}
+                        replace={door.kind === "paste" || door.kind === "surprise"}
+                        className="text-muted-foreground hover:text-foreground text-sm underline underline-offset-4 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+                      >
+                        {door.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </div>
             );
           })}

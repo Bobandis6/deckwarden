@@ -130,6 +130,46 @@ describe("ValidationPanel — progress, not problems (Y2a)", () => {
   });
 });
 
+describe("ValidationPanel — the first approval's action (Y2b)", () => {
+  const share = <button type="button">Share this deck</button>;
+
+  it("sits under the Warden line, never inside it — the line stays legality-only", () => {
+    const { container } = render(
+      <ValidationPanel
+        formatLabel="Commander"
+        issues={[]}
+        cards={new Map()}
+        onPreview={() => {}}
+        approvalAction={share}
+      />,
+    );
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("The Warden approves this deck ✓");
+    expect(status.contains(screen.getByRole("button", { name: "Share this deck" }))).toBe(false);
+    const action = container.querySelector('[data-slot="approval-action"]')!;
+    expect(status.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("only while approved: with issues the action never renders", () => {
+    render(
+      <ValidationPanel
+        formatLabel="Commander"
+        issues={[DECK_SIZE]}
+        cards={new Map()}
+        onPreview={() => {}}
+        approvalAction={share}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Share this deck" })).toBeNull();
+  });
+
+  it("without one (the share page) the approved markup is the same single line", () => {
+    const { container } = render(panel([]));
+    expect(container.firstElementChild?.tagName).toBe("P");
+    expect(container.querySelector('[data-slot="approval-action"]')).toBeNull();
+  });
+});
+
 describe("ValidationPanel — F5 previews (share pages)", () => {
   it("with `preview`, an issue's card chips are hover-card triggers that still call onPreview on click", () => {
     const sol: EditorCard = {

@@ -27,9 +27,18 @@
  * aside while the empty state shows its own, so a phone sees one. A stepper
  * reaching zero is a removal (`onRemove`), which the editor answers with
  * one Undo.
+ *
+ * Y2b (WAVE4 D2, start doors): the empty list also offers the doors the
+ * editor hands it (`doors`, from src/lib/decks/start-doors.ts) after Add
+ * cards — Paste a list for any deck, Start from a precon and Surprise me
+ * for a draft, those two only while the leader zone is empty (each starts
+ * a deck from nothing; the zone's own Browse link is the Pick door). And
+ * `onShare` puts the first approval's "Share this deck" under the Warden
+ * line.
  */
 import { PlusIcon } from "lucide-react";
-import { useState } from "react";
+import Link from "next/link";
+import { useState, type ReactNode } from "react";
 
 import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
 import { CompletionRing } from "@/components/deck/completion-ring";
@@ -41,7 +50,7 @@ import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/componen
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { useCountUp } from "@/components/editor/use-count-up";
 import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
 import {
   deckSizeCount,
@@ -50,6 +59,7 @@ import {
   type EditorEntry,
 } from "@/lib/decks/editor-state";
 import { deckProgress, progressLine, toGoPhrase } from "@/lib/decks/progress";
+import type { StartDoor } from "@/lib/decks/start-doors";
 import { issueSeverityByCard } from "@/lib/decks/validation";
 import {
   groupDeckEntries,
@@ -59,6 +69,7 @@ import {
 } from "@/lib/decks/view-model";
 import { loadViewPrefs, saveViewPrefs, type DeckViewMode } from "@/lib/decks/view-prefs";
 import type { AnalyticsBlock, FormatDef, GameAdapter, ValidationIssue } from "@/lib/games/types";
+import { cn } from "@/lib/utils";
 
 interface DeckListPaneProps {
   adapter: GameAdapter;
@@ -92,6 +103,20 @@ interface DeckListPaneProps {
    * door only once a leader is set (the shell is built around one).
    */
   onAutofill?: (() => void) | undefined;
+  /**
+   * The start doors the empty list offers (Y2b): Paste a list for any deck,
+   * Start from a precon and Surprise me for a draft — the editor's choice;
+   * the pane shows those two only while the leader zone is empty.
+   */
+  doors?: readonly StartDoor[];
+  /** "Paste a list": opens the Import dialog. */
+  onPasteList?: () => void;
+  /** "Surprise me": rolls a random leader into the draft, state only. */
+  onSurprise?: () => void;
+  /** A roll is in flight — the Surprise door waits. */
+  rolling?: boolean;
+  /** The first approval's "Share this deck" (Y2b); absent = no link. */
+  onShare?: () => void;
   /** Analytics and the sample hand below the list; false on phones (R4: the Tools tab hosts them). */
   extras?: boolean;
 }
@@ -113,6 +138,11 @@ export function DeckListPane({
   ownership = null,
   onAddCards,
   onAutofill,
+  doors = [],
+  onPasteList,
+  onSurprise,
+  rolling = false,
+  onShare,
   extras = true,
 }: DeckListPaneProps) {
   // Stored preference wins; absent fields fall back (group to the adapter's
@@ -219,6 +249,17 @@ export function DeckListPane({
         cards={cards}
         onPreview={onPreview}
         progress={progress}
+        approvalAction={
+          onShare ? (
+            <button
+              type="button"
+              onClick={onShare}
+              className="cursor-pointer font-medium underline underline-offset-4 hover:no-underline pointer-coarse:min-h-11"
+            >
+              Share this deck
+            </button>
+          ) : undefined
+        }
       />
 
       {leaderZoneDef && (
@@ -283,36 +324,72 @@ export function DeckListPane({
           title="No cards yet"
           hint="Add them from Search."
           mark
-          action={
-            // The autofill door (W9b, D8): only once a leader is set — the
-            // shell is built around one. "Add cards" stays beside it.
-            onAutofill && leader.length > 0 ? (
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <Button size="sm" className="pointer-coarse:min-h-11" onClick={onAutofill}>
+          action={emptyActions(
+            [
+              // The autofill door (W9b, D8): only once a leader is set — the
+              // shell is built around one. "Add cards" stays beside it.
+              onAutofill && leader.length > 0 && (
+                <Button
+                  key="autofill"
+                  size="sm"
+                  className="pointer-coarse:min-h-11"
+                  onClick={onAutofill}
+                >
                   Autofill a starter shell
                 </Button>
-                {onAddCards && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="pointer-coarse:min-h-11"
-                    onClick={onAddCards}
-                  >
-                    Add cards
-                  </Button>
-                )}
-              </div>
-            ) : onAddCards ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="pointer-coarse:min-h-11"
-                onClick={onAddCards}
-              >
-                Add cards
-              </Button>
-            ) : undefined
-          }
+              ),
+              onAddCards && (
+                <Button
+                  key="add"
+                  variant="outline"
+                  size="sm"
+                  className="pointer-coarse:min-h-11"
+                  onClick={onAddCards}
+                >
+                  Add cards
+                </Button>
+              ),
+              // The start doors (Y2b): a precon or a roll starts from nothing.
+              ...doors
+                .filter((door) => door.kind === "paste" || leader.length === 0)
+                .map((door) =>
+                  door.kind === "paste" && onPasteList ? (
+                    <Button
+                      key="paste"
+                      variant="outline"
+                      size="sm"
+                      className="pointer-coarse:min-h-11"
+                      onClick={onPasteList}
+                    >
+                      {door.label}
+                    </Button>
+                  ) : door.kind === "precon" ? (
+                    <Link
+                      key="precon"
+                      href={door.href}
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "sm" }),
+                        "pointer-coarse:min-h-11",
+                      )}
+                    >
+                      {door.label}
+                    </Link>
+                  ) : door.kind === "surprise" && onSurprise ? (
+                    <Button
+                      key="surprise"
+                      variant="outline"
+                      size="sm"
+                      className="pointer-coarse:min-h-11"
+                      disabled={rolling}
+                      aria-busy={rolling || undefined}
+                      onClick={onSurprise}
+                    >
+                      {door.label}
+                    </Button>
+                  ) : null,
+                ),
+            ].filter(Boolean),
+          )}
         />
       ) : view === "text" ? (
         <DeckTextView
@@ -347,4 +424,10 @@ export function DeckListPane({
       )}
     </div>
   );
+}
+
+/** The empty state's actions as one centered, wrapping row; none → no action slot. */
+function emptyActions(nodes: ReactNode[]): ReactNode {
+  if (nodes.length === 0) return undefined;
+  return <div className="flex flex-wrap items-center justify-center gap-2">{nodes}</div>;
 }

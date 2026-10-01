@@ -64,4 +64,8 @@ describe("optcg display (R3)", () => {
       label: "Browse leaders",
     });
   });
+
+  it("declares no precon door (Y2b: no precon data for One Piece)", () => {
+    expect(optcgAdapter.display.preconBrowse).toBeUndefined();
+  });
 });

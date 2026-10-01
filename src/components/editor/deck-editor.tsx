@@ -42,6 +42,14 @@
  * the md drawer. A tab change, a drawer, a sheet or a resize never creates
  * a deck or marks it dirty — only applyEdit, the name and the details do.
  *
+ * Y2b (WAVE4 D2): the empty list's start doors — Paste a list (the Import
+ * dialog; `?import=1` from the picker), Start from a precon (a link) and
+ * Surprise me (the W9c roll, state only) — for a draft whose seed has
+ * settled; Suggestions answer a draft through POST /api/recommendations
+ * (the panel's own branch); and the first approval offers "Share this
+ * deck" under the Warden line once per deck per browser
+ * (useFirstApproval). None of it mints a row.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
@@ -75,6 +83,7 @@ import { ShareDialog, type DeckVisibility } from "@/components/editor/share-dial
 import { ShortcutsSheet } from "@/components/editor/shortcuts-sheet";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { useEditorHotkeys } from "@/components/editor/use-editor-hotkeys";
+import { useFirstApproval } from "@/components/editor/use-first-approval";
 import { useLeaderArt } from "@/components/editor/use-leader-art";
 import { useTier } from "@/components/editor/use-tier";
 import { Button } from "@/components/ui/button";
@@ -109,6 +118,7 @@ import {
 import type { ForkCredit } from "@/lib/decks/fork-credit";
 import type { ImportOutcome } from "@/lib/decks/import";
 import { clearPickIntent, pickIntentFor, writePickIntent } from "@/lib/decks/leader-pick-intent";
+import { startDoors } from "@/lib/decks/start-doors";
 import { getDeckToken, removeDeckToken, setDeckToken } from "@/lib/decks/token-store";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
@@ -192,6 +202,7 @@ export function DeckEditor({
   draftSurprise,
   draftComboKey,
   draftAutofill,
+  draftImport,
   applyLeaderKey,
 }: {
   /** null = draft mode (/decks/new): no server deck exists until the first real edit. */
@@ -244,6 +255,16 @@ export function DeckEditor({
    * autofill declaration like every other door.
    */
   draftAutofill?: boolean;
+  /**
+   * Draft mode only (Y2b): `?import=1` from the picker's "Paste a list"
+   * door. Opens the Import dialog ONCE, with the ?autofill=1 latch's
+   * discipline (after any pending seed settles; the chooser strips the
+   * param, so a reload never re-opens it), for every game — every adapter
+   * parses a decklist. The dialog creates nothing until its Apply, a real
+   * edit like any import. A crafted link carrying both latches opens the
+   * review sheet.
+   */
+  draftImport?: boolean;
   /**
    * Saved decks only (W4): `?leader=` from the hub's "Use for …" CTA.
    * Applied ONLY with a matching un-expired pick intent and an empty leader
@@ -552,56 +573,59 @@ export function DeckEditor({
   }, [draftSeed, draftLeaderKey, load]);
 
   // "Surprise me" (W9c): seed a RANDOM legal leader — same state-only
-  // discipline and StrictMode ref guard as the key seeder above, but the
-  // route returns the full wire, so nothing else is spent: a surprise draft
-  // stays at zero POSTs until a real edit. Unlike the key seeder, failure
-  // SAYS so (a toast) — the roll was the whole point of the click.
-  const seededSurpriseRef = useRef(false);
-  useEffect(() => {
-    if (draftSeed !== "surprise" || seededSurpriseRef.current) return;
+  // discipline as the key seeder above, but the route returns the full
+  // wire, so nothing else is spent: a surprise draft stays at zero POSTs
+  // until a real edit. Unlike the key seeder, failure SAYS so (a toast) —
+  // the roll was the whole point of the click. One roll, two doors (Y2b):
+  // the ?surprise=1 latch below (StrictMode ref guard) and the empty
+  // draft's own Surprise me (surpriseDoor, further down).
+  const rollLeader = useCallback(async () => {
     if (load.state !== "ready") return;
-    seededSurpriseRef.current = true;
     const { adapter, format } = load;
     const leaderZone = format.zones.find((z) => z.isLeaderZone);
+    if (!leaderZone) return;
     const sayNoRoll = () =>
       toast.add({
         title: `Couldn't pick a random ${adapter.display.leaderNoun} — try again.`,
         type: "error",
         timeout: TOAST_MS,
       });
-    // Same as the key seeder: no leader zone = no seed expected below.
-    if (!leaderZone) return;
-    void (async () => {
-      try {
-        const res = await fetch(`/api/leaders/random?game=${adapter.id}`);
-        if (!res.ok) {
-          sayNoRoll();
-          return;
-        }
-        const json: { leader: CardWire | null } = await res.json();
-        const wire = json.leader;
-        if (!wire || !wire.isLeaderCandidate) {
-          sayNoRoll();
-          return;
-        }
-        // Late-response guard: never clobber a leader added meanwhile.
-        if (entriesRef.current.some((e) => e.zone === leaderZone.id)) return;
-        const next: EditorEntry[] = [
-          ...entriesRef.current,
-          { cardId: wire.id, zone: leaderZone.id, qty: 1, tags: [] },
-        ];
-        entriesRef.current = next;
-        setEntries(next);
-        const card = toEditorCard(wire);
-        setCards((prev) => new Map(prev).set(wire.id, card));
-        setPreview(card);
-      } catch {
+    try {
+      const res = await fetch(`/api/leaders/random?game=${adapter.id}`);
+      if (!res.ok) {
         sayNoRoll();
-      } finally {
-        setSeedSettled(true);
+        return;
       }
-    })();
-  }, [draftSeed, load]);
+      const json: { leader: CardWire | null } = await res.json();
+      const wire = json.leader;
+      if (!wire || !wire.isLeaderCandidate) {
+        sayNoRoll();
+        return;
+      }
+      // Late-response guard: never clobber a leader added meanwhile.
+      if (entriesRef.current.some((e) => e.zone === leaderZone.id)) return;
+      const next: EditorEntry[] = [
+        ...entriesRef.current,
+        { cardId: wire.id, zone: leaderZone.id, qty: 1, tags: [] },
+      ];
+      entriesRef.current = next;
+      setEntries(next);
+      const card = toEditorCard(wire);
+      setCards((prev) => new Map(prev).set(wire.id, card));
+      setPreview(card);
+    } catch {
+      sayNoRoll();
+    }
+  }, [load]);
+  const seededSurpriseRef = useRef(false);
+  useEffect(() => {
+    if (draftSeed !== "surprise" || seededSurpriseRef.current) return;
+    if (load.state !== "ready") return;
+    seededSurpriseRef.current = true;
+    // Same as the key seeder: no leader zone = no seed expected below.
+    if (!load.format.zones.some((z) => z.isLeaderZone)) return;
+    void rollLeader().finally(() => setSeedSettled(true));
+  }, [draftSeed, load, rollLeader]);
 
   // "Start from this precon" (W8b): seed the WHOLE product list into a
   // fresh draft — entries with the precon's own printings straight off
@@ -1112,6 +1136,28 @@ export function DeckEditor({
     void flush();
   }, [markDirty, flush]);
 
+  // The empty list's start doors (Y2b, WAVE4 D2). Paste a list opens the
+  // Import dialog (focus falls back to Base UI's default on close — the
+  // door is gone once a list lands); Surprise me rolls through the same
+  // rollLeader as ?surprise=1, state only, and waits while a roll is in
+  // flight. Start from a precon is a plain link (the pane's).
+  const openImport = useCallback(() => {
+    setDialogFromMenu(false);
+    setDialog("import");
+  }, []);
+  const [rolling, setRolling] = useState(false);
+  const surpriseDoor = useCallback(() => {
+    if (rolling) return;
+    setRolling(true);
+    void rollLeader().finally(() => setRolling(false));
+  }, [rolling, rollLeader]);
+  // The first approval's "Share this deck" (Y2b): the existing dialog,
+  // opened from the deck pane rather than the More menu.
+  const openShare = useCallback(() => {
+    setDialogFromMenu(false);
+    setDialog("share");
+  }, []);
+
   // Whole-list swap with Undo (W9b): Import and Autofill both land here.
   // The previous list is captured for the toast's Undo, which restores it
   // through the same ref + state + markDirty path — a REAL edit the next
@@ -1192,6 +1238,23 @@ export function DeckEditor({
     setAutofillOpened(true);
     setDialogFromMenu(false);
     setDialog("autofill");
+  }
+
+  // ?import=1 (Y2b): the picker's Paste a list door — the same one-shot,
+  // render-time latch, after any pending seed settles, for every game. A
+  // crafted link that also carries ?autofill=1 gets the sheet above.
+  const [importOpened, setImportOpened] = useState(false);
+  if (
+    initialDeckId === null &&
+    draftImport &&
+    !draftAutofill &&
+    !importOpened &&
+    load.state === "ready" &&
+    (!seedExpected || seedSettled)
+  ) {
+    setImportOpened(true);
+    setDialogFromMenu(false);
+    setDialog("import");
   }
 
   // Visibility PATCHes immediately (not via autosave): it's a deliberate,
@@ -1345,6 +1408,13 @@ export function DeckEditor({
     () => (load.state === "ready" && snapshot ? load.adapter.analyze(snapshot, cards) : []),
     [load, snapshot, cards],
   );
+  // "Share this deck" (Y2b): offered at the first approval, on a deck row,
+  // once per deck per browser. Null until the deck is loaded — a loaded
+  // legal deck is no approval to celebrate.
+  const offerShare = useFirstApproval(
+    load.state === "ready" ? issues.length === 0 : null,
+    liveDeckId,
+  );
   // "You own N/100 · missing ≈ $Y" (P3.7): pure math over the same entries,
   // card prices and owned set; null (nothing rendered) without a collection.
   const ownership = useMemo(
@@ -1401,6 +1471,18 @@ export function DeckEditor({
   const mainZone = load.format.zones.find((z) => !z.isLeaderZone);
   const leaderZone = load.format.zones.find((z) => z.isLeaderZone);
   const tabbed = Boolean(load.adapter.recommend || load.adapter.capabilities.combos);
+  // The empty list's start doors (Y2b): Paste a list for any deck; the
+  // precon and Surprise doors only while no row exists. The leader zone's
+  // Browse link is the Pick door. None while a URL seed is still landing —
+  // the plain empty state shows meanwhile, so no door races a seed.
+  const doors =
+    draftSeed !== null && !seedSettled
+      ? []
+      : startDoors(load.adapter, load.format).filter(
+          (door) =>
+            door.kind === "paste" ||
+            (liveDeckId === null && (door.kind === "precon" || door.kind === "surprise")),
+        );
 
   // The tools content (R4): one tree, mounted wherever the tier puts it —
   // the third pane at wide, the drawer at md, the Tools tab on phones. The
@@ -1557,9 +1639,11 @@ export function DeckEditor({
             moreRef={moreRef}
             onOpenTools={() => setToolsOpen(true)}
             draft={liveDeckId === null}
+            // A draft holding cards it never edited holds a seed's — the
+            // URL's, once settled, or the Surprise me door's (Y2b): any
+            // edit would have marked it dirty and minted the row.
             onKeep={
-              draftSeed !== null &&
-              seedSettled &&
+              (draftSeed === null || seedSettled) &&
               liveDeckId === null &&
               entries.length > 0 &&
               autosave.status === "saved"
@@ -1681,6 +1765,11 @@ export function DeckEditor({
           onBrowseLeader={handleBrowseLeader}
           onAddCards={focusSearch}
           onAutofill={load.adapter.recommend?.autofill ? openAutofill : undefined}
+          doors={doors}
+          onPasteList={openImport}
+          onSurprise={surpriseDoor}
+          rolling={rolling}
+          onShare={offerShare && share ? openShare : undefined}
           extras={tier !== "phone"}
           owned={hasCollection ? owned : undefined}
           ownership={ownership}

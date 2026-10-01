@@ -33,6 +33,12 @@
  * shape (null context, empty byCard); the Kinnan deck answers a measured
  * context whose byCard covers the main-deck card (lists may be 0 — real
  * data) and NEVER the commander (no self-rows at ingest).
+ *
+ * Y2b: the draft snapshot route (POST /api/recommendations) — the same
+ * engine without a deck row. Its section creates nothing: it posts the
+ * fixture deck's cards as a snapshot and must answer exactly what the deck
+ * GET just answered (ids, order, evidence), honor the budget, and answer
+ * 400 for One Piece, a stray id, no leader and malformed JSON.
  */
 export {}; // import-free file: stay a module so `main` doesn't collide with other scripts
 
@@ -253,6 +259,71 @@ async function main() {
       "invalid owned value → 400",
       (await api("GET", `/api/decks/${deckId}/recommendations?owned=2`)).status === 400,
     );
+
+    // --- Draft snapshot route (Y2b): the same engine, no deck row, nothing
+    // written. The fixture's own cards as a snapshot must answer exactly
+    // what the deck GET just answered for them.
+    const snapshotBody = {
+      game: "mtg",
+      format: "commander",
+      leaderIds: [commander.id],
+      entries: [
+        { cardId: monolith.id, qty: 1 },
+        { cardId: counterspell.id, qty: 1 },
+      ],
+    };
+    const snap = await api("POST", "/api/recommendations", { body: snapshotBody });
+    check("POST /api/recommendations (a draft snapshot) → 200", snap.status === 200, snap.json);
+    check("snapshot response is no-store", snap.headers.get("cache-control") === "no-store");
+    const snapJson = snap.json as { recommendations?: Rec[]; deckId?: unknown; owned?: unknown };
+    const snapRecs = snapJson?.recommendations ?? [];
+    const ranking = (list: Rec[]) =>
+      JSON.stringify(list.map((r) => [r.cardId, r.evidence.map((e) => `${e.source}:${e.why}`)]));
+    check(
+      "the snapshot answers what the deck GET answered for the same cards (ids, order, evidence)",
+      snapRecs.length > 0 && ranking(snapRecs) === ranking(recs),
+      {
+        snapshot: snapRecs.slice(0, 3).map((r) => r.name),
+        deck: recs.slice(0, 3).map((r) => r.name),
+      },
+    );
+    check(
+      "the snapshot answer has no deck id and no owned block (a draft has neither)",
+      snapJson?.deckId === undefined && snapJson?.owned === undefined,
+    );
+    const snapBudget = await api("POST", "/api/recommendations", {
+      body: { ...snapshotBody, budget: 2 },
+    });
+    const snapBudgetRecs = (snapBudget.json as { recommendations?: Rec[] })?.recommendations ?? [];
+    check(
+      "snapshot budget 2 → only cards with a known price ≤ $2",
+      snapBudget.status === 200 &&
+        snapBudgetRecs.length > 0 &&
+        snapBudgetRecs.every((r) => r.cheapestUsd !== null && parseFloat(r.cheapestUsd) <= 2),
+    );
+    check(
+      "snapshot for One Piece → 400 (no recommendation signals)",
+      (
+        await api("POST", "/api/recommendations", {
+          body: { game: "optcg", format: "standard", leaderIds: [commander.id] },
+        })
+      ).status === 400,
+    );
+    const stray = await api("POST", "/api/recommendations", {
+      body: { ...snapshotBody, leaderIds: ["00000000-0000-4000-8000-000000000000"] },
+    });
+    check("snapshot with an id that is no Magic card → 400", stray.status === 400, stray.json);
+    check(
+      "snapshot with no leader → 400",
+      (await api("POST", "/api/recommendations", { body: { ...snapshotBody, leaderIds: [] } }))
+        .status === 400,
+    );
+    const malformed = await fetch(`${BASE}/api/recommendations`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{",
+    });
+    check("snapshot with malformed JSON → 400", malformed.status === 400);
 
     // --- Combo Radar (P3.3): the same fixture, the other question ------------
     // Basalt Monolith in deck, Rings of Brighthearth not → the pair must

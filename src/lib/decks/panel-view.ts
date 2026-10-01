@@ -4,9 +4,11 @@
  * when the Radar became the second consumer. Pure so the policy stays
  * test-enforced: each panel fetches once per settled autosave burst, only
  * while its tab is visible, a leader-zone card exists, and the deck row is
- * known — and refetches only when this key changes.
+ * known — and refetches only when this key changes. Y2b: Suggestions also
+ * answers a draft (no row) through POST /api/recommendations, whose body
+ * snapshotBody builds from the same facts the key reads.
  */
-import type { FormatDef } from "@/lib/games/types";
+import type { FormatDef, GameId } from "@/lib/games/types";
 
 /** The entry fields the deck-derived server computations actually depend on. */
 export interface DeckKeyEntry {
@@ -34,4 +36,39 @@ export function deckStateKey(entries: readonly DeckKeyEntry[]): string {
 export function hasLeader(entries: readonly { zone: string }[], format: FormatDef): boolean {
   const leaderZones = new Set(format.zones.filter((z) => z.isLeaderZone).map((z) => z.id));
   return entries.some((e) => leaderZones.has(e.zone));
+}
+
+/** POST /api/recommendations' body (Y2b) — a draft's snapshot, ids and copies only. */
+export interface SnapshotBody {
+  game: GameId;
+  format: string;
+  leaderIds: string[];
+  entries: { cardId: string; qty: number }[];
+  budget?: number;
+}
+
+/**
+ * The Suggestions panel's draft request (Y2b): what a deck row would hold —
+ * the leader-zone ids in entry order (the decks row's `leader_ids` order)
+ * and every other entry with its copies (the ranker's curve counts them) —
+ * built from the same (card, zone, qty) facts deckStateKey keys on, so an
+ * unchanged draft never asks twice. `budgetUsd` is the GET's `budget`;
+ * absent = no budget.
+ */
+export function snapshotBody(
+  game: GameId,
+  format: FormatDef,
+  entries: readonly DeckKeyEntry[],
+  budgetUsd?: number,
+): SnapshotBody {
+  const leaderZones = new Set(format.zones.filter((z) => z.isLeaderZone).map((z) => z.id));
+  return {
+    game,
+    format: format.code,
+    leaderIds: entries.filter((e) => leaderZones.has(e.zone)).map((e) => e.cardId),
+    entries: entries
+      .filter((e) => !leaderZones.has(e.zone))
+      .map((e) => ({ cardId: e.cardId, qty: e.qty })),
+    ...(budgetUsd !== undefined ? { budget: budgetUsd } : {}),
+  };
 }

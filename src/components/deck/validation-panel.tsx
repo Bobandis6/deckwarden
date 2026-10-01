@@ -26,9 +26,14 @@
  * stay red beneath it. The Warden line is unchanged: flagged issues are
  * still issues, so an empty deck never gets it. Without the prop (the
  * share page) every issue renders as before.
+ *
+ * Y2b (WAVE4 D2, first approval): `approvalAction` — the editor's one
+ * "Share this deck" — renders UNDER the Warden line, never in it: the line
+ * stays legality-only. Without it (the share page) the approved markup is
+ * the same single line as before.
  */
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { CardNamePreview } from "@/components/deck/card-name-preview";
@@ -53,6 +58,8 @@ interface ValidationPanelProps {
    * null or absent renders every issue as a problem (the share page).
    */
   progress?: string | null;
+  /** Under the Warden line while the deck is approved (Y2b: the editor's "Share this deck"). */
+  approvalAction?: ReactNode;
 }
 
 export function ValidationPanel({
@@ -62,6 +69,7 @@ export function ValidationPanel({
   onPreview,
   preview = false,
   progress = null,
+  approvalAction,
 }: ValidationPanelProps) {
   const [open, setOpen] = useState(false);
   const zero = issues.length === 0;
@@ -81,7 +89,7 @@ export function ValidationPanel({
 
   if (zero) {
     const settle = settleKey > 0;
-    return (
+    const line = (
       <p
         role="status"
         title={`Legal ${formatLabel} deck`}
@@ -107,6 +115,16 @@ export function ValidationPanel({
           The Warden approves this deck <span aria-hidden>✓</span>
         </span>
       </p>
+    );
+    if (!approvalAction) return line;
+    // Indented to the line's text: the shield's 16 px plus the 6 px gap.
+    return (
+      <div>
+        {line}
+        <div data-slot="approval-action" className="mt-0.5 pl-5.5 text-xs">
+          {approvalAction}
+        </div>
+      </div>
     );
   }
 

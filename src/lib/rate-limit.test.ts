@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { RATE_LIMITS, windowStartFor } from "./rate-limit";
+import { RATE_LIMITS, windowStartFor, type RateLimit } from "./rate-limit";
 
 describe("windowStartFor", () => {
   it("floors to the window boundary", () => {
@@ -40,5 +40,25 @@ describe("RATE_LIMITS policies", () => {
   it("autosave headroom: per-deck cards cap exceeds 1 request/s", () => {
     const perDeck = RATE_LIMITS.deckCardsPut(null, "d")[0];
     expect(perDeck.max / perDeck.windowSeconds).toBeGreaterThan(1);
+  });
+
+  it("every window is at most a day — the nightly purge sweeps counters older than two", () => {
+    // Every policy takes a principal (ip or user id) and at most a deck id.
+    const policies = Object.values(RATE_LIMITS) as ((p: string, d: string) => RateLimit[])[];
+    for (const policy of policies) {
+      for (const limit of policy("principal", "deck")) {
+        expect(limit.windowSeconds).toBeLessThanOrEqual(86400);
+      }
+    }
+  });
+
+  it("the draft snapshot route (Y2b) has its own bucket, never the deck GET's", () => {
+    const snapshot = RATE_LIMITS.recommendSnapshot("1.2.3.4").map((l) => l.key);
+    const deckGet = RATE_LIMITS.recommendations("1.2.3.4").map((l) => l.key);
+    expect(snapshot.some((key) => deckGet.includes(key))).toBe(false);
+    expect(RATE_LIMITS.recommendSnapshot("1.2.3.4").map((l) => [l.max, l.windowSeconds])).toEqual([
+      [30, 60],
+      [200, 3600],
+    ]);
   });
 });

@@ -12,10 +12,17 @@
  * Fetch policy (the P3.2 decision): one GET per settled autosave burst.
  * Fetch only while the tab is visible AND a leader-zone card exists (no
  * leader = ci_mask 0 = colorless-only noise; the empty state says to add
- * one) AND the deck row exists (draft mode creates lazily — never fetch a
- * deck that isn't there) AND autosave reports "saved" (the server rows ARE
- * the engine's input) AND the (card, zone, qty) key changed. Tag and meta
- * edits never refetch; the budget toggle and Refresh do.
+ * one) AND autosave reports "saved" (the server rows ARE the engine's
+ * input) AND the (card, zone, qty) key changed. Tag and meta edits never
+ * refetch; the budget toggle and Refresh do.
+ *
+ * Drafts (Y2b, WAVE4 D2): with no deck row yet — a seeded precon, combo,
+ * Surprise me or chosen leader — the panel asks POST /api/recommendations
+ * with the draft's snapshot instead (ids and copies; the server reads every
+ * fact), under the same gate and the same key, so a seeded draft gets
+ * Suggestions without minting a row, and only while this tab is open. The
+ * moment a row exists the GET takes over; the key doesn't change when the
+ * row mints, because the GET would answer the same snapshot.
  *
  * Adds ride the editor's normal path via the shared useResolvedAdd hook
  * (resolve once with the id guard, then onAdd → addCard → autosave); the
@@ -31,13 +38,13 @@
  */
 import { ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/deck/segmented";
 import { useResolvedAdd } from "@/components/editor/use-resolved-add";
 import type { EditorCard } from "@/lib/decks/editor-state";
-import { deckStateKey, hasLeader } from "@/lib/decks/panel-view";
+import { deckStateKey, hasLeader, snapshotBody } from "@/lib/decks/panel-view";
 import { getDeckToken } from "@/lib/decks/token-store";
 import type { Confidence, Recommendation } from "@/lib/recommend/types";
 import { BUDGET_OPTIONS, type BudgetTier } from "@/lib/recommend/budget";
@@ -93,26 +100,53 @@ export function RecommendationsPanel({
   const leader = hasLeader(entries, format);
   const wantOwned = onlyOwned && ownedAvailable;
   const fetchKey = `${deckStateKey(entries)}§b:${budget}§o:${wantOwned ? 1 : 0}§n:${nonce}`;
+  // A draft's request (Y2b): a string, so an edit that leaves the snapshot
+  // alone (a tag, a printing) leaves the effect alone too.
+  const draftBody = useMemo(
+    () =>
+      deckId === null
+        ? JSON.stringify(
+            snapshotBody(
+              adapter.id,
+              format,
+              entries,
+              budget === "all" ? undefined : Number(budget),
+            ),
+          )
+        : null,
+    [deckId, adapter.id, format, entries, budget],
+  );
 
   useEffect(() => {
-    if (!active || !leader || !deckId || saveStatus !== "saved") return;
+    if (!active || !leader || saveStatus !== "saved") return;
     if (fetchKey === lastKeyRef.current) return;
     const controller = new AbortController();
     void (async () => {
       setFetching(true);
       setFetchError(null);
       try {
-        const search = new URLSearchParams();
-        if (budget !== "all") search.set("budget", budget);
-        if (wantOwned) search.set("owned", "1");
-        const query = search.toString();
-        const params = query ? `?${query}` : "";
-        const token = getDeckToken(deckId);
-        const res = await fetch(`/api/decks/${deckId}/recommendations${params}`, {
-          headers: token ? { "x-deck-token": token } : {},
-          cache: "no-store",
-          signal: controller.signal,
-        });
+        let res: Response;
+        if (deckId === null) {
+          res = await fetch("/api/recommendations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: draftBody,
+            cache: "no-store",
+            signal: controller.signal,
+          });
+        } else {
+          const search = new URLSearchParams();
+          if (budget !== "all") search.set("budget", budget);
+          if (wantOwned) search.set("owned", "1");
+          const query = search.toString();
+          const params = query ? `?${query}` : "";
+          const token = getDeckToken(deckId);
+          res = await fetch(`/api/decks/${deckId}/recommendations${params}`, {
+            headers: token ? { "x-deck-token": token } : {},
+            cache: "no-store",
+            signal: controller.signal,
+          });
+        }
         if (res.status === 429) {
           throw new Error("Suggestions are rate-limited for a moment — try again shortly.");
         }
@@ -130,7 +164,7 @@ export function RecommendationsPanel({
       }
     })();
     return () => controller.abort();
-  }, [active, leader, deckId, saveStatus, fetchKey, budget, wantOwned]);
+  }, [active, leader, deckId, saveStatus, fetchKey, budget, wantOwned, draftBody]);
 
   const toggleExpanded = (cardId: string) => {
     setExpanded((prev) => {
@@ -218,7 +252,8 @@ export function RecommendationsPanel({
         </div>
       ) : recs === null ? (
         // With the gate passed, either the fetch is in flight or it's waiting
-        // on the settle (draft creation included) — the effect fires on save.
+        // on the settle (a draft's first edit minting its row included) — the
+        // effect fires on save.
         <p className="text-muted-foreground mt-2 text-sm">
           {fetching ? "Finding suggestions…" : "Suggestions appear once the deck saves."}
         </p>

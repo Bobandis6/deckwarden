@@ -570,6 +570,13 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
      */
     leaderBrowse?: { href: string; label: string };
     /**
+     * The official precon lists to start from (Y2b, WAVE4 D2): the "Start
+     * from a precon" door on /decks/new and in the empty draft —
+     * "/precons" · "Start from a precon" for Magic. Absent = no door (One
+     * Piece has no precon data).
+     */
+    preconBrowse?: { href: string; label: string };
+    /**
      * Short printed-id chip ("OP15-058") for games whose names don't identify
      * a card (17 printed Enels). Rendered beside names in search results,
      * import suggestions, and the card pane — some of those hold the

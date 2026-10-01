@@ -97,6 +97,18 @@ export const RATE_LIMITS = {
     { key: `recommend:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },
   ],
   /**
+   * POST /api/recommendations (Y2b) — the same engine for a DRAFT's
+   * snapshot. Body-driven and reachable without any deck row, so a cost
+   * vector like autofill: the GET's 30/min stance plus autofill's hourly
+   * lid. The draft panel asks once per settled snapshot while its tab is
+   * open (a seed, a budget pick, Refresh), so neither number is reachable
+   * in honest use.
+   */
+  recommendSnapshot: (ip: string | null): RateLimit[] => [
+    { key: `recommend-snapshot:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },
+    { key: `recommend-snapshot:ip-hour:${ip ?? "unknown"}`, max: 200, windowSeconds: 3600 },
+  ],
+  /**
    * GET /api/decks/[id]/combos — the Combo Radar read (P3.3). Cheaper than
    * recommendations (~4 queries vs ~6, no ranking pass) but publicly
    * reachable the same way and fetched under the same once-per-settled-save

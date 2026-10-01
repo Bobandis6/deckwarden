@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { FormatDef } from "@/lib/games/types";
-import { deckStateKey, hasLeader } from "./panel-view";
+import { deckStateKey, hasLeader, snapshotBody } from "./panel-view";
 
 const FORMAT: FormatDef = {
   code: "commander",
@@ -63,5 +63,31 @@ describe("hasLeader — the panels' fetch gate", () => {
 
   it("is true once a leader-zone entry exists", () => {
     expect(hasLeader([{ zone: "main" }, { zone: "commander" }], FORMAT)).toBe(true);
+  });
+});
+
+describe("snapshotBody — a draft's Suggestions request (Y2b)", () => {
+  const entries = [
+    { cardId: "rats", zone: "main", qty: 20 },
+    { cardId: "thrasios", zone: "commander", qty: 1, tags: ["partner"] },
+    { cardId: "sol", zone: "main", qty: 1, printingId: "p1" },
+    { cardId: "tymna", zone: "commander", qty: 1 },
+  ];
+
+  it("leaders in entry order apart; every other entry with its copies; tags and printings never sent", () => {
+    expect(snapshotBody("mtg", FORMAT, entries)).toEqual({
+      game: "mtg",
+      format: "commander",
+      leaderIds: ["thrasios", "tymna"],
+      entries: [
+        { cardId: "rats", qty: 20 },
+        { cardId: "sol", qty: 1 },
+      ],
+    });
+  });
+
+  it("a budget rides as USD; none means no field at all", () => {
+    expect(snapshotBody("mtg", FORMAT, entries, 5).budget).toBe(5);
+    expect("budget" in snapshotBody("mtg", FORMAT, entries)).toBe(false);
   });
 });

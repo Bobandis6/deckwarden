@@ -1659,3 +1659,269 @@ describe("DeckEditor — autosave on a saved deck (LATER row 161)", () => {
     expect(puts()).toBe(1);
   });
 });
+
+// ------------------------------------------------------------------- Y2b
+describe("DeckEditor — start doors, draft Suggestions, the first approval (Y2b)", () => {
+  const kozilek: CardWire = {
+    ...card({
+      name: "Kozilek, the Great Distortion",
+      primaryType: "Creature",
+      costValue: 10,
+      isLeaderCandidate: true,
+      attrs: { type_line: "Legendary Creature — Eldrazi", oracle_text: "" },
+    }),
+    image: null,
+  };
+  const wastes: CardWire = {
+    ...card({
+      name: "Wastes",
+      primaryType: "Land",
+      costValue: null,
+      attrs: { type_line: "Basic Land — Wastes", oracle_text: "" },
+    }),
+    image: null,
+  };
+  /** A legal colorless Commander list: Kozilek + `n` Wastes. */
+  const cardsOf = (n: number) => [
+    { cardId: kozilek.id, zone: "commander", qty: 1, tags: [], printingId: null, card: kozilek },
+    { cardId: wastes.id, zone: "main", qty: n, tags: [], printingId: null, card: wastes },
+  ];
+  const savedDeck = (n: number) => ({
+    deck: {
+      id: "deck-1",
+      publicId: "abcdefgh1234",
+      game: "mtg",
+      format: "commander",
+      name: "Kozilek",
+      description: null,
+      notes: null,
+      visibility: "unlisted",
+      isOwner: true,
+      forkedFrom: null,
+      leaderIds: [kozilek.id],
+    },
+    cards: cardsOf(n),
+    owned: [],
+    hasCollection: false,
+  });
+
+  let savedSize = 99;
+  function y2bRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    if (url.startsWith("/api/leaders/random")) return ok({ leader: kozilek });
+    if (url === "/api/recommendations") return ok({ count: 0, recommendations: [] });
+    if (url === "/api/precons/missing") return { ok: false, status: 404, json: async () => ({}) };
+    if (url === "/api/precons/kozilek") {
+      return ok({
+        deck: { name: "Colorless", game: "mtg", format: "commander", leaderIds: [kozilek.id] },
+        cards: cardsOf(99),
+      });
+    }
+    if (url === "/api/cards/resolve") {
+      return ok({ results: [{ input: "Sol Ring", match: sol, suggestions: [] }] });
+    }
+    if (url === "/api/decks/deck-1" && method === "GET") return ok(savedDeck(savedSize));
+    return route(input, init);
+  }
+
+  beforeEach(() => {
+    savedSize = 99;
+    fetchMock.mockImplementation(y2bRoute);
+  });
+
+  const anyPosts = () =>
+    fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "POST")
+      .length;
+  const snapshotPosts = () =>
+    fetchMock.mock.calls.filter(([url]) => String(url) === "/api/recommendations");
+  const list = () => within(section("Deck list"));
+  /** The empty list's action row, in order: what each control is and says. */
+  const emptyActions = () => {
+    const title = list().getByText("No cards yet");
+    const row = title.parentElement!.lastElementChild!.firstElementChild as HTMLElement;
+    return [...row.children].map((el) =>
+      el.tagName === "A" ? `${el.textContent} → ${el.getAttribute("href")}` : el.textContent,
+    );
+  };
+  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
+    for (let i = 0; i < 40; i++) {
+      const el = query();
+      if (el) return el;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: element never appeared");
+  }
+
+  it("a fresh Magic draft: after Add cards, Paste a list · Start from a precon · Surprise me — and none of them creates a thing", () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+    expect(emptyActions()).toEqual([
+      "Add cards",
+      "Paste a list",
+      "Start from a precon → /precons",
+      "Surprise me",
+    ]);
+    // The Pick door is the leader zone's own Browse link — never repeated.
+    expect(list().getAllByRole("link", { name: /Browse commanders/ })).toHaveLength(1);
+    expect(list().queryByRole("link", { name: "Pick a commander" })).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("One Piece: Paste a list only — no precon, no Surprise me; Browse leaders stays in the leader zone", () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="optcg" draftFormat="standard" />);
+    expect(emptyActions()).toEqual(["Add cards", "Paste a list"]);
+    expect(list().getByRole("link", { name: /Browse leaders/ })).toBeTruthy();
+  });
+
+  it("Paste a list opens the Import dialog, which creates nothing until Apply — then exactly one deck", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+    fireEvent.click(list().getByRole("button", { name: "Paste a list" }));
+    const dialog = screen.getByRole("dialog", { name: "Import decklist" });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Decklist text" }), {
+      target: { value: "1 Sol Ring" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Next" }));
+    const add = await pollFor(() => screen.queryByRole("button", { name: "Add to deck" }));
+    await settle(1500);
+    expect(posts()).toBe(0); // the lookup is the only POST so far
+    expect(anyPosts()).toBe(1);
+
+    fireEvent.click(add);
+    await settle(1100);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+    expect(lastPutEntries().map((e) => e.cardId)).toEqual([sol.id]);
+  });
+
+  it("?import=1 (the picker's door) opens the Import dialog by itself, once — and a seeded draft waits for its seed", async () => {
+    stubViewport(1440);
+    const view = render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftImport />,
+    );
+    expect(screen.getByRole("dialog", { name: "Import decklist" })).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    view.unmount();
+
+    render(
+      <DeckEditor
+        deckId={null}
+        draftGame="mtg"
+        draftFormat="commander"
+        draftFromSlug="kozilek"
+        draftImport
+      />,
+    );
+    expect(screen.queryByRole("dialog", { name: "Import decklist" })).toBeNull();
+    await pollFor(() => screen.queryByRole("dialog", { name: "Import decklist" }));
+    expect(list().getAllByText("Kozilek, the Great Distortion").length).toBeGreaterThan(0);
+    expect(posts()).toBe(0);
+  });
+
+  it("Surprise me rolls a commander in place, state only — zero POSTs — then offers Keep this deck; the from-nothing doors step aside", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+    fireEvent.click(list().getByRole("button", { name: "Surprise me" }));
+    await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+    expect(list().getAllByText("Kozilek, the Great Distortion").length).toBeGreaterThan(0);
+    expect(anyPosts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+    expect(emptyActions()).toEqual(["Autofill a starter shell", "Add cards", "Paste a list"]);
+  });
+
+  it("no door while a seed lands; a seed that fails shows them, and Surprise me still rolls into a keepable draft", async () => {
+    stubViewport(1440);
+    render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftFromSlug="missing" />,
+    );
+    expect(list().queryByRole("button", { name: "Paste a list" })).toBeNull();
+    const surprise = await pollFor(() => list().queryByRole("button", { name: "Surprise me" }));
+    fireEvent.click(surprise);
+    await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+    expect(posts()).toBe(0);
+  });
+
+  it("a seeded draft's Suggestions answer from POST /api/recommendations — only once its tab opens, never twice for the same draft, zero deck creates", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftSurprise />);
+    await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+    expect(snapshotPosts()).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Suggestions" }));
+    await pollFor(() => screen.queryByText("No suggestions right now."));
+    expect(snapshotPosts()).toHaveLength(1);
+    expect(JSON.parse((snapshotPosts()[0][1] as RequestInit).body as string)).toEqual({
+      game: "mtg",
+      format: "commander",
+      leaderIds: [kozilek.id],
+      entries: [],
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Card" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Suggestions" }));
+    await settle(500);
+    expect(snapshotPosts()).toHaveLength(1);
+    expect(posts()).toBe(0);
+  });
+
+  it("the first approval offers Share this deck under the Warden line → the Share dialog; after a reload that deck is never offered again", async () => {
+    savedSize = 98; // Kozilek + 98 Wastes: one card short
+    stubViewport(1440);
+    const view = render(<DeckEditor deckId="deck-1" />);
+    await act(async () => {});
+    await act(async () => {});
+    expect(screen.queryByText(/The Warden approves/)).toBeNull();
+
+    fireEvent.click(list().getByRole("button", { name: "One more Wastes" }));
+    const share = list().getByRole("button", { name: "Share this deck" });
+    const line = list().getByRole("status");
+    expect(line.textContent).toBe("The Warden approves this deck ✓");
+    expect(line.contains(share)).toBe(false);
+    fireEvent.click(share);
+    expect(screen.getByRole("dialog", { name: "Share deck" })).toBeTruthy();
+    await settle(1100);
+    await act(async () => {});
+    view.unmount();
+
+    // A reload: the deck loads legal (no transition), then dips and comes back.
+    savedSize = 99;
+    render(<DeckEditor deckId="deck-1" />);
+    await act(async () => {});
+    await act(async () => {});
+    expect(list().queryByRole("button", { name: "Share this deck" })).toBeNull();
+    fireEvent.click(list().getByRole("button", { name: "One fewer Wastes" }));
+    expect(list().queryByRole("status")).toBeNull();
+    fireEvent.click(list().getByRole("button", { name: "One more Wastes" }));
+    expect(list().getByRole("status").textContent).toBe("The Warden approves this deck ✓");
+    expect(list().queryByRole("button", { name: "Share this deck" })).toBeNull();
+  });
+
+  it("a loaded legal deck is never offered Share — opening it is no approval", async () => {
+    savedSize = 99; // Kozilek + 99 Wastes: legal as it loads
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await act(async () => {});
+    await act(async () => {});
+    expect(list().getByRole("status").textContent).toBe("The Warden approves this deck ✓");
+    expect(list().queryByRole("button", { name: "Share this deck" })).toBeNull();
+  });
+
+  it("a draft that approves before its row offers nothing — Keep this deck mints it, and then the link appears", async () => {
+    stubViewport(1440);
+    render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftFromSlug="kozilek" />,
+    );
+    const keep = await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+    expect(list().getByRole("status").textContent).toBe("The Warden approves this deck ✓");
+    expect(list().queryByRole("button", { name: "Share this deck" })).toBeNull();
+
+    fireEvent.click(keep);
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(list().getByRole("button", { name: "Share this deck" })).toBeTruthy();
+  });
+});

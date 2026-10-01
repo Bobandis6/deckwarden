@@ -34,4 +34,11 @@ describe("mtg display (R2)", () => {
       label: "Browse commanders",
     });
   });
+
+  it("preconBrowse points the start doors' precon door at /precons (Y2b)", () => {
+    expect(mtgAdapter.display.preconBrowse).toEqual({
+      href: "/precons",
+      label: "Start from a precon",
+    });
+  });
 });
