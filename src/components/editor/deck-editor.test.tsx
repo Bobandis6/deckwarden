@@ -153,6 +153,7 @@ const lastPutEntries = (): { cardId: string; printingId?: string }[] => {
 };
 const saveStatus = () =>
   document.querySelector("[data-slot=save-slot]")?.getAttribute("data-status");
+const slot = () => document.querySelector<HTMLElement>("[data-slot=save-slot]")!;
 const sheetPopup = () => document.querySelector("[data-slot=drawer-popup]");
 const section = (label: string) =>
   document.querySelector<HTMLElement>(`section[aria-label="${label}"]`)!;
@@ -1413,7 +1414,6 @@ describe("DeckEditor — an honest first screen (Y2a)", () => {
     }
     throw new Error("pollFor: element never appeared");
   }
-  const slot = () => document.querySelector<HTMLElement>("[data-slot=save-slot]")!;
   const progressLine = () =>
     section("Deck list").querySelector<HTMLElement>('[data-slot="progress-line"]');
 
@@ -1923,5 +1923,83 @@ describe("DeckEditor — start doors, draft Suggestions, the first approval (Y2b
     await act(async () => {});
     expect(posts()).toBe(1);
     expect(list().getByRole("button", { name: "Share this deck" })).toBeTruthy();
+  });
+
+  // ------------------------------------------------------ LATER row 164
+  describe("an edit undone back to nothing mints no row (LATER row 164)", () => {
+    const removeKozilek = () =>
+      fireEvent.click(list().getByRole("button", { name: "Remove Kozilek, the Great Distortion" }));
+
+    it("removing a rolled commander: zero creates past the debounce, the slot back to Draft, the doors back — and the next roll keeps with one create + one PUT", async () => {
+      stubViewport(1440);
+      render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftSurprise />);
+      await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+
+      removeKozilek();
+      expect(saveStatus()).toBe("dirty");
+      await settle(1100);
+      await act(async () => {});
+      expect(posts()).toBe(0);
+      expect(saveStatus()).toBe("saved");
+      expect(slot().dataset.draft).toBe("true");
+      expect(slot().textContent).toBe("Draft");
+      expect(window.location.pathname).toBe("/decks/new");
+      expect(emptyActions()).toEqual([
+        "Add cards",
+        "Paste a list",
+        "Start from a precon → /precons",
+        "Surprise me",
+      ]);
+
+      fireEvent.click(list().getByRole("button", { name: "Surprise me" }));
+      fireEvent.click(
+        await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" })),
+      );
+      await settle(1500);
+      await act(async () => {});
+      expect(posts()).toBe(1);
+      expect(puts()).toBe(1);
+      expect(lastPutEntries().map((e) => e.cardId)).toEqual([kozilek.id]);
+    });
+
+    it("Surprise me inside the removal's debounce settles that save first: the new roll stays state only and keepable — zero creates", async () => {
+      stubViewport(1440);
+      render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftSurprise />);
+      await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+
+      removeKozilek();
+      fireEvent.click(list().getByRole("button", { name: "Surprise me" }));
+      await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+      await settle(1500);
+      await act(async () => {});
+      expect(posts()).toBe(0);
+      expect(saveStatus()).toBe("saved");
+      expect(slot().textContent).toBe("Draft");
+      expect(screen.getByRole("button", { name: "Keep this deck" })).toBeTruthy();
+    });
+
+    it("a typed name is something to say — one create carrying it; a name typed and erased inside the debounce is not", async () => {
+      stubViewport(1440);
+      render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+      const name = screen.getByRole("textbox", { name: "Deck name" });
+      fireEvent.change(name, { target: { value: "Eldrazi" } });
+      fireEvent.change(name, { target: { value: "" } });
+      await settle(1100);
+      await act(async () => {});
+      expect(posts()).toBe(0);
+      expect(slot().textContent).toBe("Draft");
+
+      fireEvent.change(name, { target: { value: "Eldrazi" } });
+      await settle(1100);
+      await act(async () => {});
+      expect(posts()).toBe(1);
+      const create = fetchMock.mock.calls.find(
+        ([url, init]) => url === "/api/decks" && init?.method === "POST",
+      )!;
+      expect(JSON.parse((create[1] as RequestInit).body as string)).toMatchObject({
+        name: "Eldrazi",
+      });
+      expect(slot().hasAttribute("data-draft")).toBe(false);
+    });
   });
 });

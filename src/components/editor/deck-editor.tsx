@@ -400,7 +400,25 @@ export function DeckEditor({
     return createChainRef.current;
   }, [draftGame, draftFormat]);
 
+  /**
+   * A draft with nothing to say (LATER row 164): no row yet, and the list and
+   * the meta still serialize to their baselines — what a fresh server deck
+   * would save. An edit undone back to nothing leaves a draft here: a seeded
+   * commander removed, a typed name erased.
+   */
+  const isBlankDraft = useCallback(
+    () =>
+      deckIdRef.current === null &&
+      JSON.stringify({ cards: toSavePayload(entriesRef.current) }) === lastSavedRef.current.cards &&
+      metaPatchBody(metaRef.current) === lastSavedRef.current.meta,
+    [],
+  );
+
   const save = useCallback(async () => {
+    // A blank draft mints nothing: the row is for the first flush that has
+    // something to say. useAutosave settles back to "saved", so the slot
+    // reads "Draft" again and the draft-only doors stay.
+    if (isBlankDraft()) return;
     const deckId = await ensureDeck();
     const headers = writeHeaders(deckId);
     const cardsBody = JSON.stringify({ cards: toSavePayload(entriesRef.current) });
@@ -423,7 +441,7 @@ export function DeckEditor({
       if (!res.ok) throw new Error(`Save failed (${res.status})`);
       lastSavedRef.current.meta = metaBody;
     }
-  }, [ensureDeck]);
+  }, [isBlankDraft, ensureDeck]);
 
   const autosave = useAutosave(save);
   const { markDirty, isDirty, flush } = autosave;
@@ -1149,8 +1167,14 @@ export function DeckEditor({
   const surpriseDoor = useCallback(() => {
     if (rolling) return;
     setRolling(true);
-    void rollLeader().finally(() => setRolling(false));
-  }, [rolling, rollLeader]);
+    void (async () => {
+      // A removal still inside its debounce (LATER row 164) settles first —
+      // a blank draft's flush mints nothing — so the roll lands state only
+      // instead of riding that save into a row.
+      if (isBlankDraft()) await flush();
+      await rollLeader();
+    })().finally(() => setRolling(false));
+  }, [rolling, isBlankDraft, flush, rollLeader]);
   // The first approval's "Share this deck" (Y2b): the existing dialog,
   // opened from the deck pane rather than the More menu.
   const openShare = useCallback(() => {
