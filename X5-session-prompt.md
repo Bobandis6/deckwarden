@@ -37,7 +37,7 @@
 - Signed out on dev: `/account`'s sign-in view is unchanged and `/u/bobandis6` renders.
 - Prod, signed out, zero creates: the PUT is 401 `no-store` with the sentence; `/update-user`, `/get-access-token`, `/refresh-token` and `/account-info` are 404; `get-session` is 200; `/u/bobandis6` renders "B" at 64 px with no credit; the new privacy copy is live.
 
-**The owner's clicks, signed in on prod** (the pane cannot sign in):
+**The owner's clicks, signed in on prod — DONE 2026-10-01.** The owner reported: "everything from this session works great card art is loaded and credit appears". The public profile's server HTML agrees: `/u/bobandis6` serves "Picture: Liliana of the Veil · Art: Steve Argyle · ™ & © Wizards of the Coast". The list as handed over (the pane cannot sign in):
 1. On `/account`, the picture shows a pencil on hover. Tab to it, press Enter: the dialog opens. Esc closes it and focus is back on the picture. On a phone the pencil is always visible; tap it.
 2. Card art: type `sol` and pick Sol Ring, then Save. The crop shows on `/account` with "Picture: Sol Ring · Art: … · ™ & © Wizards of the Coast" under the name, in the header at once (no reload), with the same line under your name in the account menu, and on `/u/bobandis6`.
 3. "Just my initial", then Save. Sign out and back in: still the initial.
