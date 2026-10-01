@@ -116,5 +116,6 @@ Docs in the same package: the `WAVE3.md` tracker ticked with the sha and any dev
 ## Context, not tasks
 
 - X5 is the last Wave-3 package. After it the tracker is complete; the next session is the owner's pick — P4.9 (the image flip; its gate passed 2026-09-28 07:17 Z), a P2.9 or P4.7 round when a signal arrives (the r/EDH post is still unposted; P2.9 round 3 is armed for it), or a planning session for what comes next.
+- **Update 2026-09-30:** the planning session ran. Wave 4 (`WAVE4.md`, the Y-series: honest labels → the explainable bracket advisor → bracket- and budget-aware recommendations → the game journal) starts after X5 with `Y1-session-prompt.md`; Y1's pre-flight checks that X5 is ticked and that `0015` is the last migration. Say so in X5's ship note.
 - The owner's answers of 2026-09-27 and 2026-09-28 stand (WAVE3.md, Context and §F): "change picture" offers the provider picture, Magic card art or the initial — no uploads.
 - The site is unannounced. The cold-start rule holds: no simulated users, pictures or metrics; a smoke's fixture user is created and deleted by the smoke.
