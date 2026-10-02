@@ -1,5 +1,74 @@
 # Y3a session prompt — Bracket data (Game Changers, Tagger land-denial and extra-turn flags with overrides and a fallback, combo tags + relevant, the ruleset watch; migration `0016`)
 
+## Ship note — 2026-10-02, feat `884c62f`, deployed (Vercel status success on the full sha, 04:53 Z; CI green)
+
+**Shipped. The prompt below is history. Next is `Y3b-session-prompt.md` (the bracket engine; no migration).**
+
+**Pre-flight**:
+- Y2b and row 164 had shipped, and `_journal.json` ended at idx 15. This working copy was two commits behind origin and was fast-forwarded to `9eb689d`.
+- Nightlies were green: the 2026-10-01 scheduled run at 17:07 Z.
+- The owner's answers at the start: **nothing new posted, no feedback**, and **read-only database access granted**. I said up front that the migration SQL would come back for a yes and that the package ends with one dispatch.
+- Baseline on `9eb689d`: 1,342 tests / 156 files / 6 warnings / 0 errors; `pnpm db:size` 271.2 MB; census 209 deck rows = 28 user decks (16 account + 12 guest) + 181 precons, 1 user.
+- Measured before any change: 66,592 combos (heap 22.3 MB, total 29.1 MB), and no identity carrying any of the three new keys. The route table was saved.
+
+**Step 0 (one read of each bulk, 2026-10-01)**:
+- **oracle_tags**: 4,559 tags, 234,991 taggings, weights `median` / `strong` / `very_strong`, some taggings with an `annotation`.
+  - `mass-land-denial` = `cd12a44c-1aee-4ece-b8ea-3eb118ef0230`: 113 taggings (Armageddon the only `very_strong`). 111 are our cards; the other two are Dovin Baan's emblem and a Japanese-only card, both skipped by the ingest.
+  - `extra-turn` = `03b17ebf-f5d3-4063-bfd4-1ae156a16a8f`: 64 taggings (Time Walk the only `very_strong`).
+  - Neither tag has descendants. WAVE4's 58 extra-turn cards were Scryfall search's count, which leaves out schemes, planes and vanguards; Commander-legal, both lists match WAVE4 (106 and 53).
+- **default_cards**: `game_changer` is a boolean on all 118,467 objects (508 printings true, no card inconsistent across printings). 53 Game Changers after the ingest's first-printing rule, md5 `38ff92800a67529ee6b9fa81f4203033`.
+- **Spellbook's bulk**:
+  - **The URL**: the documented `json.commanderspellbook.com` URL answers the real User-Agent with the same S3 object as the old bucket URL (identical ETag, Last-Modified and version id).
+  - **The root**: reads `timestamp`, `version`, `variants`, then a trailing array.
+  - **The letters**: E S R O P C, plus B on exactly the 1,527 Commander-banned variants. Spellbook's own source (`SpaceCowMedia/commander-spellbook-backend`, `backend/spellbook/models/variant.py`, commit `190735d9abe0`) names them Ruthless, Spicy, Powerful, Oddball, Core, Exhibition, Banned, and its "relevant" is exactly "any Standalone feature".
+
+**The split** (`data/mtg/tagger-overrides.json`, rule in its `$comment`): **42 clear / 69 edge**, all 111 listed (39 / 67 Commander-legal).
+- **Clear**: Wizards' five examples, the same-effect cards (Magus of the Moon, Harbinger of the Seas, Back to Basics, Winter Moon, Static Orb, Stasis, Hokori, Rising Waters, Contamination, Infernal Darkness, Ritual of Subdual, Storm Cauldron), and every destroy / exile / bounce-all-lands reset or "keep a few lands" sweep.
+- **Edge**: planeswalker ultimates, one land type / snow / color, X or threshold or storm, board-dependent balance effects, random piles, and one-land-at-a-time attrition.
+
+**Results**:
+- **Checks**: `pnpm check` **1,376 tests in 158 files**, the same 6 warnings, 0 errors.
+  - New files: `tagger.test.ts`, `ruleset-watch.test.ts`.
+  - New cases: `scryfall-map.test.ts` (game_changer only when true, the flags passed, an unflagged card's attrs exactly as before, the digest pinned by a literal), `spellbook-map.test.ts` (the full `ComboRow` gains both fields; each letter, any other letter → null; relevant only on S), `json-array-stream.test.ts` (root scalars at every chunk size, nested values skipped, an unparsable scalar skipped, a value closed by the root's brace).
+  - The never-played pin stayed green untouched.
+- **Mutation checks**: twelve, each caught — game_changer on non-true, an unsorted digest, unreviewed → clear, an empty fallback, no stale carry, an empty tag counted fresh, no roll-up, disabled cards ignored, relevant on H, B accepted, no root-brace close, a count-only watch.
+- **Dry run before any write**, all through the real code: the live Tagger read (5.3 s), the mapper over the downloaded `default_cards` (53 / md5 = pin, 111 / 64 flagged, 0 unreviewed, 0 unknown override ids), and the Spellbook mapper over its bulk.
+- **The SQL, read-only**: the stored-flags read is GIN-served (BitmapOr, 405 ms cold), and the new merge plans with both columns in its conflict filter (EXPLAIN only).
+- **The route table**: byte-identical.
+
+**Migrate before push**: generate → `drizzle/0016_lyrical_dazzler.sql`, exactly two `ADD COLUMN` lines (the snapshot diff showed nothing else) → shown to the owner → **their yes** → `pnpm db:migrate` → both columns confirmed (66,592 rows NULL / NULL; 271.2 MB). I ran it a second time to read its full output; that run was a no-op ("already exists" notices only). Only then came the dev pass: `smoke:combos`, `smoke:hubs`, `smoke:recommend` (two QA decks created and deleted) and `smoke:autofill`, all green on dev; census unchanged. Then the owner's yes for the push and one dispatch.
+
+**The dispatch** (run 36966549562, 2026-10-02 04:53:53 → 04:59:19 Z, every step green):
+- **Scryfall run #253**, 16.6 s:
+  - `stats.game_changers {count 53, md5 = the pin}`.
+  - `stats.tagger`: both flags `fresh`, `stale_since` null, bulk of 2026-10-01T21:00:32Z. `mld`: tagged 113 → matched 111 → flagged 111 (clear 42, edge 69, unreviewed 0). `extra_turn`: 64 → 64 → 64. Error null.
+  - The database holds 53 `game_changer`, 111 `mld` (42 clear / 69 edge) and 64 `extra_turn` = **228 identities** (no overlaps); 16 of the flagged cards are banned or not legal in Commander.
+  - 575 identities updated: the 228, plus 346 cards with a printing released 2026-10-02 leaving preview (counted read-only; 301 default printings moved with them), and one other content change.
+- **Spellbook run #255**, 14.9 s: 66,881 kept, and every row tagged — C 194 · E 49,369 · O 2,161 · P 1,624 · R 4,288 · S 9,245, unknown `{}` — with 50,296 relevant. `source_version` 7.1.3, `source_timestamp` 2026-10-02T03:11:44.888977Z. The one-time rewrite: 66,464 updated (every row that stayed), 417 inserted, 128 swept.
+- **The watch step**: green — "Game Changers match the ruleset: 53 cards as of 2026-02-09 (run #253 …)". The gauge read 284.3 MB.
+- **The smokes**: the four, again on dev after the dispatch — green. Census unchanged after both passes.
+
+**Sizes**: 271.2 MB before, 284.3 MB after the dispatch (+13.1 MB).
+- **The combos heap** grew 22.3 → 34.5 MB (total 29.1 → 41.9 MB). Its 61,056 dead tuples were autovacuumed within minutes (`n_dead_tup` 0), so that space is free inside the table for later updates rather than returned.
+- **The new data itself** is ~0.4 MB: two narrow columns on 66,881 rows, plus a few keys on 228 identities.
+- **Owed**: `pnpm db:size` after the next **scheduled** nightly; Y3b's pre-flight records it.
+
+**Decisions** (also in `WAVE4.md`'s tracker and REDESIGN.md's "Y3a decisions"):
+1. **The ruleset**: the pin lives in a data-only `src/lib/games/mtg/bracket-ruleset.ts` that Y3b grows. The watch (`pnpm ruleset:watch`) sits after the backups and before the keepalive, `if: !cancelled()`, so the keepalive stays last. It reads the latest **successful** Scryfall run and compares the md5 only.
+2. **`game_changer` presence** is asserted on every mapped object; a miss throws before the first card write.
+3. **The Tagger read**: the bulk is read whole (`fetch` + `arrayBuffer` + `gunzip`, 2-minute timeout, one catch), and its fallback is per flag: fresh / kept / disabled. A kept flag re-splits the stored cards by today's file, and `stale_since` is carried from run to run.
+4. **The overrides file** is keyed by flag name, pins each tag by UUID, and lists both halves of the split. An unreviewed card reads edge and is logged (LATER row 168). The unknown-id check runs against this run's staged identities.
+5. **Spellbook**: `bracket_tag text` (no `char(n)` in the schema), and `jsonArrayElements` gains `onRootValue` for the bulk's `version` / `timestamp`.
+6. **The wire**: the keys ride payloads that already carry `attrs` whole (search, deck cards, card pages' props), unrendered.
+
+**Found for Y3b**:
+- Spellbook's classifier patterns (land denial, infinite turns, skip turns, control of opponents, "lock") match only features our `results` store: 0 utility-only matches over the kept combos.
+- Three `extra-turn` cards give the turn to an opponent (Eon Frolicker, Perch Protection's gift, Emrakul, the Promised End). Spellbook's own combo flag excludes such turns.
+
+**LATER**: row 48 annotated (the floor stays); new rows 168 (land-denial cards nobody has reviewed) and 169 (`ingest_runs.source`'s stale comment).
+
+---
+
 Pull latest, then run Y3a — the fourth Wave-4 package and the first with a migration. **`WAVE4.md` is the contract.** Read, in this order: section **A**'s decisions table (named sources only; "a failing source never lowers the read"; the popularity floor stays; **migrate before push**); **D0**'s attribution paragraph; **D3** (bracket data) and D4's first paragraph (the ruleset is Y3b's, but the Game Changer hash it pins comes from Y3a's stats); the **Y3a** block in section E, its row in E's **pin matrix** and the migration table's `0016` row; the **Verification (whole wave)** "Migrate before push" bullet; and Y2b's ship note at the top of `Y2b-session-prompt.md`.
 
 Y3a stores what the bracket advisor will read — Wizards' Game Changers (via Scryfall), Scryfall Tagger's mass-land-denial and extra-turn flags, Commander Spellbook's combo bracket tag and "relevant" flag — lean, from named sources, with honest freshness. **One migration (`0016`: two `ADD COLUMN`s on `combos`), no route, no UI, no new dependency.** Nothing reads the new data yet (Y3b's engine does); every existing surface must answer exactly as before.
