@@ -13,6 +13,7 @@ import { normalizeCardName } from "@/lib/cards/normalize";
 import { GAME_ID } from "@/db/seed-data";
 
 import type { MtgAttrs } from "./attrs";
+import type { TaggerCardFlags } from "./tagger";
 
 // --- Scryfall input (minimal shape we consume) ------------------------------
 
@@ -53,6 +54,8 @@ export interface ScryfallCard {
   color_identity?: string[];
   keywords?: string[];
   edhrec_rank?: number;
+  /** Wizards' Game Changers list (Y3a). Present on every object since 2025; null is not false. */
+  game_changer?: boolean | null;
   legalities?: Record<string, string>;
   prices?: Record<string, string | null>;
   image_uris?: Record<string, string>;
@@ -199,8 +202,11 @@ export interface PrintingRow {
   content_hash: string;
 }
 
-/** Typed as MtgAttrs (LATER row, fired by P2.5) so the attrs contract can't drift from ingest. */
-function buildAttrs(card: ScryfallCard): MtgAttrs {
+/**
+ * Typed as MtgAttrs (LATER row, fired by P2.5) so the attrs contract can't drift from ingest.
+ * Bracket facts are sparse (Y3a): `game_changer` only when true, Tagger flags only when given.
+ */
+function buildAttrs(card: ScryfallCard, flags: TaggerCardFlags): MtgAttrs {
   const faces = card.card_faces;
   const attrs: MtgAttrs = {
     type_line: foldFaces(card, "type_line", " // "),
@@ -232,6 +238,9 @@ function buildAttrs(card: ScryfallCard): MtgAttrs {
       ...(f.loyalty != null ? { loyalty: f.loyalty } : {}),
     }));
   }
+  if (card.game_changer === true) attrs.game_changer = true;
+  if (flags.mld) attrs.mld = flags.mld;
+  if (flags.extra_turn) attrs.extra_turn = true;
   return attrs;
 }
 
@@ -281,7 +290,12 @@ export function dedupeReversibleFaces(card: ScryfallCard): ScryfallCard {
   };
 }
 
-export function mapIdentity(rawCard: ScryfallCard, todayIso: string): IdentityRow {
+/** `flags`: this card's Scryfall Tagger flags, resolved by the ingest before staging (Y3a). */
+export function mapIdentity(
+  rawCard: ScryfallCard,
+  todayIso: string,
+  flags: TaggerCardFlags = {},
+): IdentityRow {
   const card = dedupeReversibleFaces(rawCard);
   const colors =
     card.colors ?? Array.from(new Set((card.card_faces ?? []).flatMap((f) => f.colors ?? [])));
@@ -297,8 +311,19 @@ export function mapIdentity(rawCard: ScryfallCard, todayIso: string): IdentityRo
     is_leader_candidate: isLeaderCandidate(card),
     popularity: card.edhrec_rank ?? null,
     is_preview: (card.released_at ?? "") > todayIso,
-    attrs: JSON.stringify(buildAttrs(card)),
+    attrs: JSON.stringify(buildAttrs(card, flags)),
   };
+}
+
+/**
+ * The Game Changers' fingerprint (Y3a): md5 of the sorted oracle ids, one per
+ * line. The Scryfall run records it in stats.game_changers; the nightly's
+ * ruleset watch compares it with the hash pinned in ./bracket-ruleset.ts.
+ */
+export function gameChangerDigest(oracleIds: Iterable<string>): string {
+  return createHash("md5")
+    .update([...oracleIds].sort().join("\n"))
+    .digest("hex");
 }
 
 /** True when the printing has a distinct back face image (transform/MDFC/etc.). */

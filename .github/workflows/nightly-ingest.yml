@@ -146,6 +146,15 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
 
+      # The ruleset watch (Y3a): the Game Changer flags update themselves; a
+      # change to Wizards' list must be read by a person before the ruleset's
+      # as-of date and hash move. Last but the keepalive, which runs always.
+      - name: Ruleset watch (fails when Scryfall's Game Changers stop matching the ruleset's pinned hash)
+        if: ${{ !cancelled() }}
+        run: pnpm ruleset:watch
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       - name: Workflow keepalive (GitHub disables idle scheduled workflows after 60 days)
         if: always()
         run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/nightly-ingest.yml/enable"

@@ -1,8 +1,11 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import { normalizeCardName } from "@/lib/cards/normalize";
 import {
   colorsToMask,
+  gameChangerDigest,
   hasBack,
   isLeaderCandidate,
   leanPrices,
@@ -314,6 +317,48 @@ describe("mapIdentity", () => {
         toughness: undefined,
       }),
     ).toBe(false);
+  });
+
+  // Y3a: bracket facts are sparse attrs keys. The identity upsert's tuple
+  // compare includes attrs, so a card with no fact must serialize exactly as
+  // before — only flagged identities rewrite on the first tagged nightly.
+  it("writes game_changer only when Scryfall says true (null is not false)", () => {
+    const gc = JSON.parse(mapIdentity({ ...bolt, game_changer: true }, TODAY).attrs);
+    expect(gc.game_changer).toBe(true);
+    for (const game_changer of [false, null, undefined]) {
+      expect(JSON.parse(mapIdentity({ ...bolt, game_changer }, TODAY).attrs)).toEqual({
+        type_line: "Instant",
+        oracle_text: "Lightning Bolt deals 3 damage to any target.",
+        mana_cost: "{R}",
+      });
+    }
+  });
+
+  it("writes the Tagger flags the ingest passes, and none by default", () => {
+    const plain = JSON.parse(mapIdentity(bolt, TODAY).attrs);
+    expect(plain).not.toHaveProperty("mld");
+    expect(plain).not.toHaveProperty("extra_turn");
+    const edge = JSON.parse(mapIdentity(bolt, TODAY, { mld: "edge", extra_turn: true }).attrs);
+    expect(edge).toMatchObject({ mld: "edge", extra_turn: true, type_line: "Instant" });
+    expect(JSON.parse(mapIdentity(dfc, TODAY, { mld: "clear" }).attrs)).toMatchObject({
+      mld: "clear",
+      faces: expect.any(Array),
+    });
+    expect(JSON.parse(mapIdentity(bolt, TODAY, {}).attrs)).toEqual(plain);
+  });
+});
+
+describe("gameChangerDigest", () => {
+  it("is the md5 of the sorted oracle ids, one per line", () => {
+    expect(gameChangerDigest(["b-id", "c-id", "a-id"])).toBe("883d9634b59b6afcd8db0a9384c6d6f8");
+    expect(gameChangerDigest(["x"])).toBe(createHash("md5").update("x").digest("hex"));
+    expect(gameChangerDigest([])).toBe("d41d8cd98f00b204e9800998ecf8427e");
+  });
+
+  it("ignores input order and takes any iterable without sorting it in place", () => {
+    const ids = ["b-id", "a-id"];
+    expect(gameChangerDigest(new Set(ids))).toBe(gameChangerDigest(["a-id", "b-id"]));
+    expect(ids).toEqual(["b-id", "a-id"]);
   });
 });
 

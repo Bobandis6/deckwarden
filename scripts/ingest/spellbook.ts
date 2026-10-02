@@ -6,7 +6,9 @@
  * Source is the MIT-licensed bulk export (regenerated upstream on change):
  * one giant JSON object streamed via fetch→gunzip→jsonArrayElements, O(one
  * variant) memory. Lean rows only (Neon budget): pieces, result names,
- * template names, popularity — no steps/prose, no raw JSON.
+ * template names, popularity, and (Y3a) the bracket tag + "relevant" flag —
+ * no steps/prose, no raw JSON. The bulk's root `version` and `timestamp` are
+ * read from the same pass and recorded in the run's stats.
  *
  * Combos are pure derived card data nothing else references, so the sweep
  * hard-DELETEs variants that left the export (renumbered upstream, banned in
@@ -31,14 +33,17 @@ import { jsonArrayElements } from "../../src/lib/ingest/json-array-stream";
 import { maybeGunzip } from "../../src/lib/ingest/maybe-gunzip";
 import {
   mapVariant,
+  SPELLBOOK_BRACKET_TAGS,
   type ComboRow,
+  type SpellbookBracketTag,
   type SpellbookVariant,
   type VariantSkip,
 } from "../../src/lib/games/mtg/spellbook-map";
 
 const USER_AGENT = "Deckwarden/1.0 (https://deckwarden.gg)";
 const HEADERS = { "User-Agent": USER_AGENT, Accept: "application/json" };
-const BULK_URL = "https://spellbook-prod.s3.us-east-2.amazonaws.com/variants.json.gz";
+/** The documented bulk URL (Y3a; the same S3 object as the old bucket URL, behind CloudFront). */
+const BULK_URL = "https://json.commanderspellbook.com/variants.json.gz";
 const BATCH_SIZE = 1000;
 /** Session-wide lock id shared by all Deckwarden ingest jobs (see scryfall.ts). */
 const INGEST_LOCK_KEY = 7234015309;
@@ -56,6 +61,14 @@ interface Stats {
   combos: { inserted: number; updated: number; deleted: number };
   pieces: { staged: number; inserted: number; stale_deleted: number; count_mismatches: number };
   source_last_modified: string | null;
+  /** The bulk's own root `version` and `timestamp` (Y3a) — the bracket read's Spellbook freshness. */
+  source_version: string | null;
+  source_timestamp: string | null;
+  /** Kept combos by bracket tag; `bracket_tags_unknown` = raw value → count, stored as NULL. */
+  bracket_tags: Record<SpellbookBracketTag, number>;
+  bracket_tags_unknown: Record<string, number>;
+  /** Kept combos with a Standalone result. */
+  relevant: number;
   duration_ms: number;
   db_size_bytes: number;
 }
@@ -86,7 +99,8 @@ async function main() {
 
     await sql`CREATE TEMP TABLE stage_combo (
       external_key text, piece_count smallint, ci_mask smallint,
-      results text[], templates text[], popularity integer)`;
+      results text[], templates text[], popularity integer,
+      bracket_tag text, relevant boolean)`;
     await sql`CREATE TEMP TABLE stage_piece (external_key text, card_identity_id uuid)`;
 
     const stats: Stats = {
@@ -96,6 +110,14 @@ async function main() {
       combos: { inserted: 0, updated: 0, deleted: 0 },
       pieces: { staged: 0, inserted: 0, stale_deleted: 0, count_mismatches: 0 },
       source_last_modified: null,
+      source_version: null,
+      source_timestamp: null,
+      bracket_tags: Object.fromEntries(SPELLBOOK_BRACKET_TAGS.map((t) => [t, 0])) as Record<
+        SpellbookBracketTag,
+        number
+      >,
+      bracket_tags_unknown: {},
+      relevant: 0,
       duration_ms: 0,
       db_size_bytes: 0,
     };
@@ -123,14 +145,26 @@ async function main() {
       }
     };
 
-    for await (const element of jsonArrayElements(input, "variants")) {
+    const root: Record<string, unknown> = {};
+    const variants = jsonArrayElements(input, "variants", (key, value) => {
+      root[key] = value;
+    });
+    for await (const element of variants) {
       stats.variants_seen++;
-      const mapped = mapVariant(element as SpellbookVariant, (oid) => byOracle.get(oid));
+      const variant = element as SpellbookVariant;
+      const mapped = mapVariant(variant, (oid) => byOracle.get(oid));
       if (!mapped.ok) {
         stats.skipped[mapped.skip] = (stats.skipped[mapped.skip] ?? 0) + 1;
         continue;
       }
       stats.kept++;
+      const tag = mapped.combo.bracket_tag;
+      if (tag) stats.bracket_tags[tag]++;
+      else {
+        const raw = String(variant.bracketTag);
+        stats.bracket_tags_unknown[raw] = (stats.bracket_tags_unknown[raw] ?? 0) + 1;
+      }
+      if (mapped.combo.relevant) stats.relevant++;
       comboBatch.push(mapped.combo);
       for (const id of mapped.pieceIds) {
         pieceBatch.push({ external_key: mapped.combo.external_key, card_identity_id: id });
@@ -140,21 +174,38 @@ async function main() {
     }
     await flush();
     input.destroy(); // the reader stops at the array's ']'; drop the rest of the stream
-    console.log(`staged ${stats.kept} combos, ${stats.pieces.staged} pieces`);
+    stats.source_version = typeof root.version === "string" ? root.version : null;
+    stats.source_timestamp = typeof root.timestamp === "string" ? root.timestamp : null;
+    console.log(
+      `staged ${stats.kept} combos, ${stats.pieces.staged} pieces ` +
+        `(bulk ${stats.source_version ?? "?"} of ${stats.source_timestamp ?? "?"})`,
+    );
+    const unknownTags = Object.values(stats.bracket_tags_unknown).reduce((a, b) => a + b, 0);
+    if (unknownTags > 0) {
+      console.warn(
+        `WARNING: ${unknownTags} kept combos carry a bracket tag the read doesn't know ` +
+          `(stored as NULL): ${JSON.stringify(stats.bracket_tags_unknown)}`,
+      );
+    }
 
     // Merge combos: update only when content actually changed (tuple compare).
+    // Y3a: the first run with bracket_tag + relevant rewrites every row once.
     const comboRes = await sql<{ inserted: boolean }[]>`
-      INSERT INTO combos AS c (external_key, piece_count, ci_mask, results, templates, popularity)
-      SELECT s.external_key, s.piece_count, s.ci_mask, s.results, s.templates, s.popularity
+      INSERT INTO combos AS c
+        (external_key, piece_count, ci_mask, results, templates, popularity, bracket_tag, relevant)
+      SELECT s.external_key, s.piece_count, s.ci_mask, s.results, s.templates, s.popularity,
+             s.bracket_tag, s.relevant
       FROM stage_combo s
       ON CONFLICT (external_key) DO UPDATE SET
         piece_count = excluded.piece_count, ci_mask = excluded.ci_mask,
         results = excluded.results, templates = excluded.templates,
-        popularity = excluded.popularity
-      WHERE (c.piece_count, c.ci_mask, c.results, c.templates, c.popularity)
+        popularity = excluded.popularity, bracket_tag = excluded.bracket_tag,
+        relevant = excluded.relevant
+      WHERE (c.piece_count, c.ci_mask, c.results, c.templates, c.popularity, c.bracket_tag,
+             c.relevant)
         IS DISTINCT FROM
             (excluded.piece_count, excluded.ci_mask, excluded.results, excluded.templates,
-             excluded.popularity)
+             excluded.popularity, excluded.bracket_tag, excluded.relevant)
       RETURNING (xmax = 0) AS inserted`;
     stats.combos.inserted = comboRes.filter((r) => r.inserted).length;
     stats.combos.updated = comboRes.length - stats.combos.inserted;

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { identityToMask, mapVariant, type SpellbookVariant } from "./spellbook-map";
+import {
+  bracketTagOf,
+  identityToMask,
+  mapVariant,
+  SPELLBOOK_BRACKET_TAGS,
+  type SpellbookVariant,
+} from "./spellbook-map";
 
 const ORACLE_TO_ID: Record<string, string> = {
   "oracle-kiki": "id-kiki",
@@ -16,6 +22,7 @@ function variant(overrides: Partial<SpellbookVariant> = {}): SpellbookVariant {
     status: "OK",
     identity: "R",
     popularity: 1234,
+    bracketTag: "R",
     legalities: { commander: true, legacy: true },
     uses: [
       { card: { oracleId: "oracle-kiki", name: "Kiki-Jiki, Mirror Breaker" }, quantity: 1 },
@@ -58,6 +65,8 @@ describe("mapVariant", () => {
         results: ["Infinite hasty tokens", "Infinite ETB"],
         templates: [],
         popularity: 1234,
+        bracket_tag: "R",
+        relevant: true,
       },
       pieceIds: ["id-kiki", "id-conscripts"],
     });
@@ -153,5 +162,42 @@ describe("mapVariant", () => {
     const float = mapVariant(variant({ popularity: 12.6 }), resolve);
     if (!float.ok) throw new Error("expected ok");
     expect(float.combo.popularity).toBe(13);
+  });
+
+  // Y3a: the bracket read's combo facts, stored as Spellbook gives them.
+  it("keeps Spellbook's bracket tag for each letter the read knows", () => {
+    expect(SPELLBOOK_BRACKET_TAGS).toEqual(["R", "S", "P", "O", "C", "E"]);
+    for (const bracketTag of SPELLBOOK_BRACKET_TAGS) {
+      const res = mapVariant(variant({ bracketTag }), resolve);
+      expect(res).toMatchObject({ ok: true, combo: { bracket_tag: bracketTag } });
+    }
+  });
+
+  it("stores any other tag as null (counted by the ingest, never guessed)", () => {
+    for (const bracketTag of ["B", "X", "r", "", null, undefined]) {
+      const res = mapVariant(variant({ bracketTag }), resolve);
+      expect(res).toMatchObject({ ok: true, combo: { bracket_tag: null } });
+    }
+    expect(bracketTagOf(3)).toBeNull();
+    expect(bracketTagOf({ tag: "R" })).toBeNull();
+  });
+
+  it("is relevant only when some produced feature is Standalone (S)", () => {
+    const helperOnly = variant({
+      produces: [
+        { feature: { name: "Infinite ETB", status: "H" } },
+        { feature: { name: "Infinite mana", status: "C" } },
+        { feature: { name: "Spellbook bookkeeping", status: "HU" } },
+      ],
+    });
+    expect(mapVariant(helperOnly, resolve)).toMatchObject({ ok: true, combo: { relevant: false } });
+    expect(mapVariant(variant({ produces: [] }), resolve)).toMatchObject({
+      ok: true,
+      combo: { relevant: false },
+    });
+    expect(mapVariant(variant({ produces: undefined }), resolve)).toMatchObject({
+      ok: true,
+      combo: { relevant: false },
+    });
   });
 });

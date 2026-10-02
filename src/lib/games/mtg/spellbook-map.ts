@@ -18,6 +18,11 @@
  * combos.templates — the most popular combos in the dataset use them, and a
  * card page that silently omitted those would be dishonest — but they are
  * not pieces: piece_count counts cards only.
+ *
+ * Bracket data (Y3a): each kept row also carries Spellbook's bracket tag
+ * (one letter, or NULL for a letter the bracket read doesn't know — the
+ * ingest counts those) and `relevant` (any produced feature is Standalone).
+ * Nothing reads them until Y3b's engine; the popularity floor is unchanged.
  */
 import { colorsToMask } from "./scryfall-map";
 
@@ -28,6 +33,8 @@ export interface SpellbookVariant {
   status: string;
   identity?: string;
   popularity?: number | null;
+  /** Spellbook's bracket estimate for the combo alone (its estimate-bracket ladder). */
+  bracketTag?: string | null;
   legalities?: Record<string, boolean>;
   uses?: Array<{ card?: { oracleId?: string; name?: string }; quantity?: number }>;
   requires?: Array<{ template?: { name?: string }; quantity?: number }>;
@@ -43,6 +50,22 @@ export interface ComboRow {
   results: string[];
   templates: string[];
   popularity: number | null;
+  bracket_tag: SpellbookBracketTag | null;
+  relevant: boolean;
+}
+
+/**
+ * The tag letters WAVE4 D4's ladder reads (R → at least 4 … E → nothing). B,
+ * Spellbook's mark for a combo Commander bans, only rides on variants the
+ * legality filter drops first; any other letter is stored as NULL and counted.
+ */
+export const SPELLBOOK_BRACKET_TAGS = ["R", "S", "P", "O", "C", "E"] as const;
+export type SpellbookBracketTag = (typeof SPELLBOOK_BRACKET_TAGS)[number];
+
+export function bracketTagOf(raw: unknown): SpellbookBracketTag | null {
+  return (SPELLBOOK_BRACKET_TAGS as readonly unknown[]).includes(raw)
+    ? (raw as SpellbookBracketTag)
+    : null;
 }
 
 export type VariantSkip =
@@ -57,6 +80,8 @@ export type VariantMapResult =
  * bookkeeping; S(tandalone)/H(elper)/C(ontextual) are real produced effects.
  */
 const RESULT_FEATURE_STATUSES = new Set(["S", "H", "C"]);
+/** Spellbook's "relevant" combo: at least one Standalone result. */
+const RELEVANT_FEATURE_STATUS = "S";
 
 /** Spellbook identity string ("WUB", "C" for colorless) → house mask; colorless = 0. */
 export function identityToMask(identity: string | undefined): number {
@@ -110,6 +135,8 @@ export function mapVariant(
       results,
       templates,
       popularity,
+      bracket_tag: bracketTagOf(v.bracketTag),
+      relevant: (v.produces ?? []).some((p) => p.feature?.status === RELEVANT_FEATURE_STATUS),
     },
     pieceIds,
   };

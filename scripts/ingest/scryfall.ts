@@ -11,6 +11,14 @@
  *   - card data: INSERT … ON CONFLICT DO UPDATE … only where content changed
  *   - prices: separate UPDATE (daily churn must never dirty the content hash)
  *
+ * Bracket data (Y3a, WAVE4 D3), sparse keys in attrs: `game_changer` from each
+ * card object (the run fails if a mapped object lacks the boolean — null is
+ * not false) with stats.game_changers = {count, md5}; `mld` / `extra_turn`
+ * from Scryfall Tagger's oracle_tags bulk, read before staging and split by
+ * data/mtg/tagger-overrides.json (an unknown oracle id there fails the run
+ * before any card write). A Tagger read that fails keeps the stored flags and
+ * never fails this step; stats.tagger says which flags are fresh.
+ *
  * IMPORTANT: uses the DIRECT (non `-pooler`) connection — temp tables and
  * pg_advisory_lock are session state, which transaction-mode pooling breaks.
  *
@@ -20,15 +28,20 @@ import { config as loadEnv } from "dotenv";
 
 loadEnv({ path: [".env.local", ".env"], quiet: true });
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
+import { fileURLToPath } from "node:url";
 import { createGunzip } from "node:zlib";
 
 import postgres from "postgres";
 
 import { GAME_ID } from "../../src/db/seed-data";
 import { assignLeaderSlugs } from "./assign-leader-slugs";
+import { readPreviousStaleSince, readStoredFlags, readTagIndex } from "./tagger-read";
 import {
+  gameChangerDigest,
   mapIdentity,
   mapPrinting,
   oracleId,
@@ -37,6 +50,15 @@ import {
   type PrintingRow,
   type ScryfallCard,
 } from "../../src/lib/games/mtg/scryfall-map";
+import {
+  isUnreviewedMld,
+  overrideOracleIds,
+  parseTaggerOverrides,
+  resolveTagger,
+  TAGGER_FLAGS,
+  taggerCounts,
+  type TaggerStats,
+} from "../../src/lib/games/mtg/tagger";
 
 const USER_AGENT = "Deckwarden/1.0 (https://deckwarden.gg)";
 const HEADERS = { "User-Agent": USER_AGENT, Accept: "application/json" };
@@ -45,6 +67,10 @@ const SETS_URL = "https://api.scryfall.com/sets";
 const BATCH_SIZE = 1000;
 /** Session-wide lock id shared by all Deckwarden ingest jobs. */
 const INGEST_LOCK_KEY = 7234015309;
+const TAGGER_OVERRIDES_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../data/mtg/tagger-overrides.json",
+);
 
 function directUrl(): string {
   const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
@@ -152,6 +178,9 @@ interface Stats {
     images_checked: number;
     image_overrides: number;
   };
+  /** Y3a: the ruleset watch compares md5 with src/lib/games/mtg/bracket-ruleset.ts. */
+  game_changers: { count: number; md5: string } | null;
+  tagger: TaggerStats | null;
   duration_ms: number;
   db_size_bytes: number;
 }
@@ -174,6 +203,9 @@ async function main() {
       INSERT INTO ingest_runs (source, status) VALUES ('scryfall', 'running') RETURNING id`;
     runId = run.id;
 
+    // Hand-edited: a malformed file fails the run here, before any write.
+    const overrides = parseTaggerOverrides(JSON.parse(readFileSync(TAGGER_OVERRIDES_PATH, "utf8")));
+
     const bulk = await fetchJson<{ data: BulkDataEntry[] }>(BULK_DATA_URL);
     const entry = bulk.data.find((d) => d.type === "default_cards");
     if (!entry) throw new Error("no default_cards entry in /bulk-data");
@@ -184,6 +216,26 @@ async function main() {
     const setIds = await upsertSets(sql);
     console.log(`sets upserted: ${setIds.size}`);
     await createStaging(sql);
+
+    // Tagger flags (Y3a), resolved before staging: identities are mapped with them.
+    const storedFlags = await readStoredFlags(sql);
+    const tagRead = await readTagIndex(
+      bulk.data.find((d) => d.type === "oracle_tags"),
+      HEADERS,
+    );
+    const tagger = resolveTagger({
+      overrides,
+      index: tagRead.index,
+      stored: storedFlags,
+      previousStaleSince: await readPreviousStaleSince(sql),
+      nowIso: new Date(started).toISOString(),
+    });
+    if (tagRead.error) console.warn(`WARNING: ${tagRead.error} — keeping the stored flags`);
+    for (const note of tagger.notes)
+      console.warn(`WARNING: tagger ${note} — keeping the stored flags`);
+    for (const flag of TAGGER_FLAGS) {
+      console.log(`tagger ${flag}: ${tagger.status[flag]}, ${tagger.tagged[flag].size} tagged`);
+    }
 
     const stats: Stats = {
       lines: 0,
@@ -204,11 +256,17 @@ async function main() {
         images_checked: 0,
         image_overrides: 0,
       },
+      game_changers: null,
+      tagger: null,
       duration_ms: 0,
       db_size_bytes: 0,
     };
     const todayIso = new Date().toISOString().slice(0, 10);
     const seenOracle = new Set<string>();
+    const gameChangers: string[] = [];
+    let gameChangerMissing = 0;
+    let gameChangerMissingExample = "";
+    const unreviewedNames: string[] = [];
     // Formats this game tracks; card.legalities keys match format codes.
     const formats = await sql<{ id: number; code: string; default_legality: string }[]>`
       SELECT id, code, default_legality FROM formats WHERE game_id = ${GAME_ID.mtg}`;
@@ -244,10 +302,18 @@ async function main() {
         stats.skipped[skip] = (stats.skipped[skip] ?? 0) + 1;
         continue;
       }
+      // Null is not false: a mapped object without the boolean can't say whether it's on the list.
+      if (typeof card.game_changer !== "boolean") {
+        gameChangerMissing++;
+        gameChangerMissingExample ||= `${card.name} (${card.set} ${card.collector_number})`;
+      }
       const oid = oracleId(card)!;
       if (!seenOracle.has(oid)) {
         seenOracle.add(oid);
-        ciBatch.push(mapIdentity(card, todayIso));
+        if (card.game_changer === true) gameChangers.push(oid);
+        const flags = tagger.cards.get(oid);
+        if (flags?.mld && isUnreviewedMld(overrides, oid)) unreviewedNames.push(card.name);
+        ciBatch.push(mapIdentity(card, todayIso, flags));
         for (const f of formats) {
           const status = card.legalities?.[f.code];
           if (status) legBatch.push({ external_key: oid, format_code: f.code, status });
@@ -261,6 +327,40 @@ async function main() {
     console.log(
       `staged ${stats.identities.staged} identities, ${stats.printings.staged} printings`,
     );
+
+    // Both checks run before the first card write (staging is TEMP tables only).
+    if (gameChangerMissing > 0) {
+      throw new Error(
+        `game_changer missing or null on ${gameChangerMissing} mapped cards ` +
+          `(first: ${gameChangerMissingExample}) — Scryfall's field changed, so the ` +
+          `Game Changers can't be read; nothing was written`,
+      );
+    }
+    const unknownOverrides = overrideOracleIds(overrides).filter((id) => !seenOracle.has(id));
+    if (unknownOverrides.length) {
+      throw new Error(
+        `tagger overrides: unknown oracle ids (not staged this run): ${unknownOverrides.join(", ")}`,
+      );
+    }
+    stats.game_changers = { count: gameChangers.length, md5: gameChangerDigest(gameChangers) };
+    stats.tagger = {
+      bulk_updated_at: tagRead.updatedAt,
+      tag_ids: { mld: overrides.flags.mld.tag.id, extra_turn: overrides.flags.extra_turn.tag.id },
+      status: tagger.status,
+      stale_since: tagger.staleSince,
+      counts: taggerCounts(tagger, overrides, storedFlags, seenOracle),
+      error: [tagRead.error, ...tagger.notes].filter(Boolean).join("; ") || null,
+    };
+    console.log(
+      `game changers: ${stats.game_changers.count} (md5 ${stats.game_changers.md5}); ` +
+        `tagger counts ${JSON.stringify(stats.tagger.counts)}`,
+    );
+    if (unreviewedNames.length) {
+      console.warn(
+        `tagger: ${unreviewedNames.length} mass-land-denial cards are in neither list of ` +
+          `data/mtg/tagger-overrides.json (read as edge until reviewed): ${unreviewedNames.join(", ")}`,
+      );
+    }
 
     // Merge identities: update only when content actually changed (tuple compare).
     const ciRes = await sql<{ inserted: boolean }[]>`

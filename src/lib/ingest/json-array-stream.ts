@@ -2,7 +2,7 @@
  * Incremental JSON-array reader for bulk ingest (P2.5).
  *
  * Commander Spellbook's bulk export is ONE giant JSON object
- * (`{"timestamp": …, "variants": [ …652MB… ]}`) — not JSONL — so the
+ * (`{"timestamp": …, "version": …, "variants": [ …675MB… ], …}`) — not JSONL — so the
  * readline trick from the Scryfall job doesn't apply and JSON.parse of the
  * whole document would need gigabytes of heap. This walks the byte stream
  * with a string-aware depth counter and yields the elements of one named
@@ -12,6 +12,11 @@
  * The key is matched only where an object key can occur at depth 1 (never
  * inside strings, values, or nested objects), so a decoy value equal to the
  * key name can't hijack the scan. Consumption stops at the array's `]`.
+ *
+ * `onRootValue` (Y3a) receives the root's scalar values that come before the
+ * array — Spellbook's `timestamp` and `version` — from the same single pass;
+ * nested root values are skipped unbuffered, and an unparsable scalar is
+ * skipped too (the caller records what it got).
  */
 
 type Phase =
@@ -23,9 +28,12 @@ type Phase =
 
 const WS = /\s/;
 
+export type RootScalar = string | number | boolean | null;
+
 export async function* jsonArrayElements(
   chunks: AsyncIterable<Buffer | Uint8Array | string>,
   key: string,
+  onRootValue?: (key: string, value: RootScalar) => void,
 ): AsyncGenerator<unknown> {
   const decoder = new TextDecoder("utf-8");
   let phase: Phase = "seek-key";
@@ -46,10 +54,17 @@ export async function* jsonArrayElements(
   let parts: string[] | null = null;
   let partStart = -1;
 
+  // seek-key + onRootValue: the last other depth-1 key, and its scalar value's slices.
+  let rootKey: string | null = null;
+  let valueParts: string[] | null = null;
+  let valueStart = -1;
+  let valueBegun = false;
+
   for await (const raw of chunks) {
     const text = typeof raw === "string" ? raw : decoder.decode(raw, { stream: true });
     if (keyBuf !== null) keyStart = 0;
     if (parts !== null) partStart = 0;
+    if (valueParts !== null) valueStart = 0;
 
     for (let i = 0; i < text.length; i++) {
       const ch = text[i];
@@ -63,6 +78,7 @@ export async function* jsonArrayElements(
             const candidate = keyBuf + text.slice(keyStart, i);
             keyBuf = null;
             if (candidate === key) phase = "expect-colon";
+            else if (onRootValue) rootKey = candidate;
           }
         }
         continue;
@@ -85,11 +101,40 @@ export async function* jsonArrayElements(
           depth--;
           break;
         case ":":
-          if (depth === 1) inRootValue = true;
+          if (depth === 1) {
+            inRootValue = true;
+            if (phase === "seek-key" && rootKey !== null) {
+              valueParts = [];
+              valueStart = i + 1;
+              valueBegun = false;
+            }
+          }
           break;
         case ",":
           if (depth === 1) inRootValue = false;
           break;
+      }
+
+      // i >= valueStart: never the pair's own ':' (the value starts after it).
+      if (valueParts !== null && rootKey !== null && i >= valueStart) {
+        if (!valueBegun && !WS.test(ch)) {
+          valueBegun = true;
+          // An object or array: not a scalar — skip it without buffering.
+          if (ch === "{" || ch === "[") valueParts = null;
+        } else if ((ch === "," && depth === 1) || (ch === "}" && depth === 0)) {
+          const valueText = valueParts.join("") + text.slice(valueStart, i);
+          let value: unknown;
+          try {
+            value = JSON.parse(valueText);
+          } catch {
+            value = undefined;
+          }
+          if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+            onRootValue!(rootKey, value as RootScalar);
+          }
+          valueParts = null;
+        }
+        if (valueParts === null) rootKey = null;
       }
 
       if (phase === "expect-colon") {
@@ -131,6 +176,7 @@ export async function* jsonArrayElements(
     // Chunk boundary: bank the in-progress slices.
     if (keyBuf !== null) keyBuf += text.slice(keyStart);
     if (parts !== null) parts.push(text.slice(partStart));
+    if (valueParts !== null) valueParts.push(text.slice(valueStart));
   }
 
   // Reaching stream end is always a failure: every success path returns from

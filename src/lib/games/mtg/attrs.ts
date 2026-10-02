@@ -29,4 +29,15 @@ export type MtgAttrs = {
   toughness_num?: number | null;
   loyalty?: string;
   faces?: MtgFaceAttrs[];
+  /**
+   * Bracket facts (Y3a), sparse — absent means "not flagged" only when the
+   * run's stats say the source was read (ingest_runs.stats.game_changers /
+   * .tagger); nothing reads them until Y3b's engine.
+   * Wizards' Game Changers list via Scryfall's `game_changer`, written only when true.
+   */
+  game_changer?: true;
+  /** Scryfall Tagger's mass-land-denial, split clear / edge by data/mtg/tagger-overrides.json. */
+  mld?: "clear" | "edge";
+  /** Scryfall Tagger's extra-turn. */
+  extra_turn?: true;
 };

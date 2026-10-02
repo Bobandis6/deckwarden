@@ -42,7 +42,8 @@
     "smoke:sets": "tsx scripts/sets-smoke.ts",
     "search:canned": "tsx scripts/canned-searches.ts",
     "counters:reset": "tsx scripts/reset-dev-counters.ts",
-    "db:size": "tsx scripts/db-size.ts"
+    "db:size": "tsx scripts/db-size.ts",
+    "ruleset:watch": "tsx scripts/ruleset-watch.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

@@ -700,6 +700,14 @@ export const combos = pgTable("combos", {
   templates: text("templates").array().notNull().default([]),
   /** Spellbook popularity (EDHREC deck count). Display order: DESC NULLS LAST. */
   popularity: integer("popularity"),
+  /**
+   * Spellbook's bracket tag (Y3a), one letter the bracket read knows (R S P O C E).
+   * NULL = not ingested yet, or a letter it doesn't know — counted in the run's
+   * stats, never guessed. No CHECK on purpose: a new letter must not fail the run.
+   */
+  bracketTag: text("bracket_tag"),
+  /** Y3a: true when any produced feature is Standalone (status S). NULL = not ingested yet. */
+  relevant: boolean("relevant"),
 });
 
 /** The pieces of a combo. "Combos using card X" starts at combo_pieces_by_card. */
