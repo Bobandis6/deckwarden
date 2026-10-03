@@ -84,8 +84,14 @@ export function isLegalPair(a: MtgCard, b: MtgCard): boolean {
   return false;
 }
 
-/** Most severe legality problem for one card, or null. */
-function legalityIssue(card: MtgCard): { code: string; severity: "error" | "warning" } | null {
+/**
+ * Most severe legality problem for one card, or null. Exported for the
+ * bracket read (Y3b), which blocks on exactly the cards validation calls
+ * BANNED or NOT_LEGAL — a preview card's NOT_RELEASED warning never blocks.
+ */
+export function legalityIssue(
+  card: MtgCard,
+): { code: "BANNED" | "NOT_LEGAL" | "NOT_RELEASED"; severity: "error" | "warning" } | null {
   let notLegal = false;
   for (const entry of card.legality) {
     // MTG has no conditional bans today; skip conditions we don't interpret.

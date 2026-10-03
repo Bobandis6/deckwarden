@@ -25,6 +25,11 @@
  * Nothing reads them until Y3b's engine; the popularity floor is unchanged.
  */
 import { colorsToMask } from "./scryfall-map";
+import { bracketTagOf, type SpellbookBracketTag } from "./spellbook-tags";
+
+// The letters live in a client-safe module (the bracket read runs in the
+// browser); re-exported so the ingest's imports stay put.
+export { SPELLBOOK_BRACKET_TAGS, bracketTagOf, type SpellbookBracketTag } from "./spellbook-tags";
 
 // --- The slice of a bulk-export variant this job reads ------------------------
 
@@ -52,20 +57,6 @@ export interface ComboRow {
   popularity: number | null;
   bracket_tag: SpellbookBracketTag | null;
   relevant: boolean;
-}
-
-/**
- * The tag letters WAVE4 D4's ladder reads (R → at least 4 … E → nothing). B,
- * Spellbook's mark for a combo Commander bans, only rides on variants the
- * legality filter drops first; any other letter is stored as NULL and counted.
- */
-export const SPELLBOOK_BRACKET_TAGS = ["R", "S", "P", "O", "C", "E"] as const;
-export type SpellbookBracketTag = (typeof SPELLBOOK_BRACKET_TAGS)[number];
-
-export function bracketTagOf(raw: unknown): SpellbookBracketTag | null {
-  return (SPELLBOOK_BRACKET_TAGS as readonly unknown[]).includes(raw)
-    ? (raw as SpellbookBracketTag)
-    : null;
 }
 
 export type VariantSkip =

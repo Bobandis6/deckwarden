@@ -10,7 +10,8 @@
  */
 import { and, eq, inArray, sql } from "drizzle-orm";
 
-import { getDb, schema } from "@/db";
+import { getDb, schema, type DbExecutor } from "@/db";
+import type { CompleteCombo } from "@/lib/games/types";
 
 const { combos, comboPieces, cardIdentities, deckCards } = schema;
 
@@ -269,6 +270,59 @@ export async function loadCombosNearDeck(
     });
   }
   return { combos: views, truncated: comboRows.length === limit };
+}
+
+/**
+ * The list's complete combos — the bracket read's combo facts (Y3b, WAVE4
+ * D4): every combo whose card pieces are ALL in `cardIds`, templates
+ * included (the read decides what an open template means). Uncapped, and ONE
+ * statement: the list's piece rows (entered through combo_pieces_by_card,
+ * the P2.5 contract) are grouped per combo first — narrow rows, so the sort
+ * stays small — and a group joins its combo only when it holds all
+ * piece_count pieces, so its array_agg IS the combo's full piece list and
+ * nothing is fetched twice. Measured 2026-10-02: 25 ms on the server for
+ * the heaviest precon (5,417 piece rows → 4 combos); 101 ms for the 100
+ * most combo-dense identities (71,277 piece rows → 445 combos), where
+ * joining first took 197 ms and spilled ~20 MB to disk. No identity
+ * filter: a combo's stored identity is exactly its pieces' union (0
+ * exceptions over all 66,881 combos), so a complete combo always fits the
+ * list and the answer depends on the id set alone (Y4a's GET keys on it).
+ * Ordered by popularity, like every combo list. Its bound is the list
+ * itself: only combos made of cards in it.
+ */
+export async function loadCompleteCombos(
+  cardIds: readonly string[],
+  db: DbExecutor = getDb(),
+): Promise<CompleteCombo[]> {
+  const ids = [...new Set(cardIds)];
+  if (ids.length === 0) return [];
+  const held = db
+    .select({
+      comboId: comboPieces.comboId,
+      count: sql<number>`count(*)`.as("held_count"),
+      cardPieces: sql<
+        string[]
+      >`array_agg(${comboPieces.cardIdentityId}::text ORDER BY ${comboPieces.cardIdentityId})`.as(
+        "card_pieces",
+      ),
+    })
+    .from(comboPieces)
+    .where(inArray(comboPieces.cardIdentityId, ids))
+    .groupBy(comboPieces.comboId)
+    .as("held");
+  return db
+    .select({
+      key: combos.externalKey,
+      cardPieces: held.cardPieces,
+      templates: combos.templates,
+      tag: combos.bracketTag,
+      relevant: combos.relevant,
+      results: combos.results,
+      popularity: combos.popularity,
+    })
+    .from(held)
+    .innerJoin(combos, and(eq(combos.id, held.comboId), eq(combos.pieceCount, held.count)))
+    .orderBy(sql`${combos.popularity} DESC NULLS LAST`, combos.id);
 }
 
 /** The deck's distinct card identities (all zones) — detection input. */

@@ -6,6 +6,7 @@ import { COLOR_BIT, maskToLetters } from "../colors";
 import type { CardData, GameAdapter, SearchFieldDef } from "../types";
 import type { MtgAttrs } from "./attrs";
 import { analyzeMtg } from "./analyze";
+import { mtgBrackets } from "./brackets";
 import { mtgBuy } from "./buy";
 import { parseMtgDecklist, serializeMtgDecklist } from "./decklist";
 import { MTG_FORMATS } from "./formats";
@@ -181,6 +182,11 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
   // Recommendation signals (P3.1): edhrec_rank + Spellbook + the curve
   // template above, phrased in ./recommend.ts; the engine is core.
   recommend: mtgRecommend,
+
+  // The bracket read (Y3b): Wizards' ruleset as data, Spellbook's MIT deck
+  // ladder adjusted to Wizards' text, pure in ./brackets.ts; IO is core
+  // (loadCompleteCombos, the freshness loader).
+  brackets: mtgBrackets,
 
   capabilities: {
     // Ambient artwork (R2): Scryfall's art_crop with the artist credit

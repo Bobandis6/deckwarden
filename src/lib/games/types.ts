@@ -477,6 +477,168 @@ export interface RecommendMeta {
 }
 
 // ---------------------------------------------------------------------------
+// Brackets (Y3b, WAVE4 D4) — a deck's power-level read
+// ---------------------------------------------------------------------------
+//
+// What the cards prove (a minimum), what only the player can decide (open
+// questions) and what couldn't be checked (a missing, stale or switched-off
+// source) — never one authoritative number. The read is pure and runs on
+// both sides; its IO is core: src/lib/combos/queries.ts loadCompleteCombos
+// (the combo facts) and src/lib/brackets/freshness.ts (each source's latest
+// successful ingest run). Core names are game-agnostic — `brackets`, a
+// "level", `targetLevel`; the word players use is the adapter's `noun`.
+
+/** One combo whose every card piece is in the list (core's loadCompleteCombos). */
+export interface CompleteCombo {
+  /** The source's id for the combo (Commander Spellbook's variant id) — its walkthrough link. */
+  key: string;
+  /** Every card piece, identity ids, sorted. */
+  cardPieces: string[];
+  /** Named non-card requirements: the list alone can't confirm the combo. */
+  templates: string[];
+  /** The source's own rating of the combo alone; null = not ingested, or a value the adapter doesn't know. */
+  tag: string | null;
+  /** The source's "relevant" mark (Spellbook: any Standalone result); null = not ingested. */
+  relevant: boolean | null;
+  /** What it produces, by name. */
+  results: string[];
+  popularity: number | null;
+}
+
+/** One source's latest successful ingest run — core loads it, the adapter reads `stats`. */
+export interface IngestRunFacts {
+  source: string;
+  id: number;
+  /** ISO date-time. */
+  startedAt: string;
+  stats: unknown;
+}
+
+/** How usable one evidence feed is, as the adapter judges it from the runs. */
+export interface FeedFreshness {
+  /** ok = usable · stale = not refreshed within the adapter's window · missing = never recorded · off = switched off */
+  state: "ok" | "stale" | "missing" | "off";
+  /** When the feed last refreshed (ISO date-time); null when missing or off. */
+  asOf: string | null;
+  /** A source detail worth showing ("53 cards", "bulk 7.1.3"). */
+  detail?: string;
+}
+
+export interface BracketFreshness {
+  /** When the runs were read (ISO) — what "stale" is measured against. */
+  readAt: string;
+  /** Keyed by the adapter's feed names. */
+  feeds: Record<string, FeedFreshness>;
+}
+
+export type BracketAnswer = "yes" | "no" | "unsure";
+
+/** The player's answers (Y4b keeps them in decks.goals). They only ever raise the read. */
+export interface BracketAnswers {
+  /** The ruleset version they were given under; a newer ruleset flags them, never drops them. */
+  rulesetVersion: number;
+  /** "How it plays", keyed by the adapter's question keys. */
+  play?: Readonly<Record<string, BracketAnswer>>;
+  /** The read's open questions, keyed by their ids. */
+  calls?: Readonly<Record<string, BracketAnswer>>;
+}
+
+export interface BracketInput<A = Record<string, unknown>> {
+  deck: DeckSnapshot;
+  /** Same map validate/analyze take — legality pre-filtered by the core. */
+  cards: ReadonlyMap<string, CardData<A>>;
+  /** The list's complete combos; null = not loaded or couldn't load — the read says so. */
+  combos: readonly CompleteCombo[] | null;
+  /** null = couldn't load: every feed reads "Couldn't check". */
+  freshness: BracketFreshness | null;
+  /** The player's declared level. It never changes the read; it only names the conflicts. */
+  targetLevel?: number | null;
+  answers?: BracketAnswers | null;
+}
+
+/**
+ * blocked = a banned or not-legal card (the read needs a legal list) ·
+ * draft = under the format's minimum (what's found so far stays listed) ·
+ * unavailable = something couldn't be checked, so `minimum` is only a floor ·
+ * review = a question only the player can answer could raise it · read.
+ * That is also the precedence.
+ */
+export type BracketStatus = "draft" | "read" | "review" | "blocked" | "unavailable";
+
+export interface BracketFactor {
+  /** Stable key (lists, tests). */
+  id: string;
+  /** One plain sentence: what the cards show, or what couldn't be checked. */
+  sentence: string;
+  /** The cards behind it (identity ids, name order); empty for a "Couldn't check" line. */
+  cards: string[];
+  /** The named source. */
+  source: string;
+  /** The lowest level this evidence allows; null = couldn't check. */
+  atLeast: number | null;
+  /** What would change it ("Remove Rhystic Study and Cyclonic Rift to fit Bracket 2."). */
+  change: string | null;
+  /** The combo's key when the factor is one combo. */
+  combo?: string;
+}
+
+export interface BracketQuestion {
+  /** Stable across ordinary edits — answers key on it. */
+  id: string;
+  question: string;
+  /** Why it's asked, in plain words. */
+  because: string;
+  cards: string[];
+  source: string;
+  /** The level a "yes" means. */
+  raisesTo: number;
+  /** The player's answer, when given. */
+  answer: BracketAnswer | null;
+  combo?: string;
+}
+
+export interface BracketRead {
+  status: BracketStatus;
+  /** The lowest level the cards prove — 1 when nothing is flagged. */
+  minimum: number;
+  /** The level the cards and the answers point to; null until something is answered. */
+  suggested: number | null;
+  factors: BracketFactor[];
+  /** What the read assumes, in plain words (fixed text, the dates from ingest). */
+  assumptions: string[];
+  /** Questions whose "yes" would raise the read above `minimum` (answered ones included). */
+  review: BracketQuestion[];
+  /** Cards that block the read: banned, or not legal in the format. */
+  blockedBy: string[];
+  /** Factor ids above the declared target — the target never hides them. */
+  conflicts: string[];
+  ruleset: { version: number; asOf: string };
+  /** Answers given under an older ruleset: still applied, flagged for a second look. */
+  answersStale: boolean;
+}
+
+/**
+ * A game's power-level read (Y3b). Optional — a game without it shows no
+ * bracket anywhere, with no apology copy (One Piece declares none).
+ */
+export interface BracketsMeta<A = Record<string, unknown>> {
+  /** The word players use for a level ("bracket"). */
+  noun: string;
+  /** The levels, lowest first — `targetLevel`'s range and the names a read quotes. */
+  levels: readonly { level: number; name: string }[];
+  /** The ruleset the read applies; answers record `version`. */
+  ruleset: { version: number; asOf: string };
+  /** "How it plays" — the questions whose answers raise `suggested`, by key. */
+  questions: readonly { key: string; question: string }[];
+  /** ingest_runs sources whose latest successful run the freshness loader reads. */
+  freshnessSources: readonly string[];
+  /** Pure: those runs → each evidence feed's freshness, as of `readAt`. */
+  freshness(runs: readonly IngestRunFacts[], readAt: string): BracketFreshness;
+  /** Pure: the read. */
+  assess(input: BracketInput<A>): BracketRead;
+}
+
+// ---------------------------------------------------------------------------
 // Optional capabilities (game-exclusive services — absent = feature hidden)
 // ---------------------------------------------------------------------------
 
@@ -606,6 +768,12 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
    * this game. Pure data + pure builders; the engine is src/lib/recommend/.
    */
   recommend?: RecommendMeta;
+
+  /**
+   * The power-level read (Y3b, WAVE4 D4). Absent = no bracket anywhere for
+   * this game. Pure data + pure functions; the IO is core.
+   */
+  brackets?: BracketsMeta<A>;
 
   capabilities: {
     /**

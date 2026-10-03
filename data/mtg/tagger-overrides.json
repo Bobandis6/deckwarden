@@ -2,9 +2,10 @@
   "$comment": [
     "Hand-maintained review layer over Scryfall Tagger (community tags on tagger.scryfall.com, read nightly from Scryfall's oracle_tags bulk by scripts/ingest/scryfall.ts; WAVE4 D3). Each flag pins its Tagger tag by UUID (slugs get renamed): a tag's cards are its taggings plus every descendant tag's. enabled: false is the kill-switch — the flag is written for no card and the bracket read says it couldn't check.",
     "mld (mass-land-denial) splits the tag's list. clear = played as intended, the card takes away, locks or rewrites the mana of most lands of every opponent, whatever they play — Wizards' examples Armageddon, Ruination, Sunder, Winter Orb and Blood Moon, and cards that do the same (resets that take every land with them included); the read says at least Bracket 4. edge = the land denial hangs on something the list can't see: a planeswalker ultimate, a mode, one land type, snow or color, a number (X, threshold, storm, cards in hand or graveyard), a board where someone has fewer lands, random piles, or one land at a time from repeated triggers; the read asks 'Does it deny lands the way Armageddon does?'. A tagged card in neither list reads edge until someone reviews it (the run counts and logs it).",
-    "disabledCards: oracle id -> why; the flag is never written for that card. Keys are Scryfall oracle ids (card_identities.external_key, game 1); an id the run doesn't stage fails the run before any card is written — a typo must never half-apply. Reviewed against the 2026-10-01 bulk: mass-land-denial 113 taggings (111 of them our cards: 42 clear, 69 edge; the other two are an emblem and a Japanese-only card), extra-turn 64; neither tag has descendants."
+    "disabledCards: oracle id -> why; the flag is never written for that card. Keys are Scryfall oracle ids (card_identities.external_key, game 1); an id the run doesn't stage fails the run before any card is written — a typo must never half-apply. Reviewed against the 2026-10-01 bulk: mass-land-denial 113 taggings (111 of them our cards: 42 clear, 69 edge; the other two are an emblem and a Japanese-only card), extra-turn 64; neither tag has descendants.",
+    "extra_turn means an extra turn for you — the turns Wizards' brackets limit (none in Bracket 1; in 2–3 a few, never chained or looped). Tagger's extra-turn tag also holds cards that give the extra turn to an opponent; those are disabled here, the way Commander Spellbook's own combo flag leaves out turns 'for … opponent' (variant.py's EXTRA_TURN_FOR_OPPONENT_PATTERN). Reviewed 2026-10-02 against all 64 tagged cards' oracle text: three give the turn only to an opponent."
   ],
-  "reviewed": "2026-10-01",
+  "reviewed": "2026-10-02",
   "flags": {
     "mld": {
       "tag": {
@@ -135,7 +136,11 @@
         "slug": "extra-turn"
       },
       "enabled": true,
-      "disabledCards": {}
+      "disabledCards": {
+        "4e7a8817-1a66-45c3-ade9-eac79b40b89f": "Emrakul, the Promised End — the opponent you controlled takes the extra turn",
+        "c0a18a53-d520-4795-9b3b-0f93bcf35848": "Eon Frolicker — target opponent takes the extra turn",
+        "295fe873-ecb5-4d5e-a73c-3af6c478afc5": "Perch Protection — its gift gives an opponent the extra turn"
+      }
     }
   }
 }

@@ -105,7 +105,14 @@ describe("parseTaggerOverrides", () => {
     expect(o.flags.mld.enabled && o.flags.extra_turn.enabled).toBe(true);
     expect(Object.keys(o.flags.mld.clear)).toHaveLength(42);
     expect(Object.keys(o.flags.mld.edge)).toHaveLength(69);
-    expect(overrideOracleIds(o)).toHaveLength(111);
+    // Y3b: extra_turn means a turn for you — the three cards that give it to
+    // an opponent are disabled (Spellbook's combo flag leaves those out too).
+    expect(Object.values(o.flags.extra_turn.disabledCards).map((n) => n.split(" — ")[0])).toEqual([
+      "Emrakul, the Promised End",
+      "Eon Frolicker",
+      "Perch Protection",
+    ]);
+    expect(overrideOracleIds(o)).toHaveLength(114);
     // Wizards' five examples read clear; the prompt's named edges read edge.
     const clearNames = Object.values(o.flags.mld.clear);
     for (const name of ["Armageddon", "Ruination", "Sunder", "Winter Orb", "Blood Moon"]) {
