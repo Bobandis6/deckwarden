@@ -1,5 +1,55 @@
 # Y3b session prompt — Bracket engine (the ruleset, `assessBracket`, `loadCompleteCombos`, the freshness loader, D11's fixtures, the precon spread)
 
+## Ship note — 2026-10-03, feat `3320ad6`, deployed (Vercel status success on the full sha, 10:36 Z; CI green)
+
+**Shipped. The prompt below is history. Next is `Y4a-session-prompt.md` (the bracket line and the Why sheet; one new route).**
+
+**Pre-flight**:
+- Y3a had shipped (`884c62f`, `_journal.json` at idx 16). The owner's answers at the start: **nothing new posted**, **read-only database access granted**, and **start now, push when done** (the first scheduled nightly hadn't run yet). Later, a yes to the two dev smokes (one writes two throwaway decks).
+- The session paused a day on a question, so the first scheduled nightly since Y3a was read before the push: run 37033340912 (2026-10-02 16:21 Z), **every step green, the ruleset watch included**.
+- **Y3a's owed number**: `pnpm db:size` **284.3 MB** after that nightly — unchanged since the dispatch. The combos heap 34.5 MB (total 41.9 MB) with 0 dead tuples; the nightly's Spellbook merge updated 0 rows (the tuple compare is a no-op now). Scryfall #259: 53 Game Changers (md5 = the pin), Tagger both flags fresh (bulk of 2026-10-02 09:00 Z), 111 / 64 flagged, 0 unreviewed. Spellbook #261: 66,881 kept, the same tag counts, bulk 7.1.3 of 2026-10-02 15:12 Z.
+- Baseline on `390d552`: 1,376 tests / 158 files / 6 warnings / 0 errors; census 209 deck rows = 28 user decks (16 account + 12 guest) + 181 precons, 1 user. The route table was saved.
+
+**Verified first**:
+- **Spellbook**: `variant.py`'s last commit is still `190735d9abe0` (master `6fd71feba1b9`), so the ladder was ported as read; its MIT LICENSE is copied verbatim to the top of `src/lib/games/mtg/brackets.ts`. `is_commander` = commander-eligible, so with the commander unknown every legendary piece is "arguable".
+- **Wizards** (the format page's own entries, read 2026-10-02): the five bracket entries last edited **2025-11-05** (the Oct 21 2025 expectations: 9 / 8 / 6 / 4 / any turns); the Game Changer lists 2025-10-22 and **2026-02-09** (white and green: Farewell, Biorhythm), 53 names; the overview and Game Changers info re-published 2026-04-24 with the same text (no rule change). The barometers come from the Feb 11 2025 introduction (restated Apr 22 2025): no Game Changers in 1–2, up to three in 3; no mass land denial through 3; no extra-turn cards in 1, a few never chained in 2–3; no intentional two-card infinite combos in 1–2, none early in 3. The 2026-06-29 B&R touches Legacy, Pauper and Brawl only.
+- **The live `results`** (1,044 distinct names): mass land denial = "Mass Land Denial" (360 combos); own infinite turns = "Infinite turns", "Near-infinite turns", "Infinite turns after one turn cycle" (3,166); "Infinite turns for each opponent" (1, excluded); control of every opponent = "You control your opponents on each of their turns" and "You control up to three opponents on each of their turns" (8). No combo's stored identity differs from its pieces' union (0 of 66,881). 0 one-card combos; 3,056 with templates.
+
+**What shipped** (decisions in WAVE4's tracker and REDESIGN.md "Y3b decisions"):
+- **The ruleset** (`bracket-ruleset.ts`, version 1): Wizards' five brackets as data — allowances, land denial, extra turns, two-card combos, turns — with the watch's `gameChangers` pin untouched. The engine derives every allowance it quotes from it.
+- **`assessBracket`** (`brackets.ts`, pure, runs on both sides): D4's table row by row. Status precedence blocked → draft → unavailable → review → read; "Couldn't check" for a missing / off / >7-day-stale feed, a NULL tag, facts that didn't load; answers only raise (How it plays, plus per-question answers by stable id); D0's copy guard beside the strings.
+- **The adapter's `brackets` declaration** (noun, levels, ruleset, questions, freshnessSources, `freshness`, `assess`); One Piece declares nothing.
+- **Core**: `loadCompleteCombos` (`src/lib/combos/queries.ts`) and `loadLatestRuns` / `loadBracketFreshness` (`src/lib/brackets/freshness.ts`), one statement each.
+- **Data**: `extra_turn.disabledCards` gains Emrakul, the Promised End; Eon Frolicker; Perch Protection (each gives the turn only to an opponent; the other 61 were read). The next nightly applies it (`removed: 3`).
+- **Tests**: `pnpm check` **1,442 tests / 159 files**, the same 6 warnings, 0 errors (+66 in the new `brackets.test.ts`; `tagger.test.ts`'s real-file pin moved to 114 ids with the three named). Combo fixtures quote real rows (`742-1295`, `2484-4083`, `1089-2353`, `628-2034--5`, `513-5034--46`, `2120-5329`, `2552-3263`, `1167-5483`, …). **Eighteen mutation checks, each caught** — the commander counted in the two-card rule, templates read as complete, the commander raising C/P/R, staleness ignored, an opponent's turns counted, Game Changers by distinct card, edge land denial firm, two extra-turn cards firm 4, draft before blocked, answers lowering, an unknown tag reading nothing, combos not re-checked against the list, an "approves" in the copy, no freshness read as ok, never unavailable, per-question answers ignored, the two-card rule dropped, S read as a firm 4.
+
+**Measured** (`scripts/.tmp/y3b-measure.ts`, the real functions in one read-only transaction; statements captured like `DB_LOG`):
+
+| List | Piece rows | Complete combos | Statements | Server | Warm, this machine → Neon |
+|---|---|---|---|---|---|
+| Heaviest precon (Witherbloom Pestilence, 86 cards) | 5,417 | 4 (all with templates) | 1 | 24.6 ms | ~280 ms |
+| Thassa's Oracle + Demonic Consultation, Ashnod's Altar + Mikaeus, Hullbreaker + Sol Ring, 94 staples | 5,876 | 3 | 1 | 24.8 ms | ~296 ms |
+| The 100 most combo-dense identities (stress) | 71,277 | 445 | 1 | 101.4 ms (2.4 MB sort spill) | ~360 ms |
+
+The plan: the list's piece rows through `combo_pieces_by_card` (bitmap), grouped per combo, hash-joined to a seq scan of `combos` on id and piece count. The join-first shape spent 197 ms and ~20 MB of disk on the stress list, the same 26 ms on a precon. What bounds it is the list: only combos made of its cards (445 is the measured worst case for 100 cards; the precons hold 0–9). The freshness loader: one statement, 0.2 ms (a seq scan of 258 rows).
+
+**The precon spread** (`scripts/.tmp/y3b-calibrate.ts`, one read-only transaction, the shipped loaders and engine, fresh feeds):
+- **Minimum**: 1 → 146 · 2 → 6 · 3 → 28 · 4 → 1 (Mirror Mastery: Ruination).
+- **Status**: read 162 · review 17 · blocked 2 (Dockside Extortionist in Mystic Intellect, Trade Secrets in Political Puppets — both banned).
+- **Open questions per deck**: 0 → 163 · 1 → 12 · 2 → 3 · 3 → 2 · 4 → 1. By kind: a combo with your commander 10, an S tag's "or 4" 9, a template 4, edge land denial 4 (Whims of the Fates, Magus of the Balance ×2, Gideon, Champion of Justice), chaining extra turns 1.
+- **What raised them**: a Game Changer in 18 precons (Farewell, Seedborn Muse, Notion Thief, Jeska's Will …), a relevant two-card combo (23 combo factors — e.g. Maskwood Nexus + The World Tree, Lightning Runner + Stone Idol Generator), an extra-turn card in 12, a combo's tag in 3.
+- **Two precons hold an opponent's extra turn**: Arcane Maelstrom (Eon Frolicker; it reads 3 from Crop Rotation anyway) and Peace Offering (Perch Protection: 2 now → **1** once the nightly applies the edit).
+- **The batched all-precons statement**: 1 statement, ~0.4 s, no spill → LATER row 151's trigger is met (annotated; the owner schedules it, after Y5).
+
+**Correction to WAVE4 B**: Hullbreaker Horror + Sol Ring (`513-5034--46`, tagged E) needs "Permanent Castable for {C}" — a template — so it's a three-piece combo, not the lenient two-card example B cites. The leniency itself is real (Blasphemous Act + Repercussion and Maskwood Nexus + The World Tree are tagged C and read 3 here).
+
+**Dev and prod**: `smoke:combos` and `smoke:recommend` green on dev (the smoke created and deleted its two QA decks; census unchanged at 209 after). The route table byte-identical. Prod after the deploy, signed out: `/`, `/commanders`, `/precons`, `/sets`, `/cards`, `/decks/new?game=mtg`, a hub and `/leaders` all 200. Nothing renders the read yet.
+
+**LATER**: row 151 (the `/precons` filter) — trigger met; row 152 (the Spellbook cross-check) — what the read can't see (zones, prerequisites, mana needed); new row 170 — newly tagged extra-turn cards aren't reviewed for whose turn it is (trigger: `counts.extra_turn.added > 0`).
+
+---
+
+
 Pull latest, then run Y3b — the fifth Wave-4 package. **`WAVE4.md` is the contract.** Read these, in this order:
 
 1. Section **A**'s decisions table: the cards prove a minimum, the read's assumptions are shown, never one authoritative number; Wizards' text beats Spellbook's in both directions; "a failing source never lowers the read"; tutors never raise it; plain words.
