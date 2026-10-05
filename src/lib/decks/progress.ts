@@ -38,6 +38,15 @@ export function toGoPhrase(toGo: number): string | null {
 }
 
 /**
+ * The bracket line's draft phrase (Y4a, WAVE4 D5): "add 34 more cards" —
+ * the adapter's line wraps it ("Bracket: add 34 more cards · 1 Game Changer
+ * so far"). Null at or over the minimum, like toGoPhrase.
+ */
+export function addMorePhrase(toGo: number): string | null {
+  return toGo > 0 ? `add ${toGo} more ${toGo === 1 ? "card" : "cards"}` : null;
+}
+
+/**
  * "Choose a commander · 100 to go" / "Choose a leader · 50 to go" /
  * "2 to go"; null once neither applies. `leaderNoun` is the adapter's
  * display noun ("Commander", "Leader").

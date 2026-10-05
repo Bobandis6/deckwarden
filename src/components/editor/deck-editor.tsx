@@ -50,6 +50,13 @@
  * deck" under the Warden line once per deck per browser
  * (useFirstApproval). None of it mints a row.
  *
+ * Y4a (WAVE4 D5): the bracket line after the Warden line — the adapter's
+ * pure read (`brackets.assess`) beside validate, over the same snapshot and
+ * card wires, with the combo facts from one GET per settled id set
+ * (useBracketFacts) — and its "Why?" sheet as the "bracket" dialog. A GET,
+ * never a POST, so a seeded draft still sends none; a game without
+ * `brackets` shows nothing.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
@@ -59,8 +66,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { AmbientArt } from "@/components/deck/ambient-art";
 import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
+import { BracketLine } from "@/components/deck/bracket-line";
+import { BracketSheet } from "@/components/deck/bracket-sheet";
 import { BuyDeckDialog, countedEntries } from "@/components/deck/buy-deck-menu";
 import { SampleHand } from "@/components/deck/sample-hand";
+import { useBracketFacts } from "@/components/deck/use-bracket-facts";
 import { AutofillSheet } from "@/components/editor/autofill-sheet";
 import { CardDetailPane, type PrintingEditing } from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
@@ -90,6 +100,7 @@ import { Button } from "@/components/ui/button";
 import { ModalFinalFocus } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast, Toaster } from "@/components/ui/toast";
+import { factsIds } from "@/lib/brackets/facts";
 import { deckOwnership } from "@/lib/collection/ownership";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { type GalleryPrinting } from "@/lib/cards/printings";
@@ -118,6 +129,8 @@ import {
 import type { ForkCredit } from "@/lib/decks/fork-credit";
 import type { ImportOutcome } from "@/lib/decks/import";
 import { clearPickIntent, pickIntentFor, writePickIntent } from "@/lib/decks/leader-pick-intent";
+import { hasLeader } from "@/lib/decks/panel-view";
+import { addMorePhrase, deckProgress } from "@/lib/decks/progress";
 import { startDoors } from "@/lib/decks/start-doors";
 import { getDeckToken, removeDeckToken, setDeckToken } from "@/lib/decks/token-store";
 import { toDeckSnapshot } from "@/lib/decks/validation";
@@ -1181,6 +1194,13 @@ export function DeckEditor({
     setDialogFromMenu(false);
     setDialog("share");
   }, []);
+  // The bracket line's "Why?" (Y4a, WAVE4 D5): the Why sheet, opened from
+  // the deck pane — so focus goes back to "Why?" on close (Base UI's
+  // default), never to the More trigger.
+  const openBracket = useCallback(() => {
+    setDialogFromMenu(false);
+    setDialog("bracket");
+  }, []);
 
   // Whole-list swap with Undo (W9b): Import and Autofill both land here.
   // The previous list is captured for the toast's Undo, which restores it
@@ -1431,6 +1451,42 @@ export function DeckEditor({
   const analytics = useMemo<AnalyticsBlock[]>(
     () => (load.state === "ready" && snapshot ? load.adapter.analyze(snapshot, cards) : []),
     [load, snapshot, cards],
+  );
+  // The bracket read (Y4a, WAVE4 D5): the adapter's pure assess beside
+  // validate, over the same snapshot and card wires (they carry the flags),
+  // plus the combo facts — one GET per settled id set while a commander is
+  // present, drafts included (useBracketFacts). A game without `brackets`
+  // asks nothing and shows nothing.
+  const bracketIds = useMemo(() => factsIds(entries), [entries]);
+  const bracketsOn =
+    adapter?.brackets !== undefined && format !== null && hasLeader(entries, format);
+  const bracketFacts = useBracketFacts({
+    game: adapter?.id ?? "mtg",
+    enabled: bracketsOn,
+    ids: bracketIds,
+  });
+  const bracketRead = useMemo(
+    () =>
+      bracketsOn && adapter?.brackets && snapshot
+        ? adapter.brackets.assess({
+            deck: snapshot,
+            cards,
+            combos: bracketFacts.combos,
+            freshness: bracketFacts.freshness,
+          })
+        : null,
+    [bracketsOn, adapter, snapshot, cards, bracketFacts.combos, bracketFacts.freshness],
+  );
+  const bracketCtx = useMemo(
+    () =>
+      snapshot && format
+        ? {
+            deck: snapshot,
+            cards,
+            progress: addMorePhrase(deckProgress(entries, format).toGo),
+          }
+        : null,
+    [snapshot, format, cards, entries],
   );
   // "Share this deck" (Y2b): offered at the first approval, on a deck row,
   // once per deck per browser. Null until the deck is loaded — a loaded
@@ -1753,6 +1809,18 @@ export function DeckEditor({
               onClose={() => setDialog(null)}
             />
           )}
+          {/* Y4a: the Why sheet, opened only by the bracket line's "Why?". */}
+          {dialog === "bracket" && bracketRead && bracketCtx && load.adapter.brackets && (
+            <BracketSheet
+              adapter={load.adapter}
+              read={bracketRead}
+              line={load.adapter.brackets.line(bracketRead, bracketCtx)}
+              combos={bracketFacts.combos}
+              cards={cards}
+              phone={tier === "phone"}
+              onClose={() => setDialog(null)}
+            />
+          )}
           {dialog === "shortcuts" && (
             <ShortcutsSheet
               mainZoneLabel={mainZone?.label ?? "the deck"}
@@ -1794,6 +1862,18 @@ export function DeckEditor({
           onSurprise={surpriseDoor}
           rolling={rolling}
           onShare={offerShare && share ? openShare : undefined}
+          bracket={
+            bracketCtx && (
+              <BracketLine
+                adapter={load.adapter}
+                read={bracketRead}
+                ctx={bracketCtx}
+                facts={bracketFacts.state}
+                onRetry={bracketFacts.retry}
+                onWhy={openBracket}
+              />
+            )
+          }
           extras={tier !== "phone"}
           owned={hasCollection ? owned : undefined}
           ownership={ownership}

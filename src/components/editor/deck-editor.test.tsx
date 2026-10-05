@@ -106,6 +106,19 @@ function stubViewport(width: number) {
 const fetchMock = vi.fn();
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 
+/** Y4a's facts GET: every feed fresh (the route's freshness, as the adapter judges it). */
+const FRESH_FACTS = {
+  readAt: "2026-10-05T07:00:00.000Z",
+  feeds: Object.fromEntries(
+    ["gameChangers", "landDenial", "extraTurns", "combos"].map((feed) => [
+      feed,
+      { state: "ok", asOf: "2026-10-04T15:29:34.768Z" },
+    ]),
+  ),
+};
+const factsGets = () =>
+  fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/combos/complete?"));
+
 /** The API surface the draft touches: search, the create, the card PUT, the panels. */
 function route(input: RequestInfo | URL, init?: RequestInit) {
   const url = String(input);
@@ -121,6 +134,7 @@ function route(input: RequestInfo | URL, init?: RequestInit) {
   if (url === "/api/decks/deck-1" && method === "PATCH") return ok({});
   if (url.startsWith("/api/decks/deck-1/recommendations")) return ok({ recommendations: [] });
   if (url.startsWith("/api/decks/deck-1/combos")) return ok({ combos: [], inDeck: [] });
+  if (url.startsWith("/api/combos/complete?")) return ok({ combos: [], freshness: FRESH_FACTS });
   if (url === `/api/cards/${sol.id}/printings`) {
     // Newest first like the real route — the pane hoists the default itself.
     return ok({ printings: [solAltPrinting, solDefaultPrinting], total: 2, truncated: false });
@@ -892,9 +906,28 @@ describe("DeckEditor — Build around this combo (X3)", () => {
     ],
   };
 
+  /** The pair as loadCompleteCombos stores it — complete in any id set holding both pieces. */
+  const kikiFacts = {
+    key: "618-1537",
+    cardPieces: [kiki.id, conscripts.id].sort(),
+    templates: [],
+    tag: "C",
+    relevant: true,
+    results: ["Infinite creature tokens with haste"],
+    popularity: 28185,
+  };
+  /** The X3 seed GET (/api/combos/<key>) — never Y4a's facts GET (/api/combos/complete). */
+  const comboSeedGets = () =>
+    fetchMock.mock.calls.filter(([url]) => /^\/api\/combos\/[0-9]/.test(String(url)));
+
   function comboRoute(input: RequestInfo | URL, init?: RequestInit) {
     const url = String(input);
     if (url === "/api/combos/618-1537") return ok(comboResponse);
+    if (url.startsWith("/api/combos/complete?")) {
+      const ids = new URL(url, "http://localhost").searchParams.get("ids")!.split(",");
+      const held = kikiFacts.cardPieces.every((id) => ids.includes(id));
+      return ok({ combos: held ? [kikiFacts] : [], freshness: FRESH_FACTS });
+    }
     if (url.startsWith("/api/combos/")) {
       return { ok: false, status: 404, json: async () => ({ error: "Unknown combo" }) };
     }
@@ -1062,9 +1095,7 @@ describe("DeckEditor — Build around this combo (X3)", () => {
     await pollFor(() =>
       screen.queryByText("That combo link names no commander — starting an empty deck instead."),
     );
-    expect(
-      fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/combos/")),
-    ).toHaveLength(0);
+    expect(comboSeedGets()).toHaveLength(0);
     expect(posts()).toBe(0);
   });
 
@@ -1100,9 +1131,7 @@ describe("DeckEditor — Build around this combo (X3)", () => {
     unmount();
     render(comboDraft({ draftSurprise: true }));
     await pollFor(() => screen.queryAllByText("Rolled Commander")[0] ?? null);
-    expect(
-      fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/combos/")),
-    ).toHaveLength(0);
+    expect(comboSeedGets()).toHaveLength(0);
     expect(posts()).toBe(0);
   });
 
@@ -1120,13 +1149,70 @@ describe("DeckEditor — Build around this combo (X3)", () => {
     );
     // The resolve mock answers Kiki's wire; the point is which seeder ran.
     await pollFor(() => screen.queryAllByText("Kiki-Jiki, Mirror Breaker")[0] ?? null);
-    expect(
-      fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/combos/")),
-    ).toHaveLength(0);
+    expect(comboSeedGets()).toHaveLength(0);
     expect(
       fetchMock.mock.calls.filter(([url]) => String(url) === "/api/cards/resolve"),
     ).toHaveLength(1);
     expect(screen.queryByText(/combo/i)).toBeNull();
+  });
+
+  // ----------------------------------------------------------------- Y4a
+  describe("the bracket line (Y4a)", () => {
+    const bracketLine = () => document.querySelector<HTMLElement>("[data-slot=bracket-line]");
+
+    it("a combo-seeded draft shows its combo before any save: ONE facts GET keyed by the sorted ids — a GET, zero POSTs — and Why? opens the sheet with it", async () => {
+      fetchMock.mockImplementation(comboRoute);
+      stubViewport(1440);
+      render(comboDraft());
+      await pollFor(() =>
+        bracketLine()?.textContent === "Bracket: add 98 more cards · 1 combo so far · Why?"
+          ? bracketLine()
+          : null,
+      );
+      expect(factsGets().map(([url]) => String(url))).toEqual([
+        `/api/combos/complete?game=mtg&ids=${[kiki.id, conscripts.id].sort().join(",")}`,
+      ]);
+      expect((factsGets()[0][1] as RequestInit | undefined)?.method).toBeUndefined();
+      expect(
+        fetchMock.mock.calls.filter(
+          ([, init]) => (init as RequestInit | undefined)?.method === "POST",
+        ),
+      ).toHaveLength(0);
+      expect(saveStatus()).toBe("saved");
+
+      fireEvent.click(screen.getByRole("button", { name: "Why?" }));
+      const sheet = await pollFor(() =>
+        screen.queryByRole("dialog", { name: "Why this bracket?" }),
+      );
+      expect(
+        within(sheet).getByText(
+          "Two-card combo with your commander: Kiki-Jiki, Mirror Breaker + Zealous Conscripts. Brackets 1 and 2 expect none.",
+        ),
+      ).toBeTruthy();
+      expect(
+        within(sheet)
+          .getByRole("link", { name: /How it works/ })
+          .getAttribute("href"),
+      ).toBe("https://commanderspellbook.com/combo/618-1537/");
+      expect(posts()).toBe(0);
+    });
+
+    it("One Piece declares no read: no line and no facts GET, whatever its leader", async () => {
+      fetchMock.mockImplementation(comboRoute);
+      stubViewport(1440);
+      render(
+        <DeckEditor
+          deckId={null}
+          draftGame="optcg"
+          draftFormat="standard"
+          draftLeaderKey="OP15-058"
+        />,
+      );
+      await pollFor(() => screen.queryAllByText("Kiki-Jiki, Mirror Breaker")[0] ?? null);
+      await settle(1500);
+      expect(bracketLine()).toBeNull();
+      expect(factsGets()).toHaveLength(0);
+    });
   });
 });
 
@@ -2001,5 +2087,185 @@ describe("DeckEditor — start doors, draft Suggestions, the first approval (Y2b
       });
       expect(slot().hasAttribute("data-draft")).toBe(false);
     });
+  });
+});
+
+// ------------------------------------------------------------------- Y4a
+describe("DeckEditor — the bracket line and its Why sheet (Y4a)", () => {
+  const kozilek: CardWire = {
+    ...card({
+      name: "Kozilek, the Great Distortion",
+      primaryType: "Creature",
+      costValue: 10,
+      isLeaderCandidate: true,
+      attrs: { type_line: "Legendary Creature — Eldrazi", oracle_text: "" },
+    }),
+    image: null,
+  };
+  const wastes: CardWire = {
+    ...card({
+      name: "Wastes",
+      primaryType: "Land",
+      costValue: null,
+      attrs: { type_line: "Basic Land — Wastes", oracle_text: "" },
+    }),
+    image: null,
+  };
+  /** A legal colorless Commander list, saved: Kozilek + 99 Wastes. */
+  const savedDeck = {
+    deck: {
+      id: "deck-1",
+      publicId: "abcdefgh1234",
+      game: "mtg",
+      format: "commander",
+      name: "Kozilek",
+      description: null,
+      notes: null,
+      visibility: "unlisted",
+      isOwner: true,
+      forkedFrom: null,
+      leaderIds: [kozilek.id],
+    },
+    cards: [
+      { cardId: kozilek.id, zone: "commander", qty: 1, tags: [], printingId: null, card: kozilek },
+      { cardId: wastes.id, zone: "main", qty: 99, tags: [], printingId: null, card: wastes },
+    ],
+    owned: [],
+    hasCollection: false,
+  };
+  function y4aRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    if (url === "/api/decks/deck-1" && (init?.method ?? "GET") === "GET") return ok(savedDeck);
+    return route(input, init);
+  }
+  const line = () => document.querySelector<HTMLElement>("[data-slot=bracket-line]");
+  const NOTHING = "Bracket 1–2 · nothing here goes past Core · Why?";
+
+  /** The last-describe pattern: findBy/waitFor hang under this file's faked setTimeout. */
+  async function pollFor<T>(query: () => T | null): Promise<T> {
+    for (let i = 0; i < 40; i++) {
+      const found = query();
+      if (found) return found;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: never appeared");
+  }
+
+  beforeEach(() => {
+    fetchMock.mockImplementation(y4aRoute);
+  });
+
+  it("a saved deck: the line follows the Warden line; a quantity never asks again, a new card asks once after the debounce", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await pollFor(() => (line()?.textContent === NOTHING ? line() : null));
+    // On the legality line: directly after the Warden's.
+    const warden = screen.getByText(/The Warden approves this deck/).closest("p")!;
+    expect(warden.nextElementSibling).toBe(line());
+    expect(factsGets().map(([url]) => String(url))).toEqual([
+      `/api/combos/complete?game=mtg&ids=${[kozilek.id, wastes.id].sort().join(",")}`,
+    ]);
+
+    // Wastes 99 → 98: the same id set — a draft line at once, no new ask.
+    fireEvent.click(within(section("Deck list")).getByRole("button", { name: "One fewer Wastes" }));
+    expect(line()!.textContent).toBe("Bracket: add 1 more card");
+    await settle(2000);
+    await act(async () => {});
+    expect(factsGets()).toHaveLength(1);
+
+    // A new card changes the set: "Checking combos…" until the debounce asks.
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    fireEvent.change(input, { target: { value: "sol" } });
+    await settle();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(within(section("Deck list")).getByText("Sol Ring")).toBeTruthy();
+    expect(line()!.textContent).toBe("Checking combos…");
+    await settle(450);
+    expect(factsGets()).toHaveLength(1);
+    await settle(100);
+    await act(async () => {});
+    expect(factsGets()).toHaveLength(2);
+    expect(String(factsGets()[1][0])).toBe(
+      `/api/combos/complete?game=mtg&ids=${[kozilek.id, sol.id, wastes.id].sort().join(",")}`,
+    );
+    expect(line()!.textContent).toBe(NOTHING);
+    // Only GETs ever asked; the edits PUT as always.
+    expect(posts()).toBe(0);
+  });
+
+  it("Why? opens from the keyboard (the hotkeys stand down) and Escape hands focus back to it", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    const why = await pollFor(() => screen.queryByRole("button", { name: "Why?" }));
+    why.focus();
+    expect(document.activeElement).toBe(why);
+    fireEvent.click(why); // Enter or Space on a native button
+    const sheet = await pollFor(() => screen.queryByRole("dialog", { name: "Why this bracket?" }));
+    expect(within(sheet).getByText("Bracket 1–2 · nothing here goes past Core")).toBeTruthy();
+    expect(within(sheet).getByRole("region", { name: "What the cards show" })).toBeTruthy();
+    expect(within(sheet).getByRole("region", { name: "What this read assumes" })).toBeTruthy();
+    // "/" focuses the search box only while no dialog is open.
+    fireEvent.keyDown(window, { key: "/" });
+    const search = document.querySelector<HTMLElement>('[aria-label="Card search"]');
+    expect(search).toBeTruthy();
+    expect(document.activeElement).not.toBe(search);
+
+    fireEvent.keyDown(sheet, { key: "Escape" });
+    await pollFor(() =>
+      screen.queryByRole("dialog", { name: "Why this bracket?" }) ? null : document.body,
+    );
+    await pollFor(() => (document.activeElement === why ? why : null));
+  });
+
+  it("on a phone Why? opens the bottom Drawer", async () => {
+    stubViewport(375);
+    render(<DeckEditor deckId="deck-1" />);
+    fireEvent.click(await pollFor(() => screen.queryByRole("button", { name: "Why?" })));
+    const sheet = await pollFor(() => screen.queryByRole("dialog", { name: "Why this bracket?" }));
+    expect(
+      sheet.closest("[data-slot=drawer-popup]") ??
+        sheet.querySelector("[data-slot=drawer-content]"),
+    ).toBeTruthy();
+    expect(within(sheet).getByRole("button", { name: "Close" })).toBeTruthy();
+  });
+
+  it("a facts failure says so with Retry, and Retry asks again", async () => {
+    let fail = true;
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (fail && String(input).startsWith("/api/combos/complete?")) {
+        return { ok: false, status: 503, json: async () => ({}) };
+      }
+      return y4aRoute(input, init);
+    });
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await pollFor(() => (line()?.textContent === "Couldn't check combos · Retry" ? line() : null));
+    await settle(2000);
+    expect(factsGets()).toHaveLength(1);
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await pollFor(() => (line()?.textContent === NOTHING ? line() : null));
+    expect(factsGets()).toHaveLength(2);
+  });
+
+  it("no commander yet: no line and no facts GET — the progress line already says what to do", async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/decks/deck-1" && (init?.method ?? "GET") === "GET") {
+        return ok({
+          ...savedDeck,
+          cards: savedDeck.cards.slice(1),
+          deck: { ...savedDeck.deck, leaderIds: [] },
+        });
+      }
+      return y4aRoute(input, init);
+    });
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await pollFor(() => screen.queryByText("Choose a commander · 1 to go"));
+    await settle(2000);
+    await act(async () => {});
+    expect(line()).toBeNull();
+    expect(factsGets()).toHaveLength(0);
   });
 });

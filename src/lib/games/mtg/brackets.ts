@@ -77,6 +77,7 @@ import type {
   IngestRunFacts,
 } from "../types";
 import type { MtgAttrs } from "./attrs";
+import { MTG_BRACKET_LINKS, mtgBracketLine } from "./bracket-line";
 import { BRACKET_RULESET, type BracketLevel } from "./bracket-ruleset";
 import { mtgFormat } from "./formats";
 import { bracketTagOf, type SpellbookBracketTag } from "./spellbook-tags";
@@ -798,7 +799,7 @@ export function assessBracket(input: BracketInput<MtgAttrs>): BracketRead {
   };
 }
 
-/** The Magic adapter's `brackets` declaration (Y3b). */
+/** The Magic adapter's `brackets` declaration (Y3b; the line and the sheet's links, Y4a). */
 export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   noun: "bracket",
   levels: LEVELS.map(({ level, name }) => ({ level, name })),
@@ -807,4 +808,6 @@ export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   freshnessSources: ["scryfall", "spellbook"],
   freshness: mtgBracketFreshness,
   assess: assessBracket,
+  line: mtgBracketLine,
+  links: MTG_BRACKET_LINKS,
 };

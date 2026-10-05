@@ -617,6 +617,18 @@ export interface BracketRead {
   answersStale: boolean;
 }
 
+/** What the deck pane's bracket line (Y4a) knows beside the read itself. */
+export interface BracketLineContext<A = Record<string, unknown>> {
+  /** The snapshot the read was assessed from. */
+  deck: DeckSnapshot;
+  cards: ReadonlyMap<string, CardData<A>>;
+  /**
+   * A draft's progress, in core's words ("add 34 more cards" —
+   * src/lib/decks/progress.ts owns the phrase); null when not a draft.
+   */
+  progress: string | null;
+}
+
 /**
  * A game's power-level read (Y3b). Optional — a game without it shows no
  * bracket anywhere, with no apology copy (One Piece declares none).
@@ -636,6 +648,20 @@ export interface BracketsMeta<A = Record<string, unknown>> {
   freshness(runs: readonly IngestRunFacts[], readAt: string): BracketFreshness;
   /** Pure: the read. */
   assess(input: BracketInput<A>): BracketRead;
+  /**
+   * Pure: the read in one line (Y4a, WAVE4 D5) — "At least Bracket 3
+   * (Upgraded)", "Bracket 3 or 4 — one combo is your call", "Bracket: add 34
+   * more cards · 1 Game Changer so far". The adapter's words, like the read's
+   * sentences; core adds "Why?" and its own lines while the combo facts load
+   * or fail.
+   */
+  line(read: BracketRead, ctx: BracketLineContext<A>): string;
+  /** Where the Why sheet links (Y4a): the rules' own page, and an evidence line's source by its id. */
+  links: {
+    rules: { label: string; href: string };
+    /** A factor's or question's source page by its id; null = none (a combo links its walkthrough instead). */
+    source(id: string): string | null;
+  };
 }
 
 // ---------------------------------------------------------------------------

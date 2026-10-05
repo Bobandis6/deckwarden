@@ -35,6 +35,10 @@
  * a deck from nothing; the zone's own Browse link is the Pick door). And
  * `onShare` puts the first approval's "Share this deck" under the Warden
  * line.
+ *
+ * Y4a (WAVE4 D5): `bracket` — the editor's BracketLine — renders directly
+ * after the validation panel: the bracket lives on the legality line, with
+ * no tab of its own.
  */
 import { PlusIcon } from "lucide-react";
 import Link from "next/link";
@@ -117,6 +121,8 @@ interface DeckListPaneProps {
   rolling?: boolean;
   /** The first approval's "Share this deck" (Y2b); absent = no link. */
   onShare?: () => void;
+  /** The bracket line (Y4a), rendered directly after the validation panel; absent = none. */
+  bracket?: ReactNode;
   /** Analytics and the sample hand below the list; false on phones (R4: the Tools tab hosts them). */
   extras?: boolean;
 }
@@ -143,6 +149,7 @@ export function DeckListPane({
   onSurprise,
   rolling = false,
   onShare,
+  bracket,
   extras = true,
 }: DeckListPaneProps) {
   // Stored preference wins; absent fields fall back (group to the adapter's
@@ -261,6 +268,8 @@ export function DeckListPane({
           ) : undefined
         }
       />
+      {/* The bracket line (Y4a): on the legality line, never inside it. */}
+      {bracket}
 
       {leaderZoneDef && (
         <LeaderZone

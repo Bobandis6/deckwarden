@@ -51,9 +51,20 @@ import {
 import type { ForkCredit } from "@/lib/decks/fork-credit";
 import type { FormatDef, GameAdapter } from "@/lib/games/types";
 
-/** The editor's dialogs, each opened from the header (or `?` for the sheet). */
+/**
+ * The editor's dialogs, each opened from the header (or `?` for the sheet;
+ * "bracket", Y4a's Why sheet, from the deck pane's bracket line only).
+ */
 export type EditorDialog =
-  "details" | "import" | "autofill" | "export" | "buy" | "share" | "history" | "shortcuts";
+  | "details"
+  | "import"
+  | "autofill"
+  | "export"
+  | "buy"
+  | "share"
+  | "history"
+  | "shortcuts"
+  | "bracket";
 
 export function EditorHeader({
   adapter,

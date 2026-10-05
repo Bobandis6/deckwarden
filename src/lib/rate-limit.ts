@@ -117,6 +117,19 @@ export const RATE_LIMITS = {
   deckCombos: (ip: string | null): RateLimit[] => [
     { key: `deck-combos:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },
   ],
+  /**
+   * GET /api/combos/complete (Y4a) — the bracket read's combo facts. Edge-
+   * cached per id set, so only a MISS reaches this bucket; but any uuid-
+   * shaped set is a fresh URL, so walking through sets would reach Neon
+   * with nothing in the way. The editor asks once per settled change of
+   * the id SET (a 500 ms debounce; quantity, zone, tag and printing edits
+   * never ask; an import or an Autofill apply is one call), so 60/min and
+   * 600/hour sit far above honest building.
+   */
+  comboFacts: (ip: string | null): RateLimit[] => [
+    { key: `combo-facts:ip:${ip ?? "unknown"}`, max: 60, windowSeconds: 60 },
+    { key: `combo-facts:ip-hour:${ip ?? "unknown"}`, max: 600, windowSeconds: 3600 },
+  ],
   /** POST /api/decks/claim — once per sign-in, but each call can probe 100 ids. */
   deckClaim: (ip: string | null): RateLimit[] => [
     { key: `deck-claim:ip:${ip ?? "unknown"}`, max: 10, windowSeconds: 60 },

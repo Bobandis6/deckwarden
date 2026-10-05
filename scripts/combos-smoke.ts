@@ -158,6 +158,74 @@ async function main() {
       { page: hubTotal?.[1], db: fitTotal },
     );
 
+    // ---- the bracket read's facts (Y4a): GET /api/combos/complete ---------
+    // The most popular relevant two-card combo with no template, plus a
+    // combo-less card: its set's complete combos must be exactly what the
+    // database holds for those ids, the pair among them as stored.
+    const [pair] = await sql<
+      { key: string; ids: string[]; tag: string | null; relevant: boolean | null }[]
+    >`
+      SELECT c.external_key AS key, c.bracket_tag AS tag, c.relevant,
+             array_agg(p.card_identity_id::text ORDER BY p.card_identity_id) AS ids
+      FROM combos c JOIN combo_pieces p ON p.combo_id = c.id
+      WHERE c.piece_count = 2 AND cardinality(c.templates) = 0 AND c.relevant
+      GROUP BY c.id ORDER BY c.popularity DESC NULLS LAST, c.id LIMIT 1`;
+    const factsIds = [...pair.ids, quiet.id].sort();
+    const facts = async (ids: string[], extra = "") =>
+      fetch(`${BASE}/api/combos/complete?game=mtg&ids=${ids.join(",")}${extra}`);
+    const factsRes = await facts(factsIds);
+    check("facts route 200 for a real id set", factsRes.status === 200, factsRes.status);
+    check(
+      "facts route edge-cacheable (an hour + a day's stale-while-revalidate)",
+      factsRes.headers.get("cache-control") ===
+        "public, s-maxage=3600, stale-while-revalidate=86400",
+      factsRes.headers.get("cache-control"),
+    );
+    const factsBody = (await factsRes.json()) as {
+      combos: { key: string; cardPieces: string[]; tag: string | null; relevant: boolean | null }[];
+      freshness: { feeds: Record<string, { state: string }> };
+    };
+    const [{ n: completeInDb }] = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM (
+        SELECT p.combo_id FROM combo_pieces p JOIN combos c ON c.id = p.combo_id
+        WHERE p.card_identity_id::text = ANY(${factsIds})
+        GROUP BY p.combo_id, c.piece_count HAVING count(*) = c.piece_count) x`;
+    check(
+      "facts route answers the set's complete combos, no more, no fewer",
+      factsBody.combos.length === completeInDb,
+      { route: factsBody.combos.length, db: completeInDb },
+    );
+    const got = factsBody.combos.find((c) => c.key === pair.key);
+    check(
+      `the pair ${pair.key} is complete in its set, tag and relevant as stored`,
+      got !== undefined &&
+        got.tag === pair.tag &&
+        got.relevant === pair.relevant &&
+        got.cardPieces.join(",") === pair.ids.join(","),
+      got,
+    );
+    check(
+      "facts route carries the four feeds' freshness",
+      ["gameChangers", "landDenial", "extraTurns", "combos"].every(
+        (feed) => typeof factsBody.freshness?.feeds?.[feed]?.state === "string",
+      ),
+      factsBody.freshness,
+    );
+    const shortRes = await facts([pair.ids[0], quiet.id].sort());
+    const short = (await shortRes.json()) as { combos: { key: string }[] };
+    check(
+      "a piece short, the pair is gone",
+      shortRes.status === 200 && !short.combos.some((c) => c.key === pair.key),
+    );
+    const unsorted = await facts([...factsIds].reverse());
+    check("facts route answers 400 to an unsorted set (one URL per set)", unsorted.status === 400);
+    const extra = await facts(factsIds, "&v=2");
+    check("facts route answers 400 to an extra parameter", extra.status === 400);
+    const onePiece = await fetch(
+      `${BASE}/api/combos/complete?game=optcg&ids=${factsIds.join(",")}`,
+    );
+    check("facts route answers 400 for One Piece (no bracket read)", onePiece.status === 400);
+
     // ---- "Decks with this commander" shelf (cold-start honesty) -------------
     const [{ n: hubDecks }] = await sql`
       SELECT count(*)::int AS n FROM decks
