@@ -1,6 +1,6 @@
 # Deckwarden — Wave 4 plan (Y-series): know your deck's bracket, tune it to your table, remember your games
 
-**Status:** drafted from the owner's answers of 2026-09-30 (nine questions in three rounds, recorded under Context). The defaults in section F stay open until the owner says otherwise. Wave 4 starts **after X5**; Y1 is first — the progress tracker is at the end of this file. Y1 shipped on 2026-10-01 (`dcfcdcf`), Y2a the same day (`4fd9b10`), Y2b too (`bb4b1e2`), Y3a on 2026-10-02 (`884c62f`, migration `0016`), and Y3b on 2026-10-03 (`3320ad6`); Y4a is next (`Y4a-session-prompt.md`).
+**Status:** drafted from the owner's answers of 2026-09-30 (nine questions in three rounds, recorded under Context). The defaults in section F stay open until the owner says otherwise. Wave 4 starts **after X5**; Y1 is first — the progress tracker is at the end of this file. Y1 shipped on 2026-10-01 (`dcfcdcf`), Y2a the same day (`4fd9b10`), Y2b too (`bb4b1e2`), Y3a on 2026-10-02 (`884c62f`, migration `0016`), Y3b on 2026-10-03 (`3320ad6`), and Y4a on 2026-10-05 (`aa2a29f`); Y4b is next (`Y4b-session-prompt.md`).
 **Saved:** September 30, 2026, from a planning-only session against `53942d6`. Nothing was implemented, installed, migrated or deployed. No database was read. One stateless request went to Commander Spellbook's `/estimate-bracket` endpoint to learn its response shape.
 **Canonical copy:** `WAVE4.md` in the repo root (this file).
 **Working rules:** the CLAUDE.md session protocol applies unchanged — one package per session, deployed and `pnpm check`-green or not done, anything out of scope to `LATER.md` with a trigger. Y1's step 0 adds build plan §6e, the CLAUDE.md line, the REDESIGN.md addendum and the LATER rows that make Y-packages legal sessions.
@@ -740,7 +740,30 @@ Tick a package with its date and sha when it ships; record deviations from this 
   11. Spellbook's tag letters moved to a client-safe module.
 
   LATER row 151 annotated (trigger met), row 152 annotated (zones and prerequisites), new row 170 (newly tagged extra-turn cards aren't reviewed for whose turn it is).)
-- [ ] Y4a — Bracket line + Why sheet (`/api/combos/complete`, `BracketLine`, what the cards show, what the read assumes)
+- [x] Y4a — Bracket line + Why sheet (`/api/combos/complete`, `BracketLine`, what the cards show, what the read assumes) (2026-10-05: feat `aa2a29f`, Vercel status success on the full sha at 07:58 Z; CI green. No migration, no dependency; the route table gains exactly `ƒ /api/combos/complete` (built on `d839272` and on the feature). `pnpm check` 1,442 → **1,544 tests** (159 → 168 files; the same 6 warnings, 0 errors). Thirty-eight mutation checks on the shipped code, each caught; five tests were added to close the gaps the first round found. Census unchanged at 209 deck rows (28 user decks + 181 precons, 1 user); the dev pass used state-only drafts. `pnpm db:size` 284.8 MB before and after.
+  - **Pre-flight**: the first scheduled nightly after `3320ad6` (run 37131226473, 2026-10-03 14:52 Z) applied the extra-turn edit — `extra_turn` flagged 61, removed 3, added 0; `mld` unreviewed 0; the ruleset watch green, and again on 2026-10-04 (run 37213178954). Nothing posted; read-only database access and dev writes approved.
+  - **Measured**: the facts route sends 4 statements per MISS on dev (`DB_LOG`): the bucket's two upserts, `loadCompleteCombos` and the freshness read. Server time is 23.8 ms for the heaviest precon (Witherbloom Pestilence: 86 ids → 4 combos), 1.9 ms for a combo-seeded pair (Kiki-Jiki + Zealous Conscripts) and 101.5 ms for the 100 most combo-dense ids (445 combos, a 2.4 MB sort spill); the freshness read takes 0.2 ms. Warm from this machine to dev it is ~1.1 s (four Neon round trips). On prod the pair answered MISS in 1.20 s, then HIT in 0.47 s and 0.38 s; the heaviest precon MISS in 0.68 s, then HIT in 0.40 s. Unsorted ids and One Piece answer 400.
+  - **Dev and prod**: a combo-seeded draft (`?leader=&combo=618-1537`) shows "Bracket: add 98 more cards · 1 combo so far · Why?" before any save, after one facts GET and no POST, with the slot still "Draft". Its sheet shows the combo, with its results, "2 cards" and How it works ↗. The precons read as Y3b measured:
+    - Witherbloom Pestilence: "Bracket 1–2, 3 or 4 — four combos are your call";
+    - Creative Energy: "Bracket 3 or 4 — two combos are your call";
+    - Mirror Mastery: "At least Bracket 4 (Optimized)";
+    - Political Puppets: "Bracket read needs a legal list · 1 banned card";
+    - Peace Offering: "Bracket 1–2 · nothing here goes past Core" (the extra-turn edit applied).
+
+    One Piece shows no line and asks nothing. Escape returns focus to "Why?". `smoke:combos` is green on dev with nine new facts-route checks.
+  - **The dev pass**: 375/390, 768, 1200 and 1440 in both themes, with no horizontal overflow anywhere: a Drawer below md, a Modal from md, and "Why?" 44×44 on touch. Reduced motion couldn't be toggled in the pane; the line adds no motion.
+
+  **D5 shipped as drawn except where noted; decisions** (REDESIGN.md "Y4a decisions"):
+  1. The line's words are adapter data: `BracketsMeta.line` and `links`, with Magic's in `bracket-line.ts`. Core owns its fetch lines, "Why?", the sheet's headings and `addMorePhrase`.
+  2. The route allows one spelling per set, read from the parsed parameters (Next hands the handler `%2C`, which a byte check refused on dev). **A bucket**: `comboFacts`, 60/min plus 600/hour per IP, because any uuid-shaped set is a fresh URL.
+  3. The editor asks on its own 500 ms debounce over the sorted id set, the first ask at once. An older set's request is aborted, a failed set waits for Retry, and over 200 ids nothing is asked. There is no line without a commander.
+  4. The line's order is blocked → failed → draft → checking → read. **Deviation**: once the facts are in and a draft has found something, its line gains "· Why?"; while they land, D5's draft row reads exactly as drawn.
+  5. The lines D5 leaves out: "At least Bracket 2 (Core)"; a read that couldn't check everything leads with its floor and names the gap, or with nothing flagged reads "Bracket read incomplete · …", with Why? and no Retry; a not-legal card is never called banned; a pending call lists every open outcome and names what is open.
+  6. The sheet: findings, then "Your call" (open questions, no controls), then "Couldn't check"; the assumptions; Wizards' rules page with its as-of date and the Spellbook credit; linked sources (D0).
+  7. The copy guard runs in three places: the adapter's lines, core's table and the rendered sheet.
+  8. X3's three "the combo is never fetched" filters now match the seed GET only; the facts route shares the `/api/combos/` prefix.
+
+  New LATER rows: 171 (the "Checking combos…" swap), 172 (lists over 200 distinct cards), 173 (Retry and `Retry-After`).)
 - [ ] Y4b — Your target (`0017` `decks.goals`, How it plays, the conflict callout)
 - [ ] Y5 — At the table (the share page's line, "At the table", Copy for the table, the owner row, OG + tile chips)
 - [ ] Y6a — Goals in Suggestions (`applyGoals`, hidden counts, impact flags, the saved budget)

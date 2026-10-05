@@ -729,3 +729,49 @@ D4 shipped as drawn: no migration, no route, no UI, no dependency, and nothing r
 - **Opponents' extra turns**: `extra_turn` means a turn for you. The three Tagger cards that give the turn only to an opponent (Emrakul, the Promised End; Eon Frolicker; Perch Protection) are disabled in `data/mtg/tagger-overrides.json` with their reasons — a reviewed data edit the next nightly applies — the way Spellbook's own combo flag leaves out turns "for … opponent". No engine rule.
 - **`loadCompleteCombos`** is one statement that groups the list's piece rows first and joins `combos` on id and piece count: 25 ms on the server for the heaviest precon, 101 ms for the 100 most combo-dense cards (445 combos), half the join-first shape's time and an eighth of its disk spill. **No identity filter**: a combo's identity is its pieces' union (0 exceptions), so the answer depends on the id set alone — D4's "color-fit to the deck" holds by construction. **The freshness loader** (`src/lib/brackets/freshness.ts`) is one DISTINCT ON statement over `ingest_runs` (a 0.2 ms seq scan at 258 rows).
 - **Spellbook's tag letters** moved to a client-safe `spellbook-tags.ts` (re-exported from `spellbook-map.ts`): the read runs in the browser, and `spellbook-map.ts` reaches `node:crypto` through `scryfall-map.ts`.
+
+### Y4a decisions and deviations from `WAVE4.md` D5 (2026-10-05, `aa2a29f`)
+
+D5's Y4a half shipped: one route, the bracket line, and the Why sheet's first two blocks. No migration, no dependency. What the package decided:
+
+- **The words stay adapter data.** `BracketsMeta` gains `line(read, ctx)` and `links`. Magic's words live in `src/lib/games/mtg/bracket-line.ts` beside the read's own sentences, guarded by `bracket-line.test.ts`, so core never says "Game Changer" or "Core". Core owns only four things:
+  - its fetch lines ("Checking combos…", "Couldn't check combos · Retry");
+  - "Why?";
+  - the sheet's headings (`src/lib/brackets/copy.ts`, guarded by `copy.test.ts`);
+  - the draft's progress phrase: `addMorePhrase` in `src/lib/decks/progress.ts`, the module that "owns the phrase".
+
+  The engine's rules are untouched; `mtgBrackets` gains two fields.
+- **The route.** `GET /api/combos/complete?game=mtg&ids=<sorted, comma-joined>` answers `{combos, freshness}` from the two core loaders, in two statements.
+  - **One URL per set.** It takes `game` then `ids`, nothing else: at most 200 lowercase uuids, sorted and unique. Anything else answers 400, and so does One Piece.
+  - **The check reads parsed parameters.** Next's server re-serializes the query before a handler runs, so a comma arrives as `%2C`. The first build compared bytes and refused every multi-card request on dev, where the unit test had passed. So `%2C` and `,` read the same: one set can hold two edge keys, but the client only ever sends literal commas.
+  - **Caching** is X3's: force-dynamic with `s-maxage=3600, stale-while-revalidate=86400`. Prod answered MISS then HIT for the same set.
+  - **A bucket, unlike X3's route.** `comboFacts` allows 60/min plus 600/hour per IP. X3's keys are real combos; here any uuid-shaped set is a fresh URL, so a walk through sets would reach Neon unmetered. An edge HIT never reaches the bucket. Each MISS costs 4 statements (two counter upserts and the two loaders).
+- **When the editor asks** (`src/components/deck/use-bracket-facts.ts`):
+  - **Its own settle, not autosave's.** It waits 500 ms after the sorted id set last changed. The facts depend on the set alone, so a draft that never saves, or an autosave that failed, still gets its read.
+  - **The first ask goes at once.** A request for an older set is aborted, and an answer whose body lands after its set moved on is dropped. A failed set waits for Retry. Over 200 distinct cards it asks nothing ("over"), and the read says it couldn't check combos.
+  - **Only with a commander.** It is gated on a leader-zone card. With no commander there is no line at all; the progress line already says "Choose a commander".
+- **The line's order** (`src/lib/brackets/line-view.ts`): blocked → the facts failed → draft → checking → the read.
+  - A draft's line speaks at once: what the card data proves needs no facts, and a combo joins when they land. It never says "Checking combos…".
+  - A blocked line offers nothing after it; the problem list above already names the card.
+- **Deviation: Why? on a draft.** The draft line gains "· Why?" once the facts are in and the list has found something, a finding or a question. A combo-seeded draft's combo and a draft's Game Changers are then one click away (D11: every finding names its cards). While the facts land, D5's draft row reads exactly as drawn.
+- **The lines D5 leaves out:**
+  - **A minimum of 2**: "At least Bracket 2 (Core)".
+  - **A read that couldn't check everything** leads with its floor and names the gap, with Why? and no Retry (asking again can't refresh a stale feed): "At least Bracket 3 (Upgraded) · Couldn't check extra turns". With nothing flagged it is "Bracket read incomplete · Couldn't check combos". It never says "nothing here goes past Core" without every check.
+  - **A card that isn't legal** is never called banned: "· 1 card not legal in Commander".
+  - **A pending call** lists every open outcome ("Bracket 1–2 or 4", "Bracket 2, 3 or 4") and names what is open ("one combo", "two cards", "chaining extra turns"). "1–2" splits to "1 or 2" when 2 is an outcome itself.
+  - **"1–2" comes from the ruleset**: the brackets that bar every kind of card the read flags (Game Changers, land denial, two-card combos) are Exhibition and Core, and "Core" is level 2's name.
+- **The line's look.**
+  - Muted text with a gauge glyph (lucide `Gauge`) the size of the Warden's shield, so both lines' text starts at the same x. The glyph sits on the first line's baseline: on touch, the 44 px "Why?" makes that line tall, and with top alignment the glyph floated above the text (found on the 375 px pass).
+  - "Why?" and "Retry" are underlined in the foreground color, 44×44 on coarse pointers (`pointer-coarse:min-h-11` plus `min-w-11`).
+  - Not a live region: it changes on every settled edit, like the progress line. `data-status` and `data-facts` are there for QA.
+- **The sheet** (`src/components/deck/bracket-sheet.tsx`):
+  - **Shape.** The title is "Why this bracket?". It leads with the line's own words, plus a note in a draft.
+  - **What the cards show.** Each finding, highest first, shows its sentence, what would change it and its linked source. A combo adds its results, its piece count and "How it works ↗", which the facts carry. Then "Your call", highest first: an intro ("The list can't answer these — you and your table can."), then each question with "If yes, it's at least Bracket N (Name)." and no answer controls. A question names its cards only when its reason doesn't already (a chain of extra turns doesn't). Then "Couldn't check".
+  - **What this read assumes.** The adapter's seven lines, then "Wizards' Commander Brackets, as of Feb 9, 2026 ↗" (the read's ruleset as-of) and "Combos and their ratings from Commander Spellbook ↗".
+  - **Links.** Game Changers go to Wizards' `#gamechangers`. Land denial and extra turns go to the Tagger tag pages, whose slugs are pinned against the overrides file. A combo goes to its walkthrough.
+  - **Containers.** A Drawer on phones, with a 44 px Close; a Modal from md. Focus returns to "Why?" through Base UI's default, because the opener isn't the More menu.
+- **The copy guard runs in three places**:
+  - the adapter's lines, in `bracket-line.test.ts`: every status, no "approv", no tag name, no notation;
+  - core's table, in `copy.test.ts`, which enumerates every builder;
+  - everything the sheet renders, in `bracket-sheet.test.tsx`, over five reads.
+- **A pin moved.** `deck-editor.test.tsx` had three `startsWith("/api/combos/")` filters for X3's "the combo is never fetched". They now match the seed GET only (`/api/combos/<digits>`), because the facts route shares that prefix. The Surprise-beats-combo test went red without the change.

@@ -1,5 +1,63 @@
 # Y4a session prompt — Bracket line + Why sheet (`GET /api/combos/complete`, `BracketLine`, what the cards show, what the read assumes)
 
+## Ship note — 2026-10-05, feat `aa2a29f`, deployed (Vercel status success on the full sha, 07:58 Z; CI green)
+
+**Shipped. The prompt below is history. Next is `Y4b-session-prompt.md` (your target: migration `0017` `decks.goals`, How it plays, the conflict callout).**
+
+**Pre-flight**:
+- Y3b had shipped (`3320ad6`; `_journal.json` still at idx 16).
+- **Nightlies green**: the first scheduled run after `3320ad6` (37131226473, 2026-10-03 14:52 Z) applied the extra-turn edit, with `extra_turn` at tagged 64, flagged 61, removed 3, added 0, and `mld` unreviewed 0. The ruleset watch was green, and both stayed green on 2026-10-04 (37213178954; database gauge 284.9 MB). Rows 168 and 170 didn't fire.
+- **The owner's answers**: nothing new posted or arrived, and read-only database access plus dev writes were approved.
+- **Baseline on `d839272`**: 1,442 tests / 159 files / 6 warnings / 0 errors. Census: 209 deck rows = 28 user decks (16 account + 12 guest) + 181 precons, 1 user. `pnpm db:size` 284.8 MB. The route table was saved.
+
+**What shipped** (decisions in WAVE4's tracker and REDESIGN.md "Y4a decisions"):
+- **`GET /api/combos/complete?game=mtg&ids=<sorted, comma-joined>`** answers `{combos, freshness}`: `loadCompleteCombos` plus `loadBracketFreshness`, nothing more.
+  - One spelling per set: `game` then `ids`, at most 200 lowercase uuids, sorted and unique. Anything else answers 400, and so does One Piece.
+  - Edge-cached like X3's route. Its own bucket, `comboFacts`: 60/min plus 600/hour per IP.
+- **The adapter's `brackets` gains `line(read, ctx)` and `links`.** Magic's words are in `src/lib/games/mtg/bracket-line.ts`. Core holds `src/lib/brackets/{facts,copy,line-view}.ts`, `src/components/deck/{use-bracket-facts.ts,bracket-line.tsx,bracket-sheet.tsx}`, and `addMorePhrase` in `progress.ts`.
+- **The editor**: the read is computed beside `validate`. The line renders directly after `ValidationPanel` through the deck pane's new `bracket` slot, and the sheet is `EditorDialog` `"bracket"`.
+
+**Found on the way**:
+- **Next re-serializes the query before a route handler runs**, so a comma arrives as `%2C`. The first build compared the raw query to the canonical string, passed its unit test (a `NextRequest` built by hand keeps the literal comma), and refused every multi-card request on dev. The check now reads the parsed parameters (exactly `game` then `ids`), and the route test pins the server's encoded form.
+- **On touch, the 44 px "Why?" made the line box tall** and the glyph floated above the text (the 375 px pass). The glyph now sits on the first line's baseline at the shield's size.
+- **The first mutation round missed five guards**, so five tests were added:
+  - a debounced request's abort;
+  - combos after a set that failed;
+  - an answer whose body lands after its set moved on;
+  - an aborted request marking a set failed;
+  - no facts without a commander.
+
+  All 38 checks on the shipped code then failed as they should.
+
+**Measured** (`scripts/.tmp/y4a-measure.ts`, one read-only transaction, the real loaders; then dev with `DB_LOG`, then prod):
+
+| Set | Ids → combos | Statement time (server) | Dev, warm | Prod MISS → HIT |
+|---|---|---|---|---|
+| Kiki-Jiki + Zealous Conscripts (a combo-seeded draft) | 2 → 1 | 1.9 ms | ~1.1 s | 1.20 s → 0.47 s, 0.38 s |
+| Witherbloom Pestilence (heaviest precon) | 86 → 4 | 23.8 ms | ~1.1 s | 0.68 s → 0.40 s |
+| The 100 most combo-dense ids (stress) | 100 → 445 | 101.5 ms (2.4 MB sort spill) | 1.1–1.6 s (185 KB) | — |
+
+On dev, `DB_LOG` shows 4 statements per MISS: the bucket's two upserts, then the combos and the freshness read (0.2 ms). The plans are Y3b's: a bitmap scan on `combo_pieces_by_card`, grouped, then hash-joined to `combos`.
+
+**Dev and prod** (signed out, state-only drafts, zero creates):
+- **A combo-seeded draft** shows "Bracket: add 98 more cards · 1 combo so far · Why?" before any save, after one facts GET and no POST, with the slot still "Draft". Its sheet shows the combo (Commander Spellbook rates the live row R), with its results, "2 cards" and How it works ↗.
+- **The QA precons** read as Y3b measured:
+  - Witherbloom Pestilence: "Bracket 1–2, 3 or 4 — four combos are your call" (four template questions);
+  - Creative Energy: "Bracket 3 or 4 — two combos are your call";
+  - Mirror Mastery: "At least Bracket 4 (Optimized)";
+  - Political Puppets: "Bracket read needs a legal list · 1 banned card", with no button;
+  - Peace Offering: "Bracket 1–2 · nothing here goes past Core".
+- **One Piece** shows no line, no "bracket" anywhere, and no facts GET.
+- **Focus**: Escape returns focus to "Why?" (dev; RTL pins it too).
+- **One GET per set.** Prod made exactly one facts GET per page. Dev shows a second, aborted twin: React's development double effect.
+- **The viewport pass**: 375/390, 768, 1200 and 1440 in both themes, with no overflow: a Drawer below md, a Modal from md, and "Why?" 44×44 on touch.
+- **Smoke and sweep**: `smoke:combos` is green on dev with nine new facts-route checks. The prod sweep returned 200 for `/`, `/commanders`, `/precons`, `/sets`, `/cards`, `/decks/new?game=mtg`, `/leaders`, a hub and `/tournaments`.
+- **Census unchanged**: 209 deck rows, 1 user; 284.8 MB.
+
+**LATER**: new rows 171 (the "Checking combos…" swap), 172 (lists over 200 distinct cards) and 173 (Retry and `Retry-After`).
+
+---
+
 Pull latest, then run Y4a — the sixth Wave-4 package and the first a player sees. **`WAVE4.md` is the contract.** Read these, in this order:
 
 1. Section **A**'s decisions table: the bracket lives **on the legality line** with one sheet (a Drawer on phones, a Modal from md), no new tab; combo facts come from **one GET keyed by the sorted card ids**, fetched once per settled snapshot whenever a commander is present, drafts included; plain words, never notation; "approves" stays legality-only.
