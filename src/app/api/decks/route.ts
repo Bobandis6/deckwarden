@@ -11,6 +11,11 @@
  * Caching intent: dynamic — a mutation; responses are per-caller and never
  * cacheable (Cache-Control: no-store).
  *
+ * Goals (Y4b, WAVE4 D5): a draft whose first real edit is a target or an
+ * answer carries its goals in the create, as a seeded name does — one
+ * request, no PATCH after it. Checked against the game's `brackets` (One
+ * Piece takes no target); absent or null = none.
+ *
  * Anti-abuse (P1.8): strict per-IP rate limit (checked before body parsing so
  * malformed spam consumes quota), plus a honeypot — the real client sends
  * `website: ""`; anything non-empty is a bot auto-filling the payload and gets
@@ -25,6 +30,7 @@ import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
 import { getSessionUserId } from "@/lib/auth";
 import { clientIp } from "@/lib/decks/access";
+import { goalsSchema, normalizeGoals, type DeckGoals } from "@/lib/decks/goals";
 import { newPublicId } from "@/lib/decks/public-id";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { getAdapter } from "@/lib/games/registry";
@@ -42,6 +48,8 @@ const BODY = z.object({
   visibility: z.enum(schema.DECK_VISIBILITIES).default("unlisted"),
   /** Honeypot — must be absent or empty; the real client sends "". */
   website: z.string().max(200).optional(),
+  /** Y4b: checked below against the game's adapter, once `game` is known. */
+  goals: z.unknown().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -62,7 +70,7 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  const { game, format, name, description, visibility, website } = parsed.data;
+  const { game, format, name, description, visibility, website, goals } = parsed.data;
 
   if (website) {
     console.warn("deck-create honeypot tripped", { ip });
@@ -83,6 +91,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let deckGoals: DeckGoals | null = null;
+  if (goals !== undefined && goals !== null) {
+    const checked = goalsSchema(getAdapter(game).brackets).safeParse(goals);
+    if (!checked.success) {
+      return NextResponse.json(
+        { error: "Invalid goals", issues: checked.error.issues },
+        { status: 400 },
+      );
+    }
+    deckGoals = normalizeGoals(checked.data as DeckGoals);
+  }
+
   const userId = await getSessionUserId(request.headers);
   const claimToken = userId ? null : randomUUID();
   const db = getDb();
@@ -98,6 +118,7 @@ export async function POST(request: NextRequest) {
       ...(name ? { name } : {}),
       description: description ?? null,
       visibility,
+      ...(deckGoals ? { goals: deckGoals } : {}),
     })
     .returning();
 

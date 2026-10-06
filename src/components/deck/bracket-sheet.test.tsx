@@ -7,7 +7,7 @@
  * Spellbook credit) — D0's attribution, the Drawer on phones, and D0's copy
  * guard over everything the sheet renders.
  */
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { COMMANDER } from "@/lib/games/mtg/formats";
@@ -20,6 +20,7 @@ import {
   type MtgCard,
 } from "@/lib/games/mtg/test-fixtures";
 import { getAdapter } from "@/lib/games/registry";
+import type { DeckGoals } from "@/lib/decks/goals";
 import { addMorePhrase, deckProgress } from "@/lib/decks/progress";
 import type { BracketFreshness, BracketRead, CompleteCombo } from "@/lib/games/types";
 
@@ -73,13 +74,24 @@ function sheet(
     combos = [kikiCombo],
     freshness = FRESH,
     phone = false,
-  }: { combos?: CompleteCombo[] | null; freshness?: BracketFreshness | null; phone?: boolean } = {},
+    goals,
+    onGoalsChange,
+  }: {
+    combos?: CompleteCombo[] | null;
+    freshness?: BracketFreshness | null;
+    phone?: boolean;
+    /** Y4b: the deck's goals — the read is assessed with them, as the editor does. */
+    goals?: DeckGoals | null;
+    onGoalsChange?: (next: DeckGoals | null) => void;
+  } = {},
 ) {
   const read: BracketRead = mtg.brackets!.assess({
     deck: list.deck,
     cards: list.cards,
     combos,
     freshness,
+    targetLevel: goals?.targetLevel ?? null,
+    answers: goals?.answers ?? null,
   });
   const entries = Object.entries(list.deck.zones).flatMap(([zone, es]) =>
     es.map((e) => ({ ...e, zone })),
@@ -88,6 +100,7 @@ function sheet(
     deck: list.deck,
     cards: list.cards,
     progress: addMorePhrase(deckProgress(entries, COMMANDER).toGo),
+    targetLevel: goals?.targetLevel ?? null,
   });
   const onClose = vi.fn();
   render(
@@ -98,6 +111,8 @@ function sheet(
       combos={combos}
       cards={list.cards}
       phone={phone}
+      goals={goals}
+      onGoalsChange={onGoalsChange}
       onClose={onClose}
     />,
   );
@@ -232,6 +247,235 @@ describe("the Why sheet — What this read assumes", () => {
   });
 });
 
+describe("Y4b — the player's side of the sheet", () => {
+  const pressed = (group: HTMLElement) =>
+    within(group)
+      .getAllByRole("button")
+      .filter((b) => b.getAttribute("aria-pressed") === "true")
+      .map((b) => b.textContent);
+  const liliKey = `land-denial:${liliana.externalKey}`;
+
+  it("without a way to change goals the sheet only reads — Y4a's sheet, no target, no How it plays", () => {
+    sheet(spec([liliana]), { combos: [] });
+    expect(within(dialog()).queryByRole("region", { name: "Your target" })).toBeNull();
+    expect(within(dialog()).queryByText("How it plays")).toBeNull();
+    expect(within(dialog()).queryByRole("button", { name: "Yes" })).toBeNull();
+  });
+
+  it("Your target: Segmented 1–5 · Not set — Not set at first; a pick sets the level, Not set clears it", () => {
+    const onGoalsChange = vi.fn();
+    sheet(spec([rhystic]), { combos: [], goals: null, onGoalsChange });
+    const target = block("Your target");
+    const group = within(target).getByRole("group", { name: "Your target" });
+    expect(
+      within(group)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["1", "2", "3", "4", "5", "Not set"]);
+    expect(pressed(group)).toEqual(["Not set"]);
+    fireEvent.click(within(group).getByRole("button", { name: "2" }));
+    expect(onGoalsChange).toHaveBeenLastCalledWith({ v: 1, targetLevel: 2 });
+  });
+
+  it("a target set: its name beside it; Not set clears it; other goals stay", () => {
+    const onGoalsChange = vi.fn();
+    sheet(spec([]), {
+      combos: [],
+      goals: { v: 1, targetLevel: 3, exceptions: "Ask me" },
+      onGoalsChange,
+    });
+    const target = block("Your target");
+    const group = within(target).getByRole("group", { name: "Your target" });
+    expect(pressed(group)).toEqual(["3"]);
+    expect(within(target).getByText("Bracket 3 (Upgraded)")).toBeTruthy();
+    fireEvent.click(within(group).getByRole("button", { name: "Not set" }));
+    expect(onGoalsChange).toHaveBeenLastCalledWith({ v: 1, exceptions: "Ask me" });
+    expect(within(target).getByText("Shown on your share page.")).toBeTruthy();
+  });
+
+  it("the conflict callout lists the read's conflicts — each finding's sentence and what would change it", () => {
+    const { read } = sheet(spec([conscripts, rhystic, armageddon]), {
+      goals: { v: 1, targetLevel: 2 },
+      onGoalsChange: vi.fn(),
+    });
+    expect(
+      within(dialog()).getByText("Your target: Bracket 2 · the cards say at least 4"),
+    ).toBeTruthy();
+    const callout = block("Your target").querySelector<HTMLElement>(
+      "[data-slot=bracket-conflicts]",
+    )!;
+    expect(within(callout).getByText("Above your target")).toBeTruthy();
+    expect(
+      within(callout).getByText("Your target is Bracket 2 (Core). These put the deck above it:"),
+    ).toBeTruthy();
+    expect(read.conflicts).toEqual(["land-denial", "game-changers", "combo:618-1537"]);
+    const rows = [...callout.querySelectorAll<HTMLElement>("[data-conflict]")];
+    expect(rows.map((r) => r.dataset.conflict)).toEqual(read.conflicts);
+    expect(rows[1].textContent).toContain("1 Game Changer: Rhystic Study.");
+    expect(rows[1].textContent).toContain("Remove Rhystic Study to fit Bracket 2.");
+    // The findings list above is untouched: the target never hides evidence.
+    expect(
+      block("What the cards show").querySelectorAll("[data-factor]").length,
+    ).toBeGreaterThanOrEqual(3);
+  });
+
+  it("no callout at or above what the cards prove, or with no target", () => {
+    sheet(spec([rhystic]), { combos: [], goals: { v: 1, targetLevel: 3 }, onGoalsChange: vi.fn() });
+    expect(document.querySelector("[data-slot=bracket-conflicts]")).toBeNull();
+  });
+
+  it("the table-exceptions line: the adapter's example as its hint, 200 at most, stored trimmed", () => {
+    const onGoalsChange = vi.fn();
+    sheet(spec([]), { combos: [], goals: { v: 1, targetLevel: 2 }, onGoalsChange });
+    const input = within(block("Your target")).getByRole("textbox", {
+      name: "Table exceptions",
+    }) as HTMLInputElement;
+    expect(input.placeholder).toBe("e.g. one thematic Game Changer, ask me");
+    expect(input.maxLength).toBe(200);
+    fireEvent.change(input, { target: { value: "one thematic Game Changer " } });
+    expect(input.value).toBe("one thematic Game Changer ");
+    expect(onGoalsChange).toHaveBeenLastCalledWith({
+      v: 1,
+      targetLevel: 2,
+      exceptions: "one thematic Game Changer",
+    });
+  });
+
+  it("How it plays: optional and collapsed; four questions, Yes / No / Not sure, each answer stamped with today's rules", () => {
+    const onGoalsChange = vi.fn();
+    sheet(spec([]), { combos: [], goals: null, onGoalsChange });
+    const trigger = within(dialog()).getByRole("button", { name: "How it plays" });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(within(dialog()).queryByRole("group", { name: "Theme first, over power?" })).toBeNull();
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    for (const q of mtg.brackets!.questions) {
+      const group = within(dialog()).getByRole("group", { name: q.question });
+      expect(
+        within(group)
+          .getAllByRole("button")
+          .map((b) => b.textContent),
+      ).toEqual(["Yes", "No", "Not sure"]);
+      expect(pressed(group)).toEqual([]);
+    }
+    fireEvent.click(
+      within(
+        within(dialog()).getByRole("group", { name: "Staples and high card quality?" }),
+      ).getByRole("button", { name: "Yes" }),
+    );
+    expect(onGoalsChange).toHaveBeenLastCalledWith({
+      v: 1,
+      answers: { rulesetVersion: 1, play: { quality: "yes" } },
+    });
+  });
+
+  it("answers already given show as pressed, and the closed block counts them", () => {
+    sheet(spec([]), {
+      combos: [],
+      goals: { v: 1, answers: { rulesetVersion: 1, play: { theme: "no", fast: "unsure" } } },
+      onGoalsChange: vi.fn(),
+    });
+    const trigger = within(dialog()).getByRole("button", { name: /How it plays/ });
+    expect(trigger.textContent).toContain("How it plays· 2 answered");
+    fireEvent.click(trigger);
+    expect(
+      pressed(within(dialog()).getByRole("group", { name: "Theme first, over power?" })),
+    ).toEqual(["No"]);
+    // "Not theme first" alone already says past Exhibition.
+    expect(
+      within(dialog()).getByText("Bracket 2 (Core) — from the cards and your answers"),
+    ).toBeTruthy();
+  });
+
+  it("Your call: Yes / No / Not sure per question, keyed by its stable id; the answer shows", () => {
+    const onGoalsChange = vi.fn();
+    sheet(spec([liliana, timeWarp, temporal]), { combos: [], goals: null, onGoalsChange });
+    const cardsShow = block("What the cards show");
+    const land = cardsShow.querySelector<HTMLElement>(`[data-question='${liliKey}']`)!;
+    const group = within(land).getByRole("group", {
+      name: "Does it deny lands the way Armageddon does? Liliana of the Veil",
+    });
+    expect(within(land).getByText("Your answer")).toBeTruthy();
+    expect(pressed(group)).toEqual([]);
+    fireEvent.click(within(group).getByRole("button", { name: "No" }));
+    expect(onGoalsChange).toHaveBeenLastCalledWith({
+      v: 1,
+      answers: { rulesetVersion: 1, calls: { [liliKey]: "no" } },
+    });
+    expect(
+      within(cardsShow).getByText("Answers that change the read are shown on your share page."),
+    ).toBeTruthy();
+  });
+
+  it("an answered question keeps its place in Your call with its answer pressed", () => {
+    sheet(spec([liliana]), {
+      combos: [],
+      goals: { v: 1, answers: { rulesetVersion: 1, calls: { [liliKey]: "yes" } } },
+      onGoalsChange: vi.fn(),
+    });
+    expect(
+      within(dialog()).getByText("Bracket 4 (Optimized) — from the cards and your answers"),
+    ).toBeTruthy();
+    const land = document.querySelector<HTMLElement>(`[data-question='${liliKey}']`)!;
+    expect(pressed(within(land).getByRole("group"))).toEqual(["Yes"]);
+  });
+
+  it("the answers are reachable from the keyboard: arrows move between choices, a choice is a button", async () => {
+    const onGoalsChange = vi.fn();
+    sheet(spec([liliana]), { combos: [], goals: null, onGoalsChange });
+    const land = document.querySelector<HTMLElement>(`[data-question='${liliKey}']`)!;
+    const [yes, no] = within(land).getAllByRole("button");
+    yes.focus();
+    fireEvent.keyDown(yes, { key: "ArrowRight" });
+    // The roving focus lands on the next frame.
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    });
+    expect(document.activeElement).toBe(no);
+    fireEvent.click(no); // Enter or Space on a native button
+    expect(onGoalsChange).toHaveBeenLastCalledWith({
+      v: 1,
+      answers: { rulesetVersion: 1, calls: { [liliKey]: "no" } },
+    });
+  });
+
+  it("Rules changed since you answered: older answers still count, How it plays opens itself, Keep my answers restamps them", () => {
+    const onGoalsChange = vi.fn();
+    const stale: DeckGoals = {
+      v: 1,
+      answers: { rulesetVersion: 0, play: { cedh: "no" }, calls: { [liliKey]: "yes" } },
+    };
+    const { read } = sheet(spec([liliana]), { combos: [], goals: stale, onGoalsChange });
+    expect(read).toMatchObject({ answersStale: true, suggested: 4 });
+    const notice = document.querySelector<HTMLElement>("[data-slot=bracket-stale]")!;
+    expect(within(notice).getByText("Rules changed since you answered")).toBeTruthy();
+    expect(
+      within(notice).getByText(
+        "Your answers still count. Check them against the new rules, or keep them as they are.",
+      ),
+    ).toBeTruthy();
+    expect(
+      within(dialog())
+        .getByRole("button", { name: /How it plays/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    fireEvent.click(within(notice).getByRole("button", { name: "Keep my answers" }));
+    expect(onGoalsChange).toHaveBeenLastCalledWith({
+      v: 1,
+      answers: { rulesetVersion: 1, play: { cedh: "no" }, calls: { [liliKey]: "yes" } },
+    });
+  });
+
+  it("answers under today's rules raise no notice", () => {
+    sheet(spec([liliana]), {
+      combos: [],
+      goals: { v: 1, answers: { rulesetVersion: 1, calls: { [liliKey]: "yes" } } },
+      onGoalsChange: vi.fn(),
+    });
+    expect(document.querySelector("[data-slot=bracket-stale]")).toBeNull();
+  });
+});
+
 describe("the sheet's shape", () => {
   it("from md: the Modal, titled by the adapter's noun", () => {
     sheet(spec([]));
@@ -280,6 +524,23 @@ describe("copy guard (WAVE4 D0) — everything the sheet renders", () => {
     ["questions", () => sheet(spec([liliana, timeWarp, temporal]), { combos: [] })],
     ["gaps", () => sheet(spec([rhystic]), { combos: null, freshness: null })],
     ["a draft", () => sheet(spec([conscripts], 2))],
+    [
+      "Y4b: a target below the cards, answers under older rules, How it plays open",
+      () => {
+        sheet(spec([conscripts, rhystic, armageddon, liliana, timeWarp, temporal]), {
+          goals: {
+            v: 1,
+            targetLevel: 1,
+            exceptions: "Ask me first",
+            answers: { rulesetVersion: 0, play: { theme: "yes", fast: "no" } },
+          },
+          onGoalsChange: vi.fn(),
+        });
+        expect(document.querySelector("[data-slot=bracket-conflicts]")).toBeTruthy();
+        expect(document.querySelector("[data-slot=bracket-stale]")).toBeTruthy();
+        expect(screen.getByRole("group", { name: "Tuned for the cEDH metagame?" })).toBeTruthy();
+      },
+    ],
   ])("%s: no 'approve', no Spellbook tag name", (_label, open) => {
     open();
     const text = document.body.textContent ?? "";

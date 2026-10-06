@@ -101,8 +101,8 @@ function read(
   });
 }
 
-/** The line as the editor builds it: the read, the snapshot, core's progress phrase. */
-function line(spec: Spec, r: BracketRead): string {
+/** The line as the editor builds it: the read, the snapshot, core's progress phrase, the target. */
+function line(spec: Spec, r: BracketRead, targetLevel: number | null = null): string {
   const entries = Object.entries(spec.deck.zones).flatMap(([zone, list]) =>
     list.map((e) => ({ ...e, zone })),
   );
@@ -110,6 +110,7 @@ function line(spec: Spec, r: BracketRead): string {
     deck: spec.deck,
     cards: spec.cards,
     progress: r.status === "draft" ? addMorePhrase(deckProgress(entries, COMMANDER).toGo) : null,
+    targetLevel,
   });
 }
 const lineOf = (spec: Spec, combos?: CompleteCombo[] | null, over?: ReadOptions) =>
@@ -158,6 +159,101 @@ describe("D5's line table, word for word", () => {
     const r = read(spec);
     expect(r.status).toBe("blocked");
     expect(line(spec, r)).toBe("Bracket read needs a legal list · 1 banned card");
+  });
+});
+
+describe("Y4b — the target beside the read, and answers with a call still open", () => {
+  const v = BRACKET_RULESET.version;
+  const s1 = combo("s1", [pieceA, pieceB, pieceC], { tag: "S", relevant: false });
+  const [pieceD, pieceE, pieceF] = ["D", "E", "F"].map((n) => named(`Piece ${n}`));
+  const s2 = combo("s2", [pieceD, pieceE, pieceF], { tag: "S", relevant: false });
+
+  it("D5's 'Target below the cards' row, in plain words: the target first, then what the cards say", () => {
+    const spec = list([rhystic]);
+    expect(line(spec, read(spec), 2)).toBe("Your target: Bracket 2 · the cards say at least 3");
+  });
+
+  it("at or above what the cards prove it reads the same way — the target never hides the read", () => {
+    const spec = list([rhystic]);
+    expect(line(spec, read(spec), 3)).toBe("Your target: Bracket 3 · the cards say at least 3");
+    expect(line(spec, read(spec), 4)).toBe("Your target: Bracket 4 · the cards say at least 3");
+    const plain = list([]);
+    expect(line(plain, read(plain), 2)).toBe(
+      "Your target: Bracket 2 · nothing here goes past Core",
+    );
+    const one = list([timeWarp]);
+    expect(line(one, read(one), 1)).toBe("Your target: Bracket 1 · the cards say at least 2");
+  });
+
+  it("a call still open is still named, every outcome listed", () => {
+    const spec = list([pieceA, pieceB, pieceC]);
+    expect(line(spec, read(spec, [s1]), 2)).toBe(
+      "Your target: Bracket 2 · the cards say 3 or 4 — one combo is your call",
+    );
+    const edge = list([liliana]);
+    expect(line(edge, read(edge), 2)).toBe(
+      "Your target: Bracket 2 · the cards say 1–2 or 4 — one card is your call",
+    );
+  });
+
+  it("with answers: the cards and your answers say — settled, or with a call still open", () => {
+    const spec = list([pieceA, pieceB, pieceC]);
+    const yes = read(spec, [s1], { answers: { rulesetVersion: v, calls: { "combo:s1": "yes" } } });
+    expect(line(spec, yes, 2)).toBe("Your target: Bracket 2 · the cards and your answers say 4");
+    const two = list([pieceA, pieceB, pieceC, pieceD, pieceE, pieceF]);
+    const half = read(two, [s1, s2], {
+      answers: { rulesetVersion: v, calls: { "combo:s1": "no" } },
+    });
+    expect(line(two, half, 3)).toBe(
+      "Your target: Bracket 3 · the cards and your answers say 3 or 4 — one combo is your call",
+    );
+  });
+
+  it("a read that couldn't check everything names the gap beside the target", () => {
+    const stale: BracketFreshness = {
+      ...FRESH,
+      feeds: { ...FRESH.feeds, extraTurns: { state: "stale", asOf: "2026-09-01T00:00:00.000Z" } },
+    };
+    const spec = list([rhystic]);
+    expect(line(spec, read(spec, [], { freshness: stale }), 2)).toBe(
+      "Your target: Bracket 2 · the cards say at least 3 · Couldn't check extra turns",
+    );
+    const plain = list([]);
+    expect(line(plain, read(plain, null), 3)).toBe(
+      "Your target: Bracket 3 · Couldn't check combos",
+    );
+  });
+
+  it("a draft's and a blocked list's lines don't change — the sheet shows the target there", () => {
+    const draft = list([rhystic], 66);
+    expect(line(draft, read(draft), 2)).toBe("Bracket: add 34 more cards · 1 Game Changer so far");
+    const banned = list([dockside]);
+    expect(line(banned, read(banned), 2)).toBe("Bracket read needs a legal list · 1 banned card");
+  });
+
+  it("no target: answers with a call still open say both", () => {
+    const two = list([pieceA, pieceB, pieceC, pieceD, pieceE, pieceF]);
+    const half = read(two, [s1, s2], {
+      answers: { rulesetVersion: v, calls: { "combo:s1": "no" } },
+    });
+    expect(half).toMatchObject({ status: "review", minimum: 3, suggested: 3 });
+    expect(line(two, half)).toBe(
+      "Bracket 3 or 4 — from the cards and your answers · one combo is your call",
+    );
+    const edge = list([liliana]);
+    const quality = read(edge, [], { answers: { rulesetVersion: v, play: { quality: "yes" } } });
+    expect(line(edge, quality)).toBe(
+      "Bracket 3 or 4 — from the cards and your answers · one card is your call",
+    );
+  });
+
+  it("an answer of Not sure leaves the call open and says nothing about answers", () => {
+    const spec = list([pieceA, pieceB, pieceC]);
+    const unsure = read(spec, [s1], {
+      answers: { rulesetVersion: v, calls: { "combo:s1": "unsure" } },
+    });
+    expect(unsure.suggested).toBeNull();
+    expect(line(spec, unsure)).toBe("Bracket 3 or 4 — one combo is your call");
   });
 });
 
@@ -355,7 +451,12 @@ describe("copy guard (WAVE4 D0) — every line the adapter can say", () => {
       },
     });
     add(list([]), [], { freshness: null });
-    return reads.map(([spec, r]) => line(spec, r));
+    // Y4b: every read again beside each target, and answers with a call still open.
+    add(list([liliana]), [], { answers: { rulesetVersion: 1, play: { quality: "yes" } } });
+    return reads.flatMap(([spec, r]) => [
+      line(spec, r),
+      ...[1, 2, 3, 4, 5].map((target) => line(spec, r, target)),
+    ]);
   }
 
   it("reads real lines: every status the read has", () => {
@@ -368,6 +469,8 @@ describe("copy guard (WAVE4 D0) — every line the adapter can say", () => {
       "so far",
       "needs a legal list",
       "Couldn't check",
+      "Your target: Bracket 2 · the cards say at least 3",
+      "the cards and your answers say",
     ]) {
       expect(lines.some((l) => l.includes(expected))).toBe(true);
     }

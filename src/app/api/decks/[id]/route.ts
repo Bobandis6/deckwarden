@@ -7,7 +7,12 @@
  *          signed-in requester owns any printing of, and `hasCollection` —
  *          the editor's owned badges and "you own N/100" line. Session-only
  *          data: the guest-token path returns [] / false.
- * PATCH  — meta only (name / description / visibility / folder). Owner only.
+ * PATCH  — meta (name / description / notes / visibility / folder) and, Y4b,
+ *          `goals` — the whole goals object, null clears, its target range
+ *          and question keys off the deck's adapter (One Piece takes no
+ *          target). Owner only. updated_at moves only when a key other than
+ *          goals is present: a target or an answer must not reorder the
+ *          "recent" rails (home, /account) — WAVE4 D5.
  * DELETE — hard delete; deck_cards + deck_versions cascade. Owner only.
  *          Fork-safe (P3.6, fired LATER row): forks' upstream pointers are
  *          NULLed in the same transaction — the self-FK has no ON DELETE.
@@ -29,7 +34,8 @@ import { getSessionUserId } from "@/lib/auth";
 import { deckOwnedForViewer } from "@/lib/collection/owned";
 import { loadFolder } from "@/lib/decks/folders";
 import { deleteDecksForkSafe, forkCredit } from "@/lib/decks/forks";
-import { requireOwnedDeck, requireReadableDeck } from "@/lib/decks/route-helpers";
+import { goalsSchema, normalizeGoals, type DeckGoals } from "@/lib/decks/goals";
+import { deckFormat, requireOwnedDeck, requireReadableDeck } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
@@ -72,18 +78,23 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   );
 }
 
-const PATCH_BODY = z
-  .object({
-    name: z.string().trim().min(1).max(120),
-    description: z.string().max(4000).nullable(),
-    /** P2.7: long-form primer, share-page-only render (never in OG/JSON-LD). */
-    notes: z.string().max(20000).nullable(),
-    visibility: z.enum(schema.DECK_VISIBILITIES),
-    /** P2.2: move into a folder (must be the same user's) or null to unfile. */
-    folderId: z.uuid().nullable(),
-  })
-  .partial()
-  .refine((b) => Object.keys(b).length > 0, { message: "No fields to update" });
+/** The PATCH body for one deck — goals checked against its game's `brackets` (Y4b). */
+function patchBody(brackets: Parameters<typeof goalsSchema>[0]) {
+  return z
+    .object({
+      name: z.string().trim().min(1).max(120),
+      description: z.string().max(4000).nullable(),
+      /** P2.7: long-form primer, share-page-only render (never in OG/JSON-LD). */
+      notes: z.string().max(20000).nullable(),
+      visibility: z.enum(schema.DECK_VISIBILITIES),
+      /** P2.2: move into a folder (must be the same user's) or null to unfile. */
+      folderId: z.uuid().nullable(),
+      /** Y4b: the deck's goals, whole — null clears. Never bumps updated_at. */
+      goals: goalsSchema(brackets).nullable(),
+    })
+    .partial()
+    .refine((b) => Object.keys(b).length > 0, { message: "No fields to update" });
+}
 
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/[id]">) {
   const { id } = await ctx.params;
@@ -100,7 +111,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/
   } catch {
     return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
   }
-  const parsed = PATCH_BODY.safeParse(json);
+  const parsed = patchBody(deckFormat(access.deck)?.adapter.brackets).safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid body", issues: parsed.error.issues },
@@ -124,10 +135,17 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/
     }
   }
 
+  // Goals are a setting, not an edit: a goals-only body leaves updated_at
+  // (and so the deck's place in every "recent" order) alone.
+  const { goals, ...meta } = parsed.data;
   const db = getDb();
   const [updated] = await db
     .update(decks)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set({
+      ...meta,
+      ...(goals !== undefined ? { goals: normalizeGoals(goals as DeckGoals | null) } : {}),
+      ...(Object.keys(meta).length > 0 ? { updatedAt: new Date() } : {}),
+    })
     .where(eq(decks.id, access.deck.id))
     .returning();
 

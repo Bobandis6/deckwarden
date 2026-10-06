@@ -13,7 +13,9 @@
  * printings) + the leader_ids/ci_mask denorms (same list, same denorm).
  * NOT copied: likes, bookmarks, versions, description/notes (the author's
  * prose), visibility (forks are born unlisted like every create), claim
- * state (the forker's session is the ownership proof). Forking your own
+ * state (the forker's session is the ownership proof), goals (Y4b — the
+ * target, answers and budget are the upstream owner's; the explicit
+ * columns below leave them NULL, forks.test.ts). Forking your own
  * deck is allowed — it's a duplicate with provenance.
  *
  * Baseline for "changes since you forked" (decision 4): the fork's VERSION

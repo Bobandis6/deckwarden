@@ -76,6 +76,34 @@ describe("bracketLineView", () => {
     expect(view(asked, "ready").action).toBe("why");
   });
 
+  it("Y4b: a draft holding goals keeps its Why? — its target and answers live in the sheet", () => {
+    const targeted = { ...ctx, targetLevel: 2 };
+    expect(bracketLineView(brackets, read("draft"), targeted, "ready").action).toBe("why");
+    expect(bracketLineView(brackets, read("draft"), targeted, "checking").action).toBeNull();
+    expect(view({ ...read("draft"), suggested: 2 }, "ready").action).toBe("why");
+    expect(view({ ...read("draft"), answersStale: true }, "ready").action).toBe("why");
+    expect(
+      bracketLineView(brackets, read("draft"), { ...ctx, targetLevel: null }, "ready"),
+    ).toEqual({ text: "adapter line (draft)", action: null });
+  });
+
+  it("Y4b: answers from older rules add D5's words before Why? — only where Why? follows", () => {
+    const stale = (status: BracketRead["status"]) => ({ ...read(status), answersStale: true });
+    expect(view(stale("read"), "ready")).toEqual({
+      text: "adapter line (read) · Rules changed since you answered",
+      action: "why",
+    });
+    expect(view(stale("draft"), "ready").text).toBe(
+      "adapter line (draft) · Rules changed since you answered",
+    );
+    expect(view(stale("blocked"), "ready")).toEqual({
+      text: "adapter line (blocked)",
+      action: null,
+    });
+    expect(view(stale("read"), "checking").text).toBe("Checking combos…");
+    expect(view(stale("read"), "failed").text).toBe("Couldn't check combos");
+  });
+
   it("checking: D5's loading line, text only — a read that may be out of date says so", () => {
     for (const status of ["read", "review", "unavailable"] as const) {
       expect(view(read(status), "checking")).toEqual({ text: "Checking combos…", action: null });

@@ -627,6 +627,11 @@ export interface BracketLineContext<A = Record<string, unknown>> {
    * src/lib/decks/progress.ts owns the phrase); null when not a draft.
    */
   progress: string | null;
+  /**
+   * The player's declared level (Y4b, decks.goals.targetLevel); null or
+   * absent = not set. The line shows it beside the read, never instead of it.
+   */
+  targetLevel?: number | null;
 }
 
 /**
@@ -642,6 +647,12 @@ export interface BracketsMeta<A = Record<string, unknown>> {
   ruleset: { version: number; asOf: string };
   /** "How it plays" — the questions whose answers raise `suggested`, by key. */
   questions: readonly { key: string; question: string }[];
+  /**
+   * The Why sheet's table-exceptions line, by example (Y4b) — "e.g. one
+   * thematic Game Changer, ask me". The adapter's words: core names no
+   * card kind.
+   */
+  exceptionsHint: string;
   /** ingest_runs sources whose latest successful run the freshness loader reads. */
   freshnessSources: readonly string[];
   /** Pure: those runs → each evidence feed's freshness, as of `readAt`. */

@@ -26,6 +26,17 @@
  * - a card that isn't legal is never called banned — "· 1 card not legal in
  *   Commander".
  *
+ * Y4b adds the player's side (REDESIGN "Y4b decisions"):
+ * - a declared target leads, the read beside it in "the cards say" words —
+ *   D5's "Your target 2 · the cards say 3+" without the notation D0 forbids:
+ *   "Your target: Bracket 2 · the cards say at least 3"; at or above what
+ *   the cards prove it reads the same way ("Your target: Bracket 3 · the
+ *   cards say at least 2", "… · nothing here goes past Core"), so the
+ *   target never hides the read (D11). A draft's and a blocked list's lines
+ *   don't change: the sheet shows the target there;
+ * - answers with a call still open say both — "Bracket 3 or 4 — from the
+ *   cards and your answers · one combo is your call".
+ *
  * It reads the ids ./brackets.ts gives its lines: factors `game-changers`,
  * `land-denial`, `extra-turns`, `combo:<key>`, `unchecked:<feed>`,
  * `unchecked:combo:<key>`, `unchecked:cards`; questions `land-denial:<oracle
@@ -182,6 +193,41 @@ function blockedLine(read: BracketRead, ctx: BracketLineContext<MtgAttrs>): stri
   return `${NOUN} read needs a legal list · ${joinList(parts, "and")}`;
 }
 
+/** The questions still open above where the cards and the answers settle. */
+function openCalls(read: BracketRead, settled: number): BracketQuestion[] {
+  if (read.status !== "review") return [];
+  return read.review.filter(
+    (q) => (q.answer === null || q.answer === "unsure") && q.raisesTo > settled,
+  );
+}
+
+/**
+ * The read beside a declared target (Y4b): "the cards say at least 3",
+ * "the cards and your answers say 4", "the cards say 3 or 4 — one combo is
+ * your call", "nothing here goes past Core", or what couldn't be checked.
+ */
+function cardsSay(read: BracketRead): string {
+  if (read.status === "unavailable") {
+    const missed = gaps(read);
+    const parts: string[] = [];
+    if (read.minimum > UNFLAGGED_LOW.level) parts.push(`the cards say at least ${read.minimum}`);
+    if (missed.length > 0) parts.push(`Couldn't check ${joinList(missed, "and")}`);
+    return parts.length > 0 ? parts.join(" · ") : `${NOUN} read incomplete`;
+  }
+  const answered = read.suggested !== null;
+  const say = answered ? "the cards and your answers say" : "the cards say";
+  const settled = read.suggested ?? read.minimum;
+  const open = openCalls(read, settled);
+  if (open.length > 0) {
+    return `${say} ${outcomes([settled, ...open.map((q) => q.raisesTo)])} — ${yourCall(open)}`;
+  }
+  if (answered) return `${say} ${settled}`;
+  if (read.minimum <= UNFLAGGED_LOW.level) {
+    return `nothing here goes past ${UNFLAGGED_TOP.name}`;
+  }
+  return `the cards say at least ${read.minimum}`;
+}
+
 /** The read in one line — `mtgBrackets.line`. */
 export function mtgBracketLine(read: BracketRead, ctx: BracketLineContext<MtgAttrs>): string {
   if (read.status === "blocked") return blockedLine(read, ctx);
@@ -189,6 +235,8 @@ export function mtgBracketLine(read: BracketRead, ctx: BracketLineContext<MtgAtt
     const found = foundSoFar(read, ctx);
     return `${NOUN}: ${ctx.progress ?? "add more cards"}${found ? ` · ${found} so far` : ""}`;
   }
+  const target = ctx.targetLevel ?? null;
+  if (target !== null) return `Your target: ${NOUN} ${target} · ${cardsSay(read)}`;
   if (read.status === "unavailable") {
     const missed = gaps(read);
     const lead =
@@ -198,13 +246,12 @@ export function mtgBracketLine(read: BracketRead, ctx: BracketLineContext<MtgAtt
     return missed.length > 0 ? `${lead} · Couldn't check ${joinList(missed, "and")}` : lead;
   }
   const settled = read.suggested ?? read.minimum;
-  if (read.status === "review") {
-    const open = read.review.filter(
-      (q) => (q.answer === null || q.answer === "unsure") && q.raisesTo > settled,
-    );
-    if (open.length > 0) {
-      return `${NOUN} ${outcomes([settled, ...open.map((q) => q.raisesTo)])} — ${yourCall(open)}`;
-    }
+  const open = openCalls(read, settled);
+  if (open.length > 0) {
+    const range = `${NOUN} ${outcomes([settled, ...open.map((q) => q.raisesTo)])}`;
+    return read.suggested !== null
+      ? `${range} — from the cards and your answers · ${yourCall(open)}`
+      : `${range} — ${yourCall(open)}`;
   }
   if (read.suggested !== null) return `${named(read.suggested)} — from the cards and your answers`;
   if (read.minimum <= UNFLAGGED_LOW.level) {

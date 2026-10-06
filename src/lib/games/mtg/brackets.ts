@@ -805,6 +805,7 @@ export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   levels: LEVELS.map(({ level, name }) => ({ level, name })),
   ruleset: READ_RULESET,
   questions: MTG_BRACKET_QUESTIONS,
+  exceptionsHint: "e.g. one thematic Game Changer, ask me",
   freshnessSources: ["scryfall", "spellbook"],
   freshness: mtgBracketFreshness,
   assess: assessBracket,

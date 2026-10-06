@@ -12,7 +12,16 @@ import { getAdapter } from "@/lib/games/registry";
 import { BRACKET_COPY, dateLabel, levelLabel } from "./copy";
 
 /** The table's word-builders — the guard calls each one (a new one must join it here). */
-const BUILDERS = ["sheetTitle", "nothingFound", "ifYes", "pieces", "rules", "combosCredit"];
+const BUILDERS = [
+  "sheetTitle",
+  "nothingFound",
+  "ifYes",
+  "pieces",
+  "rules",
+  "combosCredit",
+  "aboveTargetLead",
+  "answered",
+];
 
 /** Every string the table can produce, its builders called with real inputs. */
 function everyString(): string[] {
@@ -27,6 +36,12 @@ function everyString(): string[] {
     C.pieces(2),
     C.rules(mtg.links.rules.label, dateLabel(mtg.ruleset.asOf)),
     C.combosCredit(getAdapter("mtg").capabilities.combos!.sourceLabel),
+    ...mtg.levels.map((l) => C.aboveTargetLead(levelLabel(mtg, l.level))),
+    C.answered(1),
+    C.answered(4),
+    // The adapter's words the Y4b blocks render beside core's.
+    mtg.exceptionsHint,
+    ...mtg.questions.map((q) => q.question),
   ];
 }
 
@@ -42,6 +57,31 @@ describe("BRACKET_COPY — D5's own lines and the sheet's words", () => {
     expect(BRACKET_COPY.cardsShow).toBe("What the cards show");
     expect(BRACKET_COPY.readAssumes).toBe("What this read assumes");
     expect(BRACKET_COPY.sheetTitle("bracket")).toBe("Why this bracket?");
+  });
+
+  it("Y4b's blocks, by D5's names and words", () => {
+    const mtg = getAdapter("mtg").brackets!;
+    expect(BRACKET_COPY.yourTarget).toBe("Your target");
+    expect(BRACKET_COPY.notSet).toBe("Not set");
+    expect(BRACKET_COPY.howItPlays).toBe("How it plays");
+    expect([BRACKET_COPY.yes, BRACKET_COPY.no, BRACKET_COPY.unsure]).toEqual([
+      "Yes",
+      "No",
+      "Not sure",
+    ]);
+    expect(BRACKET_COPY.rulesChanged).toBe("Rules changed since you answered");
+    expect(BRACKET_COPY.shownOnSharePage).toBe("Shown on your share page.");
+    expect(BRACKET_COPY.exceptions).toBe("Table exceptions");
+    expect(mtg.exceptionsHint).toBe("e.g. one thematic Game Changer, ask me");
+    expect(BRACKET_COPY.aboveTargetLead(levelLabel(mtg, 2))).toBe(
+      "Your target is Bracket 2 (Core). These put the deck above it:",
+    );
+    expect(mtg.questions.map((q) => q.question)).toEqual([
+      "Theme first, over power?",
+      "Staples and high card quality?",
+      "Can it usually win or lock the table before turn 6?",
+      "Tuned for the cEDH metagame?",
+    ]);
   });
 
   it("levels in plain words, dates pinned to UTC", () => {

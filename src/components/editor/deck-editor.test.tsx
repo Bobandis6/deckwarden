@@ -2269,3 +2269,362 @@ describe("DeckEditor — the bracket line and its Why sheet (Y4a)", () => {
     expect(factsGets()).toHaveLength(0);
   });
 });
+
+describe("DeckEditor — your target and the answers (Y4b)", () => {
+  const kozilek: CardWire = {
+    ...card({
+      name: "Kozilek, the Great Distortion",
+      primaryType: "Creature",
+      costValue: 10,
+      isLeaderCandidate: true,
+      attrs: { type_line: "Legendary Creature — Eldrazi", oracle_text: "" },
+    }),
+    image: null,
+  };
+  const vault: CardWire = {
+    ...card({
+      name: "Mana Vault",
+      primaryType: "Artifact",
+      costValue: 1,
+      attrs: { type_line: "Artifact", oracle_text: "", game_changer: true },
+    }),
+    image: null,
+  };
+  const edge: CardWire = {
+    ...card({
+      name: "Tectonic Edge",
+      primaryType: "Land",
+      costValue: null,
+      attrs: { type_line: "Land", oracle_text: "", mld: "edge" },
+    }),
+    image: null,
+  };
+  const wastes: CardWire = {
+    ...card({
+      name: "Wastes",
+      primaryType: "Land",
+      costValue: null,
+      attrs: { type_line: "Basic Land — Wastes", oracle_text: "" },
+    }),
+    image: null,
+  };
+  /** A commander that is itself a Game Changer — a one-card draft with something to explain. */
+  const urza: CardWire = {
+    ...card({
+      name: "Urza, Lord High Artificer",
+      primaryType: "Creature",
+      costValue: 4,
+      isLeaderCandidate: true,
+      attrs: {
+        type_line: "Legendary Creature — Human Artificer",
+        oracle_text: "",
+        game_changer: true,
+      },
+    }),
+    image: null,
+  };
+  const EDGE_CALL = `land-denial:${edge.externalKey}`;
+  const listCards = [
+    { cardId: kozilek.id, zone: "commander", qty: 1, tags: [], printingId: null, card: kozilek },
+    { cardId: vault.id, zone: "main", qty: 1, tags: [], printingId: null, card: vault },
+    { cardId: edge.id, zone: "main", qty: 1, tags: [], printingId: null, card: edge },
+    { cardId: wastes.id, zone: "main", qty: 97, tags: [], printingId: null, card: wastes },
+  ];
+  /** Kozilek, a Game Changer, an edge land-denial card and 97 Wastes: at least 3, a call to 4. */
+  function savedDeck(goals: unknown = null) {
+    return {
+      deck: {
+        id: "deck-1",
+        publicId: "abcdefgh1234",
+        game: "mtg",
+        format: "commander",
+        name: "Kozilek",
+        description: null,
+        notes: null,
+        visibility: "unlisted",
+        isOwner: true,
+        forkedFrom: null,
+        leaderIds: [kozilek.id],
+        goals,
+      },
+      cards: listCards,
+      owned: [],
+      hasCollection: false,
+    };
+  }
+  let deckGoals: unknown = null;
+  function y4bRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    if (url === "/api/decks/deck-1" && method === "GET") return ok(savedDeck(deckGoals));
+    if (url.startsWith("/api/leaders/random")) return ok({ leader: urza });
+    if (url === "/api/precons/kozilek_c99") {
+      return ok({
+        precon: {
+          slug: "kozilek_c99",
+          code: "Kozilek_C99",
+          setCode: "C99",
+          setName: "Commander 2099",
+          releaseDate: "2099-01-01",
+          productName: "Eldrazi Unbound",
+        },
+        deck: {
+          publicId: "p_kozilek_c99",
+          name: "Eldrazi Unbound",
+          description: null,
+          game: "mtg",
+          format: "commander",
+          leaderIds: [kozilek.id],
+          ciMask: 0,
+        },
+        cards: listCards,
+      });
+    }
+    return route(input, init);
+  }
+  const line = () => document.querySelector<HTMLElement>("[data-slot=bracket-line]");
+  const patchBodies = () =>
+    fetchMock.mock.calls
+      .filter(([url, init]) => url === "/api/decks/deck-1" && init?.method === "PATCH")
+      .map(([, init]) => JSON.parse((init as RequestInit).body as string) as unknown);
+  const createBody = () =>
+    JSON.parse(
+      fetchMock.mock.calls.find(
+        ([url, init]) => url === "/api/decks" && init?.method === "POST",
+      )![1]!.body as string,
+    ) as { goals?: unknown; name?: string };
+  const sheet = () => screen.queryByRole("dialog", { name: "Why this bracket?" });
+
+  async function pollFor<T>(query: () => T | null): Promise<T> {
+    for (let i = 0; i < 40; i++) {
+      const found = query();
+      if (found) return found;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: never appeared");
+  }
+  const lineIs = (text: string) => pollFor(() => (line()?.textContent === text ? line() : null));
+  async function openSheet() {
+    fireEvent.click(await pollFor(() => screen.queryByRole("button", { name: "Why?" })));
+    return pollFor(sheet);
+  }
+  const targetButton = (dialog: HTMLElement, label: string) =>
+    within(within(dialog).getByRole("group", { name: "Your target" })).getByRole("button", {
+      name: label,
+    });
+
+  beforeEach(() => {
+    deckGoals = null;
+    fetchMock.mockImplementation(y4bRoute);
+  });
+
+  it("a saved deck: a target is ONE PATCH {goals} after the debounce — no PUT, no meta PATCH, no second facts GET; the line and the callout follow at once", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+    const dialog = await openSheet();
+    fireEvent.click(targetButton(dialog, "2"));
+
+    expect(line()!.textContent).toBe(
+      "Your target: Bracket 2 · the cards say 3 or 4 — one card is your call · Why?",
+    );
+    const callout = dialog.querySelector<HTMLElement>("[data-slot=bracket-conflicts]")!;
+    expect(
+      [...callout.querySelectorAll<HTMLElement>("[data-conflict]")].map((r) => r.dataset.conflict),
+    ).toEqual(["game-changers"]);
+    expect(callout.textContent).toContain("Remove Mana Vault to fit Bracket 2.");
+
+    expect(patchBodies()).toEqual([]);
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([{ goals: { v: 1, targetLevel: 2 } }]);
+    expect(puts()).toBe(0);
+    expect(posts()).toBe(0);
+    expect(factsGets()).toHaveLength(1);
+    expect(saveStatus()).toBe("saved");
+  });
+
+  it("answers and the target survive a reload: the deck GET's goals feed the read, the line and the sheet — loading is no edit", async () => {
+    deckGoals = {
+      v: 1,
+      targetLevel: 2,
+      exceptions: "One thematic Game Changer — ask me",
+      answers: { rulesetVersion: 1, play: { quality: "yes" }, calls: { [EDGE_CALL]: "yes" } },
+    };
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await lineIs("Your target: Bracket 2 · the cards and your answers say 4 · Why?");
+    const dialog = await openSheet();
+    const pressed = (group: HTMLElement) =>
+      within(group)
+        .getAllByRole("button")
+        .filter((b) => b.getAttribute("aria-pressed") === "true")
+        .map((b) => b.textContent);
+    expect(pressed(within(dialog).getByRole("group", { name: "Your target" }))).toEqual(["2"]);
+    const call = dialog.querySelector<HTMLElement>(`[data-question='${EDGE_CALL}']`)!;
+    expect(pressed(within(call).getByRole("group"))).toEqual(["Yes"]);
+    expect(
+      (within(dialog).getByRole("textbox", { name: "Table exceptions" }) as HTMLInputElement).value,
+    ).toBe("One thematic Game Changer — ask me");
+    expect(within(dialog).getByRole("button", { name: /How it plays/ }).textContent).toContain(
+      "1 answered",
+    );
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([]);
+    expect(saveStatus()).toBe("saved");
+  });
+
+  it("an answer recorded under rulesetVersion 0 reads stale and still applies; Keep my answers PATCHes the restamp", async () => {
+    deckGoals = { v: 1, answers: { rulesetVersion: 0, calls: { [EDGE_CALL]: "yes" } } };
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await lineIs(
+      "Bracket 4 (Optimized) — from the cards and your answers · Rules changed since you answered · Why?",
+    );
+    const dialog = await openSheet();
+    const notice = dialog.querySelector<HTMLElement>("[data-slot=bracket-stale]")!;
+    expect(within(notice).getByText("Rules changed since you answered")).toBeTruthy();
+    fireEvent.click(within(notice).getByRole("button", { name: "Keep my answers" }));
+    expect(line()!.textContent).toBe(
+      "Bracket 4 (Optimized) — from the cards and your answers · Why?",
+    );
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([
+      { goals: { v: 1, answers: { rulesetVersion: 1, calls: { [EDGE_CALL]: "yes" } } } },
+    ]);
+  });
+
+  it("answering a call is a goals PATCH too — and a burst of answers is one PATCH", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+    const dialog = await openSheet();
+    const call = dialog.querySelector<HTMLElement>(`[data-question='${EDGE_CALL}']`)!;
+    fireEvent.click(within(call).getByRole("button", { name: "Yes" }));
+    fireEvent.click(within(call).getByRole("button", { name: "No" }));
+    expect(line()!.textContent).toBe(
+      "Bracket 3 (Upgraded) — from the cards and your answers · Why?",
+    );
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([
+      { goals: { v: 1, answers: { rulesetVersion: 1, calls: { [EDGE_CALL]: "no" } } } },
+    ]);
+    expect(factsGets()).toHaveLength(1);
+  });
+
+  it("closing the tab inside the debounce sends the goals as ONE keepalive PATCH", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+    const dialog = await openSheet();
+    fireEvent.click(targetButton(dialog, "4"));
+    window.dispatchEvent(new Event("pagehide"));
+    const keepalive = fetchMock.mock.calls.filter(
+      ([url, init]) => url === "/api/decks/deck-1" && (init as RequestInit).keepalive === true,
+    );
+    expect(keepalive).toHaveLength(1);
+    expect(JSON.parse((keepalive[0][1] as RequestInit).body as string)).toEqual({
+      goals: { v: 1, targetLevel: 4 },
+    });
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toHaveLength(1);
+  });
+
+  describe("in a draft — a target or an answer is a real edit (D5)", () => {
+    function renderDraft() {
+      stubViewport(1440);
+      window.history.replaceState(null, "", "/decks/new?game=mtg&from=kozilek_c99");
+      render(
+        <DeckEditor
+          deckId={null}
+          draftGame="mtg"
+          draftFormat="commander"
+          draftFromSlug="kozilek_c99"
+        />,
+      );
+    }
+
+    it("a target set in a precon draft creates exactly ONE deck with the goals in its create — one POST + one PUT, no PATCH", async () => {
+      renderDraft();
+      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await settle(1500);
+      expect(posts()).toBe(0);
+      expect(slot().hasAttribute("data-draft")).toBe(true);
+
+      const dialog = await openSheet();
+      fireEvent.click(targetButton(dialog, "3"));
+      await settle(1500);
+      await act(async () => {});
+      expect(posts()).toBe(1);
+      expect(createBody()).toMatchObject({
+        name: "Eldrazi Unbound",
+        goals: { v: 1, targetLevel: 3 },
+      });
+      expect(puts()).toBe(1);
+      expect(patchBodies()).toEqual([]);
+      expect(slot().hasAttribute("data-draft")).toBe(false);
+      expect(saveStatus()).toBe("saved");
+    });
+
+    it("an answer is something to say too: one create carrying it", async () => {
+      renderDraft();
+      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      const dialog = await openSheet();
+      fireEvent.click(within(dialog).getByRole("button", { name: "How it plays" }));
+      fireEvent.click(
+        within(within(dialog).getByRole("group", { name: "Theme first, over power?" })).getByRole(
+          "button",
+          { name: "No" },
+        ),
+      );
+      await settle(1500);
+      await act(async () => {});
+      expect(posts()).toBe(1);
+      expect(createBody().goals).toEqual({
+        v: 1,
+        answers: { rulesetVersion: 1, play: { theme: "no" } },
+      });
+      expect(puts()).toBe(1);
+      expect(patchBodies()).toEqual([]);
+    });
+
+    describe("the target alone is something to say (isBlankDraft, LATER row 164's guard)", () => {
+      /** A rolled Game Changer commander, the sheet open, then the commander cut inside the debounce. */
+      async function targetThenCut(...targets: string[]) {
+        stubViewport(1440);
+        render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftSurprise />);
+        await lineIs("Bracket: add 99 more cards · 1 Game Changer so far · Why?");
+        const dialog = await openSheet();
+        for (const t of targets) fireEvent.click(targetButton(dialog, t));
+        // The list sits under the open modal: no settle between, so the debounce never fires first.
+        fireEvent.click(
+          within(section("Deck list")).getByRole("button", {
+            name: "Remove Urza, Lord High Artificer",
+            hidden: true,
+          }),
+        );
+        await settle(1500);
+        await act(async () => {});
+      }
+
+      it("set a target, cut the commander: the list is empty again but the target still mints ONE deck carrying it — no PUT, no PATCH", async () => {
+        await targetThenCut("2");
+        expect(posts()).toBe(1);
+        expect(createBody().goals).toEqual({ v: 1, targetLevel: 2 });
+        expect(puts()).toBe(0);
+        expect(patchBodies()).toEqual([]);
+      });
+
+      it("set and cleared inside the debounce, then the commander cut: nothing to say — no row", async () => {
+        await targetThenCut("2", "Not set");
+        expect(posts()).toBe(0);
+        expect(slot().hasAttribute("data-draft")).toBe(true);
+      });
+    });
+  });
+});

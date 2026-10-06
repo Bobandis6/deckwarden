@@ -8,6 +8,10 @@
  * Covers: create returns claim_token exactly once · wrong/missing token 403s
  * on reads-of-private and all writes · claim_token never re-exposed · zone /
  * duplicate / unknown-card validation 400s · leader denorms · delete cascade.
+ * Y4b: goals ride the create; the goals PATCH `{goals}` leaves updatedAt
+ * alone (a name PATCH still moves it); a visitor's GET carries the target
+ * and the exceptions, never the budget or the answers; Magic's range and
+ * One Piece's no-target answer 400.
  * Cleans up after itself (the deck is deleted at the end even on failure).
  */
 export {}; // import-free file: stay a module so `main` doesn't collide with other scripts
@@ -47,6 +51,18 @@ async function api(
   return { status: res.status, json, text };
 }
 
+/** Keys sorted at every depth: jsonb hands objects back in its own key order. */
+function canon(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canon);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map((k) => [k, canon((value as Record<string, unknown>)[k])]),
+  );
+}
+const same = (a: unknown, b: unknown) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+
 async function findCard(query: string): Promise<{ id: string; name: string }> {
   const { status, json } = await api(
     "GET",
@@ -65,15 +81,25 @@ async function main() {
   const staple = await findCard("sol ring");
   console.log(`  using commander "${commander.name}", staple "${staple.name}"`);
 
-  // Create
+  // Create — with a target, as a draft's first goals edit sends it (Y4b).
   const created = await api("POST", "/api/decks", {
-    body: { game: "mtg", format: "commander", name: "Smoke test deck" },
+    body: {
+      game: "mtg",
+      format: "commander",
+      name: "Smoke test deck",
+      goals: { v: 1, targetLevel: 3 },
+    },
   });
   const createdJson = created.json as {
-    deck: { id: string; visibility: string; isOwner: boolean };
+    deck: { id: string; visibility: string; isOwner: boolean; goals?: unknown };
     claimToken?: string;
   };
   check("create → 201", created.status === 201, created.json);
+  check(
+    "create carries its goals (Y4b)",
+    same(createdJson?.deck?.goals, { v: 1, targetLevel: 3 }),
+    createdJson?.deck?.goals,
+  );
   const token = createdJson?.claimToken;
   const deckId = createdJson?.deck?.id;
   check("create returns claimToken", typeof token === "string" && token!.length > 0);
@@ -85,6 +111,11 @@ async function main() {
     // Bad-format create
     const badCreate = await api("POST", "/api/decks", { body: { game: "mtg", format: "modern" } });
     check("create with unseeded format → 400", badCreate.status === 400);
+    // One Piece declares no brackets: a target answers 400 and mints nothing (Y4b).
+    const opTarget = await api("POST", "/api/decks", {
+      body: { game: "optcg", format: "standard", goals: { v: 1, targetLevel: 2 } },
+    });
+    check("One Piece create with a target → 400", opTarget.status === 400, opTarget.json);
 
     // Ownership on reads: flip private first (creates default to unlisted since P1.7)
     await api("PATCH", `/api/decks/${deckId}`, { token, body: { visibility: "private" } });
@@ -209,6 +240,74 @@ async function main() {
           body: { cards: [{ cardId: crypto.randomUUID(), zone: "main", qty: 1, tags: [] }] },
         })
       ).status === 400,
+    );
+
+    // Goals (Y4b, WAVE4 D5): their own PATCH body — a setting, never an
+    // edit — so updatedAt (every "recent" order) stays where it was.
+    type Wire = { deck?: { updatedAt?: string; goals?: unknown } };
+    const goals = {
+      v: 1,
+      targetLevel: 2,
+      exceptions: "One thematic Game Changer — ask me",
+      budget: { perCardUsd: 5 },
+      answers: { rulesetVersion: 1, play: { fast: "no" } },
+    };
+    const beforeGoals = (await api("GET", `/api/decks/${deckId}`, { token })).json as Wire;
+    check(
+      "PATCH {goals} without token → 403",
+      (await api("PATCH", `/api/decks/${deckId}`, { body: { goals } })).status === 403,
+    );
+    const goalsPatch = await api("PATCH", `/api/decks/${deckId}`, { token, body: { goals } });
+    check(
+      "PATCH {goals} owner → 200, echoed whole",
+      goalsPatch.status === 200 && same((goalsPatch.json as Wire)?.deck?.goals, goals),
+      goalsPatch.json,
+    );
+    const ownerGoals = (await api("GET", `/api/decks/${deckId}`, { token })).json as Wire;
+    check(
+      "a goals PATCH leaves updatedAt alone",
+      typeof beforeGoals?.deck?.updatedAt === "string" &&
+        ownerGoals?.deck?.updatedAt === beforeGoals.deck.updatedAt,
+      { before: beforeGoals?.deck?.updatedAt, after: ownerGoals?.deck?.updatedAt },
+    );
+    check(
+      "owner GET carries every goal",
+      same(ownerGoals?.deck?.goals, goals),
+      ownerGoals?.deck?.goals,
+    );
+    const visitorGoals = await api("GET", `/api/decks/${deckId}`);
+    check(
+      "visitor GET: the target and the exceptions, never the budget or the answers",
+      same((visitorGoals.json as Wire)?.deck?.goals, {
+        v: 1,
+        targetLevel: 2,
+        exceptions: goals.exceptions,
+      }) && !/budget|answers|rulesetVersion/.test(visitorGoals.text),
+      (visitorGoals.json as Wire)?.deck?.goals,
+    );
+    check(
+      "PATCH a target out of range → 400",
+      (
+        await api("PATCH", `/api/decks/${deckId}`, {
+          token,
+          body: { goals: { v: 1, targetLevel: 6 } },
+        })
+      ).status === 400,
+    );
+    const cleared = await api("PATCH", `/api/decks/${deckId}`, { token, body: { goals: null } });
+    check(
+      "PATCH {goals: null} clears",
+      cleared.status === 200 && (cleared.json as Wire)?.deck?.goals === null,
+      cleared.json,
+    );
+    const renamed = await api("PATCH", `/api/decks/${deckId}`, {
+      token,
+      body: { name: "Smoke test deck v3" },
+    });
+    check(
+      "a name PATCH still moves updatedAt",
+      (renamed.json as Wire)?.deck?.updatedAt !== beforeGoals?.deck?.updatedAt,
+      (renamed.json as Wire)?.deck?.updatedAt,
     );
 
     const afterPut = await api("GET", `/api/decks/${deckId}`, { token });

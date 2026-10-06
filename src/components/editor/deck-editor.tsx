@@ -57,6 +57,13 @@
  * never a POST, so a seeded draft still sends none; a game without
  * `brackets` shows nothing.
  *
+ * Y4b (WAVE4 D5): the deck's goals — the target, the answers, the table's
+ * exceptions — set in the Why sheet and fed back into the read. They save
+ * like any edit, through autosave, with their own baseline and their own
+ * PATCH body `{goals}` (which never moves updated_at); a draft's first
+ * goals edit mints the row with the goals in its create, and no PATCH
+ * follows. A goals change never asks for the combo facts again.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
@@ -127,6 +134,7 @@ import {
   type EditResult,
 } from "@/lib/decks/editor-state";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
+import { goalsPatchBody, readGoals, type DeckGoals } from "@/lib/decks/goals";
 import type { ImportOutcome } from "@/lib/decks/import";
 import { clearPickIntent, pickIntentFor, writePickIntent } from "@/lib/decks/leader-pick-intent";
 import { hasLeader } from "@/lib/decks/panel-view";
@@ -159,6 +167,8 @@ interface DeckResponse {
     forkedFrom: ForkCredit | null;
     /** The decks-row leader order (R2): keeps a partner deck's art leader stable across reloads. */
     leaderIds: string[];
+    /** The deck's goals (Y4b) — the owner's wire carries every one. */
+    goals?: DeckGoals | null;
   };
   cards: {
     cardId: string;
@@ -301,6 +311,8 @@ export function DeckEditor({
   });
   const [deckName, setDeckName] = useState("");
   const [details, setDetails] = useState<DeckDetails>({ description: "", notes: "" });
+  // The deck's goals (Y4b): what the read is assessed with and the sheet edits.
+  const [goals, setGoals] = useState<DeckGoals | null>(null);
   const [entries, setEntries] = useState<EditorEntry[]>([]);
   const [cards, setCards] = useState<ReadonlyMap<string, EditorCard>>(new Map());
   const [preview, setPreview] = useState<EditorCard | null>(null);
@@ -344,9 +356,12 @@ export function DeckEditor({
   // save can fire.
   const entriesRef = useRef<EditorEntry[]>([]);
   const metaRef = useRef({ name: "", description: "", notes: "" });
+  const goalsRef = useRef<DeckGoals | null>(null);
   const lastSavedRef = useRef({
     cards: JSON.stringify({ cards: toSavePayload([]) }),
     meta: metaPatchBody({ name: "", description: "", notes: "" }),
+    // Y4b: goals' own baseline — their own PATCH, never the meta one's.
+    goals: goalsPatchBody(null),
   });
 
   // The live deck id: the prop for existing decks, set by ensureDeck once a
@@ -372,6 +387,9 @@ export function DeckEditor({
       // the name in. A typed name goes along too — its PATCH then no-ops
       // into the debounced meta diff as before.
       const name = metaRef.current.name.trim();
+      // Goals ride the create too (Y4b): a target or an answer is a real
+      // edit, and the draft mints with it — see the baseline below.
+      const goals = goalsRef.current;
       const res = await fetch("/api/decks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -380,6 +398,7 @@ export function DeckEditor({
           game: draftGame,
           format: draftFormat,
           ...(name ? { name } : {}),
+          ...(goals ? { goals } : {}),
           website: "",
         }),
       });
@@ -391,6 +410,9 @@ export function DeckEditor({
       // Adopt the deck before the token check: if storage is broken the row
       // exists either way, and retrying must not mint duplicates.
       deckIdRef.current = json.deck.id;
+      // The row holds the goals the create carried: no PATCH for them (a
+      // change made while the create was in flight still differs, and saves).
+      lastSavedRef.current.goals = goalsPatchBody(goals);
       setLiveDeckId(json.deck.id);
       setShare({
         publicId: json.deck.publicId,
@@ -423,7 +445,9 @@ export function DeckEditor({
     () =>
       deckIdRef.current === null &&
       JSON.stringify({ cards: toSavePayload(entriesRef.current) }) === lastSavedRef.current.cards &&
-      metaPatchBody(metaRef.current) === lastSavedRef.current.meta,
+      metaPatchBody(metaRef.current) === lastSavedRef.current.meta &&
+      // Y4b: a target or an answer is something to say (D5) — the draft mints.
+      goalsPatchBody(goalsRef.current) === lastSavedRef.current.goals,
     [],
   );
 
@@ -453,6 +477,18 @@ export function DeckEditor({
       });
       if (!res.ok) throw new Error(`Save failed (${res.status})`);
       lastSavedRef.current.meta = metaBody;
+    }
+    // Goals (Y4b): their own PATCH body, so the route leaves updated_at —
+    // and the deck's place in every "recent" order — alone.
+    const goalsBody = goalsPatchBody(goalsRef.current);
+    if (goalsBody !== lastSavedRef.current.goals) {
+      const res = await fetch(`/api/decks/${deckId}`, {
+        method: "PATCH",
+        headers,
+        body: goalsBody,
+      });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      lastSavedRef.current.goals = goalsBody;
     }
   }, [isBlankDraft, ensureDeck]);
 
@@ -506,11 +542,14 @@ export function DeckEditor({
       description: json.deck.description ?? "",
       notes: json.deck.notes ?? "",
     };
+    goalsRef.current = readGoals(json.deck.goals);
     lastSavedRef.current = {
       cards: JSON.stringify({ cards: toSavePayload(loadedEntries) }),
       meta: metaPatchBody(metaRef.current),
+      goals: goalsPatchBody(goalsRef.current),
     };
     setEntries(loadedEntries);
+    setGoals(goalsRef.current);
     setCards(new Map(json.cards.map((c) => [c.cardId, toEditorCard(c.card)])));
     setDeckName(json.deck.name);
     setDetails({ description: json.deck.description ?? "", notes: json.deck.notes ?? "" });
@@ -881,6 +920,16 @@ export function DeckEditor({
           method: "PATCH",
           headers,
           body: metaBody,
+          keepalive: true,
+        });
+      }
+      const goalsBody = goalsPatchBody(goalsRef.current);
+      if (goalsBody !== lastSavedRef.current.goals) {
+        lastSavedRef.current.goals = goalsBody;
+        void fetch(`/api/decks/${deckId}`, {
+          method: "PATCH",
+          headers,
+          body: goalsBody,
           keepalive: true,
         });
       }
@@ -1326,6 +1375,18 @@ export function DeckEditor({
     [markDirty],
   );
 
+  // Goals (Y4b): a target, an answer or the exceptions line from the Why
+  // sheet — an edit like the name's, through the same autosave burst. The
+  // read follows at once; the combo facts don't ask again (same card set).
+  const handleGoalsChange = useCallback(
+    (next: DeckGoals | null) => {
+      goalsRef.current = next;
+      setGoals(next);
+      markDirty();
+    },
+    [markDirty],
+  );
+
   // Deck deletion (P2.8 follow-up): the dialog owns the confirm; this owns
   // the call and the exit. Guest decks (this browser holds a token) land on
   // home, account decks on /account. A debounced autosave may still fire
@@ -1473,9 +1534,12 @@ export function DeckEditor({
             cards,
             combos: bracketFacts.combos,
             freshness: bracketFacts.freshness,
+            // Y4b: the target only names the findings above it; answers only raise.
+            targetLevel: goals?.targetLevel ?? null,
+            answers: goals?.answers ?? null,
           })
         : null,
-    [bracketsOn, adapter, snapshot, cards, bracketFacts.combos, bracketFacts.freshness],
+    [bracketsOn, adapter, snapshot, cards, bracketFacts.combos, bracketFacts.freshness, goals],
   );
   const bracketCtx = useMemo(
     () =>
@@ -1484,9 +1548,10 @@ export function DeckEditor({
             deck: snapshot,
             cards,
             progress: addMorePhrase(deckProgress(entries, format).toGo),
+            targetLevel: goals?.targetLevel ?? null,
           }
         : null,
-    [snapshot, format, cards, entries],
+    [snapshot, format, cards, entries, goals],
   );
   // "Share this deck" (Y2b): offered at the first approval, on a deck row,
   // once per deck per browser. Null until the deck is loaded — a loaded
@@ -1818,6 +1883,8 @@ export function DeckEditor({
               combos={bracketFacts.combos}
               cards={cards}
               phone={tier === "phone"}
+              goals={goals}
+              onGoalsChange={handleGoalsChange}
               onClose={() => setDialog(null)}
             />
           )}

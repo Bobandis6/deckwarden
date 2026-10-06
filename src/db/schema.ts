@@ -40,6 +40,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 // Type-only (erased at load): drizzle-kit and the ingest scripts read this file.
+import type { DeckGoals } from "../lib/decks/goals";
 import type { AvatarChoice } from "../lib/profile/avatar";
 
 /** Postgres `tsvector`; Drizzle has no built-in, so a custom type is declared. */
@@ -463,6 +464,14 @@ export const decks = pgTable(
     forkedFromDeckId: uuid("forked_from_deck_id").references((): AnyPgColumn => decks.id),
     currentVersion: integer("current_version").notNull().default(0),
     likesCount: integer("likes_count").notNull().default(0),
+    /**
+     * What the owner aims the deck at (Y4b, WAVE4 D5): the target level,
+     * the answers to the read's questions, the table's exceptions, the
+     * budget. NULL = none set (0 bytes). The shape and its zod are
+     * src/lib/decks/goals.ts'. Saved through its own PATCH body, which
+     * never bumps updated_at; never copied on fork; never set from the read.
+     */
+    goals: jsonb("goals").$type<DeckGoals>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

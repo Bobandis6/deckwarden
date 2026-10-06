@@ -19,7 +19,12 @@ import {
   type MtgCard,
 } from "@/lib/games/mtg/test-fixtures";
 import { getAdapter } from "@/lib/games/registry";
-import type { BracketFreshness, CompleteCombo, GameAdapter } from "@/lib/games/types";
+import type {
+  BracketAnswers,
+  BracketFreshness,
+  CompleteCombo,
+  GameAdapter,
+} from "@/lib/games/types";
 
 import { BracketLine } from "./bracket-line";
 
@@ -66,12 +71,16 @@ function renderLine(
     adapter = mtg,
     onWhy = vi.fn(),
     onRetry = vi.fn(),
+    targetLevel = null,
+    answers = null,
   }: {
     combos?: CompleteCombo[] | null;
     facts?: BracketFactsState;
     adapter?: GameAdapter;
     onWhy?: () => void;
     onRetry?: () => void;
+    targetLevel?: number | null;
+    answers?: BracketAnswers | null;
   } = {},
 ) {
   const read =
@@ -80,6 +89,8 @@ function renderLine(
       cards: list.cards,
       combos,
       freshness: FRESH,
+      targetLevel,
+      answers,
     }) ?? null;
   const entries = Object.entries(list.deck.zones).flatMap(([zone, es]) =>
     es.map((e) => ({ ...e, zone })),
@@ -88,6 +99,7 @@ function renderLine(
     deck: list.deck,
     cards: list.cards,
     progress: addMorePhrase(deckProgress(entries, COMMANDER).toGo),
+    targetLevel,
   };
   return render(
     <BracketLine
@@ -113,6 +125,39 @@ const scombo: CompleteCombo = {
   results: ["Infinite mana"],
   popularity: 900,
 };
+
+describe("Y4b — the target and the answers, rendered", () => {
+  it("D5's 'Target below the cards' row, in plain words", () => {
+    renderLine(spec([rhystic]), { targetLevel: 2 });
+    expect(lineText()).toBe("Your target: Bracket 2 · the cards say at least 3 · Why?");
+  });
+
+  it("with answers: settled, and with a call still open", () => {
+    renderLine(spec(pieces), {
+      combos: [scombo],
+      answers: { rulesetVersion: 1, calls: { "combo:2552-3263": "yes" } },
+    });
+    expect(lineText()).toBe("Bracket 4 (Optimized) — from the cards and your answers · Why?");
+  });
+
+  it("answers from older rules ask for a second look before Why? — and still count", () => {
+    renderLine(spec(pieces), {
+      combos: [scombo],
+      answers: { rulesetVersion: 0, calls: { "combo:2552-3263": "yes" } },
+    });
+    expect(lineText()).toBe(
+      "Bracket 4 (Optimized) — from the cards and your answers · Rules changed since you answered · Why?",
+    );
+  });
+
+  it("a draft holding a target keeps its Why? though it found nothing — the target lives in the sheet", () => {
+    const { unmount } = renderLine(spec([], 40));
+    expect(lineText()).toBe("Bracket: add 60 more cards");
+    unmount();
+    renderLine(spec([], 40), { targetLevel: 2 });
+    expect(lineText()).toBe("Bracket: add 60 more cards · Why?");
+  });
+});
 
 describe("D5's line table, rendered", () => {
   it.each([

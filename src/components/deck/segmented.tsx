@@ -15,6 +15,14 @@
  * pointers; R6 turns it on by default — every Segmented is a control, the
  * rule is inert on a fine pointer, and the share page and the index view
  * had been the two left at 28 px on a phone.
+ *
+ * Y4b (the Why sheet's answers): `value` may be null — a question not
+ * answered yet presses nothing and shows no thumb, rather than reading as
+ * its first option — and the visible label is optional, for a choice whose
+ * question sits above it (the group keeps its name through `ariaLabel`).
+ * More than four options (the target's 1–5 · Not set) take 8 px of side
+ * padding on coarse pointers instead of 12: equal segments as wide as the
+ * widest label then fit a 360 px phone — each still at least 44 px wide.
  */
 import type { CSSProperties } from "react";
 
@@ -47,25 +55,24 @@ export function Segmented<T extends string>({
   onChange,
   touch = true,
 }: {
-  label: string;
+  /** The visible label before the group; omit it when the question sits above (then pass ariaLabel). */
+  label?: string;
   /** The group's accessible name when the visible label is too terse for it (R5a: "Index view"). */
   ariaLabel?: string;
   options: { value: T; label: string }[];
-  value: T;
+  /** null = nothing chosen yet: no item pressed, no thumb (Y4b). */
+  value: T | null;
   onChange: (value: T) => void;
   /** 44 px items on coarse pointers; on by default since R6. */
   touch?: boolean;
 }) {
-  const index = Math.max(
-    0,
-    options.findIndex((option) => option.value === value),
-  );
+  const index = options.findIndex((option) => option.value === value);
   return (
     <div className="flex items-center gap-1">
-      <span className="text-muted-foreground text-xs">{label}</span>
+      {label && <span className="text-muted-foreground text-xs">{label}</span>}
       <ToggleGroup
         aria-label={ariaLabel ?? label}
-        value={[value]}
+        value={value === null ? [] : [value]}
         onValueChange={(next: unknown[]) => {
           const picked = next[0];
           if (typeof picked === "string" && picked !== value) onChange(picked as T);
@@ -74,17 +81,19 @@ export function Segmented<T extends string>({
         style={
           {
             gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
-            "--seg-index": index,
+            "--seg-index": Math.max(0, index),
             "--seg-count": options.length,
           } as CSSProperties
         }
         className="border-input relative isolate grid w-fit overflow-hidden rounded-md border"
       >
-        <span
-          aria-hidden
-          data-slot="segmented-thumb"
-          className="bg-accent pointer-events-none absolute inset-y-0 left-0 -z-10 w-[calc(100%/var(--seg-count))] translate-x-[calc(var(--seg-index)*100%)] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out"
-        />
+        {index >= 0 && (
+          <span
+            aria-hidden
+            data-slot="segmented-thumb"
+            className="bg-accent pointer-events-none absolute inset-y-0 left-0 -z-10 w-[calc(100%/var(--seg-count))] translate-x-[calc(var(--seg-index)*100%)] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out"
+          />
+        )}
         {options.map((option) => (
           <ToggleGroupItem
             key={option.value}
@@ -92,7 +101,8 @@ export function Segmented<T extends string>({
             size="sm"
             className={cn(
               "text-muted-foreground hover:text-foreground h-auto min-w-0 rounded-none px-2 py-0.5 text-xs font-normal hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-accent-foreground data-[state=on]:bg-transparent",
-              touch && "pointer-coarse:min-h-11 pointer-coarse:px-3",
+              touch && "pointer-coarse:min-h-11",
+              touch && (options.length > 4 ? "pointer-coarse:px-2" : "pointer-coarse:px-3"),
             )}
           >
             {option.label}

@@ -5,6 +5,10 @@
  * "approve" (the Warden's word stays legality-only) and none names a
  * Commander Spellbook tag (bracket numbers lead). Game-agnostic: the noun
  * and the level names come off the adapter's `brackets` declaration.
+ *
+ * Y4b adds the player's side: Your target, the conflict callout, the table
+ * exceptions, How it plays, the answers, and "Rules changed since you
+ * answered".
  */
 import type { BracketsMeta } from "@/lib/games/types";
 
@@ -31,6 +35,31 @@ export const BRACKET_COPY = {
   rules: (label: string, date: string) => `${label}, as of ${date}`,
   /** The Commander Spellbook credit, in the sheet's words. */
   combosCredit: (source: string) => `Combos and their ratings from ${source}`,
+
+  // Y4b (WAVE4 D5) — what the player says, beside what the cards show.
+  yourTarget: "Your target",
+  notSet: "Not set",
+  /** The conflict callout: the findings above the declared target, each with its reason. */
+  aboveTarget: "Above your target",
+  /** "Your target is Bracket 2 (Core). These put the deck above it:" */
+  aboveTargetLead: (level: string) => `Your target is ${level}. These put the deck above it:`,
+  exceptions: "Table exceptions",
+  /** What visitors will see of the target block (the deck wire's public goals; the share page from Y5). */
+  shownOnSharePage: "Shown on your share page.",
+  howItPlays: "How it plays",
+  howItPlaysLead: "Optional — answer what you know. An answer can only raise the read.",
+  /** "2 answered" — beside the collapsed How it plays. */
+  answered: (n: number) => `${n} answered`,
+  yourAnswer: "Your answer",
+  yes: "Yes",
+  no: "No",
+  unsure: "Not sure",
+  answersShown: "Answers that change the read are shown on your share page.",
+  /** D5's words: answers given under an older ruleset. */
+  rulesChanged: "Rules changed since you answered",
+  rulesChangedLead:
+    "Your answers still count. Check them against the new rules, or keep them as they are.",
+  keepAnswers: "Keep my answers",
 } as const;
 
 /** "Bracket 3 (Upgraded)" — the adapter's noun, capitalized, and the level's name. */
