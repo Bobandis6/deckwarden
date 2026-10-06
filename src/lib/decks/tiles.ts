@@ -17,10 +17,15 @@
  * (WUBRG for Magic, Bandai's for One Piece), partner identities already OR'd
  * into the mask by leaderDenorm, mask 0 → the game's neutral swatch —
  * rendered inline on a server element, so it reads before any image loads.
+ *
+ * Y5 (WAVE4 D6): the owner's declared target as the tile's chip — "Bracket
+ * 3 (declared)" — where the game has brackets and a target is set; never a
+ * computed read (a stored read on tiles stays deferred, WAVE4 F).
  */
 import type { DeckVisibility } from "@/db/schema";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
 import { embeddablePrintingImageUrl, thumbnailUrl } from "@/lib/cards/images";
+import { declaredLabel } from "@/lib/brackets/copy";
 import { ambientGradient } from "@/lib/decks/ambient-art";
 import { updatedLabel } from "@/lib/decks/display";
 import { getAdapter } from "@/lib/games/registry";
@@ -63,6 +68,8 @@ export interface DeckTileData {
   dateLabel: string | null;
   /** W8b: "≈ $97" on /precons tiles; null everywhere else. */
   priceLabel: string | null;
+  /** Y5: "Bracket 3 (declared)" — the owner's target; null without one (and always for One Piece). */
+  declared: string | null;
 }
 
 export interface DeckTileInput {
@@ -81,6 +88,8 @@ export interface DeckTileInput {
   dateLabel?: string | null;
   /** W8b: est. price text for /precons tiles. */
   priceLabel?: string | null;
+  /** Y5: the owner's declared target (decks.goals.targetLevel); null or absent = none. */
+  targetLevel?: number | null;
 }
 
 /** The adapter's swatches for a deck's identity; the neutral swatch without an adapter. */
@@ -110,6 +119,13 @@ export function leaderTileImage(
   return thumbnailUrl(embeddablePrintingImageUrl(printing, "normal"));
 }
 
+/** "Bracket 3 (declared)" for a level the game's brackets have; null otherwise. */
+function declaredChip(game: TileGame | null, level: number | null | undefined): string | null {
+  const brackets = game ? getAdapter(game).brackets : undefined;
+  if (!brackets || level === null || level === undefined) return null;
+  return brackets.levels.some((l) => l.level === level) ? declaredLabel(brackets, level) : null;
+}
+
 function formatLabelByCode(game: TileGame | null, code: string | null): string {
   if (!code) return "";
   if (!game) return code;
@@ -136,6 +152,7 @@ export function deckTileData(input: DeckTileInput): DeckTileData {
     author: input.author?.username ? (input.author.name ?? input.author.username) : null,
     dateLabel: input.dateLabel ?? null,
     priceLabel: input.priceLabel ?? null,
+    declared: declaredChip(game, input.targetLevel),
   };
 }
 
@@ -151,6 +168,8 @@ export interface TileDeckRow {
   updatedAt: Date;
   authorName?: string | null;
   authorUsername?: string | null;
+  /** Y5: the declared target — the collections' jsonb path, or readGoals on a full row. */
+  targetLevel?: number | null;
 }
 
 /** Row → tile data; `printing` is the first leader's default printing or null; `byline: false` on owner surfaces. */
@@ -169,6 +188,7 @@ export function tileFromDeck(
     likesCount: deck.likesCount,
     ciMask: deck.ciMask,
     leaderImage: leaderTileImage(printing),
+    targetLevel: deck.targetLevel,
     author:
       opts.byline === false || deck.authorUsername === undefined
         ? null

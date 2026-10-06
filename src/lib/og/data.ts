@@ -8,6 +8,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
+import { goalsTargetLevel } from "@/lib/decks/collections";
 import { ogCurveBuckets } from "@/lib/og/curve";
 
 const { decks, deckCards, cardIdentities } = schema;
@@ -24,6 +25,11 @@ export interface DeckOgData {
   commanderNames: string[];
   /** First leader's identity id — the art the unfurl leads with. */
   commanderId: string | null;
+  /**
+   * The owner's declared target (Y5, decks.goals.targetLevel) — read off
+   * the row, never computed; null = not set. The unfurl says "(declared)".
+   */
+  targetLevel: number | null;
 }
 
 export async function loadDeckOgData(publicId: string): Promise<DeckOgData | null> {
@@ -36,6 +42,7 @@ export async function loadDeckOgData(publicId: string): Promise<DeckOgData | nul
       visibility: decks.visibility,
       gameId: decks.gameId,
       leaderIds: decks.leaderIds,
+      targetLevel: goalsTargetLevel,
     })
     .from(decks)
     .where(eq(decks.publicId, publicId))
@@ -84,6 +91,7 @@ export async function loadDeckOgData(publicId: string): Promise<DeckOgData | nul
     curve: ogCurveBuckets(cards),
     commanderNames,
     commanderId: deck.leaderIds[0] ?? null,
+    targetLevel: deck.targetLevel,
   };
 }
 

@@ -51,6 +51,9 @@ export interface DeckGoals {
 /** What a visitor's deck wire carries: the declared target and the table's exceptions. */
 export type PublicDeckGoals = Pick<DeckGoals, "v" | "targetLevel" | "exceptions">;
 
+/** What the share page shows (Y5): the public goals and the answers the read used. */
+export type TableDeckGoals = PublicDeckGoals & Pick<DeckGoals, "answers">;
+
 /** The adapter facts goals are checked against. */
 export type GoalsBrackets = Pick<BracketsMeta, "levels" | "questions" | "ruleset">;
 
@@ -226,6 +229,47 @@ export function publicGoals(goals: DeckGoals | null): PublicDeckGoals | null {
   const out: PublicDeckGoals = { v: 1 };
   if (goals.targetLevel !== undefined) out.targetLevel = goals.targetLevel;
   if (goals.exceptions) out.exceptions = goals.exceptions;
+  return Object.keys(out).length > 1 ? out : null;
+}
+
+/**
+ * The goals the share page shows (Y5, WAVE4 D6 — "the answers that changed
+ * the read"): the target, the exceptions, and the answers the read used —
+ * a yes or a no to a How it plays question (`playKeys`, the adapter's), or
+ * to one of this read's own questions (`review`, the questions about cards
+ * in the list now). "Not sure" says nothing and leaves a call open, so it
+ * goes; an answer about a card since cut goes too (it would tell the
+ * list's history). The read is unchanged by the filter: "Not sure" never
+ * raises it, and the engine reads only the questions on screen. The answers'
+ * ruleset stamp stays as given.
+ *
+ * Computed on the server from the full row for a public page, and again on
+ * the client (idempotent) for the private gate, whose wire is the owner's.
+ */
+export function tableGoals(
+  goals: DeckGoals | null,
+  read: { review: readonly { id: string }[] },
+  playKeys: readonly string[],
+): TableDeckGoals | null {
+  const out: TableDeckGoals = { ...publicGoals(goals), v: 1 };
+  const answers = goals?.answers;
+  if (answers) {
+    const said = (a: BracketAnswer | undefined) => a === "yes" || a === "no";
+    const play: Record<string, BracketAnswer> = {};
+    for (const key of playKeys) {
+      const a = answers.play?.[key];
+      if (said(a)) play[key] = a!;
+    }
+    const calls: Record<string, BracketAnswer> = {};
+    for (const q of read.review) {
+      const a = answers.calls?.[q.id];
+      if (said(a)) calls[q.id] = a!;
+    }
+    const kept: BracketAnswers = { rulesetVersion: answers.rulesetVersion };
+    if (Object.keys(play).length > 0) kept.play = play;
+    if (Object.keys(calls).length > 0) kept.calls = calls;
+    if (kept.play || kept.calls) out.answers = kept;
+  }
   return Object.keys(out).length > 1 ? out : null;
 }
 

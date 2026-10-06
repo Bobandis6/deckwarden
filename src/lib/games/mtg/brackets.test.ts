@@ -198,12 +198,28 @@ describe("the ruleset (adapter data, WAVE4 B as read on 2026-10-02)", () => {
       { level: 4, name: "Optimized" },
       { level: 5, name: "cEDH" },
     ]);
-    expect(mtgBrackets.questions).toEqual([
+    expect(mtgBrackets.questions.map(({ key, question }) => ({ key, question }))).toEqual([
       { key: "theme", question: "Theme first, over power?" },
       { key: "quality", question: "Staples and high card quality?" },
       { key: "fast", question: "Can it usually win or lock the table before turn 6?" },
       { key: "cedh", question: "Tuned for the cEDH metagame?" },
     ]);
+    // Y5 (D6): what a yes or a no tells the pod, under the owner's name.
+    expect(mtgBrackets.questions.map((q) => q.table)).toEqual([
+      { label: "Theme (owner)", yes: "theme first, over power", no: "not theme first" },
+      {
+        label: "Card quality (owner)",
+        yes: "staples and high card quality",
+        no: "not built on staples",
+      },
+      {
+        label: "Pace (owner)",
+        yes: "can usually win or lock the table before turn 6",
+        no: "doesn't usually win before turn 6",
+      },
+      { label: "cEDH (owner)", yes: "tuned for the cEDH metagame", no: "not tuned for cEDH" },
+    ]);
+    expect(mtgBrackets.tableNote).toBe("Reads the card list only; combos via Commander Spellbook.");
     expect(mtgBrackets.freshnessSources).toEqual(["scryfall", "spellbook"]);
   });
 });

@@ -6,7 +6,9 @@
  * localStorage, or since P2.1 the session cookie that rides along) reaches
  * only the authed GET /api/decks/[id]; this component fetches it and either
  * renders the full share view (owner) or the denial message (everyone else).
- * The API is the security boundary; this is just presentation.
+ * The API is the security boundary; this is just presentation. Y5: the
+ * bracket line's facts are asked for from here (the client), so nothing
+ * private reaches the server HTML.
  */
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -53,7 +55,12 @@ export function PrivateShareGate({ deckId }: { deckId: string }) {
     return () => controller.abort();
   }, [deckId]);
 
-  if (gate.state === "ready") return <DeckShareView deck={gate.deck} cards={gate.cards} />;
+  // Y5: the bracket facts come from here, never the server — the client asks
+  // the facts route (GET, by the id set) as the editor does; the deck wire
+  // is the owner's, and DeckShareView shows only what the pod would see.
+  if (gate.state === "ready") {
+    return <DeckShareView deck={gate.deck} cards={gate.cards} bracketFacts={{ from: "client" }} />;
+  }
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8">

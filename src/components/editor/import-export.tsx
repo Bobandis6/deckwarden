@@ -9,6 +9,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 
+import { CopyStatus, useCopyToClipboard } from "@/components/copy-status";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import type { CardWire, EditorEntry } from "@/lib/decks/editor-state";
@@ -240,7 +241,9 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
 }
 
 export function ExportDialog({ text, onClose }: { text: string; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
+  // Y5: the shared copy confirmation — a status slot that clears, and a
+  // refused clipboard says so (the button keeps its name).
+  const copy = useCopyToClipboard();
   return (
     <Modal label="Export decklist" onClose={onClose}>
       <textarea
@@ -251,14 +254,14 @@ export function ExportDialog({ text, onClose }: { text: string; onClose: () => v
         onFocus={(e) => e.currentTarget.select()}
         className="border-input w-full resize-y rounded-md border bg-transparent p-2 font-mono text-xs outline-none"
       />
-      <div className="flex justify-end gap-2">
-        <Button
-          size="sm"
-          onClick={() => {
-            void navigator.clipboard.writeText(text).then(() => setCopied(true));
-          }}
-        >
-          {copied ? "Copied ✓" : "Copy to clipboard"}
+      <div className="flex items-center justify-end gap-2">
+        <CopyStatus
+          copy={copy}
+          failed="Couldn't copy — select the list and copy it."
+          className="min-h-4"
+        />
+        <Button size="sm" onClick={() => copy.copy(text)}>
+          Copy to clipboard
         </Button>
       </div>
     </Modal>

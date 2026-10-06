@@ -60,7 +60,31 @@ export const BRACKET_COPY = {
   rulesChangedLead:
     "Your answers still count. Check them against the new rules, or keep them as they are.",
   keepAnswers: "Keep my answers",
+
+  // Y5 (WAVE4 D6) — the share page: "At the table" and what the owner copies.
+  atTheTable: "At the table",
+  copyForTable: "Copy for the table",
+  /** The Copy menu's status once the summary is on the clipboard. */
+  copiedForTable: "Copied for the table",
+  /** A read-only answer in the visitor's Why sheet. */
+  ownersAnswer: "The owner's answer",
+  /** An answered question in the copied text: "Owner's call: Do these extra turns chain? No". */
+  ownersCall: "Owner's call",
+  exceptionsOwner: "Exceptions (owner)",
+  /** The owner's description, never generated (D6's plan line). */
+  planOwner: "Plan (owner)",
+  /** "checked Oct 5, 2026" — when the read's evidence was read. */
+  checked: (date: string) => `checked ${date}`,
 } as const;
+
+/**
+ * "Bracket 3 (declared)" — the owner's target on tiles and unfurls (Y5,
+ * D6): declared, never computed, and said so.
+ */
+export function declaredLabel(brackets: Pick<BracketsMeta, "noun">, level: number): string {
+  const noun = brackets.noun.charAt(0).toUpperCase() + brackets.noun.slice(1);
+  return `${noun} ${level} (declared)`;
+}
 
 /** "Bracket 3 (Upgraded)" — the adapter's noun, capitalized, and the level's name. */
 export function levelLabel(brackets: Pick<BracketsMeta, "noun" | "levels">, level: number): string {

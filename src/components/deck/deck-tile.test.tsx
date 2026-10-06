@@ -125,3 +125,29 @@ describe("DeckTile", () => {
     expect(container.textContent).not.toContain("by ");
   });
 });
+
+describe("DeckTile — the declared chip (Y5)", () => {
+  it("fills the badge slot when no badge is passed; a passed badge (Precon) wins", () => {
+    const declared = { ...queza, declared: "Bracket 3 (declared)" };
+    const { container, rerender } = render(
+      <DeckTileGrid>
+        <DeckTile tile={declared} />
+      </DeckTileGrid>,
+    );
+    expect(container.querySelector("[data-slot=tile-badge]")?.textContent).toBe(
+      "Bracket 3 (declared)",
+    );
+    rerender(
+      <DeckTileGrid>
+        <DeckTile tile={declared} badge="Precon" />
+      </DeckTileGrid>,
+    );
+    expect(container.querySelector("[data-slot=tile-badge]")?.textContent).toBe("Precon");
+    rerender(
+      <DeckTileGrid>
+        <DeckTile tile={queza} />
+      </DeckTileGrid>,
+    );
+    expect(container.querySelector("[data-slot=tile-badge]")).toBeNull();
+  });
+});

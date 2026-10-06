@@ -39,29 +39,48 @@
  * link /account?next=/d/<publicId>, so signing in ends on this deck again.
  * The href is built HERE because this view holds the public id — the
  * buttons get the uuid.
+ *
+ * Y5 (WAVE4 D6): the bracket line after the Warden line (the editor's
+ * order), in the table's voice — "Played as Bracket 2 (Core) · the cards
+ * say at least 3 · Why?" — over the same read the editor computes
+ * (src/lib/brackets/table.ts), its "Why?" opening the Why sheet read-only;
+ * "At the table" under it; and the owner's row (Open in editor · Copy ▾ ·
+ * Share… · Buy) for the owner — the server's `isOwner`, or this browser's
+ * claim token — while every visitor keeps the row below byte-identical.
+ * The facts come in `bracketFacts`: loaded by the page with its batch, or
+ * asked for here (the private gate; a page whose load failed). Absent, no
+ * line (One Piece, older callers).
  */
-import { CheckIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 
+import { CopyStatus, useCopyToClipboard } from "@/components/copy-status";
 import { AmbientArt } from "@/components/deck/ambient-art";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
+import { AtTheTable } from "@/components/deck/at-the-table";
+import { BracketLine } from "@/components/deck/bracket-line";
+import { BracketSheet } from "@/components/deck/bracket-sheet";
 import { BuyDeckMenu, countedEntries } from "@/components/deck/buy-deck-menu";
 import { DeckGridView } from "@/components/deck/deck-grid-view";
 import { DeckTextView } from "@/components/deck/deck-text-view";
 import { EngagementButtons, type EngagementViewer } from "@/components/deck/engagement-buttons";
 import { ForkButton, ForkCreditLine } from "@/components/deck/fork-button";
 import { LeaderZone } from "@/components/deck/leader-zone";
+import { OwnerShareRow } from "@/components/deck/owner-share-row";
 import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
+import { useBracketFacts } from "@/components/deck/use-bracket-facts";
 import { ValidationPanel } from "@/components/deck/validation-panel";
+import { useTier } from "@/components/editor/use-tier";
 import { EmptyState } from "@/components/empty-state";
 import { SURFACE_BAND, SurfaceHeader } from "@/components/surface-header";
 import { badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toast";
 import { accountHref } from "@/lib/auth/next-path";
+import { factsIds } from "@/lib/brackets/facts";
+import { hasTableRead, tableBracket, tableSummary, tableText } from "@/lib/brackets/table";
 import type { CardArt } from "@/lib/cards/art";
 import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
 import { orderLeadersBy } from "@/lib/decks/ambient-art";
@@ -73,7 +92,9 @@ import {
   type EditorEntry,
 } from "@/lib/decks/editor-state";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
+import { readGoals, type DeckGoals } from "@/lib/decks/goals";
 import { leaderLine } from "@/lib/decks/leader-caption";
+import { hasLeader } from "@/lib/decks/panel-view";
 import { releasedLabel, type PreconInfo } from "@/lib/decks/precon-info";
 import { getDeckToken } from "@/lib/decks/token-store";
 import { issueSeverityByCard, toDeckSnapshot } from "@/lib/decks/validation";
@@ -85,7 +106,7 @@ import {
 } from "@/lib/decks/view-model";
 import type { DeckViewMode } from "@/lib/decks/view-prefs";
 import { getAdapter } from "@/lib/games/registry";
-import type { GameId } from "@/lib/games/types";
+import type { BracketFreshness, CompleteCombo, GameId } from "@/lib/games/types";
 import { useAppearance } from "@/lib/theme/appearance";
 
 /** Structural subset of deckMetaJson / the GET /api/decks/[id] `deck` object. */
@@ -110,7 +131,29 @@ export interface ShareDeckMeta {
    * never hold one). Absent or false for everyone else.
    */
   isOwner?: boolean;
+  /**
+   * The owner's goals as this page shows them (Y5): the public page's are
+   * the table's (target, exceptions, the answers the read used — filtered
+   * on the server); the private gate's wire is the owner's own, filtered
+   * here the same way. Absent or null = none.
+   */
+  goals?: DeckGoals | null;
 }
+
+/**
+ * The bracket read's combo facts for the share page (Y5): loaded on the
+ * server with the page's batch ("over" = more distinct cards than the
+ * facts carry — the read says it couldn't check combos), or asked for by
+ * the client (the private gate; a server load that failed).
+ */
+export type ShareBracketFacts =
+  | {
+      from: "server";
+      state: "ready" | "over";
+      combos: CompleteCombo[] | null;
+      freshness: BracketFreshness | null;
+    }
+  | { from: "client" };
 
 export interface ShareDeckCard {
   cardId: string;
@@ -127,12 +170,11 @@ export interface ShareDeckAuthor {
   username: string;
 }
 
-/** The Copy decklist confirmation clears after this (F12). */
-export const COPY_RESET_MS = 1800;
-
-type CopyState = "idle" | "copied" | "failed";
+/** The Copy decklist confirmation clears after this (F12; the shared hook's since Y5). */
+export { COPY_RESET_MS } from "@/components/copy-status";
 
 const noopSubscribe = () => () => {};
+const noop = () => {};
 
 export function DeckShareView({
   deck,
@@ -144,6 +186,7 @@ export function DeckShareView({
   owned,
   art = null,
   precon = null,
+  bracketFacts,
 }: {
   deck: ShareDeckMeta;
   cards: ShareDeckCard[];
@@ -160,6 +203,8 @@ export function DeckShareView({
   art?: CardArt | null;
   /** Product metadata (W8b) — present only on kind='precon' decks (the precon_products join). */
   precon?: PreconInfo | null;
+  /** The bracket read's facts (Y5); absent = no bracket line. */
+  bracketFacts?: ShareBracketFacts;
 }) {
   const router = useRouter();
   const appearance = useAppearance();
@@ -180,20 +225,12 @@ export function DeckShareView({
     adapter?.display.defaultGroupBy ?? "primaryType",
   );
   const [sortBy, setSortBy] = useState<SortKey>("name");
-  // The Copy confirmation (F12): a nonce so a second copy replays the check
-  // and restarts the reset timer.
-  const [copy, setCopy] = useState<{ state: CopyState; nonce: number }>({
-    state: "idle",
-    nonce: 0,
-  });
-  useEffect(() => {
-    if (copy.state === "idle") return;
-    const timer = setTimeout(
-      () => setCopy((current) => ({ state: "idle", nonce: current.nonce })),
-      COPY_RESET_MS,
-    );
-    return () => clearTimeout(timer);
-  }, [copy]);
+  // The Copy confirmation (F12): the shared hook — a nonce replays the
+  // check and restarts the reset timer.
+  const copy = useCopyToClipboard();
+  // The Why sheet (Y5): read-only here; a Drawer on phones, a Modal from md.
+  const [whyOpen, setWhyOpen] = useState(false);
+  const tier = useTier();
 
   // Leaders in the decks-row order (R2), the same reorder the editor's
   // hydration applies, so the leader zone lists the art leader first.
@@ -247,6 +284,55 @@ export function DeckShareView({
     [adapter, snapshot, cardMap],
   );
 
+  // The bracket read (Y5): the page's facts, or the client's ask (the
+  // private gate) — the editor's hook, the editor's GET.
+  const factsIdList = useMemo(() => factsIds(entries), [entries]);
+  const clientFacts = useBracketFacts({
+    game: adapter?.id ?? "mtg",
+    enabled:
+      bracketFacts?.from === "client" &&
+      adapter?.brackets !== undefined &&
+      format !== undefined &&
+      hasLeader(entries, format),
+    ids: factsIdList,
+  });
+  const facts =
+    bracketFacts?.from === "server"
+      ? {
+          state: bracketFacts.state,
+          combos: bracketFacts.combos,
+          freshness: bracketFacts.freshness,
+          retry: noop,
+        }
+      : clientFacts;
+  const table = useMemo(
+    () =>
+      adapter && format && bracketFacts
+        ? tableBracket({
+            adapter,
+            format,
+            entries,
+            cards: cardMap,
+            combos: facts.combos,
+            freshness: facts.freshness,
+            goals: readGoals(deck.goals),
+            // A precon has no owner: its line is the editor's (D5's words).
+            voice: precon ? "owner" : "table",
+          })
+        : null,
+    [
+      adapter,
+      format,
+      bracketFacts,
+      entries,
+      cardMap,
+      facts.combos,
+      facts.freshness,
+      deck.goals,
+      precon,
+    ],
+  );
+
   if (!adapter || !format || !snapshot) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
@@ -282,20 +368,35 @@ export function DeckShareView({
   // The sign-in prompts' target, with the way back to this deck (X1, REC-1).
   const signInHref = accountHref(`/d/${deck.publicId}`);
 
-  const copyDecklist = () => {
-    const text = adapter.serializeDecklist(snapshot, cardMap);
-    const settle = (state: CopyState) =>
-      setCopy((current) => ({ state, nonce: current.nonce + 1 }));
-    try {
-      navigator.clipboard.writeText(text).then(
-        () => settle("copied"),
-        () => settle("failed"),
-      );
-    } catch {
-      // No clipboard API (an insecure context): say so instead of nothing.
-      settle("failed");
-    }
-  };
+  const decklist = () => adapter.serializeDecklist(snapshot, cardMap);
+
+  // The owner's row (Y5): the server's session check for an account deck,
+  // this browser's claim token for a guest one (Y1's rule) — everyone else
+  // keeps the visitor row byte-identical.
+  const ownerView = editToken !== null || deck.isOwner === true;
+
+  // "At the table" (Y5, D6): a read the pod can use, once its facts are in.
+  const brackets = adapter.brackets;
+  const factsIn = facts.state === "ready" || facts.state === "over";
+  const tableLines =
+    brackets && table && factsIn && hasTableRead(table.read)
+      ? tableSummary(brackets, table.read, table.goals, cardMap)
+      : null;
+  const copyForTable =
+    brackets && table && tableLines
+      ? () =>
+          tableText({
+            deckName: deck.name,
+            formatLabel: format.label,
+            line: brackets.line(table.read, table.ctx),
+            checkedAt: facts.freshness?.readAt ?? null,
+            lines: tableLines,
+            names: cardMap,
+            plan: precon ? null : deck.description,
+            note: brackets.tableNote,
+            url: `${window.location.origin}/d/${deck.publicId}`,
+          })
+      : null;
 
   return (
     <main
@@ -368,64 +469,77 @@ export function DeckShareView({
           onPreview={onPreview}
           preview
         />
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <EngagementButtons
-            deckId={deck.id}
-            likesCount={deck.likesCount}
-            viewer={viewer}
-            signInHref={signInHref}
+        {/* The bracket line (Y5): the editor's order, the table's voice. */}
+        {table && (
+          <BracketLine
+            adapter={adapter}
+            read={table.read}
+            ctx={table.ctx}
+            facts={facts.state}
+            onRetry={facts.retry}
+            onWhy={() => setWhyOpen(true)}
           />
-          {/* The primary CTA on a product page (W8b, REC-4): seed a DRAFT —
+        )}
+        {tableLines && <AtTheTable lines={tableLines} cards={cardMap} onPreview={onPreview} />}
+
+        {ownerView ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <OwnerShareRow
+              deckId={deck.id}
+              publicId={deck.publicId}
+              deckName={deck.name}
+              decklist={decklist}
+              tableText={copyForTable}
+              buy={
+                adapter.capabilities.buy && (
+                  <BuyDeckMenu
+                    buy={adapter.capabilities.buy}
+                    entries={countedEntries(entries, format)}
+                    cards={cardMap}
+                    owned={owned}
+                  />
+                )
+              }
+            />
+          </div>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <EngagementButtons
+              deckId={deck.id}
+              likesCount={deck.likesCount}
+              viewer={viewer}
+              signInHref={signInHref}
+            />
+            {/* The primary CTA on a product page (W8b, REC-4): seed a DRAFT —
               no row minted until the first real edit — beside Fork, which
               stays the signed-in copy path. */}
-          {precon && (
-            <Button
-              nativeButton={false}
-              size="sm"
-              render={<Link href={`/decks/new?game=${adapter.id}&from=${precon.slug}`} />}
-            >
-              Start from this precon
-            </Button>
-          )}
-          <ForkButton deckId={deck.id} signedIn={viewer !== null} signInHref={signInHref} />
-          <Button variant="outline" size="sm" onClick={copyDecklist}>
-            Copy decklist
-          </Button>
-          {/* Buy menu (W7, D6) — only for games whose adapter declares buy. */}
-          {adapter.capabilities.buy && (
-            <BuyDeckMenu
-              buy={adapter.capabilities.buy}
-              entries={countedEntries(entries, format)}
-              cards={cardMap}
-              owned={owned}
-            />
-          )}
-          {(editToken !== null || deck.isOwner === true) && (
-            <Button
-              nativeButton={false}
-              variant="outline"
-              size="sm"
-              render={<Link href={`/decks/${deck.id}/edit`} />}
-            >
-              Open in editor
-            </Button>
-          )}
-          {/* Copy confirmation (F12): a live slot at the row's end — the check
-              plays once (keyed by nonce) and the slot clears after COPY_RESET_MS. */}
-          <span role="status" data-slot="copy-status" className="text-xs">
-            {copy.state === "copied" && (
-              <span
-                key={copy.nonce}
-                className="inline-flex items-center gap-1 text-emerald-700 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-200 dark:text-emerald-400"
+            {precon && (
+              <Button
+                nativeButton={false}
+                size="sm"
+                render={<Link href={`/decks/new?game=${adapter.id}&from=${precon.slug}`} />}
               >
-                <CheckIcon aria-hidden className="size-3.5" />
-                Copied
-              </span>
+                Start from this precon
+              </Button>
             )}
-            {copy.state === "failed" && <span className="text-destructive">Copy failed</span>}
-          </span>
-        </div>
+            <ForkButton deckId={deck.id} signedIn={viewer !== null} signInHref={signInHref} />
+            <Button variant="outline" size="sm" onClick={() => copy.copy(decklist())}>
+              Copy decklist
+            </Button>
+            {/* Buy menu (W7, D6) — only for games whose adapter declares buy. */}
+            {adapter.capabilities.buy && (
+              <BuyDeckMenu
+                buy={adapter.capabilities.buy}
+                entries={countedEntries(entries, format)}
+                cards={cardMap}
+                owned={owned}
+              />
+            )}
+            {/* Copy confirmation (F12): a live slot at the row's end — the check
+              plays once (keyed by nonce) and the slot clears after COPY_RESET_MS. */}
+            <CopyStatus copy={copy} />
+          </div>
+        )}
 
         {deck.description && <p className="mt-3 text-sm whitespace-pre-wrap">{deck.description}</p>}
         {preconPrices && (
@@ -516,6 +630,19 @@ export function DeckShareView({
       {/* The buy menu's copy-list path toasts (W7); the host mounts the Toaster
           (a portal — contributes nothing in-flow). */}
       <Toaster />
+      {/* The Why sheet (Y5): the line's "Why?" — read-only, the owner's answers shown. */}
+      {whyOpen && table && brackets && (
+        <BracketSheet
+          adapter={adapter}
+          read={table.read}
+          line={brackets.line(table.read, table.ctx)}
+          combos={facts.combos}
+          cards={cardMap}
+          phone={tier === "phone"}
+          goals={table.goals}
+          onClose={() => setWhyOpen(false)}
+        />
+      )}
       {/* Last child on purpose: the credit chip's sticky row sits at main's end (R2). */}
       <AmbientArt art={art} swatches={swatches} appearance={appearance} />
     </main>

@@ -13,6 +13,10 @@
  * select (`deckCollection()` plus their own where), so each stays one
  * statement with the tile printings aboard.
  *
+ * Y5 (WAVE4 D6): the owner's declared target rides along as one jsonb path
+ * (`goalsTargetLevel`) — the tile's "Bracket 3 (declared)" chip — so no
+ * answer or budget ever reaches a tile's props.
+ *
  * Caching intent: callers decide — home, /account, /u and /f are
  * force-dynamic, /c/ is ISR; nothing here reads per-viewer state except
  * the user id `loadOwnerDecks` is handed and the filters the profile and
@@ -29,6 +33,15 @@ export const RECENT_PUBLIC_LIMIT = 12;
 /** Continue building shows the account's six most recent decks; /account lists them all. */
 export const CONTINUE_BUILDING_LIMIT = 6;
 
+/**
+ * The declared target out of `decks.goals` (Y5) — one jsonb path, read on
+ * a select that already runs (no new statement). A non-number reads as
+ * none rather than failing the read. The OG unfurl's select uses it too.
+ */
+export const goalsTargetLevel = sql<
+  number | null
+>`case when jsonb_typeof(${decks.goals} -> 'targetLevel') = 'number' then (${decks.goals} ->> 'targetLevel')::int end`;
+
 /** Every column a deck tile needs, plus the byline and the joined default printing. */
 export const deckCollectionSelect = {
   id: decks.id,
@@ -41,6 +54,7 @@ export const deckCollectionSelect = {
   leaderIds: decks.leaderIds,
   likesCount: decks.likesCount,
   updatedAt: decks.updatedAt,
+  targetLevel: goalsTargetLevel,
   printingId: cardPrintings.id,
   imageOverride: cardPrintings.imageOverride,
   authorName: users.name,

@@ -61,12 +61,19 @@ export default async function Image({ params }: { params: Promise<{ publicId: st
 
   const stats = [`${deck.cardCount} cards`];
   if (deck.priceUsd !== null) stats.push(`$${Math.round(deck.priceUsd).toLocaleString("en-US")}`);
+  // Y5 (D6): the owner's declared target, never a computed read — a second
+  // kicker line, not a third stat pill: beside the wordmark a third pill
+  // reached the art credit's chip (measured on dev: "100 cards", "$148",
+  // "Bracket 3 (declared)"), and one kicker line wrapped mid-phrase.
+  const declared =
+    deck.targetLevel !== null && labels.declared ? labels.declared(deck.targetLevel) : null;
   const hasCurve = deck.curve.some((v) => v > 0);
 
   return new ImageResponse(
     <OgFrame art={art}>
       <div style={{ display: "flex", flexDirection: "column" }}>
         <OgKicker accent={labels.accent}>{labels.kicker}</OgKicker>
+        {declared && <OgKicker accent={labels.accent}>{declared}</OgKicker>}
         <OgTitle>{deck.name}</OgTitle>
         {deck.commanderNames.length > 0 && (
           <OgSubtitle>{deck.commanderNames.join(" · ")}</OgSubtitle>

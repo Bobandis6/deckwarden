@@ -47,6 +47,14 @@ export function addMorePhrase(toGo: number): string | null {
 }
 
 /**
+ * The share page's draft phrase (Y5): "34 cards to go" — the same count
+ * said to the pod rather than to the builder ("add 34 more cards").
+ */
+export function cardsToGoPhrase(toGo: number): string | null {
+  return toGo > 0 ? `${toGo} ${toGo === 1 ? "card" : "cards"} to go` : null;
+}
+
+/**
  * "Choose a commander · 100 to go" / "Choose a leader · 50 to go" /
  * "2 to go"; null once neither applies. `leaderNoun` is the adapter's
  * display noun ("Commander", "Leader").

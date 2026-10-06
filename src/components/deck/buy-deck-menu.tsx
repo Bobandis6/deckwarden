@@ -73,7 +73,9 @@ async function copyAndOpen(href: Extract<MassEntryHref, { kind: "copy" }>) {
   } catch {
     toast.add({
       title: "Couldn't copy the list",
-      description: "Your browser blocked clipboard access — use Copy decklist instead.",
+      // Y5: no button named — the owner's row keeps Copy decklist under Copy ▾,
+      // and a blocked clipboard blocks that copy too.
+      description: "Your browser blocked clipboard access. Allow it for this site, then try again.",
       type: "error",
       timeout: 5000,
     });

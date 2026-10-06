@@ -8,20 +8,16 @@
  * on home, their commander's page and the owner's profile; a private
  * account deck is readable by its owner wherever they sign in, a private
  * guest deck only by the browser holding its key (src/lib/decks/access.ts).
- * Copy link confirms in a status slot (the share page's F12 pattern).
+ * Copy link confirms in a status slot (the share page's F12 pattern —
+ * the shared useCopyToClipboard + CopyStatus since Y5).
  */
-import { CheckIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
+import { CopyStatus, useCopyToClipboard } from "@/components/copy-status";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 
 export type DeckVisibility = "public" | "unlisted" | "private";
-
-/** How long the copy confirmation stays (the share page's COPY_RESET_MS). */
-const COPY_RESET_MS = 1800;
-
-type CopyState = "idle" | "copied" | "failed";
 
 export function visibilityOptions(
   accountDeck: boolean,
@@ -60,32 +56,7 @@ export function ShareDialog({
 }: ShareDialogProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // A nonce so a second copy replays the check and restarts the reset timer.
-  const [copy, setCopy] = useState<{ state: CopyState; nonce: number }>({
-    state: "idle",
-    nonce: 0,
-  });
-  useEffect(() => {
-    if (copy.state === "idle") return;
-    const timer = setTimeout(
-      () => setCopy((current) => ({ state: "idle", nonce: current.nonce })),
-      COPY_RESET_MS,
-    );
-    return () => clearTimeout(timer);
-  }, [copy]);
-
-  const copyLink = () => {
-    const settle = (state: CopyState) =>
-      setCopy((current) => ({ state, nonce: current.nonce + 1 }));
-    try {
-      navigator.clipboard.writeText(shareUrl).then(
-        () => settle("copied"),
-        () => settle("failed"),
-      );
-    } catch {
-      settle("failed");
-    }
-  };
+  const copy = useCopyToClipboard();
 
   const shareUrl =
     typeof window === "undefined" ? `/d/${publicId}` : `${window.location.origin}/d/${publicId}`;
@@ -142,26 +113,16 @@ export function ShareDialog({
           onFocus={(e) => e.currentTarget.select()}
           className="border-input min-w-0 flex-1 rounded-md border bg-transparent px-2 py-1 font-mono text-xs outline-none"
         />
-        <Button size="sm" onClick={copyLink}>
+        <Button size="sm" onClick={() => copy.copy(shareUrl)}>
           Copy link
         </Button>
       </div>
-      <span role="status" data-slot="copy-status" className="-mt-2 min-h-4 text-xs">
-        {copy.state === "copied" && (
-          <span
-            key={copy.nonce}
-            className="inline-flex items-center gap-1 text-emerald-700 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-200 dark:text-emerald-400"
-          >
-            <CheckIcon aria-hidden className="size-3.5" />
-            Link copied
-          </span>
-        )}
-        {copy.state === "failed" && (
-          <span className="text-destructive">
-            Couldn&apos;t copy — select the link and copy it.
-          </span>
-        )}
-      </span>
+      <CopyStatus
+        copy={copy}
+        copied="Link copied"
+        failed="Couldn't copy — select the link and copy it."
+        className="-mt-2 min-h-4"
+      />
       {visibility === "private" && (
         <p className="text-muted-foreground text-xs">
           The link only works for you while the deck is private.

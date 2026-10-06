@@ -187,6 +187,39 @@ describe("tileFromDeck", () => {
   });
 });
 
+describe("the declared target's chip (Y5, WAVE4 D6)", () => {
+  it("'Bracket 3 (declared)' only where a target is set — never computed", () => {
+    expect(tileFromDeck({ ...base, targetLevel: 3 }, null, { href: "/d/x" }).declared).toBe(
+      "Bracket 3 (declared)",
+    );
+    expect(tileFromDeck(base, null, { href: "/d/x" }).declared).toBeNull();
+    expect(
+      tileFromDeck({ ...base, targetLevel: null }, null, { href: "/d/x" }).declared,
+    ).toBeNull();
+  });
+
+  it("a level the game's brackets don't have, or a game without brackets (One Piece), shows nothing", () => {
+    expect(tileFromDeck({ ...base, targetLevel: 9 }, null, { href: "/d/x" }).declared).toBeNull();
+    const op = { ...base, gameId: 2, formatId: 2, targetLevel: 3 };
+    expect(tileFromDeck(op, null, { href: "/d/x" }).declared).toBeNull();
+  });
+
+  it("the guest list's wire carries it too (deckTileData)", () => {
+    const tile = deckTileData({
+      href: "/decks/x/edit",
+      name: "Guest",
+      game: "mtg",
+      formatCode: "commander",
+      updatedAt: "2026-10-05T00:00:00.000Z",
+      likesCount: 0,
+      ciMask: 0,
+      leaderImage: null,
+      targetLevel: 2,
+    });
+    expect(tile.declared).toBe("Bracket 2 (declared)");
+  });
+});
+
 describe("deckTileData over the wire shape (POST /api/decks/mine)", () => {
   it("takes the game and format codes plus an ISO date", () => {
     const tile = deckTileData({

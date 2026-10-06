@@ -12,14 +12,21 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { factsIds, factsPath } from "@/lib/brackets/facts";
+import { tableBracket } from "@/lib/brackets/table";
+import { toEditorCard } from "@/lib/decks/editor-state";
+import { getAdapter } from "@/lib/games/registry";
 import { massEntryUrl } from "@/lib/buy/links";
 import { artCredit, type CardArt } from "@/lib/cards/art";
 import { COMMANDER } from "@/lib/games/mtg/formats";
 import { atraxa, card, thrasios, tymna } from "@/lib/games/mtg/test-fixtures";
-import type { CardData } from "@/lib/games/types";
+import type { DeckGoals } from "@/lib/decks/goals";
+import { setDeckToken } from "@/lib/decks/token-store";
+import type { BracketFreshness, CardData, CompleteCombo } from "@/lib/games/types";
 import {
   COPY_RESET_MS,
   DeckShareView,
+  type ShareBracketFacts,
   type ShareDeckCard,
   type ShareDeckMeta,
 } from "./deck-share-view";
@@ -119,7 +126,7 @@ describe("DeckShareView — the artwork header", () => {
     expect(actions).toEqual(["♡ Like", "Bookmark", "Fork", "Copy decklist", "Buy this deck"]);
   });
 
-  it("an account owner (isOwner, no claim token) also sees Open in editor, after Buy this deck (Y1)", () => {
+  it("an account owner (isOwner, no claim token) gets the owner's row instead (Y5, D6)", () => {
     render(<DeckShareView deck={{ ...deck, isOwner: true }} cards={cards} author={author} />);
     const header = screen.getByRole("banner");
     const actions = [
@@ -127,22 +134,18 @@ describe("DeckShareView — the artwork header", () => {
         "a[data-slot=button], button[data-slot=button], button[data-slot=dropdown-menu-trigger]",
       ),
     ].map((el) => el.textContent);
-    expect(actions).toEqual([
-      "♡ Like",
-      "Bookmark",
-      "Fork",
-      "Copy decklist",
-      "Buy this deck",
-      "Open in editor",
-    ]);
+    expect(actions).toEqual(["Open in editor", "Copy", "Share…", "Buy this deck"]);
     expect(header.querySelector(`a[href="/decks/${deck.id}/edit"]`)?.textContent).toBe(
       "Open in editor",
     );
+    // One status slot for the row, as the visitor's.
+    expect(header.querySelectorAll("[data-slot=copy-status]")).toHaveLength(1);
   });
 
   it("isOwner false is a visitor: no Open in editor", () => {
     render(<DeckShareView deck={{ ...deck, isOwner: false }} cards={cards} author={author} />);
     expect(screen.queryByText("Open in editor")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Share…" })).toBeNull();
   });
 
   it("without art (One Piece, the private gate): the gradient band and no credit anywhere in the header", () => {
@@ -457,5 +460,365 @@ describe("DeckShareView — the buy menu (W7, D6)", () => {
     const opDeck: ShareDeckMeta = { ...deck, game: "optcg", format: "standard", leaderIds: [] };
     render(<DeckShareView deck={opDeck} cards={[]} />);
     expect(screen.queryByRole("button", { name: "Buy this deck" })).toBeNull();
+  });
+});
+
+describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
+  /** Base UI menu triggers open on the pointer sequence, not a bare click. */
+  function openMenu(trigger: HTMLElement) {
+    fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
+    fireEvent.mouseDown(trigger, { button: 0 });
+    fireEvent.click(trigger, { button: 0 });
+  }
+
+  const AT = "2026-10-04T15:29:34.768Z";
+  const FRESH: BracketFreshness = {
+    readAt: "2026-10-05T07:00:00.000Z",
+    feeds: {
+      gameChangers: { state: "ok", asOf: AT, detail: "53 cards" },
+      landDenial: { state: "ok", asOf: AT },
+      extraTurns: { state: "ok", asOf: AT },
+      combos: { state: "ok", asOf: AT, detail: "bulk 7.1.4" },
+    },
+  };
+  const SERVER: ShareBracketFacts = {
+    from: "server",
+    state: "ready",
+    combos: [],
+    freshness: FRESH,
+  };
+  const rhystic = card({
+    name: "Rhystic Study",
+    primaryType: "Enchantment",
+    costValue: 3,
+    attrs: { type_line: "Enchantment", oracle_text: "", game_changer: true },
+  });
+  const rift = card({
+    name: "Cyclonic Rift",
+    primaryType: "Instant",
+    costValue: 2,
+    attrs: { type_line: "Instant", oracle_text: "", game_changer: true },
+  });
+  // Atraxa, two Game Changers, 97 fillers: 100 cards, at least Bracket 3.
+  const gcCards: ShareDeckCard[] = [
+    wire(atraxa, commanderZone),
+    wire(rhystic, mainZone),
+    wire(rift, mainZone),
+    ...filler.slice(0, 97).map((c) => wire(c, mainZone)),
+  ];
+  const goals: DeckGoals = {
+    v: 1,
+    targetLevel: 3,
+    exceptions: "one thematic Game Changer — ask me",
+    answers: { rulesetVersion: 1, play: { fast: "no" } },
+  };
+  const visitorRow = (header: HTMLElement) =>
+    [
+      ...header.querySelectorAll<HTMLElement>(
+        "a[data-slot=button], button[data-slot=button], button[data-slot=dropdown-menu-trigger]",
+      ),
+    ].map((el) => el.textContent);
+
+  const writeText = vi.fn<(text: string) => Promise<void>>();
+  beforeEach(() => {
+    writeText.mockReset().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    window.localStorage.clear();
+  });
+
+  it("the line after the Warden line, in the pod's words, and At the table under it", () => {
+    render(<DeckShareView deck={{ ...deck, goals }} cards={gcCards} bracketFacts={SERVER} />);
+    const header = screen.getByRole("banner");
+    const line = header.querySelector<HTMLElement>("[data-slot=bracket-line]")!;
+    expect(line.textContent).toBe(
+      "Played as Bracket 3 (Upgraded) · the cards say at least 3 · Why?",
+    );
+    // The editor's order: the Warden's line, then the bracket line.
+    const warden = within(header).getByTitle("Legal Commander deck");
+    expect(warden.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const table = header.querySelector<HTMLElement>("[data-slot=at-the-table]")!;
+    expect(within(table).getByRole("heading", { name: "At the table" })).toBeTruthy();
+    expect([...table.querySelectorAll("[data-line]")].map((el) => el.textContent)).toEqual([
+      "Game Changers (Wizards' list): Cyclonic Rift, Rhystic Study",
+      "Combos (Commander Spellbook): none found",
+      "Land denial / extra turns (Scryfall Tagger): none",
+      "Pace (owner): doesn't usually win before turn 6",
+      "Exceptions (owner): one thematic Game Changer — ask me",
+    ]);
+    // Card names preview and open the card's page.
+    fireEvent.click(within(table).getByRole("button", { name: "Rhystic Study" }));
+    expect(push).toHaveBeenCalledWith(`/cards/${rhystic.id}`);
+  });
+
+  it("the visitor row is byte-identical with the line and the card above it", () => {
+    // The page's own facts: the client asks for nothing.
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<DeckShareView deck={deck} cards={gcCards} author={author} bracketFacts={SERVER} />);
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+    expect(visitorRow(screen.getByRole("banner"))).toEqual([
+      "♡ Like",
+      "Bookmark",
+      "Fork",
+      "Copy decklist",
+      "Buy this deck",
+    ]);
+  });
+
+  it("a guest owner (this browser's claim token) gets the owner's row; the server never knows", () => {
+    setDeckToken(deck.id, "a-claim-token");
+    render(<DeckShareView deck={deck} cards={gcCards} bracketFacts={SERVER} />);
+    expect(visitorRow(screen.getByRole("banner"))).toEqual([
+      "Open in editor",
+      "Copy",
+      "Share…",
+      "Buy this deck",
+    ]);
+  });
+
+  it("Copy ▾ → Copy for the table pastes D6's text; Copy decklist the list; each says so", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(
+      <DeckShareView
+        deck={{ ...deck, goals, isOwner: true }}
+        cards={gcCards}
+        bracketFacts={SERVER}
+      />,
+    );
+    openMenu(screen.getByRole("button", { name: "Copy" }));
+    const menu = await screen.findByRole("menu", { name: "Copy" });
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((i) => i.textContent),
+    ).toEqual(["Copy decklist", "Copy for the table"]);
+    await act(async () => {
+      fireEvent.click(within(menu).getByRole("menuitem", { name: "Copy for the table" }));
+    });
+    expect(writeText.mock.calls[0][0].split("\n")).toEqual([
+      "Atraxa Superfriends — Commander",
+      "Played as Bracket 3 (Upgraded) · the cards say at least 3 · checked Oct 5, 2026",
+      "Game Changers (Wizards' list): Cyclonic Rift, Rhystic Study",
+      "Combos (Commander Spellbook): none found",
+      "Land denial / extra turns (Scryfall Tagger): none",
+      "Pace (owner): doesn't usually win before turn 6",
+      "Exceptions (owner): one thematic Game Changer — ask me",
+      "Reads the card list only; combos via Commander Spellbook.",
+      `${window.location.origin}/d/uwvrnv2pv4t6`,
+    ]);
+    const status = document.querySelector<HTMLElement>("[data-slot=copy-status]")!;
+    expect(status.textContent).toBe("Copied for the table");
+
+    openMenu(screen.getByRole("button", { name: "Copy" }));
+    const again = await screen.findByRole("menu", { name: "Copy" });
+    await act(async () => {
+      fireEvent.click(within(again).getByRole("menuitem", { name: "Copy decklist" }));
+    });
+    expect(writeText.mock.calls[1][0]).toContain("Rhystic Study");
+    expect(status.textContent).toBe("Decklist copied");
+    act(() => {
+      vi.advanceTimersByTime(COPY_RESET_MS);
+    });
+    expect(status.textContent).toBe("");
+  });
+
+  it("no read to tell (no facts, One Piece, a draft): Copy holds only the decklist", async () => {
+    render(<DeckShareView deck={{ ...deck, isOwner: true }} cards={cards} />);
+    openMenu(screen.getByRole("button", { name: "Copy" }));
+    const menu = await screen.findByRole("menu", { name: "Copy" });
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((i) => i.textContent),
+    ).toEqual(["Copy decklist"]);
+  });
+
+  it("Share… copies the link where there is no phone share sheet, and opens it where there is", async () => {
+    render(<DeckShareView deck={{ ...deck, isOwner: true }} cards={cards} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Share…" }));
+    });
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/d/uwvrnv2pv4t6`);
+    expect(document.querySelector("[data-slot=copy-status]")?.textContent).toBe("Link copied");
+
+    // A desktop share sheet (a fine pointer) is a surprise: the link is copied instead.
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", { value: share, configurable: true });
+    Object.defineProperty(window, "matchMedia", {
+      value: () => ({ matches: false }) as unknown as MediaQueryList,
+      configurable: true,
+    });
+    writeText.mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Share…" }));
+    });
+    expect(share).not.toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(window, "matchMedia", {
+      value: (q: string) => ({ matches: q === "(pointer: coarse)" }) as MediaQueryList,
+      configurable: true,
+    });
+    writeText.mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Share…" }));
+    });
+    expect(share).toHaveBeenCalledWith({
+      title: "Atraxa Superfriends",
+      url: `${window.location.origin}/d/uwvrnv2pv4t6`,
+    });
+    expect(writeText).not.toHaveBeenCalled();
+
+    // Closing the sheet is a choice, not a failure: nothing copied, nothing said.
+    share.mockRejectedValueOnce(new DOMException("closed", "AbortError"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Share…" }));
+    });
+    expect(writeText).not.toHaveBeenCalled();
+    Reflect.deleteProperty(window, "matchMedia");
+    Reflect.deleteProperty(navigator, "share");
+  });
+
+  it("Why? opens the sheet read-only — no target control, the owner's answer shown", async () => {
+    const timeWarp = card({
+      name: "Time Warp",
+      primaryType: "Sorcery",
+      costValue: 5,
+      attrs: { type_line: "Sorcery", oracle_text: "", extra_turn: true },
+    });
+    const temporal = card({
+      name: "Temporal Manipulation",
+      primaryType: "Sorcery",
+      costValue: 5,
+      attrs: { type_line: "Sorcery", oracle_text: "", extra_turn: true },
+    });
+    const turnCards: ShareDeckCard[] = [
+      wire(atraxa, commanderZone),
+      wire(timeWarp, mainZone),
+      wire(temporal, mainZone),
+      ...filler.slice(0, 97).map((c) => wire(c, mainZone)),
+    ];
+    // The chain's question id, as the read asks it.
+    const chainId = tableBracket({
+      adapter: getAdapter("mtg"),
+      format: COMMANDER,
+      entries: turnCards.map((c) => ({ cardId: c.cardId, zone: c.zone, qty: 1, tags: [] })),
+      cards: new Map(turnCards.map((c) => [c.cardId, toEditorCard(c.card)])),
+      combos: [],
+      freshness: FRESH,
+      goals: null,
+    })!.read.review.find((q) => q.id.startsWith("extra-turns:"))!.id;
+    render(
+      <DeckShareView
+        deck={{
+          ...deck,
+          goals: { v: 1, answers: { rulesetVersion: 1, calls: { [chainId]: "no" } } },
+        }}
+        cards={turnCards}
+        bracketFacts={SERVER}
+      />,
+    );
+    const line = document.querySelector<HTMLElement>("[data-slot=bracket-line]")!;
+    expect(line.textContent).toContain("the owner's answers");
+    fireEvent.click(within(line).getByRole("button", { name: "Why?" }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).queryByRole("group", { name: "Your target" })).toBeNull();
+    expect(sheet.querySelector("[data-slot=bracket-target]")).toBeNull();
+    expect(sheet.querySelector("[data-slot=owner-answer]")?.textContent).toBe(
+      "The owner's answer: No",
+    );
+    expect(within(sheet).queryByRole("radio")).toBeNull();
+  });
+
+  it("the private gate's facts: one GET from the client, the editor's URL, then the read", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ combos: [], freshness: FRESH }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <DeckShareView deck={{ ...deck, goals }} cards={gcCards} bracketFacts={{ from: "client" }} />,
+    );
+    expect(document.querySelector("[data-slot=bracket-line]")?.textContent).toBe(
+      "Checking combos…",
+    );
+    expect(document.querySelector("[data-slot=at-the-table]")).toBeNull();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(factsPath("mtg", factsIds(gcCards)));
+    expect(await screen.findByText(/^Played as Bracket 3/)).toBeTruthy();
+    expect(document.querySelector("[data-slot=at-the-table]")).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
+  it("a precon has no owner: its line is the editor's own words (D5), 'your call'", () => {
+    const pieceA = card({
+      name: "Piece A",
+      primaryType: "Artifact",
+      costValue: 1,
+      attrs: { type_line: "Artifact", oracle_text: "" },
+    });
+    const pieceB = card({
+      name: "Piece B",
+      primaryType: "Artifact",
+      costValue: 1,
+      attrs: { type_line: "Artifact", oracle_text: "" },
+    });
+    const pieceC = card({
+      name: "Piece C",
+      primaryType: "Artifact",
+      costValue: 1,
+      attrs: { type_line: "Artifact", oracle_text: "" },
+    });
+    const pending: CompleteCombo = {
+      key: "s1",
+      cardPieces: [pieceA.id, pieceB.id, pieceC.id].sort(),
+      templates: [],
+      tag: "S",
+      relevant: false,
+      results: ["Win the game"],
+      popularity: 10,
+    };
+    const preconCards: ShareDeckCard[] = [
+      wire(atraxa, commanderZone),
+      ...[pieceA, pieceB, pieceC].map((c) => wire(c, mainZone)),
+      ...filler.slice(0, 96).map((c) => wire(c, mainZone)),
+    ];
+    const precon = {
+      slug: "breed_lethality_c16",
+      code: "BreedLethality_C16",
+      setCode: "C16",
+      setName: "Commander 2016",
+      releaseDate: "2016-11-11",
+      productName: "Breed Lethality",
+    };
+    render(
+      <DeckShareView
+        deck={deck}
+        cards={preconCards}
+        precon={precon}
+        bracketFacts={{ ...SERVER, combos: [pending] }}
+      />,
+    );
+    expect(document.querySelector("[data-slot=bracket-line]")?.textContent).toBe(
+      "Bracket 3 or 4 — one combo is your call · Why?",
+    );
+  });
+
+  it("One Piece: no line, no card, no request — and nothing said about it", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const opDeck: ShareDeckMeta = { ...deck, game: "optcg", format: "standard", leaderIds: [] };
+    render(<DeckShareView deck={opDeck} cards={[]} bracketFacts={{ from: "client" }} />);
+    expect(document.querySelector("[data-slot=bracket-line]")).toBeNull();
+    expect(document.querySelector("[data-slot=at-the-table]")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/bracket/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

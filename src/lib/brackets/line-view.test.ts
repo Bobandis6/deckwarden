@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BracketFactor, BracketLineContext, BracketRead } from "@/lib/games/types";
 
+import { BRACKET_COPY } from "./copy";
 import type { BracketFactsState } from "./facts";
 import { bracketLineView } from "./line-view";
 
@@ -102,6 +103,20 @@ describe("bracketLineView", () => {
     });
     expect(view(stale("read"), "checking").text).toBe("Checking combos…");
     expect(view(stale("read"), "failed").text).toBe("Couldn't check combos");
+  });
+
+  it("Y5: never in the table's voice — the prompt is the owner's, and the editor is where it's answered", () => {
+    const table = { ...ctx, voice: "table" as const };
+    for (const status of ["read", "review", "unavailable", "draft"] as const) {
+      const v = bracketLineView(
+        brackets,
+        { ...read(status), answersStale: true, factors: [finding] },
+        table,
+        "ready",
+      );
+      expect(v.text).toBe(`adapter line (${status})`);
+      expect(v.text).not.toContain(BRACKET_COPY.rulesChanged);
+    }
   });
 
   it("checking: D5's loading line, text only — a read that may be out of date says so", () => {

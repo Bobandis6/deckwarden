@@ -33,6 +33,7 @@ export function BrowserDeckTiles({
             likesCount: deck.likesCount,
             ciMask: deck.ciMask,
             leaderImage: deck.leaderImage,
+            targetLevel: deck.goals?.targetLevel ?? null,
           })}
           linkTitle={`Edit ${deck.name}`}
           actions={

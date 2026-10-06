@@ -29,6 +29,8 @@ export interface BrowserDeck {
   ciMask: number;
   likesCount: number;
   leaderImage: string | null;
+  /** The deck's goals (deckMetaJson, the owner's) — Y5 reads only the declared target. */
+  goals?: { targetLevel?: number } | null;
 }
 
 export function useBrowserDecks(): BrowserDeck[] | null {

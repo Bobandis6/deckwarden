@@ -10,11 +10,11 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { addMorePhrase, deckProgress } from "@/lib/decks/progress";
+import { addMorePhrase, cardsToGoPhrase, deckProgress } from "@/lib/decks/progress";
 
 import type { BracketAnswers, BracketFreshness, BracketRead, CompleteCombo } from "../types";
 import type { MtgAttrs } from "./attrs";
-import { MTG_BRACKET_LINKS, mtgBracketLine } from "./bracket-line";
+import { MTG_BRACKET_LINKS, mtgBracketLine, mtgBracketTable } from "./bracket-line";
 import { BRACKET_RULESET } from "./bracket-ruleset";
 import { assessBracket, mtgBrackets } from "./brackets";
 import { COMMANDER } from "./formats";
@@ -101,16 +101,30 @@ function read(
   });
 }
 
-/** The line as the editor builds it: the read, the snapshot, core's progress phrase, the target. */
-function line(spec: Spec, r: BracketRead, targetLevel: number | null = null): string {
+/**
+ * The line as the editor builds it: the read, the snapshot, core's progress
+ * phrase, the target — or, with `voice: "table"`, as the share page does (Y5).
+ */
+function line(
+  spec: Spec,
+  r: BracketRead,
+  targetLevel: number | null = null,
+  voice?: "table",
+): string {
   const entries = Object.entries(spec.deck.zones).flatMap(([zone, list]) =>
     list.map((e) => ({ ...e, zone })),
   );
   return mtgBracketLine(r, {
     deck: spec.deck,
     cards: spec.cards,
-    progress: r.status === "draft" ? addMorePhrase(deckProgress(entries, COMMANDER).toGo) : null,
+    progress:
+      r.status !== "draft"
+        ? null
+        : voice === "table"
+          ? cardsToGoPhrase(deckProgress(entries, COMMANDER).toGo)
+          : addMorePhrase(deckProgress(entries, COMMANDER).toGo),
     targetLevel,
+    voice,
   });
 }
 const lineOf = (spec: Spec, combos?: CompleteCombo[] | null, over?: ReadOptions) =>
@@ -254,6 +268,68 @@ describe("Y4b — the target beside the read, and answers with a call still open
     });
     expect(unsure.suggested).toBeNull();
     expect(line(spec, unsure)).toBe("Bracket 3 or 4 — one combo is your call");
+  });
+});
+
+describe("Y5 — the same read said to the pod (the share page's voice)", () => {
+  const v = BRACKET_RULESET.version;
+  const s1 = combo("s1", [pieceA, pieceB, pieceC], { tag: "S", relevant: false });
+
+  it("D6's 'Played as Bracket 2 · the cards say 3+' in plain words, the level named, beside the editor's", () => {
+    const spec = list([rhystic]);
+    const r = read(spec);
+    expect(line(spec, r, 2)).toBe("Your target: Bracket 2 · the cards say at least 3");
+    expect(line(spec, r, 2, "table")).toBe("Played as Bracket 2 (Core) · the cards say at least 3");
+    expect(line(spec, r, 4, "table")).toBe(
+      "Played as Bracket 4 (Optimized) · the cards say at least 3",
+    );
+  });
+
+  it("the owner's answers and the owner's call — never 'your' to a visitor", () => {
+    const spec = list([pieceA, pieceB, pieceC]);
+    expect(line(spec, read(spec, [s1]), null, "table")).toBe(
+      "Bracket 3 or 4 — one combo is the owner's call",
+    );
+    expect(line(spec, read(spec, [s1]), 2, "table")).toBe(
+      "Played as Bracket 2 (Core) · the cards say 3 or 4 — one combo is the owner's call",
+    );
+    const yes = read(spec, [s1], { answers: { rulesetVersion: v, calls: { "combo:s1": "yes" } } });
+    expect(line(spec, yes, null, "table")).toBe(
+      "Bracket 4 (Optimized) — from the cards and the owner's answers",
+    );
+    expect(line(spec, yes, 3, "table")).toBe(
+      "Played as Bracket 3 (Upgraded) · the cards and the owner's answers say 4",
+    );
+  });
+
+  it("with no target or answers the two voices say the same words (D5's table)", () => {
+    for (const spec of [list([]), list([rhystic]), list([timeWarp]), list([dockside])]) {
+      const r = read(spec);
+      expect(line(spec, r, null, "table")).toBe(line(spec, r));
+    }
+  });
+
+  it("a draft counts what's left, to the pod", () => {
+    const draft = list([rhystic], 66);
+    expect(line(draft, read(draft), 2, "table")).toBe(
+      "Bracket: 34 cards to go · 1 Game Changer so far",
+    );
+  });
+});
+
+describe("Y5 — At the table's rows", () => {
+  it("each row names its source; flagged cards and open calls listed, a gap said as such", () => {
+    const spec = list([rhystic, rift, timeWarp, liliana, pieceA, pieceB, pieceC]);
+    const s = combo("s", [pieceA, pieceB, pieceC], { tag: "S", relevant: false });
+    const rows = mtgBracketTable(read(spec, [s]));
+    expect(rows.map((r) => [r.label, r.items, r.empty])).toEqual([
+      ["Game Changers (Wizards' list)", [[rift.id], [rhystic.id]], "none"],
+      ["Combos (Commander Spellbook)", [s.cardPieces], "none found"],
+      ["Land denial / extra turns (Scryfall Tagger)", [[timeWarp.id], [liliana.id]], "none"],
+    ]);
+    const unchecked = mtgBracketTable(read(list([]), null));
+    expect(unchecked.find((r) => r.id === "combos")?.empty).toBe("couldn't check");
+    expect(unchecked.find((r) => r.id === "game-changers")?.empty).toBe("none");
   });
 });
 
@@ -456,6 +532,10 @@ describe("copy guard (WAVE4 D0) — every line the adapter can say", () => {
     return reads.flatMap(([spec, r]) => [
       line(spec, r),
       ...[1, 2, 3, 4, 5].map((target) => line(spec, r, target)),
+      // Y5: the share page's voice, every read and target again.
+      line(spec, r, null, "table"),
+      ...[1, 2, 3, 4, 5].map((target) => line(spec, r, target, "table")),
+      ...mtgBracketTable(r).flatMap((row) => [row.label, row.empty]),
     ]);
   }
 

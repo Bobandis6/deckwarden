@@ -17,7 +17,8 @@
  *
  * Y4b: answers given under older rules add "Rules changed since you
  * answered" before "Why?" — a rules change prompts a review (D11), and the
- * sheet is where it happens.
+ * sheet is where it happens. Y5: never in the table's voice (the share
+ * page) — the prompt is the owner's, and the editor is where it's answered.
  */
 import { BRACKET_COPY } from "@/lib/brackets/copy";
 import type { BracketFactsState } from "@/lib/brackets/facts";
@@ -41,8 +42,12 @@ function foundAnything(read: BracketRead, ctx: BracketLineContext): boolean {
 }
 
 /** Answers from older rules: the line asks for a second look before "Why?". */
-function withStale(read: BracketRead, view: BracketLineView): BracketLineView {
-  return read.answersStale && view.action === "why"
+function withStale(
+  read: BracketRead,
+  ctx: BracketLineContext,
+  view: BracketLineView,
+): BracketLineView {
+  return read.answersStale && ctx.voice !== "table" && view.action === "why"
     ? { ...view, text: `${view.text} · ${BRACKET_COPY.rulesChanged}` }
     : view;
 }
@@ -56,11 +61,11 @@ export function bracketLineView(
   if (read.status === "blocked") return { text: brackets.line(read, ctx), action: null };
   if (facts === "failed") return { text: BRACKET_COPY.failed, action: "retry" };
   if (read.status === "draft") {
-    return withStale(read, {
+    return withStale(read, ctx, {
       text: brackets.line(read, ctx),
       action: facts !== "checking" && foundAnything(read, ctx) ? "why" : null,
     });
   }
   if (facts === "checking") return { text: BRACKET_COPY.checking, action: null };
-  return withStale(read, { text: brackets.line(read, ctx), action: "why" });
+  return withStale(read, ctx, { text: brackets.line(read, ctx), action: "why" });
 }

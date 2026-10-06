@@ -31,6 +31,10 @@
  *   questions, Yes / No / Not sure each. Answers only ever raise the read
  *   and are never asked again after ordinary edits.
  *
+ * Y5: without `onGoalsChange` (the share page) the sheet reads only — Y4a's
+ * blocks, and on each of Your call's questions the owner's answer when the
+ * page shows it (a yes or a no the read used; goals.ts' tableGoals).
+ *
  * Every change goes through goals.ts' pure edits and back to the editor,
  * which saves it like any edit (a draft mints its row) — and never asks
  * for the combo facts again: goals don't change the card set.
@@ -525,6 +529,13 @@ function QuestionRow({
       <p className="mt-0.5 text-xs">
         {BRACKET_COPY.ifYes(levelLabel(brackets, question.raisesTo))}
       </p>
+      {!onAnswer && (question.answer === "yes" || question.answer === "no") && (
+        // Y5: the share page's sheet reads only — the owner's answer, as said.
+        <p data-slot="owner-answer" className="mt-0.5 text-xs">
+          {BRACKET_COPY.ownersAnswer}:{" "}
+          {question.answer === "yes" ? BRACKET_COPY.yes : BRACKET_COPY.no}
+        </p>
+      )}
       {onAnswer && (
         <div className="mt-1.5">
           <Segmented

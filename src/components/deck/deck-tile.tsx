@@ -41,7 +41,11 @@ export function DeckTile({
   /** Owner surfaces: "Edit {name}" (the /account contract). */
   linkTitle?: string;
   actions?: ReactNode;
-  /** W8b: a visible chip in the meta line ("Precon") — real information, unlike the decorative game chip. */
+  /**
+   * W8b: a visible chip in the meta line ("Precon") — real information,
+   * unlike the decorative game chip. Absent, the tile's own declared target
+   * (Y5, "Bracket 3 (declared)") takes the slot.
+   */
   badge?: string;
   className?: string;
 } & ComponentProps<"li">) {
@@ -105,12 +109,12 @@ export function DeckTile({
               {tile.gameLabel}
             </span>
           )}
-          {badge && (
+          {(badge ?? tile.declared) && (
             <span
               data-slot="tile-badge"
               className={cn(badgeVariants({ variant: "secondary" }), "h-4 px-1.5 text-[10px]")}
             >
-              {badge}
+              {badge ?? tile.declared}
             </span>
           )}
           {tile.formatLabel && <span>{tile.formatLabel}</span>}

@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import { getAdapter } from "@/lib/games/registry";
 
-import { BRACKET_COPY, dateLabel, levelLabel } from "./copy";
+import { BRACKET_COPY, dateLabel, declaredLabel, levelLabel } from "./copy";
 
 /** The table's word-builders — the guard calls each one (a new one must join it here). */
 const BUILDERS = [
@@ -21,6 +21,7 @@ const BUILDERS = [
   "combosCredit",
   "aboveTargetLead",
   "answered",
+  "checked",
 ];
 
 /** Every string the table can produce, its builders called with real inputs. */
@@ -42,6 +43,12 @@ function everyString(): string[] {
     // The adapter's words the Y4b blocks render beside core's.
     mtg.exceptionsHint,
     ...mtg.questions.map((q) => q.question),
+    // Y5: the share page's words — the declared chip, the checked date, and
+    // the adapter's table labels, answers and closing note.
+    ...mtg.levels.map((l) => declaredLabel(mtg, l.level)),
+    C.checked(dateLabel("2026-10-05T12:00:00.000Z")),
+    ...mtg.questions.flatMap((q) => (q.table ? [q.table.label, q.table.yes, q.table.no] : [])),
+    mtg.tableNote,
   ];
 }
 
@@ -82,6 +89,17 @@ describe("BRACKET_COPY — D5's own lines and the sheet's words", () => {
       "Can it usually win or lock the table before turn 6?",
       "Tuned for the cEDH metagame?",
     ]);
+  });
+
+  it("Y5's words: At the table, Copy for the table, the owner's lines, declared and checked", () => {
+    const mtg = getAdapter("mtg").brackets!;
+    expect(BRACKET_COPY.atTheTable).toBe("At the table");
+    expect(BRACKET_COPY.copyForTable).toBe("Copy for the table");
+    expect(BRACKET_COPY.exceptionsOwner).toBe("Exceptions (owner)");
+    expect(BRACKET_COPY.planOwner).toBe("Plan (owner)");
+    expect(BRACKET_COPY.ownersCall).toBe("Owner's call");
+    expect(BRACKET_COPY.checked("Sep 30, 2026")).toBe("checked Sep 30, 2026");
+    expect(declaredLabel(mtg, 3)).toBe("Bracket 3 (declared)");
   });
 
   it("levels in plain words, dates pinned to UTC", () => {

@@ -7,7 +7,7 @@
  * Spellbook credit) — D0's attribution, the Drawer on phones, and D0's copy
  * guard over everything the sheet renders.
  */
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { COMMANDER } from "@/lib/games/mtg/formats";
@@ -547,5 +547,34 @@ describe("copy guard (WAVE4 D0) — everything the sheet renders", () => {
     expect(text.length).toBeGreaterThan(200);
     expect(text).not.toMatch(/approv/i);
     expect(text).not.toMatch(/ruthless|spicy|powerful|oddball|precon appropriate|casual/i);
+  });
+});
+
+describe("Y5 — the share page's sheet reads only", () => {
+  it("shows the owner's yes or no on a question; a Not sure says nothing; no target block, no choices", () => {
+    const list = spec([timeWarp, temporal]);
+    const open = mtg.brackets!.assess({
+      deck: list.deck,
+      cards: list.cards,
+      combos: [],
+      freshness: FRESH,
+    });
+    const chain = open.review.find((q) => q.id.startsWith("extra-turns:"))!;
+    for (const [answer, shown] of [
+      ["no", "The owner's answer: No"],
+      ["yes", "The owner's answer: Yes"],
+      ["unsure", null],
+    ] as const) {
+      const goals: DeckGoals = {
+        v: 1,
+        answers: { rulesetVersion: 1, calls: { [chain.id]: answer } },
+      };
+      sheet(list, { combos: [], goals });
+      const dialog = screen.getByRole("dialog");
+      expect(dialog.querySelector("[data-slot=owner-answer]")?.textContent ?? null).toBe(shown);
+      expect(dialog.querySelector("[data-slot=bracket-target]")).toBeNull();
+      expect(within(dialog).queryAllByRole("radio")).toHaveLength(0);
+      cleanup();
+    }
   });
 });

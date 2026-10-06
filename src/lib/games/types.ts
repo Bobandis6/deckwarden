@@ -632,6 +632,30 @@ export interface BracketLineContext<A = Record<string, unknown>> {
    * absent = not set. The line shows it beside the read, never instead of it.
    */
   targetLevel?: number | null;
+  /**
+   * Who the line speaks to (Y5): "owner" (the editor — "Your target …",
+   * "your answers", "your call"; the default) or "table" (the share page,
+   * read by the pod — "Played as …", "the owner's answers", "the owner's
+   * call"). Same read, same facts; only the person changes.
+   */
+  voice?: "owner" | "table";
+}
+
+/**
+ * One evidence row of "At the table" (Y5, WAVE4 D6) — "Game Changers
+ * (Wizards' list): Rhystic Study, Cyclonic Rift". The adapter's words; core
+ * renders the names (CardNamePreview on the page) and joins them in the
+ * copied text.
+ */
+export interface BracketTableRow {
+  /** Stable key (lists, tests). */
+  id: string;
+  /** The row's name with its source: "Game Changers (Wizards' list)". */
+  label: string;
+  /** Each item's card ids — one card, or a combo's pieces (joined with " + "). */
+  items: string[][];
+  /** What the row says with no items: "none", "none found", or that it couldn't check. */
+  empty: string;
 }
 
 /**
@@ -645,8 +669,16 @@ export interface BracketsMeta<A = Record<string, unknown>> {
   levels: readonly { level: number; name: string }[];
   /** The ruleset the read applies; answers record `version`. */
   ruleset: { version: number; asOf: string };
-  /** "How it plays" — the questions whose answers raise `suggested`, by key. */
-  questions: readonly { key: string; question: string }[];
+  /**
+   * "How it plays" — the questions whose answers raise `suggested`, by key.
+   * `table` (Y5) says a yes or a no to the pod, under its own label: "Pace
+   * (owner): doesn't usually win before turn 6".
+   */
+  questions: readonly {
+    key: string;
+    question: string;
+    table?: { label: string; yes: string; no: string };
+  }[];
   /**
    * The Why sheet's table-exceptions line, by example (Y4b) — "e.g. one
    * thematic Game Changer, ask me". The adapter's words: core names no
@@ -667,6 +699,14 @@ export interface BracketsMeta<A = Record<string, unknown>> {
    * or fail.
    */
   line(read: BracketRead, ctx: BracketLineContext<A>): string;
+  /**
+   * Pure: "At the table"'s evidence rows (Y5, WAVE4 D6), each with its
+   * named source — what the pod should know before the game. Never empty
+   * where a feed couldn't be checked: the row says so.
+   */
+  table(read: BracketRead): BracketTableRow[];
+  /** The copied text's closing line: what the read reads, and its combo source. */
+  tableNote: string;
   /** Where the Why sheet links (Y4a): the rules' own page, and an evidence line's source by its id. */
   links: {
     rules: { label: string; href: string };

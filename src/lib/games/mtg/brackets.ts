@@ -77,7 +77,7 @@ import type {
   IngestRunFacts,
 } from "../types";
 import type { MtgAttrs } from "./attrs";
-import { MTG_BRACKET_LINKS, mtgBracketLine } from "./bracket-line";
+import { MTG_BRACKET_LINKS, MTG_TABLE_NOTE, mtgBracketLine, mtgBracketTable } from "./bracket-line";
 import { BRACKET_RULESET, type BracketLevel } from "./bracket-ruleset";
 import { mtgFormat } from "./formats";
 import { bracketTagOf, type SpellbookBracketTag } from "./spellbook-tags";
@@ -279,12 +279,40 @@ function dateLabel(iso: string): string {
 
 const byName = (a: MtgCard, b: MtgCard) => a.name.localeCompare(b.name, "en");
 
-/** "How it plays" (Y4b asks them): each answer only ever raises the read. */
+/**
+ * "How it plays" (Y4b asks them): each answer only ever raises the read.
+ * `table` (Y5) is what the share page tells the pod an answer means, under
+ * the owner's name — D6's "Pace (owner): doesn't usually win before turn 6".
+ */
 export const MTG_BRACKET_QUESTIONS = [
-  { key: "theme", question: "Theme first, over power?" },
-  { key: "quality", question: "Staples and high card quality?" },
-  { key: "fast", question: `Can it usually win or lock the table before turn ${EARLY_TURN}?` },
-  { key: "cedh", question: "Tuned for the cEDH metagame?" },
+  {
+    key: "theme",
+    question: "Theme first, over power?",
+    table: { label: "Theme (owner)", yes: "theme first, over power", no: "not theme first" },
+  },
+  {
+    key: "quality",
+    question: "Staples and high card quality?",
+    table: {
+      label: "Card quality (owner)",
+      yes: "staples and high card quality",
+      no: "not built on staples",
+    },
+  },
+  {
+    key: "fast",
+    question: `Can it usually win or lock the table before turn ${EARLY_TURN}?`,
+    table: {
+      label: "Pace (owner)",
+      yes: `can usually win or lock the table before turn ${EARLY_TURN}`,
+      no: `doesn't usually win before turn ${EARLY_TURN}`,
+    },
+  },
+  {
+    key: "cedh",
+    question: "Tuned for the cEDH metagame?",
+    table: { label: "cEDH (owner)", yes: "tuned for the cEDH metagame", no: "not tuned for cEDH" },
+  },
 ] as const;
 
 /** What the read assumes — fixed text, the date from ingest (WAVE4 D5). */
@@ -810,5 +838,7 @@ export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   freshness: mtgBracketFreshness,
   assess: assessBracket,
   line: mtgBracketLine,
+  table: mtgBracketTable,
+  tableNote: MTG_TABLE_NOTE,
   links: MTG_BRACKET_LINKS,
 };

@@ -65,6 +65,7 @@ import { auth } from "@/lib/auth";
 import { safeNextPath } from "@/lib/auth/next-path";
 import { collectionSummary } from "@/lib/collection/owned";
 import { formatLabel, updatedLabel } from "@/lib/decks/display";
+import { readGoals } from "@/lib/decks/goals";
 import { tileFromDeck } from "@/lib/decks/tiles";
 import { loadDefaultPrintings, type DefaultPrinting } from "@/lib/hub/queries";
 import { parseAvatarChoice } from "@/lib/profile/avatar";
@@ -100,7 +101,8 @@ function DeckItem({
 }) {
   return (
     <AccountDeckTile
-      tile={tileFromDeck(deck, printing, {
+      // Y5: the declared target's chip off the full row's goals.
+      tile={tileFromDeck({ ...deck, targetLevel: readGoals(deck.goals)?.targetLevel }, printing, {
         href: `/decks/${deck.id}/edit`,
         showVisibility: true,
       })}

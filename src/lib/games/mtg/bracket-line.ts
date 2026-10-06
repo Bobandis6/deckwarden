@@ -37,12 +37,26 @@
  * - answers with a call still open say both — "Bracket 3 or 4 — from the
  *   cards and your answers · one combo is your call".
  *
+ * Y5 adds the share page's voice (`ctx.voice: "table"` — REDESIGN "Y5
+ * decisions"), the same read said to the pod: the target leads as "Played
+ * as Bracket 2 (Core) · the cards say at least 3" (D6's "Played as Bracket
+ * 2 · the cards say 3+" without the notation, and with the level's name —
+ * strangers read it), "your answers" become "the owner's answers" and
+ * "your call" "the owner's call". And "At the table"'s evidence rows
+ * (`mtgBracketTable`), each naming its source.
+ *
  * It reads the ids ./brackets.ts gives its lines: factors `game-changers`,
  * `land-denial`, `extra-turns`, `combo:<key>`, `unchecked:<feed>`,
  * `unchecked:combo:<key>`, `unchecked:cards`; questions `land-denial:<oracle
  * id>`, `extra-turns:<oracle ids>`, `combo:<key>`.
  */
-import type { BracketLineContext, BracketQuestion, BracketRead, BracketsMeta } from "../types";
+import type {
+  BracketLineContext,
+  BracketQuestion,
+  BracketRead,
+  BracketsMeta,
+  BracketTableRow,
+} from "../types";
 import type { MtgAttrs } from "./attrs";
 import { BRACKET_RULESET } from "./bracket-ruleset";
 import { mtgFormat } from "./formats";
@@ -148,8 +162,16 @@ function gaps(read: BracketRead): string[] {
   return out;
 }
 
+type Voice = "owner" | "table";
+
+/** Whose answers and whose call, by who reads the line. */
+const WHOSE: Record<Voice, { answers: string; call: string }> = {
+  owner: { answers: "your answers", call: "your call" },
+  table: { answers: "the owner's answers", call: "the owner's call" },
+};
+
 /** "one combo is your call", "two cards are your call", "chaining extra turns is your call". */
-function yourCall(open: readonly BracketQuestion[]): string {
+function yourCall(open: readonly BracketQuestion[], voice: Voice): string {
   const combos = open.filter((q) => q.combo !== undefined).length;
   const cards = open.filter((q) => q.id.startsWith("land-denial:")).length;
   const chaining = open.filter((q) => q.id.startsWith("extra-turns:")).length;
@@ -160,7 +182,7 @@ function yourCall(open: readonly BracketQuestion[]): string {
   if (chaining > 0) parts.push("chaining extra turns");
   if (other > 0) parts.push(`${numberWord(other)} ${plural(other, "question", "questions")}`);
   const singular = parts.length === 1 && combos + cards + other <= 1;
-  return `${joinList(parts, "and")} ${singular ? "is" : "are"} your call`;
+  return `${joinList(parts, "and")} ${singular ? "is" : "are"} ${WHOSE[voice].call}`;
 }
 
 /**
@@ -206,7 +228,7 @@ function openCalls(read: BracketRead, settled: number): BracketQuestion[] {
  * "the cards and your answers say 4", "the cards say 3 or 4 — one combo is
  * your call", "nothing here goes past Core", or what couldn't be checked.
  */
-function cardsSay(read: BracketRead): string {
+function cardsSay(read: BracketRead, voice: Voice): string {
   if (read.status === "unavailable") {
     const missed = gaps(read);
     const parts: string[] = [];
@@ -215,11 +237,11 @@ function cardsSay(read: BracketRead): string {
     return parts.length > 0 ? parts.join(" · ") : `${NOUN} read incomplete`;
   }
   const answered = read.suggested !== null;
-  const say = answered ? "the cards and your answers say" : "the cards say";
+  const say = answered ? `the cards and ${WHOSE[voice].answers} say` : "the cards say";
   const settled = read.suggested ?? read.minimum;
   const open = openCalls(read, settled);
   if (open.length > 0) {
-    return `${say} ${outcomes([settled, ...open.map((q) => q.raisesTo)])} — ${yourCall(open)}`;
+    return `${say} ${outcomes([settled, ...open.map((q) => q.raisesTo)])} — ${yourCall(open, voice)}`;
   }
   if (answered) return `${say} ${settled}`;
   if (read.minimum <= UNFLAGGED_LOW.level) {
@@ -235,8 +257,13 @@ export function mtgBracketLine(read: BracketRead, ctx: BracketLineContext<MtgAtt
     const found = foundSoFar(read, ctx);
     return `${NOUN}: ${ctx.progress ?? "add more cards"}${found ? ` · ${found} so far` : ""}`;
   }
+  const voice: Voice = ctx.voice ?? "owner";
   const target = ctx.targetLevel ?? null;
-  if (target !== null) return `Your target: ${NOUN} ${target} · ${cardsSay(read)}`;
+  if (target !== null) {
+    return voice === "table"
+      ? `Played as ${named(target)} · ${cardsSay(read, voice)}`
+      : `Your target: ${NOUN} ${target} · ${cardsSay(read, voice)}`;
+  }
   if (read.status === "unavailable") {
     const missed = gaps(read);
     const lead =
@@ -250,14 +277,83 @@ export function mtgBracketLine(read: BracketRead, ctx: BracketLineContext<MtgAtt
   if (open.length > 0) {
     const range = `${NOUN} ${outcomes([settled, ...open.map((q) => q.raisesTo)])}`;
     return read.suggested !== null
-      ? `${range} — from the cards and your answers · ${yourCall(open)}`
-      : `${range} — ${yourCall(open)}`;
+      ? `${range} — from the cards and ${WHOSE[voice].answers} · ${yourCall(open, voice)}`
+      : `${range} — ${yourCall(open, voice)}`;
   }
-  if (read.suggested !== null) return `${named(read.suggested)} — from the cards and your answers`;
+  if (read.suggested !== null) {
+    return `${named(read.suggested)} — from the cards and ${WHOSE[voice].answers}`;
+  }
   if (read.minimum <= UNFLAGGED_LOW.level) {
     return `${NOUN} ${UNFLAGGED_RANGE} · nothing here goes past ${UNFLAGGED_TOP.name}`;
   }
   return `At least ${named(read.minimum)}`;
+}
+
+/** The copied text's closing line (D6): what the read reads, and where the combos come from. */
+export const MTG_TABLE_NOTE = "Reads the card list only; combos via Commander Spellbook.";
+
+/** Each card once, in first-seen order. */
+function uniqueItems(lists: readonly (readonly string[])[]): string[][] {
+  const seen = new Set<string>();
+  const out: string[][] = [];
+  for (const list of lists) {
+    for (const id of list) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push([id]);
+    }
+  }
+  return out;
+}
+
+/**
+ * "At the table"'s rows — `mtgBrackets.table` (Y5, WAVE4 D6): the Game
+ * Changers (Wizards' list), the combos (Commander Spellbook: every complete
+ * combo the read found or asks about, as its pieces), and land denial with
+ * extra turns (Scryfall Tagger: flagged cards and the ones whose call is
+ * open). A feed the read couldn't check says so, never "none".
+ */
+export function mtgBracketTable(read: BracketRead): BracketTableRow[] {
+  const factor = (id: string) => read.factors.find((f) => f.id === id && f.atLeast !== null);
+  const unchecked = (feed: string) => read.factors.some((f) => f.id === `unchecked:${feed}`);
+  const couldnt = "couldn't check";
+
+  const combos = new Map<string, string[]>();
+  for (const f of read.factors) {
+    if (f.combo !== undefined && f.atLeast !== null) combos.set(f.combo, f.cards);
+  }
+  for (const q of read.review) {
+    if (q.combo !== undefined && !combos.has(q.combo)) combos.set(q.combo, q.cards);
+  }
+
+  const landOrTurns = uniqueItems([
+    factor("land-denial")?.cards ?? [],
+    factor("extra-turns")?.cards ?? [],
+    ...read.review
+      .filter((q) => q.id.startsWith("land-denial:") || q.id.startsWith("extra-turns:"))
+      .map((q) => q.cards),
+  ]);
+
+  return [
+    {
+      id: "game-changers",
+      label: "Game Changers (Wizards' list)",
+      items: uniqueItems([factor("game-changers")?.cards ?? []]),
+      empty: unchecked("gameChangers") ? couldnt : "none",
+    },
+    {
+      id: "combos",
+      label: "Combos (Commander Spellbook)",
+      items: [...combos.values()],
+      empty: unchecked("combos") ? couldnt : "none found",
+    },
+    {
+      id: "land-denial-extra-turns",
+      label: "Land denial / extra turns (Scryfall Tagger)",
+      items: landOrTurns,
+      empty: unchecked("landDenial") || unchecked("extraTurns") ? couldnt : "none",
+    },
+  ];
 }
 
 /** A Scryfall Tagger tag's page, by the slug data/mtg/tagger-overrides.json pins (bracket-line.test.ts checks both). */
