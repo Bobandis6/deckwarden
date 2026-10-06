@@ -1,5 +1,59 @@
 # Y5 session prompt — At the table (the share page's bracket line, "At the table", Copy for the table, the owner row, declared-only OG and tile chips)
 
+## Ship note — 2026-10-06, feat `16ee2ab`, deployed (Vercel status success on the full sha, 03:22:04 Z)
+
+**Shipped. The prompt below is history. Next is `Y6a-session-prompt.md` (goals in Suggestions). This was the announce point: P2.9 round 3, the r/EDH post, is the owner's to schedule. They plan it right after Y5.**
+
+**Pre-flight**:
+- Y4b's docs at `b8f7de3`; `_journal.json` at idx 17. Nightlies green through run 37362966440 (no newer run since Y4b checked it).
+- Nothing posted or arrived. Read-only database access and dev writes were approved.
+- **Baseline on `b8f7de3`**: 1,627 tests / 172 files / 6 warnings / 0 errors; the route table saved.
+- **Census**: 209 deck rows = 28 user decks (16 account + 12 guest) + 181 precons, 1 user. **One deck holds goals**: the owner's Y4b click (target 3 on Nelson & Murdock, 02:42 Z).
+- `pnpm db:size` 285.1 MB. Deck-create counters for `::1`: 7 this hour, 7 today.
+
+**The share page's statements** (`DB_LOG`, dev, warm, signed out — before → after):
+
+| Page | Statements | Time |
+|---|---|---|
+| Public account Magic deck (Atraxa) | 6 → 8 | 1.83 → 2.19 s |
+| Precon (Creative Energy) | 4 → 6 | 1.12 → 1.66 s |
+| One Piece | 5 → 5 | — |
+| Magic list without a commander | 4 → 4 | — |
+| Private gate | 1 → 1 | — |
+
+`loadCompleteCombos` keeps Y3b's plan: a hash join with an in-memory quicksort and no spill. Server time is 23 ms on Atraxa, 18 ms on Creative Energy and 100 ms on Witherbloom Pestilence; the freshness read takes 0.2 ms. On prod (warm) every share page answers in 0.51–0.77 s, and One Piece in 0.51–0.58 s. The page's caching docblock records the count.
+
+**What shipped** (decisions in WAVE4's tracker and REDESIGN.md "Y5 decisions"):
+- **`src/lib/brackets/table.ts`** — `tableBracket` (the editor's read, in the table's voice), `shareGoals` (what a public page sends, computed on the server), `tableSummary` and `tableText` (D6's copy text), and `planLine`.
+- **The adapter** — `BracketLineContext.voice` ("Played as Bracket 2 (Core) · the cards say at least 3", "the owner's answers", "the owner's call"), `BracketsMeta.table` + `tableNote`, and `questions[].table` ("Pace (owner): doesn't usually win before turn 6").
+- **`goals.ts`' `tableGoals`** — the target, the exceptions and the answers the read used: a yes or a no on screen; never "Not sure", a cut card's answer or the budget.
+- **The page** — the facts in its second batch; the private gate asks from the client; At the table under the line; the read-only Why sheet; the owner's row (Open in editor · Copy ▾ · Share… · Buy this deck).
+- **`useCopyToClipboard` + `CopyStatus`** — adopted by the share page, the Share dialog and the Export dialog.
+- **Declared only** — the unfurl's second kicker line "BRACKET 3 (DECLARED)", and DeckTile's "Bracket 3 (declared)" chip.
+
+**Verified**:
+- **Dev**: the five QA precons' share-page lines equal Y4a's measured editor lines. One QA guest deck covered the rest (Creative Energy's list, target 2, exceptions, `fast: no`, `quality: unsure`, a $5 budget):
+  - its server HTML carried only the target, the exceptions and `fast: no`;
+  - with its token in the pane: the owner's row, Copy ▾, and D6's copied text;
+  - private: the gate rendered from the client with one facts GET.
+
+  It was deleted with its token (204, then 404) and the census re-proved at 209. Also: 390 / 768 / 1200 / 1440 in both themes with no overflow, the sheet a Drawer below md and a Modal from md, `smoke:seo` green, and the OG with and without a target.
+- **Prod**, signed out and zero writes: the same precon lines; the owner's deck "Played as Bracket 3 (Upgraded) · nothing here goes past Core · Why?"; One Piece with no line; the declared chip on `/u/bobandis6` and in the unfurl.
+- **28 mutation checks**, each caught.
+
+**Found on the way**:
+- Magic names hold commas, so combos run together: items now split with "; ".
+- A precon has no owner, so its line keeps the editor's words.
+- A third OG stat pill ran into the art credit, and one combined kicker line wrapped mid-phrase. The declared target is now its own kicker line.
+
+**LATER**: row 171 annotated (its Y5 trigger checked: the share page never swaps). New rows 177 (a guest owner's row swaps in after hydration) and 178 (visitors can't copy At the table).
+
+**The owner's clicks (signed in, prod), owed**: open one of your decks' share pages.
+- The owner's row shows Open in editor · Copy ▾ · Share… · Buy this deck.
+- Copy ▾ → Copy for the table pastes D6's shape (paste it into Discord).
+- On a phone, Share… opens the share sheet.
+- Nelson & Murdock's line and At the table carry your target 3.
+
 Pull latest, then run Y5, the eighth Wave-4 package and **the announce point**. **`WAVE4.md` is the contract.** Read these, in this order:
 
 1. Section **A**: the announce-point paragraph, then the decisions table's rows on the legality line ("editor deck pane, share header"), the combo facts ("one GET keyed by the sorted card ids … drafts, private decks and share pages alike") and the deck goals ("Public subset: the target, the exceptions line, and the answers that changed the read; the budget stays owner-only").

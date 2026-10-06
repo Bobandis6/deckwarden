@@ -818,3 +818,49 @@ D5's Y4b half shipped: one migration (`0017`, exactly one nullable `ADD COLUMN "
   - **Found in review, fixed before the push:** a "Do these extra turns chain?" id joins every extra-turn card's oracle id (37 characters each). The first build capped ids at 200 characters, so any deck with six or more extra-turn cards would have had its answer refused with a 400. Ids may now run to 4,000 characters, and a contract test feeds every id the real engine asks (eight chained extra turns, an edge land-denial card, a combo) through the zod.
 - **Deviation: the "checked date"** D5 lists under Your target belongs to the share page (Y5: when its read was computed). The editor's read is live. The rules' as-of date and both links stay where Y4a put them, in What this read assumes, and aren't repeated.
 - **The copy guard** reads the new words in its three places: core's two new builders joined `BUILDERS`, along with the adapter's `exceptionsHint` and questions; every adapter line is now also read beside each target 1–5; and the sheet's render guard gained a state with a target, stale answers and How it plays open.
+
+### Y5 decisions and deviations from `WAVE4.md` D6 (2026-10-06, `16ee2ab`)
+
+D6 shipped: the share page's bracket line, "At the table", Copy for the table, the owner's row, and the declared chip on unfurls and tiles. No migration, no route, no dependency; the route table is byte-identical. What the package decided:
+
+- **One read, two surfaces.** `src/lib/brackets/table.ts`' `tableBracket` runs the adapter's `assess` with the same inputs as the editor (the snapshot, the card wires, the facts, the target, the answers). A test assesses one fixture both ways and compares the reads. On dev the five QA precons read exactly Y4a's measured lines.
+- **The table's voice** is adapter data (`BracketLineContext.voice: "owner" | "table"`, Magic's words in `bracket-line.ts`):
+  - **Deviation:** D6's "Played as Bracket 2 · the cards say 3+" becomes "Played as Bracket 2 (Core) · the cards say at least 3". It drops the notation D0 forbids, and it names the level because strangers read it (the editor's row stays "Your target: Bracket 2 · …").
+  - "your answers" becomes "the owner's answers" and "your call" becomes "the owner's call". With no target and no answers, both voices say D5's words (pinned).
+  - **A precon keeps the editor's voice.** It has no owner and no goals, and the reader is the one who'd play it ("two combos are your call").
+  - A draft reads "Bracket: 34 cards to go · …" to the pod (`cardsToGoPhrase`), not the builder's "add 34 more cards".
+  - "Rules changed since you answered" never shows in the table's voice: it's the owner's prompt, and the editor is where it's answered.
+- **Where the facts come from.** The page loads `loadBracketFreshness` + `loadCompleteCombos` in its second batch, gated on a commander in the cards wire, so it's exact rather than `leader_ids`. Both are in the second batch because the combos need the card ids. That's +2 statements on a Magic page with a commander and none elsewhere. Measured with `DB_LOG` (warm, dev):
+  - Atraxa 6 → 8 statements (1.83 → 2.19 s);
+  - a precon 4 → 6 (1.12 → 1.66 s): its second batch was empty, so it pays a whole round trip on dev. On prod it doesn't show: warm, Magic pages and precons answered in 0.51–0.77 s and One Piece in 0.51–0.58 s;
+  - One Piece 5 and a list without a commander 4, both unchanged; the private gate 1.
+
+  The combos statement keeps Y3b's plan, a hash join with an in-memory quicksort and no spill: 23 ms server time for Atraxa, 18 ms for Creative Energy and 100 ms for Witherbloom Pestilence (Y3b measured 24.6 ms there, warm). The freshness read takes 0.2 ms. Past 200 distinct cards the combos aren't asked ("over"). A load that fails is left to the client (`{from: "client"}`), which asks the facts route like the editor.
+- **The private gate always asks from the client** (`useBracketFacts`, the editor's GET, one ask), so nothing private reaches the server HTML. While it lands the line reads "Checking combos…" and the card waits. Dev StrictMode shows each GET twice; the first is aborted.
+- **"The answers that changed the read" are defined as the answers the read used.** That means a yes or a no to a How it plays question, or to one of this read's own questions (`review`). "Not sure" says nothing, and an answer about a card since cut would tell the list's history. D6's own example prints a "no" ("Pace (owner): doesn't usually win before turn 6"), which raises nothing, so "changed" read literally would have hidden it.
+  - The filter (`goals.ts`' `tableGoals`) leaves the read unchanged (pinned).
+  - It runs on the server from the full row (`shareGoals`), so nothing else leaves it. With no server facts, no answer is sent rather than every answer.
+  - **Deviation:** the owner's page carries the same table goals, not Y4b's full owner goals. The page shows what the pod sees, and the editor fetches its own.
+- **"At the table"** is a card under the line (`at-the-table.tsx`), shown once the facts are in and the read isn't a draft or blocked. The adapter's rows come first (`BracketsMeta.table`):
+  - "Game Changers (Wizards' list)";
+  - **deviation:** "Combos (Commander Spellbook)" in place of D6's "Two-card combos". It lists every complete combo the read found or asks about, as its pieces joined with " + ", because a three-card combo can raise the read too;
+  - "Land denial / extra turns (Scryfall Tagger)", with flagged cards and the ones whose call is open.
+
+  A feed the read couldn't check says "couldn't check", never "none". Then the owner's lines: How it plays through the adapter's new `questions[].table` words, "Owner's call: <question> No — <cards>", and "Exceptions (owner)". A row the owner said nothing for is absent. Card names are `CardNamePreview` buttons that open the card page. Found on dev: Magic names hold commas, so a row's items split with "; " once a combo or a comma name would run together (`itemSeparator`).
+- **Copy for the table** follows D6's shape, with every source named:
+  - **Deviation:** the second line is the page's line plus "· checked Oct 6, 2026", rather than D6's "Bracket: played as 3 …";
+  - **the checked date** is the facts' `freshness.readAt`, so on a public page it is the render, and in the private gate the facts route's answer (edge-cached up to an hour, a day stale-while-revalidate). It appears in the copied text only: the page itself is computed per request;
+  - **"Plan (owner)"** is the description's first paragraph on one line, cut at a word past 280 characters with "…", never generated. It's absent for precons (their description is W8a's product sentence) and when there's no description;
+  - the adapter's closing note (`tableNote`), then the link.
+- **The visitor's Why sheet** is read-only: Y4a's blocks plus "The owner's answer: Yes/No" on a question the page shows (a "Not sure" says nothing, pinned). There's no target control and no How it plays block, because the line and the card already say both.
+- **The owner's row.** The server's `isOwner` covers an account deck and this browser's claim token covers a guest deck (Y1's rule).
+  - **Deviation:** Open in editor · Copy ▾ · Share… · **Buy this deck**. Buy stays because the owner is the one most likely to buy the cards. Like, Bookmark and Fork leave the owner's row.
+  - Copy ▾ is named after its trigger (R1b) and holds "Copy for the table" only where the page has a read to tell.
+  - Status words: "Decklist copied", "Copied for the table", "Link copied", "Copy failed".
+  - **Share…** opens `navigator.share` only on a coarse pointer: a desktop share sheet surprises people who expect a copied link. Everywhere else, or when the sheet fails, it copies the link. Closing the sheet says nothing.
+  - A guest owner's row swaps in after hydration (the server can't know a claim token). The visitor row is server-rendered first (LATER).
+- **`useCopyToClipboard` + `CopyStatus`** (`src/components/copy-status.tsx`) are adopted by the share page, the Share dialog and the Export dialog. Export now has a failure line ("Couldn't copy — select the list and copy it."), clears after 1.8 s, and keeps its button's name; it used to swap to "Copied ✓" for good. `buy-deck-menu.tsx`'s blocked-clipboard toast names no button: "Your browser blocked clipboard access. Allow it for this site, then try again."
+- **Declared, never computed.**
+  - **Deviation:** the unfurl's declared target is a second kicker line ("BRACKET 3 (DECLARED)"), not a third stat pill. Beside the wordmark, a third pill ran into the art credit's chip on dev ("100 cards", "$148", "Bracket 3 (declared)"), and one combined kicker line wrapped mid-phrase.
+  - The OG select reads one jsonb path (`goalsTargetLevel`, a non-number reads as none). `og/labels.ts` holds the words, pinned equal to core's `declaredLabel`; a test checks that the route and its reads import no adapter, engine or bracket module.
+  - Tiles show "Bracket 3 (declared)" in DeckTile's badge slot when no badge is passed (a precon's "Precon" wins). It comes through `deckCollectionSelect` (home, Continue building, `/u`, `/f`, the hub's shelves, where `/c/` is ISR so a change shows within the hour), `/account`'s full row, and the guest list's wire. A level the game doesn't have, and One Piece, show nothing.
