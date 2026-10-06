@@ -1,6 +1,6 @@
 # Deckwarden — Wave 4 plan (Y-series): know your deck's bracket, tune it to your table, remember your games
 
-**Status:** drafted from the owner's answers of 2026-09-30 (nine questions in three rounds, recorded under Context). The defaults in section F stay open until the owner says otherwise. Wave 4 starts **after X5**; Y1 is first — the progress tracker is at the end of this file. Y1 shipped on 2026-10-01 (`dcfcdcf`), Y2a the same day (`4fd9b10`), Y2b too (`bb4b1e2`), Y3a on 2026-10-02 (`884c62f`, migration `0016`), Y3b on 2026-10-03 (`3320ad6`), and Y4a on 2026-10-05 (`aa2a29f`); Y4b is next (`Y4b-session-prompt.md`).
+**Status:** drafted from the owner's answers of 2026-09-30 (nine questions in three rounds, recorded under Context). The defaults in section F stay open until the owner says otherwise. Wave 4 starts **after X5**; Y1 is first — the progress tracker is at the end of this file. Y1 shipped on 2026-10-01 (`dcfcdcf`), Y2a the same day (`4fd9b10`), Y2b too (`bb4b1e2`), Y3a on 2026-10-02 (`884c62f`, migration `0016`), Y3b on 2026-10-03 (`3320ad6`), Y4a on 2026-10-05 (`aa2a29f`), and Y4b the same day (`3f5a6a9`, migration `0017`); Y5 is next (`Y5-session-prompt.md`).
 **Saved:** September 30, 2026, from a planning-only session against `53942d6`. Nothing was implemented, installed, migrated or deployed. No database was read. One stateless request went to Commander Spellbook's `/estimate-bracket` endpoint to learn its response shape.
 **Canonical copy:** `WAVE4.md` in the repo root (this file).
 **Working rules:** the CLAUDE.md session protocol applies unchanged — one package per session, deployed and `pnpm check`-green or not done, anything out of scope to `LATER.md` with a trigger. Y1's step 0 adds build plan §6e, the CLAUDE.md line, the REDESIGN.md addendum and the LATER rows that make Y-packages legal sessions.
@@ -764,7 +764,29 @@ Tick a package with its date and sha when it ships; record deviations from this 
   8. X3's three "the combo is never fetched" filters now match the seed GET only; the facts route shares the `/api/combos/` prefix.
 
   New LATER rows: 171 (the "Checking combos…" swap), 172 (lists over 200 distinct cards), 173 (Retry and `Retry-After`).)
-- [ ] Y4b — Your target (`0017` `decks.goals`, How it plays, the conflict callout)
+- [x] Y4b — Your target (`0017` `decks.goals`, How it plays, the conflict callout) (2026-10-05: feat `3f5a6a9`, Vercel status success on the full sha at 02:24:57 Z on 2026-10-06. **Migrated before push** with the owner's yes: `0017_concerned_doctor_spectrum.sql` is exactly `ALTER TABLE "decks" ADD COLUMN "goals" jsonb;` (the snapshot differs from `0016`'s by that one column), and the column was confirmed nullable with no default and 0 rows set before the dev pass. No route (the route table byte-identical, built on `bbebc31` and on the feature), no dependency. `pnpm db:size` 285.1 MB before and after the migration. `pnpm check` 1,544 → **1,627 tests** (168 → 172 files; the same 6 warnings, 0 errors). Thirty-three mutation checks, each caught. Census unchanged at 209 deck rows (28 user decks: 16 account + 12 guest, 181 precons, 1 user); the dev pass's one QA deck was deleted with its token (204, then 404).
+  - **Pre-flight**: Y4a's docs at `bbebc31`; nightlies green through run 37362966440 (2026-10-05, the ruleset watch included; Tagger `mld` unreviewed 0, `extra_turn` added 0, so rows 168 and 170 didn't fire); nothing posted or arrived; read-only database access, the migration and dev writes approved; baseline 1,544 / 168 / 6 warnings on `bbebc31`.
+  - **Dev** (the shared database, signed out): a state-only Creative Energy draft opened its sheet with zero requests. Target 2 minted exactly one deck: one POST carrying `{"goals":{"v":1,"targetLevel":2}}` and the name, one PUT, no PATCH. The line read "Your target: Bracket 2 · the cards say 3 or 4 — two combos are your call · Why?", and the callout listed Farewell and two two-card combos.
+    - An answer was one PATCH `{goals}` after the autosave debounce, with `updated_at` the same before and after (read through the API and from the row).
+    - A reload kept the target and the answer.
+    - Goals written under `rulesetVersion: 0` read "… · Rules changed since you answered · Why?"; "Keep my answers" sent the restamp.
+    - 390 / 768 / 1200 / 1440 in both themes, plus 360: no overflow, no clipped label, the Drawer below md and the Modal from md, every choice and the input 44 px on touch.
+    - `smoke:decks` green with ten new goals checks.
+  - **Prod** (signed out, zero writes): the visitor deck GET carries `goals: null` (`no-store`), the share page's props `"goals":null` and no budget or answers anywhere. A state-only draft's sheet shows Your call with answers, Your target (Not set pressed), the exceptions line and How it plays, and opening it sent no request.
+
+  **D5 shipped as drawn except where noted; decisions and deviations** (REDESIGN.md "Y4b decisions"):
+  1. **Deviation**: the target row reads "Your target: Bracket 2 · the cards say at least 3" (D5's "3+" is notation, which D0 forbids), and every read state keeps the "the cards say" shape beside the target. A draft's and a blocked list's lines don't change.
+  2. **Deviation**: visitors get the target and the exceptions, never the answers. Which answers changed the read needs the read, which Y5's share page computes; every stored answer would also tell the list's history. The sheet's notes promise what Y5 delivers.
+  3. The budget is accepted and stored now (a per-card tier, or a total), owner-only on every wire; its controls are Y6a's.
+  4. **Additions**: "Keep my answers" beside "Rules changed since you answered" (otherwise only a changed answer could clear it), and the prompt on the line itself, before "Why?".
+  5. A draft holding goals keeps its "Why?" (Y4a's draft rule widened).
+  6. `Segmented` takes `value: null` (unanswered presses nothing), an optional label, and 8 px coarse padding past four options, so 1–5 · Not set fits a 360 px phone.
+  7. Goals save inside `save()` with a third baseline. `isBlankDraft` counts them, and `ensureDeck` sends them in the create and moves their baseline, so there is no PATCH after a create.
+  8. `goalsPatchBody` is canonical, because jsonb re-sorts keys (found on the dev smoke).
+  9. Answers outlive their questions. They are capped at 100 and 12,000 characters, and a chained-extra-turns id may run to 4,000 characters. The first build's 200-character cap would have refused any deck with six or more extra-turn cards (found in review, fixed before the push).
+  10. **Deviation**: D5's "checked date" is the share page's (Y5); the editor's read is live, and the rules' as-of date and links stay in What this read assumes.
+
+  New LATER rows: 174 (a ruleset bump flags every deck's answers), 175 (a list that has found nothing offers no Why?, so no target yet — Y6a's goals line) and 176 (the anon purge's clock is `updated_at`, which goals don't move).)
 - [ ] Y5 — At the table (the share page's line, "At the table", Copy for the table, the owner row, OG + tile chips)
 - [ ] Y6a — Goals in Suggestions (`applyGoals`, hidden counts, impact flags, the saved budget)
 - [ ] Y6b — Goals in Autofill + Radar (caps, skips, badges)

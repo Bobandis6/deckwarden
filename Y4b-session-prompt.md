@@ -1,5 +1,51 @@
 # Y4b session prompt — Your target (`0017` `decks.goals`, How it plays, Your target, the conflict callout, "Rules changed since you answered")
 
+## Ship note — 2026-10-05, feat `3f5a6a9`, deployed (Vercel status success on the full sha, 02:24:57 Z on 2026-10-06; CI green 02:27 Z)
+
+**Shipped. The prompt below is history. Next is `Y5-session-prompt.md` (at the table: the share page's line, "At the table", Copy for the table, the owner row, declared-only OG and tile chips).**
+
+**Pre-flight**:
+- Y4a had shipped (`aa2a29f`, docs `bbebc31`; `_journal.json` at idx 16).
+- **Nightlies green** through run 37362966440 (2026-10-05, ruleset watch green; the run's 15 min was queue time, the job took 5). Tagger: `mld` unreviewed 0, `extra_turn` added 0, so rows 168 and 170 didn't fire. Gauge 285.1 MB.
+- **The owner's answers**: nothing posted or arrived. Approved: read-only database access, migration `0017`, and dev writes with cleanup.
+- **Baseline on `bbebc31`**: 1,544 tests / 168 files / 6 warnings / 0 errors. Census 209 deck rows = 28 user decks (16 account + 12 guest) + 181 precons, 1 user. `pnpm db:size` 285.1 MB; deck-create counters empty. The route table was saved.
+
+**The migration**: `drizzle/0017_concerned_doctor_spectrum.sql` is exactly `ALTER TABLE "decks" ADD COLUMN "goals" jsonb;`. The snapshot differs from `0016`'s by that one column. It was applied with `pnpm db:migrate` and confirmed through `information_schema` (jsonb, nullable, no default, 0 rows set) before anything else touched the database. Size 285.1 MB before and after.
+
+**What shipped** (decisions in WAVE4's tracker and REDESIGN.md "Y4b decisions"):
+- **`src/lib/decks/goals.ts`** — the stored shape, its adapter-ranged zod, the Why sheet's pure edits, `publicGoals`, and a canonical `goalsPatchBody`.
+- **The routes** — PATCH `{goals}` moves `updated_at` only beside another key; the create carries a draft's goals. `deckMetaJson` gives the owner everything and visitors the target and the exceptions.
+- **The adapter's line** — "Your target: Bracket 2 · the cards say at least 3"; with answers and a call still open, "Bracket 3 or 4 — from the cards and your answers · one combo is your call". `BracketsMeta` gains `exceptionsHint`, and `BracketLineContext` gains `targetLevel`.
+- **The sheet** — Your call answerable; Your target (`Segmented` 1–5 · Not set, the conflict callout, the exceptions line); How it plays (collapsed); "Rules changed since you answered" with "Keep my answers".
+- **The editor** — goals' own baseline inside `save()`, the create, `isBlankDraft`, the keepalive and `hydrate`.
+
+**Found on the way**:
+- **Postgres' jsonb re-sorts object keys** (shortest first). The first dev smoke failed two checks that compared goals as strings. `goalsPatchBody` now sorts keys at every depth, so goals read back after a reload compare equal to the same goals edited in place, and the smoke compares canonically.
+- **A chain of extra turns asks one question whose id joins every card's oracle id** (37 characters each). The first build capped ids at 200 characters, so any deck with six or more extra-turn cards would have had its answer refused with a 400 and its autosave stuck. Found in review before the push: ids may run to 4,000 characters, stored answers are capped at 100 and 12,000 characters (off-screen answers pruned first), and a contract test feeds the engine's real ids through the zod.
+- **Six equal segments as wide as "Not set" only fit a 375 px phone with 4 px to spare**, and would have clipped on a 360 px one. `Segmented` narrows its coarse padding to 8 px past four options: at 360 the segments are 54 px and the 40 px label is whole.
+- **A precon draft can't be blank.** Its seeded list differs from the empty cards baseline, so any goals edit there mints the row; "set and cleared" mints too, the same as Y2a's undone removal. The goals clause of `isBlankDraft` only decides once the list is back to empty, so it is pinned with a rolled commander cut inside the debounce.
+- **The hidden pane** timed out a prod screenshot ("not compositing frames"), as the browser-pane notes warned; the prod pass ran on DOM reads. The md tier's closed Tools drawer matched a bare drawer query until the check looked at the Why dialog's own container.
+
+**Measured**: the dev QA deck's goals (a target and one answer) weigh 148 bytes (`pg_column_size`). Thirty-three mutation checks, each caught. The goals PATCH's statement count wasn't read from `DB_LOG`; its code path is the meta PATCH's (the same bucket, the same deck select, one update).
+
+**Dev** (signed out, the shared database):
+- **A state-only Creative Energy draft** opened its sheet with zero requests: two combo questions with Yes / No / Not sure, Your target with Not set pressed, the exceptions hint, and How it plays collapsed.
+- **Target 2** minted exactly one deck: one POST carrying `{"goals":{"v":1,"targetLevel":2}}` and the name, one PUT, no PATCH. The line read "Your target: Bracket 2 · the cards say 3 or 4 — two combos are your call · Why?", and the callout listed Farewell (a Game Changer) and two two-card combos, each with its cut.
+- **Answering one combo "No"** was one PATCH (`keepalive` false) after the autosave debounce. `updated_at` was 02:13:52.641Z before and after, read through the API and again from the row after two more goals PATCHes.
+- **A reload** kept target 2, the answer and the callout.
+- **Goals written under `rulesetVersion: 0`** read "… · Rules changed since you answered · Why?", and the sheet showed the notice. "Keep my answers" sent one PATCH with `rulesetVersion: 1`, and the notice went away.
+- **The viewport pass**: 360, 390, 768, 1200 and 1440 in both themes. No horizontal overflow and no clipped label; a Drawer below md and a Modal from md; every choice and the exceptions input 44 px on touch.
+- **`smoke:decks`** green with ten new goals checks: the create carries goals, One Piece's 400, the 403, updatedAt untouched by goals but moved by a name, owner and visitor wires, the range 400, and null clears.
+- **Cleanup**: the QA deck was deleted with its token (204, then 404). The census was re-proved at 209 deck rows, 0 with goals.
+
+**Prod** (signed out, zero writes): the visitor deck GET answers `goals: null` with `no-store`. The share page's props carry `"goals":null`, with no budget or answers. A state-only Creative Energy draft reads as Y4a measured, and its sheet shows every Y4b block, with no request sent by opening it.
+
+**The owner's clicks (signed in, prod) — owed**: set a target on one of your decks and answer one question in its Why sheet; reload; the line and the sheet keep both, and the deck stays where it was in `/account`.
+
+**LATER**: new rows 174 (a ruleset bump flags every deck's answers at once), 175 (a list that has found nothing offers no Why?, so no target yet — Y6a's goals line) and 176 (the anon purge's clock is `updated_at`, which goals don't move).
+
+---
+
 Pull latest, then run Y4b, the seventh Wave-4 package. **`WAVE4.md` is the contract.** Read these, in this order:
 
 1. Section **A**'s decisions table, the deck-goals row: one nullable `decks.goals` jsonb with game-agnostic keys (`targetLevel`), saved through **its own PATCH**, which never bumps `updated_at`. The public subset is the target, the exceptions line and the answers that changed the read; the budget stays owner-only. Then the **Migrate before push** row.

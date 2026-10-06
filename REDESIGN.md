@@ -775,3 +775,46 @@ D5's Y4a half shipped: one route, the bracket line, and the Why sheet's first tw
   - core's table, in `copy.test.ts`, which enumerates every builder;
   - everything the sheet renders, in `bracket-sheet.test.tsx`, over five reads.
 - **A pin moved.** `deck-editor.test.tsx` had three `startsWith("/api/combos/")` filters for X3's "the combo is never fetched". They now match the seed GET only (`/api/combos/<digits>`), because the facts route shares that prefix. The Surprise-beats-combo test went red without the change.
+
+### Y4b decisions and deviations from `WAVE4.md` D5 (2026-10-05, `3f5a6a9`)
+
+D5's Y4b half shipped: one migration (`0017`, exactly one nullable `ADD COLUMN "goals" jsonb` on `decks`, applied before the push with the owner's yes), no route, no dependency. What the package decided:
+
+- **One module owns goals**: `src/lib/decks/goals.ts`, client-safe like X5's `avatar.ts` (zod included). It holds:
+  - the stored shape, D5's `{v: 1, targetLevel?, budget?: {perCardUsd?, totalUsd?}, answers?: {rulesetVersion, play?, calls?}, exceptions?}`;
+  - its zod, built per deck from the adapter's `brackets` (the target's range from `levels`, the How it plays keys from `questions`, the highest answerable `rulesetVersion` from `ruleset`). With no `brackets` (One Piece) only `v` and a budget pass;
+  - the sheet's pure edits: `withTarget`, `withAnswer` (stamps the current ruleset version), `restampAnswers`, `withExceptions` (stored trimmed, ≤ 200, an empty line is none);
+  - `publicGoals` and `goalsPatchBody`.
+- **The budget is accepted and stored now**, so its owner-only rule is pinned where the wire is built; its controls are Y6a's. `perCardUsd` must be one of the site's per-card tiers (5 or 1, from `budget.ts`'s `BUDGET_OPTIONS`); `totalUsd` is above 0 and at most 100,000.
+- **The goals PATCH**: the body `{goals}` carries the whole object, and null clears. Goals that say nothing are stored as NULL. It uses the meta PATCH's per-deck bucket. `updated_at` moves only when another key rides along, so a name plus goals still moves it.
+- **The create** carries a draft's goals, checked once `game` is known; a bad shape answers 400 before the insert, and the honeypot answers before goals are read.
+- **What visitors see**: the target and the exceptions, never the budget, **and never the answers**. Which answers "changed the read" can only be told from the read (the cards and their combo facts), which no deck route computes. Y5's share page computes it server-side from the full row and shows those. Exposing every stored answer would also tell the list's history: answers to questions about cards since cut. The sheet's notes are "Shown on your share page." under the target and "Answers that change the read are shown on your share page." under the answers. Y5 makes both literal: until it ships, the share page renders nothing of the goals.
+- **The share page's props** now carry `goals` (it passes `deckMetaJson` whole): visitors get `publicGoals` (null on every deck today), the owner gets everything. Nothing renders it until Y5, and the visible output is unchanged.
+- **The target row's words** (D5's "Your target 2 · the cards say 3+" without the notation D0 forbids): "Your target: Bracket 2 · the cards say at least 3". "Bracket" is said once, so the numbers read as brackets. Every read state keeps that shape:
+  - at or above the cards, the same words ("Your target: Bracket 3 · the cards say at least 2", "… · nothing here goes past Core") — the target never hides the read, and never replaces it;
+  - with answers, "the cards and your answers say 4";
+  - an open call, "the cards say 3 or 4 — one combo is your call";
+  - a read that couldn't check everything, "the cards say at least 3 · Couldn't check extra turns", or "Couldn't check combos" alone.
+
+  A draft's and a blocked list's lines don't change; the sheet shows the target there.
+- **The "with answers" line with a call still open** (no target): "Bracket 3 or 4 — from the cards and your answers · one combo is your call". Y4a's settled line ("Bracket 4 (Optimized) — from the cards and your answers") is unchanged. "Not sure" leaves a call open and says nothing about answers.
+- **"Rules changed since you answered"** appears in two places:
+  - on the line, before "Why?" (core's `line-view`), so a rules change prompts a review without opening anything (D11);
+  - as a notice at the top of the sheet. **Addition: "Keep my answers"** restamps them; without it the notice could only be cleared by changing an answer. Any answer edit stamps the current version, and How it plays opens by itself when stale answers include its own.
+- **A draft holding goals keeps its "Why?"** (a narrow extension of Y4a's draft deviation): a target or answers live in the sheet, so a list cut back under the minimum never hides them.
+- **The sheet's order**: the lead, the stale notice, What the cards show (Your call now with answers), Your target, How it plays, then What this read assumes.
+  - **The conflict callout** sits inside Your target, right under the control, where the choice was made: "Above your target", then "Your target is Bracket 2 (Core). These put the deck above it:", then each of `read.conflicts` with its sentence and what would change it. The findings list above is untouched (D11). Y7b adds "Swap…" to these rows.
+  - **Answers**: Yes / No / Not sure per question, keyed by its stable id, under "Your answer". Each group's accessible name is the question plus its cards, since two template combos can share a question's words.
+  - **Unanswered presses nothing.** `Segmented` gained `value: null` (no item pressed, no thumb) rather than pre-pressing "Not sure". "Not sure" is a stored answer ("unsure") that leaves the call open.
+  - **How it plays** is a Collapsible (the sample hand's pattern), collapsed, with "· N answered" on its trigger.
+- **The target control** is `Segmented` 1–5 · Not set ("Not set" pressed with no target), with the level's name beside it ("Bracket 2 (Core)"). Past four options, `Segmented` narrows its coarse-pointer side padding to 8 px. Six equal segments as wide as "Not set" then fit a 360 px phone (measured: 54 px segments, the 40 px label whole). The existing two- and three-option controls keep 12 px.
+- **The exceptions line**: labelled "Table exceptions", with the example as its placeholder. The example is the adapter's (`BracketsMeta.exceptionsHint`, "e.g. one thematic Game Changer, ask me"), so core names no card kind. The input keeps what's typed and goals keep it trimmed. It is 44 px on touch.
+- **Where goals save**: inside `save()`, with a third baseline. Goals ride the same debounced burst as the cards and the meta, with their own PATCH, so they get retries, the save slot and the pagehide keepalive for free.
+  - `isBlankDraft()` counts goals: a target is something to say (D5). Pinned by a rolled commander, a target, then the commander cut inside the debounce: one create carrying the goals. A target set and cleared first mints nothing.
+  - `ensureDeck` sends the goals in the create and moves their baseline, so a draft's first goals edit is one POST plus one PUT, with no PATCH.
+  - A goals change never asks for the combo facts again: the card set is the same.
+- **jsonb re-sorts object keys** (shortest first), so `goalsPatchBody` is canonical, with keys sorted at every depth. Goals read back after a reload then compare equal to the same goals edited in place. This was found on the dev smoke: two string compares failed on key order alone.
+- **Stored answers outlive their questions**: an answer stays when its card is cut, so the question can come back. Answers are capped at 100 entries and 12,000 characters. Past either, the first answers in stored order whose questions aren't on screen go; jsonb's order, so not necessarily the oldest.
+  - **Found in review, fixed before the push:** a "Do these extra turns chain?" id joins every extra-turn card's oracle id (37 characters each). The first build capped ids at 200 characters, so any deck with six or more extra-turn cards would have had its answer refused with a 400. Ids may now run to 4,000 characters, and a contract test feeds every id the real engine asks (eight chained extra turns, an edge land-denial card, a combo) through the zod.
+- **Deviation: the "checked date"** D5 lists under Your target belongs to the share page (Y5: when its read was computed). The editor's read is live. The rules' as-of date and both links stay where Y4a put them, in What this read assumes, and aren't repeated.
+- **The copy guard** reads the new words in its three places: core's two new builders joined `BUILDERS`, along with the adapter's `exceptionsHint` and questions; every adapter line is now also read beside each target 1–5; and the sheet's render guard gained a state with a target, stale answers and How it plays open.
