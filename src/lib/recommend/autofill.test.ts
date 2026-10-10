@@ -309,3 +309,119 @@ describe("finishShell notes (the W9b-rendered vocabulary — exact strings)", ()
     expect(shell.totals.estUsd).toBe(7); // 7 curve picks at $1.00
   });
 });
+
+/**
+ * The fixed-seed golden (Y6b): written BEFORE goals touched the planner and
+ * recorded from fb435ec's code — literal ids (no module counter), every tier
+ * exercised (a locked staple, a combo completion, the sampled windows, a dry
+ * bucket's borrowing, the base pool's lock order and colorless cap). With
+ * goals absent the planner must keep answering exactly this.
+ */
+describe("the fixed-seed golden (goals absent — byte-identical since fb435ec)", () => {
+  const gid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const g = (
+    n: number,
+    over: Partial<Recommendation> & { costValue: number | null },
+  ): Recommendation => ({
+    cardId: gid(n),
+    name: `Golden ${n}`,
+    primaryType: "Creature",
+    ciMask: 1,
+    cheapestUsd: "0.50",
+    popularity: n,
+    score: 0.5,
+    confidence: "high",
+    evidence: [{ source: "edhrec_rank", why: "why", with: [], howOften: null, confidence: "high" }],
+    ...over,
+  });
+  // Bucket 0: ten cards, scores falling; the combo completion sits low (0.12).
+  const bucket0 = Array.from({ length: 10 }, (_, i) =>
+    g(100 + i, { costValue: 0, score: 0.6 - i * 0.01 }),
+  );
+  const combo = g(150, { costValue: 0, score: 0.12 });
+  // Bucket 1: twelve cards with uneven scores; the locked staple sits low (0.05).
+  const bucket1 = Array.from({ length: 12 }, (_, i) =>
+    g(200 + i, {
+      costValue: 1,
+      score: [0.55, 0.4, 0.52, 0.38, 0.5, 0.49, 0.47, 0.3, 0.45, 0.44, 0.43, 0.42][i],
+    }),
+  );
+  const staple = g(250, { costValue: 1, score: 0.05 });
+  // Bucket 2 (2+) is dry: one card, so its share borrows from bucket 1 first.
+  const bucket2 = [g(300, { costValue: 4, score: 0.8 })];
+  const lands = [
+    g(400, { primaryType: "Land", costValue: null, ciMask: 1, score: 0.9 }),
+    g(401, { primaryType: "Land", costValue: null, ciMask: 0, score: 0.8 }),
+    g(402, { primaryType: "Land", costValue: null, ciMask: 0, score: 0.7 }),
+    g(403, { primaryType: "Land", costValue: null, ciMask: 2, score: 0.6 }),
+    g(404, { primaryType: "Land", costValue: null, ciMask: 2, score: 0.1 }),
+  ];
+  const signals = new Map<string, TournamentSignal>([
+    [staple.cardId, { lists: 9, top4: 3 }],
+    [lands[4].cardId, { lists: 8, top4: 1 }],
+  ]);
+  const golden = (seed: number): ShellInput =>
+    input({
+      slots: 10,
+      ciMask: 3,
+      pool: [...bucket0, combo, ...bucket1, staple, ...bucket2].sort((a, b) => b.score - a.score),
+      basePool: [...lands],
+      tournamentContext: { commanderNames: ["Golden"], lists: 12, since: null },
+      tournamentsByCandidate: signals,
+      comboCandidateIds: new Set([combo.cardId]),
+      seed,
+    });
+  const shape = (seed: number) =>
+    buildShell(golden(seed)).picks.map((p) => `${p.cardId.slice(-3)} ${p.group} ${p.tier}`);
+
+  it("seeds 42, 1,234,567 and 7 plan exactly what fb435ec planned — every tier, the borrow, the base order", () => {
+    expect(shape(42)).toEqual([
+      "150 curve-0 combo",
+      "100 curve-0 sampled",
+      "250 curve-1 locked",
+      "200 curve-1 sampled",
+      "202 curve-1 sampled",
+      "300 curve-2 sampled",
+      "204 curve-1 sampled",
+      "404 base locked",
+      "400 base sampled",
+      "401 base sampled",
+    ]);
+    expect(shape(1_234_567)).toEqual([
+      "150 curve-0 combo",
+      "100 curve-0 sampled",
+      "250 curve-1 locked",
+      "200 curve-1 sampled",
+      "205 curve-1 sampled",
+      "300 curve-2 sampled",
+      "202 curve-1 sampled",
+      "404 base locked",
+      "400 base sampled",
+      "401 base sampled",
+    ]);
+    expect(shape(7)).toEqual([
+      "150 curve-0 combo",
+      "101 curve-0 sampled",
+      "250 curve-1 locked",
+      "200 curve-1 sampled",
+      "202 curve-1 sampled",
+      "300 curve-2 sampled",
+      "204 curve-1 sampled",
+      "404 base locked",
+      "400 base sampled",
+      "401 base sampled",
+    ]);
+    const draft = buildShell(golden(42));
+    expect(draft.fillerNeed).toBe(0);
+    expect(draft.shortLabels).toEqual([]);
+    const fin = finishShell(draft, [], { zone: "main" });
+    expect(fin.groups).toEqual([
+      { id: "base", label: "Lands", picks: 3 },
+      { id: "curve-0", label: "Mana value 0", picks: 2 },
+      { id: "curve-1", label: "Mana value 1", picks: 4 },
+      { id: "curve-2", label: "Mana value 2+", picks: 1 },
+    ]);
+    expect(fin.notes).toEqual([]);
+    expect(fin.totals).toEqual({ picks: 10, estUsd: 5, unpriced: 0 });
+  });
+});
