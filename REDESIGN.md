@@ -864,3 +864,57 @@ D6 shipped: the share page's bracket line, "At the table", Copy for the table, t
   - **Deviation:** the unfurl's declared target is a second kicker line ("BRACKET 3 (DECLARED)"), not a third stat pill. Beside the wordmark, a third pill ran into the art credit's chip on dev ("100 cards", "$148", "Bracket 3 (declared)"), and one combined kicker line wrapped mid-phrase.
   - The OG select reads one jsonb path (`goalsTargetLevel`, a non-number reads as none). `og/labels.ts` holds the words, pinned equal to core's `declaredLabel`; a test checks that the route and its reads import no adapter, engine or bracket module.
   - Tiles show "Bracket 3 (declared)" in DeckTile's badge slot when no badge is passed (a precon's "Precon" wins). It comes through `deckCollectionSelect` (home, Continue building, `/u`, `/f`, the hub's shelves, where `/c/` is ISR so a change shows within the hour), `/account`'s full row, and the guest list's wire. A level the game doesn't have, and One Piece, show nothing.
+
+### Y6a decisions and deviations from `WAVE4.md` D7 (2026-10-10, `fb435ec`)
+
+D7's Y6a half shipped: `applyGoals` after ranking, the plumbing, the lines and Suggestions. No migration, no route, no dependency; the route table is byte-identical. What the package decided:
+
+- **Rank all → goals → slice.** `rankCandidates`' `limit` is optional now (absent = every candidate). The engine ranks all, and `applyGoals` (`src/lib/recommend/goals.ts`) walks them in rank order against the deck's goals, stopping once the list holds `limit` cards. **"Hidden" means the cards the goals took out of the list**: the ones that ranked above its last row. A card ranked below it would never have shown. The engine-level pin: 50 candidates whose 25 best are Game Changers, at a target of 2, answer the next 25 with those 25 hidden. Scores and evidence are untouched: pinned in Vitest, and on live data the no-goals answer's ids, scores and evidence equal the pre-Y6a answer byte for byte (dev and prod).
+- **The rules are the adapter's.** `BracketsMeta` gains `flagPaths` and a pure `impact({...BracketInput, read, card, completes})` → `BracketConflict[]` (`rule`, `level`, `source`, `why`).
+  - `flagPaths` are single-segment attrs paths, like `RecommendMeta.exclude`'s `jsonbPath`; Magic's are `game_changer`, `mld` and `extra_turn`.
+  - Magic's `mtgBracketImpact` sits beside `assessBracket` and reuses its helpers: `gameChangerLevel`, the land-denial, extra-turn and chained-turn levels, `readCombo` and the stable question ids. The engine itself is unchanged.
+  - A test runs every rule against the engine on the list plus the card, and agrees on the new minimum and on every question the card would open. Core names no rule.
+- **What hides, with a target.** Each card is judged against the list as it stands; `applyGoals` gives every bracket conflict severity "hide".
+  - **Game Changers**: one past the target's allowance (the list's own count).
+  - **Mass land denial** at targets 1–3, clear or edge ("Possible mass land denial, your call").
+  - **Extra turns**: any extra-turn card at target 1. At 2–3, a second one — **decided: hide, as D7 says**. It opens "Do these extra turns chain?", and WAVE4 A says a target-2 suggestion must never turn the line to "your call".
+  - **Combo completions** whose own reading is above the target: firm (two-card, a tag, the results) or a question (an S or O range, a combo with the commander). **A template combo counts at what its yes would mean (decided)**, like any question above the target, though it never counts toward the read.
+  - A question the player already answered counts as answered: no settles it, yes makes it firm. One line per rule, firm before a question. A list already above its target still hides the card: judged on the card, not on whether the read moves.
+- **Without a target nothing hides.** A card that would raise the line gets a flag. The line here means the answers' level, else the minimum, the same yardstick `suggested` uses. The flag reads "Would make this deck at least Bracket 3 — a Game Changer (Wizards' list)", or for a question "Could make this deck Bracket 4 — … your call". A card that raises nothing says nothing.
+- **D7's lines without notation** (D0), each naming its source:
+  - "A Game Changer (Wizards' list) — your Bracket 2 target allows none";
+  - "A fourth Game Changer (Wizards' list) — your Bracket 3 target allows up to three";
+  - "Mass land denial — Wizards expects none at Brackets 1–3 (Scryfall Tagger)";
+  - "A second extra-turn card — Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)";
+  - "Completes a two-card combo — Wizards expects none at Brackets 1 and 2 (Commander Spellbook)";
+  - "Completes a combo that alone makes a deck at least Bracket 4 (Commander Spellbook)" (D7's "Bracket 4+");
+  - "Completes a combo that may make a deck Bracket 4 — your call (Commander Spellbook)".
+
+  The copy guard reads every line in both voices (`bracket-impact.test.ts`).
+- **Where the read comes from on the server (measured, decided).** The engine runs the adapter's own `assess` over the list's entries, their `attrs` holding the declared flags alone.
+  - The facts ride `ReadFacts` on `loadDeckEntries` and `loadEntryFacts`, the same statements, only wider.
+  - One more statement, `loadCompleteCombos`, runs beside the candidate gather.
+  - There is no freshness read (it moves a read's status, never a level) and no legality (it blocks a status, never a level). Pinned: the read and the impact are identical over full attrs and over the flags alone, for every rule.
+  - Measured on dev (Creative Energy, warm, signed out): the GET went from 11 to 12 statements (3.23 → 3.36 s), the draft POST from 11 to 12. On prod, warm: 0.62–0.69 s for the GET, 0.82 s for the POST.
+  - The alternative was per-card impacts without the list's combos. It would tell a deck a combo already holds at 3 that a Game Changer "would make this deck at least Bracket 3".
+- **The flags in SQL.** Every candidate row carries one column, `jsonb_strip_nulls(jsonb_build_object('game_changer', attrs->'game_changer', …))` (`{}` for most). Each key passes exclude's check before `sql.raw`.
+  - `CandidateCard` gains `externalKey` (question ids) and `flags`.
+  - `CandidateCombo` gains its `key`, `tag`, `relevant`, `pieceCount` and `usesLeader`.
+  - `DeckComboView` gains its `tag` and `relevant`, so the Radar's JSON grows two fields per row (Y6b reads them).
+  - `loadComboSignals` passes the scan's `truncated` through. Both routes answer `combosTruncated`, and the panel says "Combo checks stopped at the most popular combos near this deck — rarer ones weren't checked against your goals."
+- **The budget.** The deck's per-card tier (owner-only) flags a card over it: "Costs $45.00 — over your ≤ $5 a card budget", or "No known price — your budget is ≤ $5 a card" (unpriced never fits, as in `budget.ts`). It never hides a card. It only shows when the panel's own tier is wider than the goal, because the panel's tier still filters in SQL, as it always has.
+- **Who gets which goals.** The GET reads them off the row it already loads. The owner gets them whole; a visitor gets the public subset (the target, with the exceptions riding along and doing nothing), never the budget or the answers. The draft POST takes `goals` checked by `goalsSchema(adapter.brackets)` (400 "Invalid goals"). Both answer `{…, recommendations, hidden, combosTruncated}`, and every row carries `conflicts` (empty when none).
+- **The panel.**
+  - **The goals line** sits on top: "Your goals: Bracket 2 (Core) · ≤ $5 a card · Change". It names the level, as the sheet's target control does (D7's example didn't).
+    - With neither goal it reads **"No bracket target yet · Set one"**. That is LATER row 175's door: a list that has found nothing offers no "Why?".
+    - The action opens the Why sheet at Your target, with focus on its choice (`BracketSheet.openAt: "target"`, through Base UI's `initialFocus`; `Modal` gained the prop).
+    - A game without `brackets` would show its budget alone, or nothing.
+  - **The budget** starts from the deck's goal; a pick of the owner's own wins until it is saved.
+    - "Save as this deck's budget" is a link-button under the control. It shows only while the pick differs, and writes `withBudget(goals, …)` (a total stays) through the editor's goals edit: one PATCH, `updated_at` unmoved (checked on dev). The control then follows the goal again.
+    - **In a draft, saving mints the row like a target**: one POST carrying the goals, one PUT, no PATCH (pinned).
+  - **"N hidden by your goals · Show"**: Show lists them right there in rank order, dashed, each with its reasons and an Add (it is the owner's deck); Hide folds them. **The toggle lasts the session**: a reload hides them again, because goals are the default.
+  - **Flags** ride each row under its sources, with a gauge glyph on bracket lines.
+  - **The fetch key carries the goals** (canonical, the exceptions left out), so a goals change asks again once it has saved. A draft sends its goals in its body.
+- **Undo toasts.** Suggestions' adds go through `handleSuggestionAdd`: the panels' path plus `notify("Added X")`, whose Undo sets the previous quantity back (a real edit). `useResolvedAdd` takes `announce: false`, so the live line keeps only failures.
+  - **Deviation: the Combo Radar keeps its notices**, though D7 names its adds too. Its combo-piece adds already toast once per batch, and a per-card toast would stack on top. That goes with Y6b's Radar work (LATER row 179).
+- **The Why sheet** shows the owner's goals line under its lead when a target or a budget is set; it is the budget's one place in the sheet. Its "Change" brings Your target into view and focuses it.

@@ -1,5 +1,31 @@
 # Y6a session prompt — Goals in Suggestions (`applyGoals` after ranking, "N hidden by your goals · Show", impact flags, the saved budget, the goals line)
 
+## Ship note — 2026-10-10, feat `fb435ec`, deployed (Vercel status success on the full sha, 04:57:01 Z; CI green)
+
+**Shipped. The prompt below is history. Next is `Y6b-session-prompt.md` (goals in Autofill and the Combo Radar). The r/EDH post (P2.9 round 3) hadn't gone out at this session's start; it stays the owner's to schedule.**
+
+**Pre-flight**: Y5's docs at `967ae2a`; `_journal.json` at idx 17; nightlies green through run 37964324291 (2026-10-09), the ruleset watch green, Tagger rows 168 and 170 quiet. Read-only database access and dev writes approved. Baseline on `967ae2a`: 1,675 tests / 175 files / 6 warnings / 0 errors; the route table saved. Census 209 deck rows (16 account + 12 guest + 181 precons, 1 user); one deck with goals, none with a budget; `pnpm db:size` 285.7 MB.
+
+**The recommend routes' statements** (`DB_LOG`, dev, warm, signed out, Creative Energy — before → after):
+
+| Route | Statements | Time |
+|---|---|---|
+| GET `/api/decks/[id]/recommendations` | 11 → 12 | 3.23 → 3.36 s |
+| POST `/api/recommendations` (draft) | 11 → 12 | 3.0 → 3.6 s (with goals) |
+
+The one added statement is `loadCompleteCombos` (the list's complete combos, run beside the candidate gather); the widened projections added none. Prod, warm: the GET 0.62–0.69 s, the POST with goals 0.82 s.
+
+**What shipped** (decisions in WAVE4's tracker and REDESIGN.md "Y6a decisions"):
+- **`src/lib/recommend/goals.ts`** — `applyGoals(ranked, goals, read, meta, limit)` → `{kept, flagged, hidden}`, `budgetConflict`, the `GoalConflict` / `GoaledRecommendation` / `GoalsRead` types. Rank all → goals → slice (`rankCandidates`' `limit` is optional now).
+- **The adapter** — `BracketsMeta.flagPaths` (`game_changer`, `mld`, `extra_turn`) and a pure `impact` (`mtgBracketImpact` beside `assessBracket`, reusing its helpers); D7's lines without notation, each naming its source.
+- **The plumbing** — the flags column on every candidate row (`flagsColumn`), `ReadFacts` on `loadDeckEntries` / `loadEntryFacts`, the server-side read in `engine.ts` (`goalsRead`), `CandidateCombo` + `DeckComboView` grown, `combosTruncated` passed through.
+- **The routes** — the GET reads goals off the row (the owner's whole, a visitor's public target); the POST takes a draft's goals (`goalsSchema`). Both answer `hidden` and `combosTruncated`.
+- **The panel** — `GoalsLine` (`src/components/deck/goals-line.tsx`, also atop the Why sheet), the budget from the goal + "Save as this deck's budget" (`withBudget`), "N hidden by your goals · Show", flags on rows, goals in the fetch key and the draft body, "Added X · Undo" (`handleSuggestionAdd`); `BracketSheet.openAt` + `Modal.initialFocus`.
+
+**Verified**: 31 mutation checks caught; `smoke:recommend` (66, 13 new) and `smoke:combos` (24) green on dev; the dev pass at 390 / 768 / 1200 / 1440 in both themes (one QA deck, deleted with its token, census re-proved at 209); prod signed out with zero writes (WAVE4's tracker has the details). LATER row 175 fired; new row 179.
+
+**Owed — the owner's click** (signed in, prod): on Nelson & Murdock (target 3), open Suggestions — the goals line reads "Your goals: Bracket 3 (Upgraded) · Change" and, at All, any hidden count. Pick ≤ $5 a card, then "Save as this deck's budget"; a reload keeps it (the control starts at ≤ $5, the line reads "· ≤ $5 a card").
+
 Pull latest, then run Y6a, the ninth Wave-4 package and the first after the announce point. **`WAVE4.md` is the contract.** Read these, in this order:
 
 1. Section **A**: the decisions-table row on recommendations ("one pure **`applyGoals`** step after ranking (rank all → goals → slice) covering **all four** card rules plus budget. Conflicts are never evidence and never score; hidden cards are counted; with no target, each card shows its **bracket impact**").
