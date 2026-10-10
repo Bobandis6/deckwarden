@@ -6,10 +6,11 @@
  * (F9 — the four states never shift the row, and "Save failed" + Retry stay
  * visible outside any menu) · Share as the primary action once a server row
  * exists (a draft has nothing to share, so nothing shows) · More (Details,
- * Import, Export, History — History only with a live deck — and the
- * keyboard-shortcut sheet, so `?` is discoverable by mouse) · the appearance
- * menu. That last one retires R1b's AppearanceRow: exactly one appearance
- * control per page, and on the editor routes it is this one.
+ * Import, Autofill…, Fit my budget… (Y8), Export, Buy, History — History
+ * only with a live deck; Autofill and Fit only where the adapter declares
+ * them — and the keyboard-shortcut sheet, so `?` is discoverable by mouse) ·
+ * the appearance menu. That last one retires R1b's AppearanceRow: exactly
+ * one appearance control per page, and on the editor routes it is this one.
  *
  * R4: a "Tools" button between Share and More on the `md` tier only
  * (`hidden md:inline-flex wide:hidden`) opens the tools drawer — phones
@@ -67,7 +68,9 @@ export type EditorDialog =
   | "bracket"
   // Y7b: the swap sheets — a deck row's or the callout's "Swap…", and "Swap in…".
   | "swap"
-  | "swap-in";
+  | "swap-in"
+  // Y8: the Fit sheet — More's "Fit my budget…" or the goals line's "Fit my budget".
+  | "fit";
 
 export function EditorHeader({
   adapter,
@@ -170,6 +173,11 @@ export function EditorHeader({
                 declares recommend.autofill (One Piece shows nothing). */}
             {adapter.recommend?.autofill && (
               <DropdownMenuItem onClick={() => onOpen("autofill")}>Autofill…</DropdownMenuItem>
+            )}
+            {/* The Fit sheet (Y8, D9) — Swap Lab's alternatives under a deck
+                total; only for games that declare recommend.swap. */}
+            {adapter.recommend?.swap && (
+              <DropdownMenuItem onClick={() => onOpen("fit")}>Fit my budget…</DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={() => onOpen("export")}>Export</DropdownMenuItem>
             {/* Buy links (W7, D6) — only for games whose adapter declares buy. */}

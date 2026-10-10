@@ -149,7 +149,7 @@ describe("EditorHeader", () => {
     expect(onOpen).toHaveBeenCalledWith("share");
   });
 
-  it("More lists Details, Import, Export, Buy (+ History with a live deck) and the shortcut sheet", async () => {
+  it("More lists Details, Import, Autofill…, Fit my budget…, Export, Buy (+ History with a live deck) and the shortcut sheet", async () => {
     const onOpen = vi.fn();
     const { rerender } = render(header({ onOpen }));
     open(screen.getByRole("button", { name: "More" }));
@@ -162,6 +162,7 @@ describe("EditorHeader", () => {
       "Details",
       "Import",
       "Autofill…",
+      "Fit my budget…",
       "Export",
       "Buy this deck…",
       "Keyboard shortcuts?",
@@ -214,5 +215,22 @@ describe("EditorHeader", () => {
     open(screen.getByRole("button", { name: "More" }));
     const opMenu = await screen.findByRole("menu", { name: "More" });
     expect(within(opMenu).queryByRole("menuitem", { name: "Autofill…" })).toBeNull();
+  });
+
+  it("Fit my budget… opens the Fit sheet, and only for games that declare recommend.swap (Y8)", async () => {
+    const onOpen = vi.fn();
+    const { rerender } = render(header({ onOpen }));
+    open(screen.getByRole("button", { name: "More" }));
+    const menu = await screen.findByRole("menu", { name: "More" });
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Fit my budget…" }));
+    expect(onOpen).toHaveBeenCalledWith("fit");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+
+    // One Piece declares no swap → no door, no apology copy.
+    const optcg = getAdapter("optcg");
+    rerender(header({ onOpen, adapter: optcg, format: optcg.formats[0] }));
+    open(screen.getByRole("button", { name: "More" }));
+    const opMenu = await screen.findByRole("menu", { name: "More" });
+    expect(within(opMenu).queryByRole("menuitem", { name: "Fit my budget…" })).toBeNull();
   });
 });

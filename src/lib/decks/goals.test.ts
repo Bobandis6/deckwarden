@@ -13,9 +13,13 @@ import {
   publicGoals,
   readGoals,
   restampAnswers,
+  suggestionGoals,
+  tableGoals,
   withAnswer,
+  withBudget,
   withExceptions,
   withTarget,
+  withTotal,
   type DeckGoals,
 } from "./goals";
 
@@ -272,6 +276,66 @@ describe("the Why sheet's edits", () => {
       v: 1,
       targetLevel: 1,
     });
+  });
+});
+
+describe("the deck total (Y8, WAVE4 D9)", () => {
+  it("withTotal sets and removes the total; the per-card budget stays, and so does the target", () => {
+    const base: DeckGoals = { v: 1, targetLevel: 3, budget: { perCardUsd: 5 } };
+    expect(withTotal(base, 150)).toEqual({
+      v: 1,
+      targetLevel: 3,
+      budget: { perCardUsd: 5, totalUsd: 150 },
+    });
+    expect(withTotal(withTotal(base, 150), null)).toEqual(base);
+    expect(withTotal(null, 100)).toEqual({ v: 1, budget: { totalUsd: 100 } });
+    expect(withTotal({ v: 1, budget: { totalUsd: 100 } }, null)).toBeNull();
+  });
+
+  it("Suggestions' Save as this deck's budget leaves the total as it is", () => {
+    expect(withBudget({ v: 1, budget: { totalUsd: 150 } }, 1)).toEqual({
+      v: 1,
+      budget: { perCardUsd: 1, totalUsd: 150 },
+    });
+    expect(withBudget({ v: 1, budget: { perCardUsd: 5, totalUsd: 150 } }, null)).toEqual({
+      v: 1,
+      budget: { totalUsd: 150 },
+    });
+  });
+
+  it("the snapshot bodies never carry it: no route reads it, so a new total re-asks nothing", () => {
+    const goals: DeckGoals = {
+      v: 1,
+      targetLevel: 2,
+      budget: { perCardUsd: 5, totalUsd: 150 },
+      exceptions: "Ask me",
+    };
+    expect(suggestionGoals(goals)).toEqual({ v: 1, targetLevel: 2, budget: { perCardUsd: 5 } });
+    // The stored goals are untouched.
+    expect(goals.budget).toEqual({ perCardUsd: 5, totalUsd: 150 });
+    expect(suggestionGoals({ v: 1, budget: { totalUsd: 150 } })).toBeNull();
+    // Two goals that differ only in their total ask the same thing.
+    expect(JSON.stringify(suggestionGoals(withTotal(goals, 90)))).toBe(
+      JSON.stringify(suggestionGoals(goals)),
+    );
+  });
+
+  it("owner-only: neither a visitor's goals nor the share page's carry it", () => {
+    const goals: DeckGoals = { v: 1, targetLevel: 2, budget: { totalUsd: 150 } };
+    expect(publicGoals(goals)).toEqual({ v: 1, targetLevel: 2 });
+    expect(tableGoals(goals, { review: [] }, [])).toEqual({ v: 1, targetLevel: 2 });
+  });
+
+  it("the PATCH body carries it, canonical — a total read back from jsonb is no edit", () => {
+    expect(goalsPatchBody(withTotal({ v: 1, targetLevel: 3 }, 150))).toBe(
+      '{"goals":{"budget":{"totalUsd":150},"targetLevel":3,"v":1}}',
+    );
+    const fromJsonb = readGoals(
+      JSON.parse('{"v": 1, "budget": {"totalUsd": 150, "perCardUsd": 5}, "targetLevel": 3}'),
+    );
+    expect(goalsPatchBody(fromJsonb)).toBe(
+      goalsPatchBody(withTotal(withBudget({ v: 1, targetLevel: 3 }, 5), 150)),
+    );
   });
 });
 

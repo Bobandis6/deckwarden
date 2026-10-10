@@ -19,7 +19,9 @@
  * - `exceptions` — the table's exceptions, the owner's words (≤ 200).
  * - `budget` — owner-only on every wire. Y6a's controls: Suggestions start
  *   from its per-card tier and "Save as this deck's budget" writes it
- *   (`withBudget`); a total (Y8) rides along untouched.
+ *   (`withBudget`). Y8's total (`withTotal`) is the Fit sheet's: the deck's
+ *   whole cost at its cheapest printings. No route reads it — the snapshot
+ *   bodies leave it out (`suggestionGoals`).
  *
  * Game-agnostic: the range and the question keys come off the adapter's
  * `brackets` declaration, so a game without one (One Piece) takes no
@@ -32,7 +34,7 @@
  */
 import { z } from "zod";
 
-import { BUDGET_OPTIONS } from "@/lib/recommend/budget";
+import { BUDGET_OPTIONS, TOTAL_MAX_USD } from "@/lib/recommend/budget";
 import type { BracketAnswer, BracketAnswers, BracketsMeta } from "@/lib/games/types";
 
 export interface DeckBudget {
@@ -83,7 +85,7 @@ const BUDGET = z
     perCardUsd: z.number().refine((n) => PER_CARD_TIERS.includes(n), {
       message: `Must be one of ${PER_CARD_TIERS.join(", ")}`,
     }),
-    totalUsd: z.number().positive().max(100_000),
+    totalUsd: z.number().positive().max(TOTAL_MAX_USD),
   })
   .partial()
   .strict();
@@ -222,14 +224,33 @@ export function withBudget(goals: DeckGoals | null, perCardUsd: number | null): 
 }
 
 /**
+ * The deck total (Y8, the Fit sheet): whole dollars, null removes it. The
+ * per-card budget stays as it is.
+ */
+export function withTotal(goals: DeckGoals | null, totalUsd: number | null): DeckGoals | null {
+  const next: DeckGoals = { ...(goals ?? { v: 1 }) };
+  const budget: DeckBudget = { ...next.budget };
+  if (totalUsd === null) delete budget.totalUsd;
+  else budget.totalUsd = totalUsd;
+  next.budget = budget;
+  return normalizeGoals(next);
+}
+
+/**
  * What a draft's Suggestions send (Y6a, POST /api/recommendations): the
- * goals the check reads — the target, the budget, the answers (they move
- * the line) — never the exceptions line.
+ * goals the check reads — the target, the per-card budget, the answers
+ * (they move the line) — never the exceptions line, and never the deck
+ * total (Y8): no route reads it, so a new total never asks Suggestions,
+ * Autofill or Swap Lab again. Every snapshot body takes its goals here.
  */
 export function suggestionGoals(goals: DeckGoals | null): DeckGoals | null {
   if (!goals) return null;
   const next: DeckGoals = { ...goals };
   delete next.exceptions;
+  if (next.budget) {
+    next.budget = { ...next.budget };
+    delete next.budget.totalUsd;
+  }
   return normalizeGoals(next);
 }
 

@@ -73,6 +73,14 @@
  * swap, one copy out and one in, in place — with one toast, "Swapped A → B",
  * whose one Undo restores both cards.
  *
+ * Y8 (WAVE4 D9, Budget Twin): "fit" is the Fit sheet — More's "Fit my
+ * budget…" or the Suggestions goals line's "Fit my budget" while the
+ * estimate is over the deck's total. Its apply is ONE `applyListSwap`
+ * ("Swapped N cards", one Undo for the batch) and saves the total it fit to
+ * in the same autosave burst — a draft mints exactly one row carrying it.
+ * The estimate (`deckEstimate`: cheapest printings, owned copies at $0 only
+ * with a collection) feeds every goals line.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
@@ -92,6 +100,7 @@ import { AutofillSheet } from "@/components/editor/autofill-sheet";
 import { CardDetailPane, type PrintingEditing } from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
 import { CutCoachPanel } from "@/components/editor/cut-coach-panel";
+import { FitSheet, type FitApply } from "@/components/editor/fit-sheet";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
 import { DetailsDialog, type DeckDetails } from "@/components/editor/details-dialog";
 import { EditorAttribution } from "@/components/editor/editor-attribution";
@@ -146,7 +155,13 @@ import {
   type EditResult,
 } from "@/lib/decks/editor-state";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
-import { goalsPatchBody, readGoals, suggestionGoals, type DeckGoals } from "@/lib/decks/goals";
+import {
+  goalsPatchBody,
+  readGoals,
+  suggestionGoals,
+  withTotal,
+  type DeckGoals,
+} from "@/lib/decks/goals";
 import type { ImportOutcome } from "@/lib/decks/import";
 import { clearPickIntent, pickIntentFor, writePickIntent } from "@/lib/decks/leader-pick-intent";
 import { hasLeader, snapshotBody } from "@/lib/decks/panel-view";
@@ -155,6 +170,7 @@ import { startDoors } from "@/lib/decks/start-doors";
 import { getDeckToken, removeDeckToken, setDeckToken } from "@/lib/decks/token-store";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
+import { deckEstimate, FIT_COPY } from "@/lib/recommend/fit";
 import { useAppearance } from "@/lib/theme/appearance";
 import type {
   AnalyticsBlock,
@@ -1458,6 +1474,19 @@ export function DeckEditor({
     setSheetAt("target");
     setDialog("bracket");
   }, []);
+  // The goals line's "Fit my budget" in Suggestions (Y8): the Fit sheet —
+  // More's "Fit my budget…" opens the same one through openFromHeader (focus
+  // back to More). From the line, focus goes back to the line once the sheet
+  // closes: its first button — "Fit my budget" while still over, "Change"
+  // once the deck fits (the door itself is gone then).
+  const openFit = useCallback(() => {
+    closeFocusRef.current = () =>
+      [...document.querySelectorAll<HTMLElement>("[data-slot=goals-line]")]
+        .find((line) => !line.closest("[hidden]"))
+        ?.querySelector<HTMLElement>("button") ?? null;
+    setDialogFromMenu(false);
+    setDialog("fit");
+  }, []);
 
   // Whole-list swap with Undo (W9b): Import and Autofill both land here.
   // The previous list is captured for the toast's Undo, which restores it
@@ -1593,6 +1622,24 @@ export function DeckEditor({
       markDirty();
     },
     [markDirty],
+  );
+
+  // The Fit sheet (Y8, D9): the reviewed swaps as ONE whole-list swap — one
+  // toast, one Undo for the batch — and the total they fit to, saved in the
+  // same burst (the Undo restores the list; the total stays). Saving the
+  // total alone ("Save $150 as this deck's total", or removing it) is the
+  // same goals edit.
+  const handleSaveTotal = useCallback(
+    (totalUsd: number | null) => handleGoalsChange(withTotal(goalsRef.current, totalUsd)),
+    [handleGoalsChange],
+  );
+  const handleFitApply = useCallback(
+    ({ entries: next, cards: wires, swapped, totalUsd }: FitApply) => {
+      applyListSwap(next, wires, FIT_COPY.toast(swapped));
+      if (goalsRef.current?.budget?.totalUsd !== totalUsd) handleSaveTotal(totalUsd);
+      setDialog(null);
+    },
+    [applyListSwap, handleSaveTotal],
   );
 
   // Deck deletion (P2.8 follow-up): the dialog owns the confirm; this owns
@@ -1846,6 +1893,16 @@ export function DeckEditor({
         : null,
     [hasCollection, load, entries, cards, owned],
   );
+  // The deck's cost at its cheapest printings (Y8): every goals line's
+  // "est. $212 of your $150", and the Fit sheet's starting point. Owned
+  // copies count $0 only with a collection.
+  const estimate = useMemo(
+    () =>
+      load.state === "ready"
+        ? deckEstimate(entries, cards, hasCollection ? owned : null, load.format)
+        : null,
+    [load, entries, cards, hasCollection, owned],
+  );
 
   // Ambient art (R2): the FIRST leader entry drives the one request — the
   // preview card is never an input, and main-deck edits leave the key
@@ -1976,8 +2033,10 @@ export function DeckEditor({
                 onAdd={handleUndoableAdd}
                 ownedAvailable={hasCollection}
                 goals={goals}
+                estimate={estimate}
                 onGoalsChange={handleGoalsChange}
                 onChangeGoals={load.adapter.brackets ? openGoals : undefined}
+                onFit={swapMeta ? openFit : undefined}
                 swapIn={deckFull}
               />
             </TabsContent>
@@ -2117,6 +2176,7 @@ export function DeckEditor({
               phone={tier === "phone"}
               pinned={autofillPin ?? undefined}
               goals={goals}
+              estimate={estimate}
               onApply={({ entries: next, cards: wires, added }) => {
                 applyListSwap(next, wires, `Added ${added} card${added === 1 ? "" : "s"}`);
                 closeAutofill();
@@ -2173,6 +2233,7 @@ export function DeckEditor({
               cards={cards}
               phone={tier === "phone"}
               goals={goals}
+              estimate={estimate}
               onGoalsChange={handleGoalsChange}
               openAt={sheetAt}
               onSwapCard={swapMeta ? swapFromCallout : undefined}
@@ -2204,6 +2265,25 @@ export function DeckEditor({
               phone={tier === "phone"}
               onSwap={handleSwapIn}
               finalFocus={sheetFinalFocus}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {/* Y8: the Fit sheet — only for games that declare a swap (One Piece: none). */}
+          {dialog === "fit" && swapMeta && estimate && (
+            <FitSheet
+              adapter={load.adapter}
+              format={load.format}
+              entries={entries}
+              cards={cards}
+              goals={goals}
+              estimate={estimate}
+              owned={hasCollection ? owned : null}
+              combos={bracketFacts.combos}
+              factsState={bracketFacts.state}
+              phone={tier === "phone"}
+              finalFocus={dialogFromMenu ? undefined : sheetFinalFocus}
+              onApply={handleFitApply}
+              onSaveTotal={handleSaveTotal}
               onClose={() => setDialog(null)}
             />
           )}

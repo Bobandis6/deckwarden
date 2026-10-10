@@ -149,6 +149,20 @@ describe("Y6a's words — the goals line and the hidden count", () => {
     ).toEqual(["≤ $5 a card"]);
   });
 
+  it("Y8: the total's phrase comes last, built by the caller — never without its builder", () => {
+    const goals = { targetLevel: 3, budget: { perCardUsd: 5, totalUsd: 150 } };
+    expect(goalsParts(mtg, goals, budgetLabel, (t) => `est. $212 of your $${t}`)).toEqual([
+      "Bracket 3 (Upgraded)",
+      "≤ $5 a card",
+      "est. $212 of your $150",
+    ]);
+    // The bracket table's guard never sees a price: without the builder, no total.
+    expect(goalsParts(mtg, goals, budgetLabel)).toEqual(["Bracket 3 (Upgraded)", "≤ $5 a card"]);
+    expect(
+      goalsParts(undefined, { budget: { totalUsd: 90 } }, budgetLabel, (t) => `$${t} total`),
+    ).toEqual(["$90 total"]);
+  });
+
   it("D7's words without notation", () => {
     expect(BRACKET_COPY.goalsLead).toBe("Your goals:");
     expect(BRACKET_COPY.noTarget("bracket")).toBe("No bracket target yet");

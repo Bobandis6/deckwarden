@@ -21,6 +21,7 @@ import {
 } from "@/lib/games/mtg/test-fixtures";
 import { getAdapter } from "@/lib/games/registry";
 import type { DeckGoals } from "@/lib/decks/goals";
+import type { FitEstimate } from "@/lib/recommend/fit";
 import { addMorePhrase, deckProgress } from "@/lib/decks/progress";
 import type { BracketFreshness, BracketRead, CompleteCombo } from "@/lib/games/types";
 
@@ -75,6 +76,7 @@ function sheet(
     freshness = FRESH,
     phone = false,
     goals,
+    estimate,
     onGoalsChange,
     onSwapCard,
     canSwap,
@@ -84,6 +86,8 @@ function sheet(
     phone?: boolean;
     /** Y4b: the deck's goals — the read is assessed with them, as the editor does. */
     goals?: DeckGoals | null;
+    /** Y8: the deck's estimate beside a total. */
+    estimate?: FitEstimate | null;
     onGoalsChange?: (next: DeckGoals | null) => void;
     /** Y7b: the callout's swaps. */
     onSwapCard?: (cardId: string) => void;
@@ -117,6 +121,7 @@ function sheet(
       cards={list.cards}
       phone={phone}
       goals={goals}
+      estimate={estimate}
       onGoalsChange={onGoalsChange}
       onSwapCard={onSwapCard}
       canSwap={canSwap}
@@ -282,6 +287,22 @@ describe("Y4b — the player's side of the sheet", () => {
     expect(pressed(group)).toEqual(["Not set"]);
     fireEvent.click(within(group).getByRole("button", { name: "2" }));
     expect(onGoalsChange).toHaveBeenLastCalledWith({ v: 1, targetLevel: 2 });
+  });
+
+  it("Y8: a total alone shows the goals line with its running estimate — the owner's sheet only", () => {
+    sheet(spec([]), {
+      combos: [],
+      goals: { v: 1, budget: { totalUsd: 150 } },
+      estimate: { usd: 212, unpriced: 2 },
+      onGoalsChange: vi.fn(),
+    });
+    expect(dialog().querySelector("[data-slot=goals-line]")?.textContent).toBe(
+      "Your goals: est. $212 of your $150 (+2 unpriced) · Change",
+    );
+    cleanup();
+    // The share page's sheet (no onGoalsChange) never shows a budget.
+    sheet(spec([]), { combos: [], goals: { v: 1, budget: { totalUsd: 150 } } });
+    expect(dialog().querySelector("[data-slot=goals-line]")).toBeNull();
   });
 
   it("a target set: its name beside it; Not set clears it; other goals stay", () => {

@@ -73,6 +73,7 @@ import { getDeckToken } from "@/lib/decks/token-store";
 import type { GoalConflict } from "@/lib/recommend/goals";
 import type { Confidence, Recommendation } from "@/lib/recommend/types";
 import { BUDGET_OPTIONS, tierOf, usdOf, type BudgetTier } from "@/lib/recommend/budget";
+import type { FitEstimate } from "@/lib/recommend/fit";
 import { orderEvidence } from "@/lib/recommend/view";
 import type { FormatDef, GameAdapter } from "@/lib/games/types";
 
@@ -96,10 +97,14 @@ interface RecommendationsPanelProps {
   ownedAvailable?: boolean;
   /** The deck's goals (Y6a): the target and per-card budget the list follows. */
   goals?: DeckGoals | null;
+  /** Y8: the deck's estimate — the goals line reads it beside a total. */
+  estimate?: FitEstimate | null;
   /** Saves a goals change — "Save as this deck's budget" (the editor's goals edit). */
   onGoalsChange?: (next: DeckGoals | null) => void;
   /** The goals line's "Change": the Why sheet at Your target. Absent = the line only reads. */
   onChangeGoals?: () => void;
+  /** Y8: the goals line's "Fit my budget" (over the total) — the Fit sheet. */
+  onFit?: () => void;
   /** Y7b: the deck is at its maximum — Add reads "Swap in…" (the editor opens the swap-in sheet). */
   swapIn?: boolean;
 }
@@ -121,8 +126,10 @@ export function RecommendationsPanel({
   onAdd,
   ownedAvailable = false,
   goals = null,
+  estimate = null,
   onGoalsChange,
   onChangeGoals,
+  onFit,
   swapIn = false,
 }: RecommendationsPanelProps) {
   // The budget starts from the deck's goal; a pick of its own wins until it's saved.
@@ -243,7 +250,14 @@ export function RecommendationsPanel({
 
   return (
     <div className="p-3">
-      <GoalsLine brackets={brackets} goals={goals} onChange={onChangeGoals} className="mb-1.5" />
+      <GoalsLine
+        brackets={brackets}
+        goals={goals}
+        estimate={estimate}
+        onChange={onChangeGoals}
+        onFit={onFit}
+        className="mb-1.5"
+      />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Segmented label="Budget" options={BUDGET_OPTIONS} value={budget} onChange={setPick} />
         <Button

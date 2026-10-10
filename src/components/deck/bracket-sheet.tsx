@@ -36,7 +36,8 @@
  * page shows it (a yes or a no the read used; goals.ts' tableGoals).
  *
  * Y6a: the owner's goals line under the lead ("Your goals: Bracket 2 (Core)
- * · ≤ $5 a card · Change" — the budget's only place in the sheet), its
+ * · ≤ $5 a card · Change" — the budget's only place in the sheet; Y8 adds
+ * the total's running estimate, "est. $212 of your $150"), its
  * "Change" bringing Your target into view; and `openAt: "target"` (the goals
  * line in Suggestions) opens the sheet with focus on the target's choice.
  *
@@ -85,6 +86,7 @@ import type {
   CompleteCombo,
   GameAdapter,
 } from "@/lib/games/types";
+import type { FitEstimate } from "@/lib/recommend/fit";
 
 type ExternalUrl = (externalKey: string) => string;
 
@@ -106,6 +108,7 @@ export function BracketSheet({
   cards,
   phone,
   goals = null,
+  estimate = null,
   onGoalsChange,
   openAt = null,
   onSwapCard,
@@ -124,6 +127,8 @@ export function BracketSheet({
   phone: boolean;
   /** The deck's goals (Y4b) — what the read was assessed with. */
   goals?: DeckGoals | null;
+  /** Y8: the deck's estimate — the goals line reads it beside a total. */
+  estimate?: FitEstimate | null;
   /** Y4b: the target and the answers become choices; absent, the sheet only reads. */
   onGoalsChange?: (next: DeckGoals | null) => void;
   /** Y6a: "target" opens the sheet with focus on Your target's choice (the goals line's "Change"). */
@@ -174,8 +179,16 @@ export function BracketSheet({
           <p className="text-muted-foreground mt-1 text-xs">{BRACKET_COPY.draftNote}</p>
         )}
         {onGoalsChange &&
-          (goals?.targetLevel !== undefined || goals?.budget?.perCardUsd !== undefined) && (
-            <GoalsLine brackets={brackets} goals={goals} onChange={goToTarget} className="mt-1" />
+          (goals?.targetLevel !== undefined ||
+            goals?.budget?.perCardUsd !== undefined ||
+            goals?.budget?.totalUsd !== undefined) && (
+            <GoalsLine
+              brackets={brackets}
+              goals={goals}
+              estimate={estimate}
+              onChange={goToTarget}
+              className="mt-1"
+            />
           )}
       </div>
 

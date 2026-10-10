@@ -103,18 +103,24 @@ export const BRACKET_COPY = {
 /**
  * The goals line's parts (Y6a): the target in the level's own words, then
  * the per-card budget's label — "Bracket 2 (Core)", "≤ $5 a card". Empty
- * when neither is set.
+ * when neither is set. Y8: then the deck total's phrase when one is set
+ * ("est. $212 of your $150", built by the caller — a price, not a bracket
+ * word, so it stays out of this table and its guard).
  */
 export function goalsParts(
   brackets: Pick<BracketsMeta, "noun" | "levels"> | undefined,
-  goals: { targetLevel?: number; budget?: { perCardUsd?: number } } | null,
+  goals: { targetLevel?: number; budget?: { perCardUsd?: number; totalUsd?: number } } | null,
   budgetLabel: (perCardUsd: number) => string,
+  totalLabel?: (totalUsd: number) => string,
 ): string[] {
   const parts: string[] = [];
   if (brackets && goals?.targetLevel !== undefined) {
     parts.push(levelLabel(brackets, goals.targetLevel));
   }
   if (goals?.budget?.perCardUsd !== undefined) parts.push(budgetLabel(goals.budget.perCardUsd));
+  if (totalLabel && goals?.budget?.totalUsd !== undefined) {
+    parts.push(totalLabel(goals.budget.totalUsd));
+  }
   return parts;
 }
 

@@ -14,6 +14,14 @@ export const BUDGET_OPTIONS: { value: BudgetTier; label: string }[] = [
   { value: "1", label: "≤ $1 a card" },
 ];
 
+/**
+ * The deck total's presets (Y8, WAVE4 D9) — whole dollars, beside the Fit
+ * sheet's own number field. A total is the cheapest printings' sum, so it
+ * is any whole number of dollars from 1 to TOTAL_MAX_USD (goals.ts' zod).
+ */
+export const TOTAL_PRESETS_USD = [50, 100, 150, 250] as const;
+export const TOTAL_MAX_USD = 100_000;
+
 /** A stored per-card budget as its tier (Y6a — goals.ts keeps 5 or 1): anything else is "all". */
 export function tierOf(perCardUsd: number | undefined): BudgetTier {
   const tier = BUDGET_OPTIONS.find((o) => o.value !== "all" && Number(o.value) === perCardUsd);

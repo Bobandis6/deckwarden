@@ -3818,3 +3818,296 @@ describe("DeckEditor — swap in place (Y7b, WAVE4 D8)", () => {
     expect(screen.queryByRole("button", { name: /Swap in/ })).toBeNull();
   });
 });
+
+// -------------------------------------------------------------------- Y8
+describe("DeckEditor — Fit my budget (Y8, WAVE4 D9)", () => {
+  /** Base UI menu triggers open on the pointer sequence, not a bare click. */
+  function openMenu(trigger: HTMLElement) {
+    fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
+    fireEvent.mouseDown(trigger, { button: 0 });
+    fireEvent.click(trigger, { button: 0 });
+  }
+  async function pollFor<T>(query: () => T | null): Promise<T> {
+    for (let i = 0; i < 40; i++) {
+      const found = query();
+      if (found) return found;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: never appeared");
+  }
+  const wire = (over: Parameters<typeof card>[0]): CardWire => ({ ...card(over), image: null });
+  const odric = wire({
+    name: "Odric, Lunarch Marshal",
+    primaryType: "Creature",
+    isLeaderCandidate: true,
+    ciMask: 1,
+    cheapestUsd: 20,
+  });
+  const rock = (name: string, usd: number) =>
+    wire({
+      name,
+      primaryType: "Artifact",
+      costValue: 2,
+      cheapestUsd: usd,
+      attrs: { type_line: "Artifact", oracle_text: "", mana_cost: "{2}", roles: ["ramp"] },
+    });
+  // $20 + $40 + $30 + $25 + 30 × $0.10 = est. $118.
+  const PRICEY = [rock("Pricey Rock A", 40), rock("Pricey Rock B", 30), rock("Pricey Rock C", 25)];
+  const wastes = wire({ name: "Wastes", primaryType: "Land", costValue: null, cheapestUsd: 0.1 });
+  const LIST = [odric, ...PRICEY, wastes].map((c, i) => ({
+    cardId: c.id,
+    zone: i === 0 ? "commander" : "main",
+    qty: c === wastes ? 30 : 1,
+    tags: [],
+    printingId: null,
+    card: c,
+  }));
+  /** Each pricey rock's alternatives: the best-ranked at $1.00, a cheaper one after it. */
+  const ALTS = new Map(
+    PRICEY.map((c, i) => {
+      const alts = [1, 0.5].map((usd, j) =>
+        rock(`Budget Rock ${String.fromCharCode(65 + i)}${j + 1}`, usd),
+      );
+      return [c.id, alts];
+    }),
+  );
+  const altRow = (c: CardWire) => ({
+    cardId: c.id,
+    name: c.name,
+    costValue: 2,
+    cheapestUsd: c.cheapestUsd!.toFixed(2),
+    evidence: [],
+    conflicts: [],
+    shared: ["ramp"],
+    card: { ...c, legality: [] },
+  });
+  let deckGoals: unknown = null;
+  function fitRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    if (url === "/api/precons/fitlab") {
+      return ok({
+        deck: { name: "Fit Lab", game: "mtg", format: "commander", leaderIds: [odric.id] },
+        cards: LIST,
+      });
+    }
+    if (url === "/api/decks/deck-1" && method === "GET") {
+      return ok({
+        deck: {
+          id: "deck-1",
+          publicId: "abcdefgh1234",
+          game: "mtg",
+          format: "commander",
+          name: "Fit Lab",
+          description: null,
+          notes: null,
+          visibility: "unlisted",
+          isOwner: true,
+          forkedFrom: null,
+          leaderIds: [odric.id],
+          goals: deckGoals,
+        },
+        cards: LIST,
+        owned: [],
+        hasCollection: false,
+      });
+    }
+    if (url === "/api/alternatives" && method === "POST") {
+      const { cardId } = JSON.parse(init!.body as string);
+      return ok({
+        cardId,
+        roles: ["ramp"],
+        alternatives: (ALTS.get(cardId) ?? []).map(altRow),
+        hidden: [],
+        combosTruncated: false,
+        tradeoff: null,
+      });
+    }
+    return route(input, init);
+  }
+  const altCalls = () =>
+    fetchMock.mock.calls.filter(
+      ([url, init]) => url === "/api/alternatives" && init?.method === "POST",
+    );
+  const patchBodies = () =>
+    fetchMock.mock.calls
+      .filter(([url, init]) => url === "/api/decks/deck-1" && init?.method === "PATCH")
+      .map(([, init]) => JSON.parse((init as RequestInit).body as string) as unknown);
+  const fitSheet = () => screen.queryByRole("dialog", { name: "Fit my budget" });
+  const ORIGINAL = LIST.map(({ cardId, zone, qty }) => ({ cardId, zone, qty, tags: [] }));
+
+  beforeEach(() => {
+    deckGoals = null;
+    fetchMock.mockImplementation(fitRoute);
+  });
+
+  it("a seeded draft: opening, setting a total and reviewing mint nothing; Apply is ONE create carrying the total + ONE PUT; the toast's one Undo restores the whole list", async () => {
+    stubViewport(1440);
+    render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftFromSlug="fitlab" />,
+    );
+    await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+    openMenu(screen.getByRole("button", { name: "More" }));
+    const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Fit my budget…" }));
+    const sheetEl = await pollFor(fitSheet);
+    expect(sheetEl.textContent).toContain("est. $118 now (cheapest printings)");
+    expect(altCalls()).toHaveLength(0);
+
+    fireEvent.change(within(sheetEl).getByRole("textbox", { name: "Deck total" }), {
+      target: { value: "60" },
+    });
+    fireEvent.click(within(sheetEl).getByRole("button", { name: "Fit" }));
+    const apply = await pollFor(() => {
+      const b = within(sheetEl).queryByRole("button", { name: "Swap 2 cards" });
+      return b && !(b as HTMLButtonElement).disabled ? b : null;
+    });
+    // The three priciest asked together; 118 − 39 − 29 = 50 fits after two.
+    expect(altCalls()).toHaveLength(3);
+    expect(sheetEl.querySelector("[data-slot=fit-after]")!.textContent).toBe(
+      "est. $50 of your $60",
+    );
+    await settle(1500);
+    expect(posts()).toBe(0);
+    expect(puts()).toBe(0);
+
+    fireEvent.click(apply);
+    const toastEl = (await pollFor(() => screen.queryByText("Swapped 2 cards"))).closest(
+      '[data-slot="toast"]',
+    ) as HTMLElement;
+    expect(fitSheet()).toBeNull();
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    const create = JSON.parse(
+      fetchMock.mock.calls.find(
+        ([url, init]) => url === "/api/decks" && init?.method === "POST",
+      )![1].body as string,
+    );
+    expect(create.goals).toEqual({ v: 1, budget: { totalUsd: 60 } });
+    expect(puts()).toBe(1);
+    const [a1, b1] = [ALTS.get(PRICEY[0].id)![0], ALTS.get(PRICEY[1].id)![0]];
+    expect(lastPutEntries()).toEqual([
+      ORIGINAL[0],
+      { cardId: a1.id, zone: "main", qty: 1, tags: [] },
+      { cardId: b1.id, zone: "main", qty: 1, tags: [] },
+      ORIGINAL[3],
+      ORIGINAL[4],
+    ]);
+    expect(within(section("Deck list")).getByText("Budget Rock A1")).toBeTruthy();
+
+    // One Undo for the batch: the whole list back exactly; the total stays (a goal, not the list).
+    fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(puts()).toBe(2);
+    expect(lastPutEntries()).toEqual(ORIGINAL);
+    expect(posts()).toBe(1);
+    expect(patchBodies()).toEqual([]);
+  });
+
+  it("a saved deck's total survives the reload: the goals line reads est. $118 of your $60 · Fit my budget, which opens the sheet at once — loading is no edit", async () => {
+    deckGoals = { v: 1, budget: { totalUsd: 60 } };
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    fireEvent.click(await pollFor(() => screen.queryByRole("tab", { name: "Suggestions" })));
+    const goalsLine = await pollFor(() =>
+      document.querySelector<HTMLElement>("[data-slot=goals-line]"),
+    );
+    expect(goalsLine.textContent).toBe(
+      "Your goals: est. $118 of your $60 · Fit my budget · Change",
+    );
+    fireEvent.click(within(goalsLine).getByRole("button", { name: "Fit my budget" }));
+    const sheetEl = await pollFor(fitSheet);
+    // A saved total: the plan starts without asking for one.
+    expect(sheetEl.textContent).toContain("Deck total $60");
+    await pollFor(() => within(sheetEl).queryByRole("button", { name: "Swap 2 cards" }));
+    expect(altCalls()).toHaveLength(3);
+    // The asks carry no total: no route reads it.
+    expect(JSON.parse(altCalls()[0][1].body as string)).not.toHaveProperty("goals");
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([]);
+    expect(puts()).toBe(0);
+
+    // Removing the total is ONE goals PATCH — no PUT.
+    fireEvent.click(within(sheetEl).getByRole("button", { name: "Remove this deck's total" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([{ goals: null }]);
+    expect(puts()).toBe(0);
+  });
+
+  it("from the goals line, focus comes back to the line: its Fit my budget on a cancel, its Change once the deck fits", async () => {
+    deckGoals = { v: 1, budget: { totalUsd: 60 } };
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    fireEvent.click(await pollFor(() => screen.queryByRole("tab", { name: "Suggestions" })));
+    const line = () =>
+      [...document.querySelectorAll<HTMLElement>("[data-slot=goals-line]")].find(
+        (l) => !l.closest("[hidden]"),
+      ) ?? null;
+    const door = await pollFor(() =>
+      line() ? within(line()!).queryByRole("button", { name: "Fit my budget" }) : null,
+    );
+    fireEvent.click(door);
+    await pollFor(fitSheet);
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await pollFor(() => (fitSheet() === null ? document.body : null));
+    await pollFor(() =>
+      document.activeElement?.textContent === "Fit my budget" ? document.activeElement : null,
+    );
+    expect(line()!.contains(document.activeElement)).toBe(true);
+
+    fireEvent.click(within(line()!).getByRole("button", { name: "Fit my budget" }));
+    const sheetEl = await pollFor(fitSheet);
+    fireEvent.click(
+      await pollFor(() => {
+        const b = within(sheetEl).queryByRole("button", { name: "Swap 2 cards" });
+        return b && !(b as HTMLButtonElement).disabled ? b : null;
+      }),
+    );
+    await pollFor(() => screen.queryByText("Swapped 2 cards"));
+    // Under the total now: the door is gone and focus lands on the line's Change.
+    expect(line()!.textContent).toBe("Your goals: est. $50 of your $60 · Change");
+    await pollFor(() =>
+      document.activeElement?.textContent === "Change" ? document.activeElement : null,
+    );
+    expect(line()!.contains(document.activeElement)).toBe(true);
+  });
+
+  it("under the total the line has no door; a total saved alone is ONE goals PATCH", async () => {
+    deckGoals = { v: 1, budget: { totalUsd: 200 } };
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    fireEvent.click(await pollFor(() => screen.queryByRole("tab", { name: "Suggestions" })));
+    const goalsLine = await pollFor(() =>
+      document.querySelector<HTMLElement>("[data-slot=goals-line]"),
+    );
+    expect(goalsLine.textContent).toBe("Your goals: est. $118 of your $200 · Change");
+    openMenu(screen.getByRole("button", { name: "More" }));
+    const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Fit my budget…" }));
+    const sheetEl = await pollFor(fitSheet);
+    expect(sheetEl.textContent).toContain("Already within your budget — est. $118 of your $200.");
+    fireEvent.click(within(sheetEl).getByRole("button", { name: "Change" }));
+    fireEvent.click(within(sheetEl).getByRole("button", { name: "$150" }));
+    fireEvent.click(
+      within(sheetEl).getByRole("button", { name: "Save $150 as this deck's total" }),
+    );
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([{ goals: { budget: { totalUsd: 150 }, v: 1 } }]);
+    expect(puts()).toBe(0);
+    expect(altCalls()).toHaveLength(0);
+  });
+
+  it("One Piece declares no swap: no Fit my budget in More", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="optcg" draftFormat="standard" />);
+    openMenu(screen.getByRole("button", { name: "More" }));
+    const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
+    expect(within(menu).queryByRole("menuitem", { name: "Fit my budget…" })).toBeNull();
+  });
+});

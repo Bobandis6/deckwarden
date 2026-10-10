@@ -442,6 +442,18 @@ describe("AutofillSheet — the deck's goals (Y6b)", () => {
     expect(screen.queryByRole("button", { name: "Save as this deck's budget" })).toBeNull();
   });
 
+  it("Y8: a total reads its running estimate on the line, and never rides the body", async () => {
+    render(
+      sheet({
+        goals: { v: 1, budget: { totalUsd: 150 } },
+        estimate: { usd: 212.4, unpriced: 0 },
+      }),
+    );
+    await screen.findByText("Lands · 12");
+    expect(goalsLine()?.textContent).toBe("Your goals: est. $212 of your $150");
+    expect("goals" in bodies()[0]).toBe(false);
+  });
+
   it("goals with neither a target nor a budget: no line, and nothing in the body changes", async () => {
     render(sheet({ goals: { v: 1, exceptions: "ask me" } }));
     await screen.findByText("Lands · 12");
