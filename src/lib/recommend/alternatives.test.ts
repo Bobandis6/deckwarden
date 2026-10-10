@@ -171,6 +171,18 @@ describe("alternativesForSnapshot", () => {
     expect(res.alternatives[0].confidence).toBe("high");
   });
 
+  it("ranks by D8's evidence only — never the curve template, however empty a bucket is", async () => {
+    // Five cards in the list: every curve bucket is far under the template,
+    // which would hand a zero-drop curve evidence and push it up. Not here.
+    const MOX = cand(5, "Chrome Mox", ["mana-rock", "ramp"], { costValue: 0, popularity: 156 });
+    mocks.loadCandidatePool.mockResolvedValue([MOX, STONE]);
+    const res = await alternativesForSnapshot(request());
+    expect(res.alternatives.flatMap((a) => a.evidence.map((e) => e.source))).not.toContain(
+      "curve-template",
+    );
+    expect(res.alternatives.map((a) => a.name)).toEqual(["Mind Stone", "Chrome Mox"]);
+  });
+
   it("a swap is judged in the card's place: a Game Changer for a Game Changer at target 3 stays in", async () => {
     // Three Game Changers in the list (Sol Ring among them); a fourth would
     // be over the allowance — but Sol Ring leaves as Mana Vault comes in.

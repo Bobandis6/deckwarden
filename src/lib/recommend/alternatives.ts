@@ -12,15 +12,18 @@
  *   a cost window around the card's cost (Magic: ±1, the gold set's best).
  *   The role pool requires a popularity rank, like Suggestions' pool;
  *   tournament and combo sources may bring unranked cards that share a role.
- * - **The order**: the most shared roles first, then the existing evidence —
- *   EDHREC rank, play with the deck's exact commanders, combos, the curve —
- *   exactly as `rankCandidates` scores it. Each card's role match leads its
- *   evidence, in the adapter's words and credit.
+ * - **The order**: the most shared roles first, then the existing evidence
+ *   D8 names — EDHREC rank, play with the deck's exact commanders, combos —
+ *   as `rankCandidates` scores it. The curve template is left out: a swap
+ *   frees one slot inside the cost window, and the template's pull toward an
+ *   empty bucket ranked niche zero-drops (Chrome Mox, Mox Opal) above the
+ *   staples (Fellwar Stone, Mind Stone) for Sol Ring in a precon (measured).
+ *   Each card's role match leads its evidence, in the adapter's words and
+ *   credit.
  * - **A swap is not an add**: every candidate is judged in the card's place —
  *   the list WITHOUT one copy of it — for the goals read (a Game Changer for
- *   a Game Changer at a target of 3 stays in), the one-away combo scan (a
- *   combo the swapped card was part of isn't completed by its replacement)
- *   and the curve (the freed slot is the gap).
+ *   a Game Changer at a target of 3 stays in) and the one-away combo scan (a
+ *   combo the swapped card was part of isn't completed by its replacement).
  * - **The tradeoff**: the Cut Coach's lines for the swapped card over the
  *   whole list — what cutting it costs or frees. The snapshot carries ids
  *   and copies only, so the user-tag role line is never among them; a card
@@ -232,7 +235,7 @@ export async function alternativesForSnapshot(
     : { context: null, byCandidate: new Map<string, TournamentSignal>() };
 
   const ranked = rankCandidates({
-    meta,
+    meta: { ...meta, curve: undefined },
     deckCards: without.entries.map((e) => ({
       card: { primaryType: e.primaryType, costValue: e.costValue },
       qty: e.qty,
