@@ -267,6 +267,27 @@ describe("Copy for the table — D6's text", () => {
     });
   }
 
+  it("the checked date is the reader's own: 9 PM in Chicago is still Oct 9, not UTC's Oct 10", () => {
+    const at = "2026-10-10T02:12:00.000Z";
+    const second = (timeZone?: string) =>
+      tableText({
+        deckName: "Sram — Budget Armory",
+        formatLabel: COMMANDER.label,
+        line: "Bracket 1–2 · nothing here goes past Core",
+        checkedAt: at,
+        timeZone,
+        lines: [],
+        names: new Map(),
+        plan: null,
+        note: brackets.tableNote,
+        url,
+      }).split("\n")[1];
+    expect(second("America/Chicago")).toBe(
+      "Bracket 1–2 · nothing here goes past Core · checked Oct 9, 2026",
+    );
+    expect(second()).toBe("Bracket 1–2 · nothing here goes past Core · checked Oct 10, 2026");
+  });
+
   it("the fixture, line for line, every source named", () => {
     const text = copied(list([rhystic, rift]), {
       v: 1,

@@ -93,14 +93,19 @@ export function levelLabel(brackets: Pick<BracketsMeta, "noun" | "levels">, leve
   return name ? `${noun} ${level} (${name})` : `${noun} ${level}`;
 }
 
-/** "Feb 9, 2026" — pinned to UTC, like every date a client component renders. */
-export function dateLabel(iso: string): string {
+/**
+ * "Feb 9, 2026" — pinned to UTC, like every date a client component
+ * renders (server and client must agree). `timeZone` is for text built
+ * only in the browser, on a click (Y5's Copy for the table: pasted at 9 PM
+ * in Chicago, a UTC date reads as tomorrow's).
+ */
+export function dateLabel(iso: string, timeZone = "UTC"): string {
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return iso;
   return new Date(t).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-    timeZone: "UTC",
+    timeZone,
   });
 }

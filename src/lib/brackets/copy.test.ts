@@ -112,6 +112,8 @@ describe("BRACKET_COPY — D5's own lines and the sheet's words", () => {
     expect(dateLabel("2026-02-09")).toBe("Feb 9, 2026");
     expect(dateLabel("2026-10-04T23:59:59.000Z")).toBe("Oct 4, 2026");
     expect(dateLabel("not a date")).toBe("not a date");
+    // Y5: text built in the browser may say the viewer's own date.
+    expect(dateLabel("2026-10-10T02:12:00.000Z", "America/Chicago")).toBe("Oct 9, 2026");
     expect(BRACKET_COPY.rules("Wizards' Commander Brackets", "Feb 9, 2026")).toBe(
       "Wizards' Commander Brackets, as of Feb 9, 2026",
     );

@@ -624,6 +624,29 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
     expect(status.textContent).toBe("");
   });
 
+  it("Copy for the table says the checked date in the viewer's own zone", async () => {
+    // 07:00 Z on Oct 5 is still Oct 4 in Pago Pago (UTC−11).
+    const resolved = Intl.DateTimeFormat().resolvedOptions();
+    const spy = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockReturnValue({
+      ...resolved,
+      timeZone: "Pacific/Pago_Pago",
+    });
+    render(
+      <DeckShareView
+        deck={{ ...deck, goals, isOwner: true }}
+        cards={gcCards}
+        bracketFacts={SERVER}
+      />,
+    );
+    openMenu(screen.getByRole("button", { name: "Copy" }));
+    const menu = await screen.findByRole("menu", { name: "Copy" });
+    await act(async () => {
+      fireEvent.click(within(menu).getByRole("menuitem", { name: "Copy for the table" }));
+    });
+    expect(writeText.mock.calls[0][0].split("\n")[1]).toMatch(/· checked Oct 4, 2026$/);
+    spy.mockRestore();
+  });
+
   it("no read to tell (no facts, One Piece, a draft): Copy holds only the decklist", async () => {
     render(<DeckShareView deck={{ ...deck, isOwner: true }} cards={cards} />);
     openMenu(screen.getByRole("button", { name: "Copy" }));

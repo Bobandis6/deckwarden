@@ -233,6 +233,7 @@ export function tableText({
   formatLabel,
   line,
   checkedAt,
+  timeZone = "UTC",
   lines,
   names,
   plan,
@@ -245,6 +246,11 @@ export function tableText({
   line: string;
   /** When the read's evidence was read (the facts' `freshness.readAt`); null = say no date. */
   checkedAt: string | null;
+  /**
+   * The zone the checked date is said in — the viewer's own: the text is
+   * built in the browser on a click and read where it's pasted. Default UTC.
+   */
+  timeZone?: string;
   lines: readonly TableLine[];
   names: ReadonlyMap<string, { name: string }>;
   /** The owner's description — the plan line; null = none. */
@@ -256,7 +262,7 @@ export function tableText({
   const plain = planLine(plan);
   return [
     `${deckName} — ${formatLabel}`,
-    checkedAt ? `${line} · ${BRACKET_COPY.checked(dateLabel(checkedAt))}` : line,
+    checkedAt ? `${line} · ${BRACKET_COPY.checked(dateLabel(checkedAt, timeZone))}` : line,
     ...lines.map((l) => `${l.label}: ${lineValue(l, names)}`),
     ...(plain ? [`${BRACKET_COPY.planOwner}: ${plain}`] : []),
     note,

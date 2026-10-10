@@ -390,6 +390,8 @@ export function DeckShareView({
             formatLabel: format.label,
             line: brackets.line(table.read, table.ctx),
             checkedAt: facts.freshness?.readAt ?? null,
+            // Built on a click, read where it's pasted: the viewer's own date.
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             lines: tableLines,
             names: cardMap,
             plan: precon ? null : deck.description,
