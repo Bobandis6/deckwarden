@@ -1,5 +1,34 @@
 # Y6b session prompt — Goals in Autofill + the Radar (caps and skips with the target, the staple lock off at targets ≤ 3, the goals in the POST's body, fixed-seed shells byte-identical without goals, one badge per Radar row, the Radar's Undo)
 
+## Ship note — 2026-10-10, feat `4381110`, deployed (Vercel status success on the full sha, 06:46:20 Z; CI green)
+
+**Shipped. The prompt below is history. Next is `Y7a-session-prompt.md` (Swap Lab). The r/EDH post (P2.9 round 3) hadn't gone out at this session's start; it stays the owner's to schedule.**
+
+**Pre-flight**: Y6a's docs at `448a9fd`; `_journal.json` at idx 17; nightlies green through run 37964324291 (2026-10-09), the ruleset watch green, Tagger rows 168 and 170 quiet. Read-only database access and dev writes approved. The owner did Y6a's owed click at this session's start (05:52 Z): Nelson & Murdock now holds `{v: 1, targetLevel: 3, budget: {perCardUsd: 5}}`, its `updated_at` unmoved. Baseline on `448a9fd`: 1,786 tests / 179 files / 6 warnings / 0 errors; the route table saved. Census 209 deck rows (16 account + 12 guest + 181 precons, 1 user); one deck with goals and a budget; `pnpm db:size` 285.8 MB.
+
+**The golden first**: `a9a4ea8` pins the planner's fixed-seed shells (a literal-id fixture, every tier, seeds 42 / 1,234,567 / 7), recorded on `fb435ec` and committed before any change. Four live shells were recorded on dev the same way (Atraxa at seed 1,234,567, the same at $1, Kinnan at seed 7, half of Creative Energy kept at seed 99): byte-identical after the change, and prod's seed-1,234,567 shell on the new code equals the dev bytes from `fb435ec`.
+
+**The autofill route's statements** (the `DB_LOG` hook, in-process, warm, half of Creative Energy kept):
+
+| Request | Statements | Time (dev, round trips) |
+|---|---|---|
+| No target (goals absent, without one, or a budget alone) | 16 → 16 | 4.4 s |
+| With a target | 17 | 4.9 s |
+
+The one added statement is `loadCompleteCombos` over keep ∪ the candidate pool, beside the tournament read: 904 ids → 52,631 piece rows → 341 combos, 77 ms server-side with in-memory sorts (89 ms at 1,000 ids). Prod, warm: 0.51 s without a target, 0.50 s with one.
+
+**What shipped** (decisions in WAVE4's tracker and REDESIGN.md "Y6b decisions"):
+- **`src/lib/recommend/shell-goals.ts`** — `shellGoals` (the gate: the adapter's `impact` asked about each card against the list grown by the picks so far) and `skippedByGoals` (the notes' counts, from the same seed's no-goals shell).
+- **The planner** (`autofill.ts`) — `ShellInput.goals` + `lockStaples`; tier-C windows built from cards that fit together; tiers A and B, borrowing and lands checked one card at a time; `locksStaples(autofill, target)`.
+- **The adapter** — `AutofillMeta.lockMinTarget` (Magic: 4), `BracketsMeta.shellNotes` and `comboBadge` (built on `readCombo`, pinned against the engine).
+- **The route** — `goals` in the zod body (`goalsSchema`), the facts with their flags, the pool's complete combos with a target, the counterfactual notes. Its first test file (`route.test.ts`).
+- **The sheet** — goals in the body (only when there are any), the budget from the goal, a read-only goals line.
+- **The Radar** — one badge per deck-relative row, "above your target", never a filter; LATER row 179's toasts and Undo through the editor (`handleUndoableAdd`, `handleComboPiecesAdd`).
+
+**Verified**: 27 mutation checks — 26 caught, one equivalent mutant (REDESIGN.md); `smoke:autofill` (nine new goal checks, the live acceptance among them), `smoke:combos` and `smoke:recommend` green on dev; the dev pass at 390 / 768 / 1200 / 1440 in both themes (one QA deck, deleted with its token, census re-proved at 209); prod signed out with zero deck writes (WAVE4's tracker has the details). LATER row 179 fired; new rows 180 and 181.
+
+**Owed — the owner's click** (signed in, prod): on Nelson & Murdock (target 3, ≤ $5 a card), More → Autofill…: the goals line reads "Your goals: Bracket 3 (Upgraded) · ≤ $5 a card" and the budget starts at ≤ $5 a card. The deck is full, so uncheck "Keep my 99 cards" for a shell, then pick All: it holds three Game Changers at most and a note says "Skipped N Game Changers — your Bracket 3 target allows up to three (Wizards' list)". **Then Cancel** — "Add 99 cards" would replace the list (its toast has an Undo). Then the Combos tab: the rows carry their badges, "above your target" where one is.
+
 Pull latest, then run Y6b, the tenth Wave-4 package. **`WAVE4.md` is the contract.** Read these, in this order:
 
 1. Section **A**: the decisions-table row on recommendations ("one pure `applyGoals` step after ranking … covering all four card rules plus budget. Conflicts are never evidence and never score").
