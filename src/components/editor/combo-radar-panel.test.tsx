@@ -10,6 +10,13 @@
  * its missing piece first); without the door callback (the adapter gate)
  * no row renders it. The deck-relative rows need a deck id, a saved state
  * and the /api/decks/<id>/combos answer.
+ *
+ * Y6b: the adds are the editor's to announce — "Add N pieces" hands every
+ * piece over in ONE batch (announced: one toast, one Undo — pinned in
+ * deck-editor.test.tsx), "Suggest full list" hands them over quietly, the
+ * single Add says nothing on the live line. The deck-relative rows carry a
+ * badge each — the adapter's words, credited, "above your target" when it
+ * is — and never change which rows show.
  */
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -97,6 +104,9 @@ afterEach(() => {
 
 function renderPanel(over: Partial<Parameters<typeof ComboRadarPanel>[0]> = {}) {
   const onAdd = vi.fn(() => undefined);
+  const onAddPieces = vi.fn<
+    (cards: readonly EditorCard[], announce: boolean) => string | undefined
+  >(() => undefined);
   const props = {
     adapter,
     format,
@@ -107,10 +117,11 @@ function renderPanel(over: Partial<Parameters<typeof ComboRadarPanel>[0]> = {}) 
     saveStatus: "saved" as const,
     active: true,
     onAdd,
+    onAddPieces,
     ...over,
   };
-  render(<ComboRadarPanel {...props} />);
-  return { onAdd };
+  const view = render(<ComboRadarPanel {...props} />);
+  return { onAdd, onAddPieces: props.onAddPieces as typeof onAddPieces, view };
 }
 
 describe("ComboRadarPanel — With your commander (W9c)", () => {
@@ -131,24 +142,36 @@ describe("ComboRadarPanel — With your commander (W9c)", () => {
     expect(screen.getByText("Combos appear once the deck saves.")).toBeTruthy();
   });
 
-  it("Add N pieces = ONE resolve call by externalKey + one add per missing piece + ONE toast", async () => {
-    const { onAdd } = renderPanel();
+  it("Add N pieces = ONE resolve call by externalKey + ONE announced batch — the editor's toast, none of the panel's", async () => {
+    const { onAdd, onAddPieces } = renderPanel();
     fireEvent.click(await screen.findByRole("button", { name: "Add 2 pieces" }));
     await act(async () => {});
     expect(resolvePosts()).toHaveLength(1);
     const body = JSON.parse(resolvePosts()[0][1].body as string) as { names: string[] };
     expect(body.names).toEqual([pestermite.externalKey, exarch.externalKey]);
-    expect(onAdd).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(toast.add)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(toast.add).mock.calls[0][0]).toMatchObject({
-      title: "Added 2 combo pieces",
-      type: "success",
+    expect(onAddPieces).toHaveBeenCalledTimes(1);
+    expect(onAddPieces).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: pestermite.id }), expect.objectContaining({ id: exarch.id })],
+      true,
+    );
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.add)).not.toHaveBeenCalled();
+  });
+
+  it("a batch the editor refuses toasts its error", async () => {
+    const { onAddPieces } = renderPanel({ onAddPieces: vi.fn(() => "Main deck is full") });
+    fireEvent.click(await screen.findByRole("button", { name: "Add 2 pieces" }));
+    await act(async () => {});
+    expect(onAddPieces).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.add)).toHaveBeenCalledWith({
+      title: "Main deck is full",
+      type: "error",
     });
   });
 
   it("Suggest full list adds the pieces quietly and opens the sheet with the combo PINNED — no toast", async () => {
     const onOpenAutofill = vi.fn();
-    const { onAdd } = renderPanel({ onOpenAutofill });
+    const { onAdd, onAddPieces } = renderPanel({ onOpenAutofill });
     const button = await screen.findByRole("button", { name: "Suggest full list" });
     expect(button.getAttribute("title")).toBe(
       "Keeps these pieces and suggests the rest of the deck",
@@ -156,7 +179,9 @@ describe("ComboRadarPanel — With your commander (W9c)", () => {
     fireEvent.click(button);
     await act(async () => {});
     expect(resolvePosts()).toHaveLength(1);
-    expect(onAdd).toHaveBeenCalledTimes(2);
+    expect(onAddPieces).toHaveBeenCalledTimes(1);
+    expect(onAddPieces.mock.calls[0][1]).toBe(false);
+    expect(onAdd).not.toHaveBeenCalled();
     expect(onOpenAutofill).toHaveBeenCalledTimes(1);
     // Every piece, the commander included (the sheet drops leader-zone ids), name order.
     expect(onOpenAutofill).toHaveBeenCalledWith({
@@ -234,7 +259,7 @@ describe("ComboRadarPanel — Suggest full list on the deck's own rows (X3)", ()
   it("In your deck: every piece is held — opens the pinned sheet at once, no resolve", async () => {
     fetchMock.mockImplementation(deckRoute);
     const onOpenAutofill = vi.fn();
-    const { onAdd } = renderPanel({
+    const { onAdd, onAddPieces } = renderPanel({
       deckId: DECK,
       onOpenAutofill,
       inDeckQty: new Map([
@@ -249,6 +274,7 @@ describe("ComboRadarPanel — Suggest full list on the deck's own rows (X3)", ()
     await act(async () => {});
     expect(resolvePosts()).toHaveLength(0);
     expect(onAdd).not.toHaveBeenCalled();
+    expect(onAddPieces).not.toHaveBeenCalled();
     expect(onOpenAutofill).toHaveBeenCalledWith({
       label: "Dramatic Reversal + Isochron Scepter",
       pieceIds: [reversal.id, scepter.id],
@@ -259,7 +285,7 @@ describe("ComboRadarPanel — Suggest full list on the deck's own rows (X3)", ()
   it("One card away: adds the missing piece first (ONE resolve by externalKey), then opens the pinned sheet", async () => {
     fetchMock.mockImplementation(deckRoute);
     const onOpenAutofill = vi.fn();
-    const { onAdd } = renderPanel({ deckId: DECK, onOpenAutofill });
+    const { onAdd, onAddPieces } = renderPanel({ deckId: DECK, onOpenAutofill });
     await screen.findByRole("heading", { name: "One card away" });
     const buttons = screen.getAllByRole("button", { name: "Suggest full list" });
     expect(buttons).toHaveLength(2); // In your deck + One card away (no commander combos here)
@@ -268,8 +294,12 @@ describe("ComboRadarPanel — Suggest full list on the deck's own rows (X3)", ()
     expect(resolvePosts()).toHaveLength(1);
     const body = JSON.parse(resolvePosts()[0][1].body as string) as { names: string[] };
     expect(body.names).toEqual([pestermite.externalKey]);
-    expect(onAdd).toHaveBeenCalledTimes(1);
-    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ id: pestermite.id }));
+    expect(onAddPieces).toHaveBeenCalledTimes(1);
+    expect(onAddPieces).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: pestermite.id })],
+      false,
+    );
+    expect(onAdd).not.toHaveBeenCalled();
     expect(onOpenAutofill).toHaveBeenCalledWith({
       label: "Kiki-Jiki, Mirror Breaker + Pestermite",
       pieceIds: [commander.id, pestermite.id],
@@ -284,5 +314,129 @@ describe("ComboRadarPanel — Suggest full list on the deck's own rows (X3)", ()
     renderPanel({ deckId: DECK });
     await screen.findByRole("heading", { name: "One card away" });
     expect(screen.queryByRole("button", { name: "Suggest full list" })).toBeNull();
+  });
+});
+
+describe("ComboRadarPanel — badges (Y6b)", () => {
+  const DECK = "deck-2";
+  const ref = (c: ReturnType<typeof card>) => ({
+    id: c.id,
+    name: c.name,
+    externalKey: c.externalKey,
+  });
+  const [rock, wand, loop, spare, extra] = ["Rock", "Wand", "Loop", "Spare", "Extra"].map((name) =>
+    card({ name, externalKey: `oracle-${name.toLowerCase()}` }),
+  );
+  const view = (
+    id: number,
+    held: ReturnType<typeof card>[],
+    missing: ReturnType<typeof card>[],
+    over: Partial<DeckComboView> = {},
+  ): DeckComboView => ({
+    id,
+    externalKey: `k-${id}`,
+    results: ["Infinite mana"],
+    templates: [],
+    popularity: 100 * id,
+    tag: "E",
+    relevant: false,
+    inDeckPieces: held.map(ref),
+    missingPieces: missing.map(ref),
+    ...over,
+  });
+  const ruthless = view(1, [rock, wand, loop], [], { tag: "R" });
+  const quiet = view(2, [spare, wand, loop], []);
+  const spicy = view(3, [rock, wand], [extra], { tag: "S" });
+  const withCommander = view(4, [commander], [pestermite], { tag: "R", relevant: true });
+
+  function badgeRoute(input: RequestInfo | URL) {
+    const url = String(input);
+    if (url === `/api/decks/${DECK}/combos`) {
+      return ok({
+        inDeck: [ruthless, quiet],
+        oneAway: [spicy, withCommander],
+        truncated: false,
+      });
+    }
+    if (url.startsWith(`/api/cards/${commander.id}/combos`)) return ok(comboResponse);
+    return ok({});
+  }
+  const badges = () =>
+    [...document.querySelectorAll<HTMLElement>("[data-slot=combo-badge]")].map(
+      (b) => b.textContent,
+    );
+  const rowsText = () =>
+    [...document.querySelectorAll("li")].map(
+      (li) => li.querySelector("p, span")?.textContent ?? "",
+    );
+
+  beforeEach(() => {
+    fetchMock.mockImplementation(badgeRoute);
+  });
+
+  it("each deck-relative row says what its combo alone makes a deck, credited; one that raises nothing says nothing", async () => {
+    renderPanel({ deckId: DECK });
+    await screen.findByRole("heading", { name: "One card away" });
+    expect(badges()).toEqual([
+      "This combo alone makes a deck at least Bracket 4 — Commander Spellbook",
+      "This combo alone makes a deck Bracket 3 or 4 — your call — Commander Spellbook",
+      "A two-card combo with your commander alone makes a deck at least Bracket 4 — Commander Spellbook",
+    ]);
+    // No target: nothing is "above" anything.
+    expect(document.querySelector("[data-above-target]")).toBeNull();
+    // The commander's own rows (the card route's public combos) carry none.
+    const leaderSection = screen
+      .getByRole("heading", { name: "With your commander" })
+      .closest("section")!;
+    expect(leaderSection.querySelector("[data-slot=combo-badge]")).toBeNull();
+  });
+
+  it("a target names the rows above it — a call above it counts — and never changes which rows show", async () => {
+    const { view: plain } = renderPanel({ deckId: DECK });
+    await screen.findByRole("heading", { name: "One card away" });
+    const without = rowsText();
+    plain.unmount();
+
+    renderPanel({ deckId: DECK, goals: { v: 1, targetLevel: 3 } });
+    await screen.findByRole("heading", { name: "One card away" });
+    expect(rowsText()).toEqual(without);
+    expect(badges()).toEqual([
+      "This combo alone makes a deck at least Bracket 4 — Commander Spellbook · above your target",
+      "This combo alone makes a deck Bracket 3 or 4 — your call — Commander Spellbook · above your target",
+      "A two-card combo with your commander alone makes a deck at least Bracket 4 — Commander Spellbook · above your target",
+    ]);
+    expect(document.querySelectorAll("[data-above-target]")).toHaveLength(3);
+  });
+
+  it("at a target of 4 nothing is above it; an answered call counts as answered", async () => {
+    renderPanel({
+      deckId: DECK,
+      goals: { v: 1, targetLevel: 4, answers: { rulesetVersion: 1, calls: { "combo:k-3": "no" } } },
+    });
+    await screen.findByRole("heading", { name: "One card away" });
+    expect(document.querySelector("[data-above-target]")).toBeNull();
+    expect(badges()[1]).toBe(
+      "This combo alone makes a deck at least Bracket 3 — Commander Spellbook",
+    );
+  });
+
+  it("a game without brackets shows no badge", async () => {
+    renderPanel({ deckId: DECK, adapter: { ...adapter, brackets: undefined } });
+    await screen.findByRole("heading", { name: "One card away" });
+    expect(badges()).toEqual([]);
+  });
+
+  it("One card away's Add: the editor announces it — the live line stays quiet", async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (String(input) === "/api/cards/resolve") {
+        return ok({ results: [{ match: { ...extra, image: null } }] });
+      }
+      return badgeRoute(input);
+    });
+    const { onAdd } = renderPanel({ deckId: DECK });
+    fireEvent.click(await screen.findByRole("button", { name: "Add Extra to the deck" }));
+    await act(async () => {});
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ id: extra.id }));
+    expect(screen.queryByText("Added Extra")).toBeNull();
   });
 });

@@ -141,6 +141,10 @@ export const mtgAutofill: AutofillMeta = {
   },
   lockShare: TOURNAMENT_STAPLE_SHARE,
   lockMinLists: 5,
+  // WAVE4 F ("Autofill at targets ≤ 3"): measured staples lock in only for
+  // a target of Bracket 4 (Optimized) or above — below it they're ranked
+  // like any card, the weights unchanged.
+  lockMinTarget: 4,
   costTextOf: (attrs) => (typeof attrs.mana_cost === "string" ? attrs.mana_cost : null),
   curveLabel: (bucketLabel) => `Mana value ${bucketLabel}`,
 };

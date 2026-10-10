@@ -24,10 +24,18 @@
  * a kept piece outside the commander's colors comes back in `issues` —
  * never refused.
  *
- * Budget: 11 autofill POSTs — under the 20/min deckAutofill bucket. Never
+ * Y6b adds goals: goals without a target plan exactly the no-goals shell;
+ * a target of 2 holds no Game Changer, no land denial and one extra-turn
+ * card at most, locks no staple, says what it kept out (each note naming
+ * its source) — and the shell's own read, through the facts route and the
+ * real adapter, never passes 2; a target of 3 holds three Game Changers at
+ * most; goals that don't fit the game answer 400.
+ *
+ * Budget: 15 autofill POSTs — under the 20/min deckAutofill bucket. Never
  * retry into a 429; `pnpm counters:reset` if a manual battery preceded this.
  */
-export {}; // import-free file: stay a module so `main` doesn't collide with other scripts
+import { getAdapter } from "../src/lib/games/registry";
+import type { BracketFreshness, CardData, CompleteCombo } from "../src/lib/games/types";
 
 const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
@@ -213,6 +221,102 @@ async function main() {
   });
   check("responds 400", op.status === 400, op.status);
   check("names the gate", op.json.error === "No autofill for optcg", op.json.error);
+
+  // ------------------------------------------------------------------- Y6b
+  console.log("\nAtraxa — the deck's goals (Y6b) — 4 POSTs:");
+  const picksKey = (r: ShellResponse) => JSON.stringify(r.picks.map((pk) => [pk.cardId, pk.qty]));
+  const g0 = await autofill({ ...body, goals: { v: 1, budget: { perCardUsd: 5 } } });
+  check(
+    "goals without a target (a budget alone) → the no-goals shell exactly, no notes",
+    g0.status === 200 && picksKey(g0.json) === picksKey(a1.json) && g0.json.notes.length === 0,
+    g0.json.notes,
+  );
+  const flagged = (r: ShellResponse, key: string) =>
+    r.picks.filter((pk) => {
+      const wire = r.cards.find((c) => c.id === pk.cardId) as { attrs?: Record<string, unknown> };
+      return wire?.attrs?.[key] !== undefined;
+    });
+  const g2 = await autofill({ ...body, goals: { v: 1, targetLevel: 2 } });
+  check(
+    "target 2: responds 200, 99 picks",
+    g2.status === 200 && qty(g2.json) === 99,
+    g2.json.error,
+  );
+  check(
+    "target 2: no Game Changer, no land denial, one extra-turn card at most",
+    flagged(g2.json, "game_changer").length === 0 &&
+      flagged(g2.json, "mld").length === 0 &&
+      flagged(g2.json, "extra_turn").length <= 1,
+    ["game_changer", "mld", "extra_turn"].map((k) => flagged(g2.json, k).map((pk) => pk.cardId)),
+  );
+  check(
+    "target 2: no staple locked in (WAVE4 F)",
+    g2.json.picks.every((pk) => pk.tier !== "locked"),
+  );
+  const gcFree = flagged(a1.json, "game_changer").length;
+  check(
+    `target 2: "Skipped ${gcFree} Game Changers — your Bracket 2 target allows none (Wizards' list)"`,
+    gcFree > 0 &&
+      g2.json.notes.includes(
+        `Skipped ${gcFree} Game Changer${gcFree === 1 ? "" : "s"} — your Bracket 2 target allows none (Wizards' list)`,
+      ),
+    g2.json.notes,
+  );
+  check(
+    "target 2: every note names its source, in plain words",
+    g2.json.notes.every(
+      (n) => /\((Wizards' list|Scryfall Tagger|Commander Spellbook)\)$/.test(n) && !/\d\+/.test(n),
+    ),
+    g2.json.notes,
+  );
+  // WAVE4 E's acceptance, live: the shell's own read — its facts from the
+  // facts route, the real adapter — never passes the target.
+  const shellIds = [...new Set([atraxa.id, ...g2.json.picks.map((pk) => pk.cardId)])].sort();
+  const factsRes = await fetch(`${BASE}/api/combos/complete?game=mtg&ids=${shellIds.join(",")}`);
+  const facts = (await factsRes.json()) as { combos: CompleteCombo[]; freshness: BracketFreshness };
+  const cards = new Map<string, CardData>(
+    g2.json.cards.map((c) => [c.id, c as unknown as CardData]),
+  );
+  const deck = {
+    gameId: "mtg" as const,
+    formatCode: "commander",
+    zones: {
+      commander: [{ cardId: atraxa.id, qty: 1, tags: [] }],
+      main: g2.json.picks.map((pk) => ({ cardId: pk.cardId, qty: pk.qty, tags: [] })),
+    },
+  };
+  const brackets = getAdapter("mtg").brackets!;
+  const read = brackets.assess({
+    deck,
+    cards,
+    combos: facts.combos,
+    freshness: facts.freshness,
+    targetLevel: 2,
+  });
+  const line = brackets.line(read, { deck, cards, progress: null, targetLevel: 2 });
+  check(
+    `target 2: the shell's read stays inside it — "${line}"`,
+    factsRes.status === 200 &&
+      read.minimum <= 2 &&
+      read.conflicts.length === 0 &&
+      read.review.every((q) => q.raisesTo <= 2) &&
+      /^Your target: Bracket 2 · (nothing here goes past Core|the cards say at least 2)$/.test(
+        line,
+      ),
+    { minimum: read.minimum, conflicts: read.conflicts, status: read.status },
+  );
+  const g3 = await autofill({ ...body, goals: { v: 1, targetLevel: 3 } });
+  check(
+    "target 3: three Game Changers at most",
+    g3.status === 200 && flagged(g3.json, "game_changer").length <= 3,
+    flagged(g3.json, "game_changer").length,
+  );
+  const gBad = await autofill({ ...body, goals: { v: 1, targetLevel: 9 } });
+  check(
+    "goals that don't fit the game → 400 Invalid goals",
+    gBad.status === 400 && gBad.json.error === "Invalid goals",
+    gBad.status,
+  );
 
   // ------------------------------------------------------------------- W9c
   interface RandomLeader {

@@ -13,6 +13,20 @@
  * A game whose adapter declares no `recommend.autofill` answers 400 (One
  * Piece — that IS the OP deliverable; no apology copy, it's an API).
  *
+ * Goals (Y6b, WAVE4 D7): `goals` is the deck's own (the editor sends what
+ * Suggestions' draft POST sends — goals.ts' `suggestionGoals`), checked
+ * against the game like a stored deck's (`goalsSchema`, 400 "Invalid
+ * goals"). With a target the shell stays inside it: the planner asks the
+ * adapter's `impact` about every card against the list as it grows
+ * (shell-goals.ts), one more statement loads every combo complete within
+ * keep ∪ the candidate pool (so two picks completing one together are
+ * caught), the lock tier is off below the adapter's `lockMinTarget`, and
+ * the notes say what the target kept out — counted against the shell the
+ * same seed plans with no goals. The budget filter stays `budgetUsd`, the
+ * sheet's own control (it starts from the deck's goal). With no target —
+ * goals absent, or a budget alone — nothing changes: fixed-seed shells are
+ * byte-identical (the planner's golden; the live seed-1,234,567 shell).
+ *
  * Caching intent: force-dynamic + no-store — output depends on the body
  * and (for omitted seeds) a server roll. Rate-limited per IP as the app's
  * costliest read; W9b's reroll button spends this budget.
@@ -22,15 +36,24 @@ import { z } from "zod";
 
 import { findFormat, GAME_ID } from "@/db/seed-data";
 import { loadCardWires } from "@/lib/cards/wire";
+import { loadCompleteCombos } from "@/lib/combos/queries";
 import { clientIp } from "@/lib/decks/access";
 import { cardListIssues, type DeckCardInput } from "@/lib/decks/cards";
+import { goalsSchema, type DeckGoals } from "@/lib/decks/goals";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
-import type { CardData } from "@/lib/games/types";
-import { buildShell, finishShell, type FillerPick } from "@/lib/recommend/autofill";
-import { gatherSignals, type RecommendSnapshot } from "@/lib/recommend/engine";
+import type { CardData, DeckEntry } from "@/lib/games/types";
+import {
+  buildShell,
+  finishShell,
+  locksStaples,
+  type FillerPick,
+  type ShellInput,
+} from "@/lib/recommend/autofill";
+import { gatherSignals, readCard, type RecommendSnapshot } from "@/lib/recommend/engine";
 import { loadEntryFacts, loadFillerRows, loadTournamentSignals } from "@/lib/recommend/queries";
 import { rankCandidates } from "@/lib/recommend/rank";
+import { shellGoals, skippedByGoals, type ShellGoals } from "@/lib/recommend/shell-goals";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +87,8 @@ const BODY = z.object({
     .min(0)
     .max(2 ** 31 - 1)
     .optional(),
+  /** The deck's goals (Y6b) — shape-checked against the game below. */
+  goals: z.unknown().optional(),
 });
 
 const bad = (error: string, issues?: unknown) =>
@@ -101,10 +126,19 @@ export async function POST(request: NextRequest) {
   if (keep.some((k) => k.zone === leaderZone.id)) {
     return bad(`Leaders go in leaderIds, not keep (zone "${leaderZone.id}")`);
   }
+  const goals =
+    parsed.data.goals === undefined || parsed.data.goals === null
+      ? null
+      : goalsSchema(adapter.brackets).safeParse(parsed.data.goals);
+  if (goals && !goals.success) return bad("Invalid goals", goals.error.issues);
+  const deckGoals: DeckGoals | null = goals?.data ?? null;
+  const brackets = adapter.brackets;
+  const targetLevel = brackets ? (deckGoals?.targetLevel ?? null) : null;
 
-  // Server-authoritative facts for every id the client sent.
+  // Server-authoritative facts for every id the client sent (with the
+  // bracket flags the goals check reads, where the game declares them).
   const ids = [...new Set([...leaderIds, ...keep.map((k) => k.cardId)])];
-  const facts = await loadEntryFacts(GAME_ID[game], ids);
+  const facts = await loadEntryFacts(GAME_ID[game], ids, brackets?.flagPaths);
   const unknown = ids.filter((id) => !facts.has(id));
   if (unknown.length > 0) return bad("Unknown card ids for this game", unknown);
 
@@ -151,13 +185,18 @@ export async function POST(request: NextRequest) {
   ]);
 
   // ONE tournament-signals read over the union (honest absence: a commander
-  // set with no aggregated lists yields no topdeck evidence anywhere).
-  const tournaments = meta.tournaments
-    ? await loadTournamentSignals(leaderIds, [
-        ...curveGather.candidates.map((c) => c.id),
-        ...baseGather.candidates.map((c) => c.id),
-      ])
-    : { context: null, byCandidate: new Map() };
+  // set with no aggregated lists yields no topdeck evidence anywhere). With
+  // a target, beside it: every combo complete within keep ∪ the pool.
+  const poolIds = [
+    ...curveGather.candidates.map((c) => c.id),
+    ...baseGather.candidates.map((c) => c.id),
+  ];
+  const [tournaments, poolCombos] = await Promise.all([
+    meta.tournaments
+      ? loadTournamentSignals(leaderIds, poolIds)
+      : Promise.resolve({ context: null, byCandidate: new Map() }),
+    targetLevel !== null ? loadCompleteCombos([...ids, ...poolIds]) : Promise.resolve(null),
+  ]);
 
   const deckCards = snapshot.entries.map((e) => ({
     card: { primaryType: e.primaryType, costValue: e.costValue },
@@ -187,7 +226,37 @@ export async function POST(request: NextRequest) {
   // template, not a card inside it).
   const countsZones = new Set(formatDef.zones.filter((z) => z.countsTowardSize).map((z) => z.id));
   const keptTotal = entries.filter((e) => countsZones.has(e.zone)).reduce((n, e) => n + e.qty, 0);
-  const draft = buildShell({
+
+  // The target, held as the shell grows (Y6b): the kept list and every
+  // candidate as the read sees them — their declared flags alone.
+  let goalsCheck: ShellGoals | undefined;
+  if (brackets && targetLevel !== null && poolCombos) {
+    const zones: Record<string, DeckEntry[]> = {};
+    const keptCards = new Map<string, CardData>();
+    for (const e of entries) {
+      (zones[e.zone] ??= []).push({ cardId: e.cardId, qty: e.qty, tags: [] });
+      const f = facts.get(e.cardId)!;
+      keptCards.set(e.cardId, readCard(e.cardId, f.primaryType, f.costValue, f));
+    }
+    const candidates = new Map<string, CardData>();
+    for (const c of [...curveGather.candidates, ...baseGather.candidates]) {
+      candidates.set(c.id, readCard(c.id, c.primaryType, c.costValue, c));
+    }
+    goalsCheck = shellGoals({
+      meta: brackets,
+      deck: { gameId: adapter.id, formatCode: format, zones },
+      cards: keptCards,
+      candidates,
+      combos: poolCombos,
+      zone: mainZone.id,
+      targetLevel,
+      answers: deckGoals?.answers ?? null,
+    });
+  }
+  // WAVE4 F: below the adapter's lockMinTarget, measured staples aren't locked in.
+  const lockStaples = locksStaples(autofill, targetLevel);
+
+  const shellInput: ShellInput = {
     autofill,
     curve,
     slots: formatDef.deckSize.min - keptTotal,
@@ -208,7 +277,14 @@ export async function POST(request: NextRequest) {
     comboCandidateIds: new Set(curveGather.combosByCandidate.keys()),
     zone: mainZone.id,
     seed,
-  });
+  };
+  const draft = buildShell({ ...shellInput, goals: goalsCheck, lockStaples });
+  // What the target kept out: the shell the same seed plans with no goals,
+  // walked against the check — one note per rule, in the adapter's words.
+  const goalNotes =
+    brackets && goalsCheck && targetLevel !== null
+      ? brackets.shellNotes(skippedByGoals(goalsCheck, buildShell(shellInput).picks), targetLevel)
+      : [];
 
   // Fillers (adapter basics) + the wire read the response needs anyway.
   const fillerRows =
@@ -289,7 +365,7 @@ export async function POST(request: NextRequest) {
       seed: shell.seed,
       picks: shell.picks,
       groups: shell.groups,
-      notes: shell.notes,
+      notes: [...shell.notes, ...goalNotes],
       totals: shell.totals,
       issues: validation,
       cards: wires.filter((w) => usedIds.has(w.id)),

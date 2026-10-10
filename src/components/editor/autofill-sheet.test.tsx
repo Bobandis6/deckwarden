@@ -397,3 +397,79 @@ describe("AutofillSheet", () => {
     expect(screen.queryByText(/Also needs/)).toBeNull();
   });
 });
+
+describe("AutofillSheet — the deck's goals (Y6b)", () => {
+  const goalsLine = () => document.querySelector<HTMLElement>("[data-slot=goals-line]");
+
+  it("the goals ride the body as Suggestions' draft POST sends them; the budget starts from the goal", async () => {
+    render(
+      sheet({
+        goals: {
+          v: 1,
+          targetLevel: 2,
+          budget: { perCardUsd: 5 },
+          exceptions: "one thematic Game Changer",
+        },
+      }),
+    );
+    await screen.findByText("Lands · 12");
+    expect(bodies()[0]).toEqual({
+      game: "mtg",
+      format: "commander",
+      leaderIds: [atraxa.id],
+      keep: [],
+      budgetUsd: 5,
+      // suggestionGoals: the target, the budget, the answers — never the exceptions line.
+      goals: { v: 1, targetLevel: 2, budget: { perCardUsd: 5 } },
+    });
+    expect(screen.getByRole("button", { name: "≤ $5 a card" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    // A pick of the sheet's own wins; the goals still ride.
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    await screen.findByText("Lands · 12");
+    const last = bodies().at(-1)!;
+    expect("budgetUsd" in last).toBe(false);
+    expect(last.goals).toEqual({ v: 1, targetLevel: 2, budget: { perCardUsd: 5 } });
+    expect("seed" in last).toBe(false);
+  });
+
+  it("the goals line reads above the controls — no Change (the Why sheet is another dialog), no Save", async () => {
+    render(sheet({ goals: { v: 1, targetLevel: 2, budget: { perCardUsd: 5 } } }));
+    await screen.findByText("Lands · 12");
+    expect(goalsLine()?.textContent).toBe("Your goals: Bracket 2 (Core) · ≤ $5 a card");
+    expect(screen.queryByRole("button", { name: "Change" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save as this deck's budget" })).toBeNull();
+  });
+
+  it("goals with neither a target nor a budget: no line, and nothing in the body changes", async () => {
+    render(sheet({ goals: { v: 1, exceptions: "ask me" } }));
+    await screen.findByText("Lands · 12");
+    expect(goalsLine()).toBeNull();
+    expect(bodies()[0]).toEqual({
+      game: "mtg",
+      format: "commander",
+      leaderIds: [atraxa.id],
+      keep: [],
+    });
+  });
+
+  it("the target's notes render verbatim beside the planner's", async () => {
+    fetchMock.mockImplementation(() =>
+      ok({
+        ...shell,
+        notes: [
+          ...shell.notes,
+          "Skipped 4 Game Changers — your Bracket 2 target allows none (Wizards' list)",
+        ],
+      }),
+    );
+    render(sheet({ goals: { v: 1, targetLevel: 2 } }));
+    expect(
+      await screen.findByText(
+        "Skipped 4 Game Changers — your Bracket 2 target allows none (Wizards' list)",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Filled 13 of 99 — too few candidates in Mana value 5.")).toBeTruthy();
+  });
+});

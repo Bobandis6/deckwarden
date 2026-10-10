@@ -14,10 +14,21 @@
  *
  * Purity + the seed in the response make "same seed → identical list" a
  * contract, not a vibe; rng.ts pins the sequence.
+ *
+ * Goals (Y6b, WAVE4 D7): with the deck's target, every card is checked
+ * before it's taken — the lock and combo tiers, a borrowed slot and a land
+ * one at a time, a sampling window as a whole: it is built only from cards
+ * that fit TOGETHER (each judged against the picks and the window before
+ * it), so whatever the sample takes stays inside the target. Goals filter
+ * before sampling and the sampler is untouched — one `rand()` per window
+ * card — so with goals absent the windows, the stream and the shell are
+ * exactly what they were (pinned by the fixed-seed golden). Below the
+ * adapter's `lockMinTarget` the route turns the lock tier off.
  */
 import type { AutofillMeta, RecommendMeta } from "@/lib/games/types";
 import { deckCurve, type TournamentContext, type TournamentSignal } from "./rank";
 import { mulberry32, sampleWeighted } from "./rng";
+import type { ShellGoals } from "./shell-goals";
 import type { Recommendation, RecommendationEvidence } from "./types";
 
 /** Global cap on tier-B picks (combo completions with kept cards). */
@@ -80,6 +91,10 @@ export interface ShellInput {
   /** Zone every pick lands in (the non-leader countsTowardSize zone). */
   zone: string;
   seed: number;
+  /** The deck's target, held as the shell grows (Y6b, shell-goals.ts); absent = no goals. */
+  goals?: ShellGoals;
+  /** Whether tier A locks measured staples (default true; off below the adapter's lockMinTarget). */
+  lockStaples?: boolean;
 }
 
 export interface ShellDraft {
@@ -138,6 +153,19 @@ const popcount = (mask: number): number => {
   for (let m = mask >>> 0; m !== 0; m >>>= 1) n += m & 1;
   return n;
 };
+
+/**
+ * Whether tier A locks measured staples for this target (Y6b, WAVE4 F
+ * "Autofill at targets ≤ 3"): no target, or one at or above the adapter's
+ * `lockMinTarget`. Below it they're ranked like any card — the weights stay.
+ */
+export function locksStaples(autofill: AutofillMeta, targetLevel: number | null): boolean {
+  return (
+    targetLevel === null ||
+    autofill.lockMinTarget === undefined ||
+    targetLevel >= autofill.lockMinTarget
+  );
+}
 
 /** Tier-A lock: measured tournament staple for THIS commander set. */
 function isLocked(
@@ -210,7 +238,18 @@ export function buildShell(input: ShellInput): ShellDraft {
 
   const rand = mulberry32(seed);
   const picked = new Set<string>();
+  /** Every ranked pick so far, in pick order — the list the goals judge the next card against. */
+  const chosen: string[] = [];
   let comboUsed = 0;
+  const { goals } = input;
+  /** Whether the card fits the goals beside every pick so far (and `alsoHeld`); no goals = always. */
+  const fits = (rec: Recommendation, alsoHeld: readonly string[] = []): boolean =>
+    !goals ||
+    goals.conflicts(rec.cardId, alsoHeld.length > 0 ? [...chosen, ...alsoHeld] : chosen).length ===
+      0;
+  const lockStaples = input.lockStaples ?? true;
+  const locked = (rec: Recommendation): boolean =>
+    lockStaples && isLocked(rec, autofill, input.tournamentContext, input.tournamentsByCandidate);
 
   /** Tiers A → B → C over one bucket's remaining candidates. */
   const pickFromBucket = (bucket: number, need: number, tierForBorrow?: true): ShellPick[] => {
@@ -220,6 +259,7 @@ export function buildShell(input: ShellInput): ShellDraft {
     const out: ShellPick[] = [];
     const take = (rec: Recommendation, tier: PickTier) => {
       picked.add(rec.cardId);
+      chosen.push(rec.cardId);
       out.push(toPick(rec, zone, group, tier));
     };
 
@@ -227,7 +267,7 @@ export function buildShell(input: ShellInput): ShellDraft {
     if (tierForBorrow) {
       for (const rec of remaining) {
         if (out.length >= need) break;
-        take(rec, "sampled");
+        if (fits(rec)) take(rec, "sampled");
       }
       return out;
     }
@@ -235,24 +275,31 @@ export function buildShell(input: ShellInput): ShellDraft {
     // A. locked tournament staples, rank order.
     for (const rec of remaining) {
       if (out.length >= need) break;
-      if (isLocked(rec, autofill, input.tournamentContext, input.tournamentsByCandidate)) {
-        take(rec, "locked");
-      }
+      if (locked(rec) && fits(rec)) take(rec, "locked");
     }
     // B. combo completions with kept cards, global cap.
     for (const rec of remaining) {
       if (out.length >= need || comboUsed >= COMBO_PICK_CAP) break;
-      if (!picked.has(rec.cardId) && input.comboCandidateIds.has(rec.cardId)) {
+      if (!picked.has(rec.cardId) && input.comboCandidateIds.has(rec.cardId) && fits(rec)) {
         take(rec, "combo");
         comboUsed += 1;
       }
     }
-    // C. weighted sampling (w = score) from the top of what's left.
+    // C. weighted sampling (w = score) from the top of what's left. With
+    // goals the window holds only cards that fit together — each judged
+    // against the picks and the window before it — so any sample from it
+    // fits; without them it is the plain top of what's left.
     const left = need - out.length;
     if (left > 0) {
-      const window = remaining
-        .filter((r) => !picked.has(r.cardId))
-        .slice(0, Math.ceil(left * SAMPLE_WINDOW));
+      const size = Math.ceil(left * SAMPLE_WINDOW);
+      const window: Recommendation[] = [];
+      const admitted: string[] = [];
+      for (const rec of remaining) {
+        if (window.length >= size) break;
+        if (picked.has(rec.cardId) || !fits(rec, admitted)) continue;
+        window.push(rec);
+        if (goals) admitted.push(rec.cardId);
+      }
       for (const rec of sampleWeighted(window, left, (r) => r.score, rand)) {
         take(rec, "sampled");
       }
@@ -291,29 +338,18 @@ export function buildShell(input: ShellInput): ShellDraft {
   let colorlessUsed = 0;
   let baseTaken = 0;
   const baseOrdered = [
-    ...input.basePool.filter((r) =>
-      isLocked(r, autofill, input.tournamentContext, input.tournamentsByCandidate),
-    ),
-    ...input.basePool.filter(
-      (r) => !isLocked(r, autofill, input.tournamentContext, input.tournamentsByCandidate),
-    ),
+    ...input.basePool.filter((r) => locked(r)),
+    ...input.basePool.filter((r) => !locked(r)),
   ];
   for (const rec of baseOrdered) {
     if (baseTaken >= rankedTarget) break;
     if (picked.has(rec.cardId)) continue;
     const colorless = rec.ciMask === 0;
     if (colorless && colorlessUsed >= autofill.base.maxColorlessIdentity) continue;
+    if (!fits(rec)) continue;
     picked.add(rec.cardId);
-    draft.picks.push(
-      toPick(
-        rec,
-        zone,
-        "base",
-        isLocked(rec, autofill, input.tournamentContext, input.tournamentsByCandidate)
-          ? "locked"
-          : "sampled",
-      ),
-    );
+    chosen.push(rec.cardId);
+    draft.picks.push(toPick(rec, zone, "base", locked(rec) ? "locked" : "sampled"));
     if (colorless) colorlessUsed += 1;
     baseTaken += 1;
   }

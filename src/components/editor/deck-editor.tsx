@@ -1165,12 +1165,11 @@ export function DeckEditor({
     [format, applyEdit],
   );
 
-  // Suggestions' adds (Y6a, WAVE4 D7): the panels' path plus the add
-  // toast — "Added X" with an Undo that is a REAL edit back to the previous
-  // quantity, like the search pane's (F3). The panel's live line keeps only
-  // failures. The Combo Radar keeps its own notices: its combo-piece adds
-  // toast once for the whole batch.
-  const handleSuggestionAdd = useCallback(
+  // The panels' announced adds (Y6a Suggestions, Y6b the Combo Radar —
+  // WAVE4 D7): the panels' path plus the add toast — "Added X" with an
+  // Undo that is a REAL edit back to the previous quantity, like the search
+  // pane's (F3). The panels' live lines keep only failures.
+  const handleUndoableAdd = useCallback(
     (card: EditorCard): string | undefined => {
       const mainZone = format?.zones.find((z) => !z.isLeaderZone);
       const previousQty =
@@ -1181,6 +1180,38 @@ export function DeckEditor({
         applyEdit(setQty(entriesRef.current, format, mainZone.id, card.id, previousQty)),
       );
       return undefined;
+    },
+    [format, handlePanelAdd, notify, applyEdit],
+  );
+
+  // A combo's pieces from the Combo Radar (Y6b, LATER row 179): each one
+  // through the panels' path, then — unless the autofill sheet opens on
+  // them — ONE toast for the batch, whose Undo sets every piece it added
+  // back to the quantity it had (a real edit, like a single add's).
+  const handleComboPiecesAdd = useCallback(
+    (cards: readonly EditorCard[], announce: boolean): string | undefined => {
+      const mainZone = format?.zones.find((z) => !z.isLeaderZone);
+      if (!format || !mainZone) return "Deck not loaded yet";
+      const qtyOf = (cardId: string) =>
+        entriesRef.current.find((e) => e.zone === mainZone.id && e.cardId === cardId)?.qty ?? 0;
+      const added: { cardId: string; previousQty: number }[] = [];
+      let firstError: string | undefined;
+      for (const card of cards) {
+        const previousQty = qtyOf(card.id);
+        const error = handlePanelAdd(card);
+        if (error) firstError ??= error;
+        else added.push({ cardId: card.id, previousQty });
+      }
+      if (announce && added.length > 0) {
+        notify(`Added ${added.length} combo piece${added.length === 1 ? "" : "s"}`, () => {
+          let entries = entriesRef.current;
+          for (const a of added) {
+            entries = setQty(entries, format, mainZone.id, a.cardId, a.previousQty).entries;
+          }
+          applyEdit({ entries });
+        });
+      }
+      return firstError;
     },
     [format, handlePanelAdd, notify, applyEdit],
   );
@@ -1726,7 +1757,7 @@ export function DeckEditor({
                 inDeckQty={inDeckQty}
                 saveStatus={autosave.status}
                 active={rightTab === "suggest"}
-                onAdd={handleSuggestionAdd}
+                onAdd={handleUndoableAdd}
                 ownedAvailable={hasCollection}
                 goals={goals}
                 onGoalsChange={handleGoalsChange}
@@ -1745,7 +1776,9 @@ export function DeckEditor({
                 inDeckQty={inDeckQty}
                 saveStatus={autosave.status}
                 active={rightTab === "combos"}
-                onAdd={handlePanelAdd}
+                onAdd={handleUndoableAdd}
+                onAddPieces={handleComboPiecesAdd}
+                goals={goals}
                 onOpenAutofill={load.adapter.recommend?.autofill ? openComboAutofill : undefined}
               />
             </TabsContent>
@@ -1864,6 +1897,7 @@ export function DeckEditor({
               cards={cards}
               phone={tier === "phone"}
               pinned={autofillPin ?? undefined}
+              goals={goals}
               onApply={({ entries: next, cards: wires, added }) => {
                 applyListSwap(next, wires, `Added ${added} card${added === 1 ? "" : "s"}`);
                 closeAutofill();

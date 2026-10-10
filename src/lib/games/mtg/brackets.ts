@@ -65,6 +65,7 @@
  */
 import type {
   BracketAnswers,
+  BracketComboBadge,
   BracketConflict,
   BracketFactor,
   BracketFreshness,
@@ -1071,6 +1072,129 @@ export function mtgBracketImpact(input: BracketImpactInput<MtgAttrs>): BracketCo
     }));
 }
 
+// --- Goals in Autofill and the Combo Radar (Y6b, WAVE4 D7) ----------------------------
+
+/**
+ * Autofill's notes (Y6b): what the deck's target kept out of a starter
+ * shell — one line per rule `impact` names, with its count, in the order
+ * the read lists its findings. Every line names its source (D0).
+ */
+export function mtgShellNotes(skipped: Readonly<Record<string, number>>, target: number): string[] {
+  const count = (rule: Effect["rule"]) => skipped[rule] ?? 0;
+  const notes: string[] = [];
+  const gameChangers = count("game-changers");
+  if (gameChangers > 0) {
+    const allowance = levelOf(target).gameChangers;
+    notes.push(
+      `Skipped ${gameChangers} ${plural(gameChangers, "Game Changer", "Game Changers")} — your Bracket ${target} target allows ${
+        allowance === null
+          ? "any number"
+          : allowance === 0
+            ? "none"
+            : `up to ${numberWord(allowance)}`
+      } (${SOURCE_SHORT.gameChangers})`,
+    );
+  }
+  const landDenial = count("land-denial");
+  if (landDenial > 0) {
+    notes.push(
+      `Skipped ${landDenial} land-denial ${plural(landDenial, "card", "cards")} — Wizards expects no mass land denial at ${bracketsPhrase(
+        levelsWhere((l) => !l.landDenial),
+      )} (${SOURCE_SHORT.tagger})`,
+    );
+  }
+  const extraTurns = count("extra-turns");
+  if (extraTurns > 0) {
+    const cards = plural(extraTurns, "card", "cards");
+    notes.push(
+      target < EXTRA_TURN_LEVEL
+        ? `Skipped ${extraTurns} extra-turn ${cards} — ${bracketsVerb(
+            levelsWhere((l) => l.extraTurns === "none"),
+            "expects",
+            "expect",
+          )} none (${SOURCE_SHORT.tagger})`
+        : `Skipped ${extraTurns} more extra-turn ${cards} — ${bracketsVerb(
+            levelsWhere((l) => l.extraTurns === "few"),
+            "avoids",
+            "avoid",
+          )} chaining extra turns (${SOURCE_SHORT.tagger})`,
+    );
+  }
+  const combos = count("combo");
+  if (combos > 0) {
+    notes.push(
+      `Skipped ${combos} ${plural(combos, "card", "cards")} that would complete a combo above your Bracket ${target} target (${SOURCE_SHORT.spellbook})`,
+    );
+  }
+  return notes;
+}
+
+/**
+ * The Combo Radar's badge (Y6b): one combo read on its own, exactly as
+ * `readCombo` reads it inside a list. The pieces stand in for the cards —
+ * a combo's reading takes their ids alone, never their flags — and the
+ * deck's leaders say which piece is the commander. A question the player
+ * answered counts as answered, as `impact` counts it: no drops the call,
+ * yes makes it firm. Null when the combo raises nothing and asks nothing.
+ */
+export function mtgComboBadge(
+  combo: CompleteCombo,
+  commanderIds: ReadonlySet<string>,
+  answers?: BracketAnswers | null,
+): BracketComboBadge | null {
+  const stand = new Map<string, MtgCard>(
+    combo.cardPieces.map((id) => [
+      id,
+      {
+        id,
+        name: id,
+        externalKey: id,
+        primaryType: null,
+        costValue: null,
+        colorsMask: 0,
+        ciMask: 0,
+        isLeaderCandidate: false,
+        isPreview: false,
+        cheapestUsd: null,
+        popularity: null,
+        attrs: { type_line: "", oracle_text: "" },
+        legality: [],
+      },
+    ]),
+  );
+  const r = readCombo(combo, stand, commanderIds);
+  let level = r.factor?.atLeast ?? 1;
+  let callLevel = r.question && r.question.raisesTo > level ? r.question.raisesTo : null;
+  const answer = r.question ? answers?.calls?.[r.question.id] : undefined;
+  if (callLevel !== null && answer === "no") callLevel = null;
+  if (callLevel !== null && answer === "yes") {
+    level = callLevel;
+    callLevel = null;
+  }
+  const source = BRACKET_SOURCES.spellbook;
+  if (level <= 1 && callLevel === null) {
+    return r.unchecked
+      ? { level: 1, callLevel: null, words: "Couldn't check how this combo is rated", source }
+      : null;
+  }
+  // Wizards' two-card rule, as readCombo applies it: at most two cards besides your commander.
+  const others = combo.cardPieces.filter((id) => !commanderIds.has(id)).length;
+  const twoCard = combo.relevant === true && combo.templates.length === 0 && others <= 2;
+  const usesCommander = combo.cardPieces.some((id) => commanderIds.has(id));
+  const head = twoCard
+    ? usesCommander
+      ? "A two-card combo with your commander"
+      : "A two-card combo"
+    : "This combo";
+  const words =
+    callLevel === null
+      ? `${head} alone makes a deck at least Bracket ${level}`
+      : level <= 1
+        ? `${head} could make a deck Bracket ${callLevel} — your call`
+        : `${head} alone makes a deck Bracket ${level} or ${callLevel} — your call`;
+  return { level, callLevel, words, source };
+}
+
 /** The Magic adapter's `brackets` declaration (Y3b; the line and the sheet's links, Y4a). */
 export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   noun: "bracket",
@@ -1087,4 +1211,6 @@ export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   links: MTG_BRACKET_LINKS,
   flagPaths: MTG_BRACKET_FLAG_PATHS,
   impact: mtgBracketImpact,
+  shellNotes: mtgShellNotes,
+  comboBadge: mtgComboBadge,
 };

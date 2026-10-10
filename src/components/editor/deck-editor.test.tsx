@@ -2814,4 +2814,165 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       expect(document.activeElement).toBe(targetButton(dialog, "3"));
     });
   });
+
+  describe("goals in Autofill and the Combo Radar (Y6b)", () => {
+    const ref = (c: CardWire) => ({ id: c.id, name: c.name, externalKey: c.externalKey });
+    /** One card away: Sol Ring with the kept Mana Vault — a two-card combo rated R. */
+    const oneAway = {
+      id: 601,
+      externalKey: "kz-2",
+      results: ["Infinite colorless mana"],
+      templates: [],
+      popularity: 200,
+      tag: "R",
+      relevant: true,
+      inDeckPieces: [ref(vault)],
+      missingPieces: [ref(sol)],
+    };
+    /** Kozilek's own combo: two pieces to add. */
+    const leaderCombos = {
+      total: 1,
+      combos: [
+        {
+          id: 501,
+          externalKey: "kz-1",
+          results: ["Infinite mana"],
+          templates: [],
+          popularity: 300,
+          pieces: [kozilek, sol, signet].map(ref),
+        },
+      ],
+    };
+    const emptyShell = {
+      game: "mtg",
+      format: "commander",
+      seed: 1,
+      picks: [],
+      groups: [],
+      notes: ["Skipped 1 Game Changer — your Bracket 2 target allows none (Wizards' list)"],
+      totals: { picks: 0, estUsd: null, unpriced: 0 },
+      issues: [],
+      cards: [],
+    };
+    function y6bRoute(input: RequestInfo | URL, init?: RequestInit) {
+      const url = String(input);
+      if (url === "/api/decks/deck-1/combos") {
+        return ok({ deckId: "deck-1", inDeck: [], oneAway: [oneAway], truncated: false });
+      }
+      if (url.startsWith(`/api/cards/${kozilek.id}/combos`)) return ok(leaderCombos);
+      if (url === "/api/cards/resolve") {
+        const { names } = JSON.parse(init!.body as string) as { names: string[] };
+        const known = [sol, signet];
+        return ok({
+          results: names.map((n) => ({
+            input: n,
+            match: known.find((c) => c.externalKey === n || c.name === n) ?? null,
+            suggestions: [],
+          })),
+        });
+      }
+      if (url === "/api/decks/autofill") return { ...ok(emptyShell), headers: new Headers() };
+      return y4bRoute(input, init);
+    }
+    const combosTab = () => {
+      fireEvent.click(screen.getByRole("tab", { name: "Combos" }));
+      return pollFor(() => screen.queryByRole("heading", { name: "One card away" }));
+    };
+    const toastOf = async (title: string) =>
+      (await pollFor(() => screen.queryByText(title))).closest(
+        '[data-slot="toast"]',
+      ) as HTMLElement;
+
+    beforeEach(() => {
+      fetchMock.mockImplementation(y6bRoute);
+    });
+
+    it("LATER row 179: a Radar add toasts Added X · Undo — the live line stays quiet — and Undo is a real edit", async () => {
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await combosTab();
+      fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring to the deck" }));
+      const toastEl = await toastOf("Added Sol Ring");
+      expect(screen.getAllByText("Added Sol Ring")).toHaveLength(1);
+      await settle(1500);
+      await act(async () => {});
+      expect(puts()).toBe(1);
+      expect(lastPutEntries().some((e) => e.cardId === sol.id)).toBe(true);
+
+      fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+      await settle(1500);
+      await act(async () => {});
+      expect(puts()).toBe(2);
+      expect(lastPutEntries().some((e) => e.cardId === sol.id)).toBe(false);
+    });
+
+    it("LATER row 179: a combo's pieces toast ONCE — Added 2 combo pieces — and ONE Undo takes both back", async () => {
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await combosTab();
+      fireEvent.click(await pollFor(() => screen.queryByRole("button", { name: "Add 2 pieces" })));
+      const toastEl = await toastOf("Added 2 combo pieces");
+      expect(document.querySelectorAll('[data-slot="toast"]')).toHaveLength(1);
+      await settle(1500);
+      await act(async () => {});
+      expect(puts()).toBe(1);
+      const added = lastPutEntries().map((e) => e.cardId);
+      expect(added).toEqual(expect.arrayContaining([sol.id, signet.id]));
+
+      fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+      await settle(1500);
+      await act(async () => {});
+      expect(puts()).toBe(2);
+      const after = lastPutEntries().map((e) => e.cardId);
+      expect(after).not.toContain(sol.id);
+      expect(after).not.toContain(signet.id);
+      expect(after).toContain(vault.id);
+    });
+
+    it("the Radar's rows read the deck's target: the R combo one card away is above a target of 2", async () => {
+      deckGoals = { v: 1, targetLevel: 2 };
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Your target: Bracket 2 · the cards say 3 or 4 — one card is your call · Why?");
+      await combosTab();
+      const badge = await pollFor(() =>
+        document.querySelector<HTMLElement>("[data-slot=combo-badge]"),
+      );
+      expect(badge.textContent).toBe(
+        "A two-card combo alone makes a deck at least Bracket 4 — Commander Spellbook · above your target",
+      );
+    });
+
+    it("More → Autofill… sends the deck's goals and starts from its budget; the goals line and the notes read in the sheet", async () => {
+      deckGoals = { v: 1, targetLevel: 2, budget: { perCardUsd: 5 }, exceptions: "ask me" };
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Your target: Bracket 2 · the cards say 3 or 4 — one card is your call · Why?");
+      const trigger = screen.getByRole("button", { name: "More" });
+      fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
+      fireEvent.mouseDown(trigger, { button: 0 });
+      fireEvent.click(trigger, { button: 0 });
+      const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
+      fireEvent.click(within(menu).getByRole("menuitem", { name: "Autofill…" }));
+      const dialog = await pollFor(() =>
+        screen.queryByRole("dialog", { name: "Autofill a starter shell" }),
+      );
+      await pollFor(() =>
+        within(dialog).queryByText(
+          "Skipped 1 Game Changer — your Bracket 2 target allows none (Wizards' list)",
+        ),
+      );
+      const [, init] = fetchMock.mock.calls.find(
+        ([url, i]) => String(url) === "/api/decks/autofill" && i?.method === "POST",
+      )!;
+      const body = JSON.parse((init as RequestInit).body as string) as Record<string, unknown>;
+      expect(body.budgetUsd).toBe(5);
+      expect(body.goals).toEqual({ v: 1, targetLevel: 2, budget: { perCardUsd: 5 } });
+      expect(dialog.querySelector("[data-slot=goals-line]")?.textContent).toBe(
+        "Your goals: Bracket 2 (Core) · ≤ $5 a card",
+      );
+    });
+  });
 });

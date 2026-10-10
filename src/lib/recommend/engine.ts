@@ -242,9 +242,10 @@ export async function gatherSignals(
  * `impact` read there — pinned in bracket-impact.test.ts). No legality: it
  * blocks a read's status, never a level, and the candidate filter and
  * validate own it. The two values a candidate row doesn't carry
- * (colorsMask, isLeaderCandidate) no read takes.
+ * (colorsMask, isLeaderCandidate) no read takes. Autofill's goals check
+ * (Y6b) builds its cards the same way.
  */
-function readCard(
+export function readCard(
   id: string,
   primaryType: string | null,
   costValue: number | null,

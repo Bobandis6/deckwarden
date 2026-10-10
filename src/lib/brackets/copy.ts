@@ -10,7 +10,7 @@
  * exceptions, How it plays, the answers, and "Rules changed since you
  * answered". Y6a adds goals in Suggestions: the goals line ("Your goals:
  * Bracket 2 (Core) · ≤ $5 a card · Change"), the hidden count, the saved
- * budget.
+ * budget. Y6b adds the Combo Radar's "above your target".
  */
 import type { BracketsMeta } from "@/lib/games/types";
 
@@ -94,6 +94,10 @@ export const BRACKET_COPY = {
   /** The one-away combo scan stopped at its cap, so the goals didn't see every combo. */
   combosCapped:
     "Combo checks stopped at the most popular combos near this deck — rarer ones weren't checked against your goals.",
+
+  // Y6b (WAVE4 D7) — the Combo Radar's badges, beside the adapter's words.
+  /** After a combo's badge when either of its levels is above the deck's target. */
+  aboveTargetInline: "above your target",
 } as const;
 
 /**

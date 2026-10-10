@@ -36,14 +36,29 @@
  * (comboPin): its pieces are always kept and render as their own "Combo
  * pieces" group, each labeled "Combo piece" (LATER row 104, fired — the
  * label rides the pinned context, not a `tags` value).
+ *
+ * Badges (Y6b, WAVE4 D7): every deck-relative row ("In your deck", "One card
+ * away") says what its combo alone makes a deck, in the adapter's words —
+ * `brackets.comboBadge`, read exactly as the list's read reads it, from the
+ * tag and "relevant" mark the deck route already sends — crediting its
+ * source, plus "above your target" when either of its levels is above the
+ * deck's. Badges never filter: the rows are the route's, exhaustive up to
+ * the disclosed cap, and the Cut Coach reads the same `inDeck` list. The
+ * commander rows carry none: the card route's public combos have no rating.
+ *
+ * Adds (Y6b, LATER row 179): the editor announces them — one card toasts
+ * "Added X" with an Undo (the live line keeps failures only), a combo's
+ * pieces toast once for the batch with ONE Undo for all of them; "Suggest
+ * full list" adds quietly, as before.
  */
-import { ArrowUpRightIcon } from "lucide-react";
+import { ArrowUpRightIcon, GaugeIcon } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useResolvedAdd } from "@/components/editor/use-resolved-add";
 import { toast } from "@/components/ui/toast";
+import { BRACKET_COPY } from "@/lib/brackets/copy";
 import type { ComboPieceRef, ComboView, DeckComboView } from "@/lib/combos/queries";
 import {
   alsoNeedsLine,
@@ -53,9 +68,10 @@ import {
   type ComboPin,
 } from "@/lib/combos/view";
 import { toEditorCard, type CardWire, type EditorCard } from "@/lib/decks/editor-state";
+import type { DeckGoals } from "@/lib/decks/goals";
 import { deckStateKey, hasLeader } from "@/lib/decks/panel-view";
 import { getDeckToken } from "@/lib/decks/token-store";
-import type { FormatDef, GameAdapter } from "@/lib/games/types";
+import type { BracketComboBadge, FormatDef, GameAdapter } from "@/lib/games/types";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
@@ -71,6 +87,12 @@ const allPieces = (combo: DeckComboView): ComboPieceRef[] => [
   ...combo.inDeckPieces,
   ...combo.missingPieces,
 ];
+
+/** A row's badge (Y6b): what the combo alone makes a deck, and whether that's above the target. */
+interface RowBadge {
+  badge: BracketComboBadge;
+  aboveTarget: boolean;
+}
 
 interface RadarData {
   inDeck: DeckComboView[];
@@ -96,8 +118,19 @@ interface ComboRadarPanelProps {
   saveStatus: "saved" | "dirty" | "saving" | "error";
   /** Tab visibility: no fetching (lazy) and no work while hidden. */
   active: boolean;
-  /** Quiet add to the main zone via the editor's own edit path. */
+  /**
+   * One card to the main zone via the editor's own edit path — the editor
+   * announces it ("Added X · Undo", Y6b); the live line keeps failures.
+   */
   onAdd: (card: EditorCard) => string | undefined;
+  /**
+   * A combo's missing pieces, together (Y6b, LATER row 179): `announce`
+   * toasts once for the batch with one Undo; "Suggest full list" adds
+   * quietly (the sheet opening is the feedback). Returns the first error.
+   */
+  onAddPieces: (cards: readonly EditorCard[], announce: boolean) => string | undefined;
+  /** The deck's goals (Y6b): the badges' "above your target" and the answers they count. */
+  goals?: DeckGoals | null;
   /**
    * "Suggest full list" (X3; W9c's "Build around") — opens the autofill
    * review sheet built around one combo. Passed only when the adapter
@@ -117,6 +150,8 @@ export function ComboRadarPanel({
   saveStatus,
   active,
   onAdd,
+  onAddPieces,
+  goals = null,
   onOpenAutofill,
 }: ComboRadarPanelProps) {
   const [data, setData] = useState<RadarData | null>(null);
@@ -125,7 +160,10 @@ export function ComboRadarPanel({
   // Force-refetch counter (Refresh button / error retry) — part of the key.
   const [nonce, setNonce] = useState(0);
   const lastKeyRef = useRef<string | null>(null);
-  const { pendingAdd, notice, add } = useResolvedAdd(adapter, format, onAdd);
+  // Y6b: the editor's toast announces an add; the live line keeps failures.
+  const { pendingAdd, notice, add } = useResolvedAdd(adapter, format, onAdd, {
+    announce: false,
+  });
 
   const combosMeta = adapter.capabilities.combos;
   const leader = hasLeader(entries, format);
@@ -137,6 +175,36 @@ export function ComboRadarPanel({
   const leaderEntries = leaderZone ? entries.filter((e) => e.zone === leaderZone.id) : [];
   const anchorId = leaderEntries[0]?.cardId ?? null;
   const fitMask = leaderEntries.reduce((m, e) => m | (cards.get(e.cardId)?.ciMask ?? 0), 0);
+
+  // Badges (Y6b): each deck-relative combo read on its own by the adapter,
+  // the deck's leaders as its commander, the deck's answers counted.
+  const brackets = adapter.brackets;
+  const leaderKey = leaderEntries.map((e) => e.cardId).join(",");
+  const targetLevel = goals?.targetLevel ?? null;
+  const answers = goals?.answers ?? null;
+  const badgeOf = useMemo(() => {
+    const commanderIds = new Set(leaderKey ? leaderKey.split(",") : []);
+    return (combo: DeckComboView): RowBadge | null => {
+      const badge = brackets?.comboBadge(
+        {
+          key: combo.externalKey,
+          cardPieces: allPieces(combo)
+            .map((p) => p.id)
+            .sort(),
+          templates: combo.templates,
+          tag: combo.tag,
+          relevant: combo.relevant,
+          results: combo.results,
+          popularity: combo.popularity,
+        },
+        commanderIds,
+        answers,
+      );
+      if (!badge) return null;
+      const top = Math.max(badge.level, badge.callLevel ?? 0);
+      return { badge, aboveTarget: targetLevel !== null && top > targetLevel };
+    };
+  }, [brackets, leaderKey, targetLevel, answers]);
   const leaderComboKey = anchorId === null ? null : `${anchorId}:${fitMask}`;
   const [leaderCombos, setLeaderCombos] = useState<LeaderCombosData | null>(null);
   const [leaderFetching, setLeaderFetching] = useState(false);
@@ -196,7 +264,10 @@ export function ComboRadarPanel({
     });
   };
 
-  /** Shared by every combo button: add the missing pieces, then toast OR open the sheet. */
+  /**
+   * Shared by every combo button: add the missing pieces, then open the
+   * sheet — or let the editor announce the batch (one toast, one Undo).
+   */
   const addComboPieces = async (
     combo: { id: number; pieces: readonly ComboPieceRef[]; templates: readonly string[] },
     openSheet: boolean,
@@ -206,21 +277,14 @@ export function ComboRadarPanel({
     try {
       const missing = combo.pieces.filter((p) => (inDeckQty.get(p.id) ?? 0) === 0);
       const added = missing.length > 0 ? await hydratePieces(missing) : [];
-      const errors = added.map((card) => onAdd(card)).filter((e): e is string => Boolean(e));
+      const error = added.length > 0 ? onAddPieces(added, !openSheet) : undefined;
       if (openSheet) {
         // Suggest full list: the pieces ride into the plan PINNED — the
         // sheet opening is the feedback, no toast on top.
         onOpenAutofill?.(comboPin(combo.pieces, combo.templates));
         return;
       }
-      if (errors.length > 0) {
-        toast.add({ title: errors[0], type: "error" });
-      } else {
-        toast.add({
-          title: `Added ${added.length} combo piece${added.length === 1 ? "" : "s"}`,
-          type: "success",
-        });
-      }
+      if (error) toast.add({ title: error, type: "error" });
     } catch (err) {
       toast.add({
         title: err instanceof Error ? err.message : "Add failed — check your connection.",
@@ -377,6 +441,7 @@ export function ComboRadarPanel({
                       <InDeckComboRow
                         key={combo.id}
                         combo={combo}
+                        badge={badgeOf(combo)}
                         externalUrl={combosMeta.externalUrl}
                         busy={pendingCombo !== null}
                         onSuggest={
@@ -400,6 +465,7 @@ export function ComboRadarPanel({
                       <OneAwayComboRow
                         key={combo.id}
                         combo={combo}
+                        badge={badgeOf(combo)}
                         externalUrl={combosMeta.externalUrl}
                         inDeck={(inDeckQty.get(combo.missingPieces[0]?.id ?? "") ?? 0) > 0}
                         pending={pendingAdd === combo.missingPieces[0]?.id}
@@ -505,6 +571,34 @@ function ComboRowDetails({
   );
 }
 
+/**
+ * A combo's weight (Y6b): the adapter's words, its credit, and "above your
+ * target" when it is — the Suggestions flags' gauge line.
+ */
+function ComboBadgeLine({ row }: { row: RowBadge | null }) {
+  if (!row) return null;
+  return (
+    <p
+      data-slot="combo-badge"
+      data-above-target={row.aboveTarget ? "" : undefined}
+      className="text-muted-foreground mt-0.5 flex items-baseline gap-1 text-xs"
+    >
+      <GaugeIcon aria-hidden className="size-3.5 shrink-0 translate-y-[2px]" />
+      <span>
+        {row.badge.words} — {row.badge.source}
+        {row.aboveTarget && (
+          <>
+            {" · "}
+            <span className="text-amber-700 dark:text-amber-400">
+              {BRACKET_COPY.aboveTargetInline}
+            </span>
+          </>
+        )}
+      </span>
+    </p>
+  );
+}
+
 /** "Suggest full list" (X3): the same small outline button on every kind of combo row. */
 function SuggestButton({ busy, onClick }: { busy: boolean; onClick: () => void }) {
   return (
@@ -557,11 +651,13 @@ function LeaderComboRow({
 
 function InDeckComboRow({
   combo,
+  badge,
   externalUrl,
   busy,
   onSuggest,
 }: {
   combo: DeckComboView;
+  badge: RowBadge | null;
   externalUrl: (externalKey: string) => string;
   /** ANY combo row is resolving — one in-flight resolve at a time. */
   busy: boolean;
@@ -584,6 +680,7 @@ function InDeckComboRow({
           {complete ? "complete" : "incomplete"}
         </span>
       </div>
+      <ComboBadgeLine row={badge} />
       <ComboRowDetails combo={combo} externalUrl={externalUrl} />
       {onSuggest && (
         <div className="mt-1.5 flex items-center gap-2">
@@ -596,6 +693,7 @@ function InDeckComboRow({
 
 function OneAwayComboRow({
   combo,
+  badge,
   externalUrl,
   inDeck,
   pending,
@@ -605,6 +703,7 @@ function OneAwayComboRow({
   onSuggest,
 }: {
   combo: DeckComboView;
+  badge: RowBadge | null;
   externalUrl: (externalKey: string) => string;
   inDeck: boolean;
   pending: boolean;
@@ -643,6 +742,7 @@ function OneAwayComboRow({
         <span className="text-muted-foreground">with </span>
         <PieceNames pieces={combo.inDeckPieces} />
       </p>
+      <ComboBadgeLine row={badge} />
       <ComboRowDetails combo={combo} externalUrl={externalUrl} />
       {onSuggest && (
         <div className="mt-1.5 flex items-center gap-2">

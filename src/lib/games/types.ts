@@ -378,6 +378,13 @@ export interface AutofillMeta {
    */
   lockShare: number;
   lockMinLists: number;
+  /**
+   * The lowest declared target the lock tier runs at (Y6b, WAVE4 F
+   * "Autofill at targets ≤ 3") — a level of the adapter's `brackets`.
+   * Below it a measured staple is ranked like any card: the weights stay,
+   * only the lock goes. No target, or absent here, = the tier always runs.
+   */
+  lockMinTarget?: number;
   /** Cost-text accessor for `fillers` (MTG: attrs.mana_cost). */
   costTextOf(attrs: Record<string, unknown>): string | null;
   /** Review-sheet group label for a curve bucket ("Mana value 2"). */
@@ -692,6 +699,22 @@ export interface BracketConflict {
 }
 
 /**
+ * One combo's weight on its own (Y6b) — the Combo Radar's badge, in the
+ * adapter's words. Core appends "above your target" when either level is
+ * above the deck's declared target; it never hides the row.
+ */
+export interface BracketComboBadge {
+  /** The level the combo alone proves; 1 = nothing firm. */
+  level: number;
+  /** The level a "yes" to its question would mean, when above `level`; null = no open question. */
+  callLevel: number | null;
+  /** "This combo alone makes a deck at least Bracket 4". */
+  words: string;
+  /** The named source (D0) — the combo's rating comes from it. */
+  source: string;
+}
+
+/**
  * A game's power-level read (Y3b). Optional — a game without it shows no
  * bracket anywhere, with no apology copy (One Piece declares none).
  */
@@ -757,6 +780,26 @@ export interface BracketsMeta<A = Record<string, unknown>> {
    * rule at most once; empty when the card changes nothing.
    */
   impact(input: BracketImpactInput<A>): BracketConflict[];
+  /**
+   * Pure (Y6b): Autofill's notes on what the deck's target kept out of a
+   * starter shell — one line per rule, with its count, in the adapter's
+   * words ("Skipped 4 Game Changers — your Bracket 2 target allows none
+   * (Wizards' list)"). `skipped` is keyed by `impact`'s rules; a rule with
+   * no count says nothing.
+   */
+  shellNotes(skipped: Readonly<Record<string, number>>, targetLevel: number): string[];
+  /**
+   * Pure (Y6b): one combo on its own — what it alone makes a deck, the
+   * Combo Radar's badge. Read exactly as the list's read would read it
+   * (`commanderIds`: the deck's leaders; `answers`: a question the player
+   * answered counts as answered). Null when it raises nothing and asks
+   * nothing.
+   */
+  comboBadge(
+    combo: CompleteCombo,
+    commanderIds: ReadonlySet<string>,
+    answers?: BracketAnswers | null,
+  ): BracketComboBadge | null;
   /** Where the Why sheet links (Y4a): the rules' own page, and an evidence line's source by its id. */
   links: {
     rules: { label: string; href: string };
