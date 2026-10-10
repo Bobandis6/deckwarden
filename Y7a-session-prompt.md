@@ -1,5 +1,53 @@
 # Y7a session prompt — Swap Lab (Tagger function roles behind a UUID whitelist and a kill-switch, `POST /api/alternatives`, the Card tab's Alternatives, "Swapped A → B · Undo", a gold set of ~20 staple swaps)
 
+## Ship note — 2026-10-10, feat `c269d84` + fixes `6ca1f3b` and `b81bbde`, deployed (Vercel status success on the full sha; CI green)
+
+**Shipped. The prompt below is history. Next is `Y7b-session-prompt.md` (Swap in place). The r/EDH post (P2.9 round 3) hadn't gone out at this session's start; it stays the owner's to schedule.**
+
+**Pre-flight**: Y6b's docs at `94b96db`; `_journal.json` at idx 17; nightlies green through run 38065644271 (2026-10-10 15:56 Z: Tagger `fresh` for both flags, rows 168 and 170 quiet, the ruleset watch green). Read-only database access, dev writes and one dispatch approved — the dispatch re-confirmed once the measured rewrite was known (17,627 rows, more than the "several thousand" first described). Y6b's owed click: done, it worked. Baseline on `94b96db`: 1,839 tests / 183 files / 6 warnings / 0 errors; the route table saved. Census 209 deck rows (16 account + 12 guest + 181 precons, 1 user); `pnpm db:size` 285.8 MB.
+
+**The whitelist** (measured on the 2026-10-10 `oracle_tags` bulk; commander-legal ranked nonland cards per role): ramp 2,078 · mana rock 358 · mana dork 423 · land ramp 575 · card draw (`draw`) 3,984 · tutor (minus `tutor-land`) 545 · creature removal 5,281 · artifact removal 1,122 · enchantment removal 980 · spot removal 5,161 · board wipe (`sweeper`) 906 · counterspell 525 · burn 2,895 · protection 1,162 · recursion (minus `recursion-self`, `recursion-land`) 1,538 · token maker (`repeatable-token-generator`) 1,734 · sacrifice outlet (`repeatable-sacrifice-outlet`) 856. 17,627 identities hold at least one.
+
+**The dispatch** (run 38072279069, 17:34 → 17:39 Z, every step green, the ruleset watch included): `tagger roles: 17 fresh, 0 kept, 0 off`; 17,627 identities updated, 0 inserted, 0 removed; the flags still fresh (113 / 64). **`pnpm db:size` 285.8 MB → 285.9 MB**: the rewrite fit the heap's free space (`card_identities` 86.6 MB before and after; autovacuum cleared the dead tuples within a minute).
+
+**The gold set** (`pnpm smoke:alternatives`; 25 staples in decks of their own colors; the top five judged by each card's own rules text and type line, never its tags): **110/125 = 88.0%** on dev and on prod.
+
+| Staple → the kind a hit must be | Hits @5 |
+|---|---|
+| Sol Ring, Arcane Signet, Mind Stone → mana rock | 5, 5, 5 |
+| Llanowar Elves → mana dork | 4 (Arbor Elf: the judge's miss) |
+| Cultivate, Rampant Growth → land ramp | 5, 5 |
+| Swords to Plowshares, Path to Exile → creature removal | 4, 3 |
+| Beast Within, Chaos Warp → permanent removal | 4, 4 |
+| Nature's Claim → artifact / enchantment removal | 5 |
+| Counterspell → counterspell | 5 |
+| Wrath of God → board wipe | 4 |
+| Demonic Tutor → a tutor that isn't for lands | 5 |
+| Rhystic Study, Harmonize → card draw | 5, 5 |
+| Eternal Witness → recursion | 2 (LATER row 182) |
+| Reanimate → reanimation | 4 |
+| Heroic Intervention, Swiftfoot Boots → protection | 4, 5 |
+| Ashnod's Altar, Viscera Seer → sacrifice outlet | 4, 5 |
+| Lightning Bolt → burn | 5 |
+| Bitterblossom → token maker | 4 |
+| Smothering Tithe → ramp | 4 |
+
+**The route's statements** (the `DB_LOG` hook, in-process, Sol Ring in Aura of Courage): **12 warm** (13 cold) with or without a target; a land 3. Dev warm ~3.3 s with round trips; **prod warm 0.55–0.61 s**. The role pool: a BitmapOr of `ci_attrs_gin` scans AND-ed with `ci_browse`, 4.1 ms, 1,731 buffer hits.
+
+**What shipped** (decisions in WAVE4's tracker and REDESIGN.md "Y7a decisions"):
+- **`src/lib/games/mtg/roles.ts`** — the 17 roles by Tagger UUID (with `except` tags); **`tagger.ts`** — the file's `roles` switchboard, `rollUpRole`, the per-role fallback, `taggerRoleStats`; **`scripts/ingest/tagger-read.ts`** — the stored roles and their `stale_since`; `buildAttrs` writes sparse sorted `attrs.roles`.
+- **`queries.ts`** — `cost_value` `between` in the scope whitelist (a list of scopes ANDs), `roles` in `CandidateFilter` (`@>` per role), `candidatePoolOrder` (most shared first), the roles column on candidates and facts.
+- **`src/lib/recommend/alternatives.ts`** — `alternativesForSnapshot` (gather, rank without the curve, shared roles first, the goals read without the card, the Cut Coach's tradeoff); **`POST /api/alternatives`** with its own bucket (30/min + 200/hour).
+- **The adapter** — `RecommendMeta.swap` (`SwapMeta`), Magic's in `src/lib/games/mtg/swap.ts` (nonland, ±1, the chips, the credit).
+- **The Card tab** — `alternatives-section.tsx` (the collapsible, honest empties, hidden-by-goals, the tradeoff), `swapCard` + the editor's `handleSwap` ("Swapped A → B · Undo", per-card Undo).
+- **`pnpm smoke:alternatives`** — the acceptance, the empties, the goals and the gold set, live; creates nothing.
+
+**Found by the live checks**: (1) the curve template ranked Chrome Mox / Mox Amber / Mox Opal / Mox Diamond above Fellwar Stone / Mind Stone for Sol Ring in a precon — `6ca1f3b` ranks by D8's evidence alone; (2) the Card pane rendered the section and TagEditor as siblings keyed `card.id` — `b81bbde`, pinned by failing on React's duplicate-key log; (3) a raw postgres.js script reads 0 for `attrs @> ${string}::jsonb` (it double-encodes a string bound to jsonb) — the route goes through drizzle, whose pass-through serializer binds it right (2,129 ramp cards); verification scripts must use drizzle or `sql.json`.
+
+**Verified**: `pnpm check` 1,900 tests / 187 files / the same 6 warnings / 0 errors; 35 mutation checks, all caught; the route table + exactly `ƒ /api/alternatives`; the dev pass at 390 / 768 / 1200 / 1440 in both themes (two QA decks, deleted with their tokens; the census re-proved at 209); `smoke:alternatives`, `smoke:autofill`, `smoke:recommend` green on dev; `smoke:alternatives` green on prod. LATER rows 182–184 new; 31 and 154 annotated.
+
+**Owed — the owner's click** (signed in, prod): on one of your decks (Nelson & Murdock has a target of 3 and ≤ $5 a card), click a nonland staple in the list (Sol Ring, or any ramp or removal spell) → the Card tab → **Alternatives** → pick one → the toast reads "Swapped A → B · Undo" and the list stays at 100 → click **Undo** before the toast closes: the old card is back where it was, tags included.
+
 Pull latest, then run Y7a, the eleventh Wave-4 package. **`WAVE4.md` is the contract.** Read these, in this order:
 
 1. Section **A**'s Swap Lab row (75: "matches 'does the same job' by shared Tagger function tags (a UUID whitelist with a kill-switch and the same fallback rule), ranked by existing evidence; text embeddings rejected") and the Context row on Tagger (34: it "relaxes 'roles only from your own tags' for Swap Lab only; Autofill and the Cut Coach keep their rules").
