@@ -3084,6 +3084,9 @@ describe("DeckEditor — the Card tab's Alternatives (Y7a, WAVE4 D8)", () => {
   }
 
   it("asks on FIRST open only, with the snapshot and the card; the swap is the draft's first edit — exactly one create; Swapped A → B · Undo restores per card", async () => {
+    // React only logs a duplicate key (the pane's TagEditor and this section
+    // once shared `card.id`): fail on the log.
+    const consoleError = vi.spyOn(console, "error");
     await showSolInSeededDraft();
     const trigger = within(tools()).getByRole("button", { name: /^Alternatives/ });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
@@ -3155,6 +3158,8 @@ describe("DeckEditor — the Card tab's Alternatives (Y7a, WAVE4 D8)", () => {
       { cardId: wastes.id, zone: "main", qty: 30, tags: [] },
     ]);
     expect(posts()).toBe(1);
+    expect(consoleError.mock.calls.filter((c) => String(c[0]).includes("same key"))).toEqual([]);
+    consoleError.mockRestore();
   });
 
   it("the deck's goals ride the request; a land and the commander get no section", async () => {

@@ -192,8 +192,16 @@ export function CardDetailPane({
         </span>
       </p>
 
-      {/* Y7a: Swap Lab's Alternatives — per card (a fresh section each), asked on open. */}
-      {swap && <AlternativesSection key={card.id} adapter={adapter} card={card} swap={swap} />}
+      {/* Y7a: Swap Lab's Alternatives — per card (a fresh section each), asked on
+          open. Its key can't be the bare card id: TagEditor, a sibling, holds that one. */}
+      {swap && (
+        <AlternativesSection
+          key={`alternatives:${card.id}`}
+          adapter={adapter}
+          card={card}
+          swap={swap}
+        />
+      )}
 
       {/* D5: after the footer line, closed by default. The count appears once
           fetched — the pane can't know N without the request R2 forbids
