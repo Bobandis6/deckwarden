@@ -804,7 +804,9 @@ Tick a package with its date and sha when it ships; record deviations from this 
   8. `useCopyToClipboard` + `CopyStatus` adopted by the Share and Export dialogs (Export gains a failure line and a reset); the buy menu's toast names no button.
   9. **Deviation:** the unfurl's declared target is a second kicker line, because a third stat pill ran into the art credit. Tiles show it in the badge slot; One Piece shows nothing.
 
-  LATER rows 171 annotated (the share page never swaps), new rows 177 (a guest owner's row swaps in after hydration) and 178 (visitors can't copy At the table).)
+  LATER rows 171 annotated (the share page never swaps), new rows 177 (a guest owner's row swaps in after hydration) and 178 (visitors can't copy At the table).
+
+  **Follow-up `6456a3e` (2026-10-09)**: the owner's clicks all worked. The owner row, Copy for the table pasted into Discord (every line kept, the link unfurled) and Share… opening the phone's share sheet. The paste exposed one bug. At 9:12 PM Central on Oct 9 it read "checked Oct 10, 2026", because `dateLabel` pins UTC. The copied text is built in the browser on a click, so it now says the viewer's own date: `dateLabel` and `tableText` take a `timeZone` (default UTC, so rendered dates are unchanged). Pinned in three places; two mutation checks caught; 1,675 tests.)
 - [ ] Y6a — Goals in Suggestions (`applyGoals`, hidden counts, impact flags, the saved budget)
 - [ ] Y6b — Goals in Autofill + Radar (caps, skips, badges)
 - [ ] Y7a — Swap Lab (Tagger roles, `/api/alternatives`, the Card tab's Alternatives)
