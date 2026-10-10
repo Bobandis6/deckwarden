@@ -2627,4 +2627,191 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       });
     });
   });
+
+  describe("goals in Suggestions (Y6a)", () => {
+    const solRec = {
+      cardId: sol.id,
+      name: sol.name,
+      primaryType: "Artifact",
+      costValue: 1,
+      ciMask: 0,
+      cheapestUsd: "1.20",
+      popularity: 1,
+      score: 0.9,
+      confidence: "high",
+      evidence: [
+        {
+          source: "edhrec_rank",
+          why: "A Commander staple in EDHREC decklists",
+          with: [],
+          howOften: "EDHREC rank #1",
+          confidence: "high",
+        },
+      ],
+      conflicts: [],
+    };
+    function y6aRoute(input: RequestInfo | URL, init?: RequestInit) {
+      const url = String(input);
+      if (url.startsWith("/api/decks/deck-1/recommendations") || url === "/api/recommendations") {
+        return ok({ count: 1, recommendations: [solRec], hidden: [], combosTruncated: false });
+      }
+      if (url === "/api/cards/resolve") {
+        return ok({ results: [{ input: sol.name, match: sol, suggestions: [] }] });
+      }
+      return y4bRoute(input, init);
+    }
+    const suggestions = () => {
+      fireEvent.click(screen.getByRole("tab", { name: "Suggestions" }));
+      return pollFor(() => screen.queryByText("A Commander staple in EDHREC decklists"));
+    };
+    const goalsLine = () => document.querySelector<HTMLElement>("[data-slot=goals-line]");
+
+    beforeEach(() => {
+      fetchMock.mockImplementation(y6aRoute);
+    });
+
+    it("an add from Suggestions toasts Added X · Undo; Undo is a real edit — the card leaves and the deck saves again", async () => {
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await suggestions();
+      fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring to the deck" }));
+      const toastEl = (await pollFor(() => screen.queryByText("Added Sol Ring"))).closest(
+        '[data-slot="toast"]',
+      ) as HTMLElement;
+      // The panel's live line says nothing: the toast already did.
+      expect(screen.getAllByText("Added Sol Ring")).toHaveLength(1);
+      await settle(1500);
+      await act(async () => {});
+      expect(puts()).toBe(1);
+      expect(lastPutEntries().some((e) => e.cardId === sol.id)).toBe(true);
+
+      fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+      expect(saveStatus()).toBe("dirty");
+      await settle(1500);
+      await act(async () => {});
+      expect(puts()).toBe(2);
+      expect(lastPutEntries().some((e) => e.cardId === sol.id)).toBe(false);
+    });
+
+    it("“Save as this deck's budget” is ONE goals PATCH — no PUT; the goals line says it, and the panel asks with it", async () => {
+      deckGoals = { v: 1, targetLevel: 3 };
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Your target: Bracket 3 · the cards say 3 or 4 — one card is your call · Why?");
+      await suggestions();
+      expect(goalsLine()!.textContent).toBe("Your goals: Bracket 3 (Upgraded) · Change");
+      fireEvent.click(screen.getByRole("button", { name: "≤ $5 a card" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save as this deck's budget" }));
+      expect(goalsLine()!.textContent).toBe(
+        "Your goals: Bracket 3 (Upgraded) · ≤ $5 a card · Change",
+      );
+      await settle(1500);
+      await act(async () => {});
+      expect(patchBodies()).toEqual([
+        { goals: { budget: { perCardUsd: 5 }, targetLevel: 3, v: 1 } },
+      ]);
+      expect(puts()).toBe(0);
+      expect(posts()).toBe(0);
+      // Once saved, the panel asks with the deck's new budget (the GET reads the goals off the row).
+      await pollFor(() =>
+        fetchMock.mock.calls.some(([url]) =>
+          String(url).startsWith("/api/decks/deck-1/recommendations?budget=5"),
+        )
+          ? true
+          : null,
+      );
+    });
+
+    it("in a precon draft, saving a budget is a real edit like a target: ONE create carrying the goals, one PUT, no PATCH", async () => {
+      stubViewport(1440);
+      window.history.replaceState(null, "", "/decks/new?game=mtg&from=kozilek_c99");
+      render(
+        <DeckEditor
+          deckId={null}
+          draftGame="mtg"
+          draftFormat="commander"
+          draftFromSlug="kozilek_c99"
+        />,
+      );
+      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await suggestions();
+      expect(posts()).toBe(0);
+      fireEvent.click(screen.getByRole("button", { name: "≤ $1 a card" }));
+      await settle(300);
+      // The draft's own request carries the pick (no row yet).
+      const draftAsks = fetchMock.mock.calls.filter(([url]) => url === "/api/recommendations");
+      expect(JSON.parse((draftAsks.at(-1)![1] as RequestInit).body as string).budget).toBe(1);
+      expect(posts()).toBe(0);
+
+      fireEvent.click(screen.getByRole("button", { name: "Save as this deck's budget" }));
+      await settle(1500);
+      await act(async () => {});
+      expect(posts()).toBe(1);
+      expect(createBody()).toMatchObject({ goals: { v: 1, budget: { perCardUsd: 1 } } });
+      expect(puts()).toBe(1);
+      expect(patchBodies()).toEqual([]);
+    });
+
+    it("the goals line's “Set one” opens the Why sheet with focus on Your target — before the list has found anything (LATER row 175)", async () => {
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await suggestions();
+      expect(goalsLine()!.textContent).toBe("No bracket target yet · Set one");
+      fireEvent.click(screen.getByRole("button", { name: "Set one" }));
+      const dialog = await pollFor(sheet);
+      await pollFor(() =>
+        document.activeElement === targetButton(dialog, "Not set") ? true : null,
+      );
+      fireEvent.click(targetButton(dialog, "2"));
+      expect(line()!.textContent).toBe(
+        "Your target: Bracket 2 · the cards say 3 or 4 — one card is your call · Why?",
+      );
+      // Atop the sheet, the owner's goals line now reads the target too.
+      expect(
+        within(dialog).getByText("Your goals: Bracket 2 (Core)", { exact: false }),
+      ).toBeTruthy();
+    });
+
+    it("LATER row 175: a commander alone has found nothing, so the line offers no Why? — the goals line is the door, and a target set there mints ONE deck carrying it", async () => {
+      fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input).startsWith("/api/leaders/random")
+          ? ok({ leader: kozilek })
+          : y6aRoute(input, init),
+      );
+      stubViewport(1440);
+      render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftSurprise />);
+      await lineIs("Bracket: add 99 more cards");
+      expect(screen.queryByRole("button", { name: "Why?" })).toBeNull();
+      await suggestions();
+      expect(goalsLine()!.textContent).toBe("No bracket target yet · Set one");
+      fireEvent.click(screen.getByRole("button", { name: "Set one" }));
+      const dialog = await pollFor(sheet);
+      fireEvent.click(targetButton(dialog, "2"));
+      await settle(1500);
+      await act(async () => {});
+      expect(posts()).toBe(1);
+      expect(createBody().goals).toEqual({ v: 1, targetLevel: 2 });
+      expect(goalsLine()!.textContent).toBe("Your goals: Bracket 2 (Core) · Change");
+    });
+
+    it("on a phone the same door opens the Drawer with focus on Your target; the sheet's own Change brings it back", async () => {
+      deckGoals = { v: 1, targetLevel: 3, budget: { perCardUsd: 5 } };
+      stubViewport(375);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Your target: Bracket 3 · the cards say 3 or 4 — one card is your call · Why?");
+      fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
+      await suggestions();
+      fireEvent.click(screen.getByRole("button", { name: "Change" }));
+      const dialog = await pollFor(sheet);
+      expect(dialog.getAttribute("data-slot")).toBe("drawer-popup");
+      await pollFor(() => (document.activeElement === targetButton(dialog, "3") ? true : null));
+      const sheetLine = dialog.querySelector<HTMLElement>("[data-slot=goals-line]")!;
+      expect(sheetLine.textContent).toBe("Your goals: Bracket 3 (Upgraded) · ≤ $5 a card · Change");
+      within(dialog).getByRole("button", { name: "Close" }).focus();
+      fireEvent.click(within(sheetLine).getByRole("button", { name: "Change" }));
+      expect(document.activeElement).toBe(targetButton(dialog, "3"));
+    });
+  });
 });

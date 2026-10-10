@@ -17,8 +17,9 @@
  *   (`read.answersStale`) and still applies them. An answer to a question
  *   that went away (its card was cut) is kept: the question can come back.
  * - `exceptions` — the table's exceptions, the owner's words (≤ 200).
- * - `budget` — accepted and stored now, owner-only on every wire; its
- *   controls are Y6a's.
+ * - `budget` — owner-only on every wire. Y6a's controls: Suggestions start
+ *   from its per-card tier and "Save as this deck's budget" writes it
+ *   (`withBudget`); a total (Y8) rides along untouched.
  *
  * Game-agnostic: the range and the question keys come off the adapter's
  * `brackets` declaration, so a game without one (One Piece) takes no
@@ -205,6 +206,31 @@ export function withAnswer(
 export function restampAnswers(goals: DeckGoals | null, rulesetVersion: number): DeckGoals | null {
   if (!goals?.answers) return goals;
   return normalizeGoals({ ...goals, answers: { ...goals.answers, rulesetVersion } });
+}
+
+/**
+ * "Save as this deck's budget" (Y6a): the per-card tier — 5 or 1, null for
+ * All (no per-card budget). A total budget stays as it is.
+ */
+export function withBudget(goals: DeckGoals | null, perCardUsd: number | null): DeckGoals | null {
+  const next: DeckGoals = { ...(goals ?? { v: 1 }) };
+  const budget: DeckBudget = { ...next.budget };
+  if (perCardUsd === null) delete budget.perCardUsd;
+  else budget.perCardUsd = perCardUsd;
+  next.budget = budget;
+  return normalizeGoals(next);
+}
+
+/**
+ * What a draft's Suggestions send (Y6a, POST /api/recommendations): the
+ * goals the check reads — the target, the budget, the answers (they move
+ * the line) — never the exceptions line.
+ */
+export function suggestionGoals(goals: DeckGoals | null): DeckGoals | null {
+  if (!goals) return null;
+  const next: DeckGoals = { ...goals };
+  delete next.exceptions;
+  return normalizeGoals(next);
 }
 
 /** The exceptions line as typed: stored trimmed, and an empty line is none. */

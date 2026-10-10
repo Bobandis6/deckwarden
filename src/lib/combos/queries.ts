@@ -168,6 +168,10 @@ export interface DeckComboView {
    */
   templates: string[];
   popularity: number | null;
+  /** The source's rating of the combo alone (Y6a — loadCompleteCombos' columns); null = not ingested. */
+  tag: string | null;
+  /** The source's "relevant" mark; null = not ingested. */
+  relevant: boolean | null;
   /** Deck cards supplying pieces (name order). */
   inDeckPieces: ComboPieceRef[];
   /** Empty = every card piece is in deck; one entry = one card away. */
@@ -219,6 +223,8 @@ export async function loadCombosNearDeck(
       results: combos.results,
       templates: combos.templates,
       popularity: combos.popularity,
+      tag: combos.bracketTag,
+      relevant: combos.relevant,
     })
     .from(combos)
     // ::int disambiguates ~ (bitwise NOT) from ~ (regex) on the untyped param.
@@ -265,6 +271,8 @@ export async function loadCombosNearDeck(
       results: combo.results,
       templates: combo.templates,
       popularity: combo.popularity,
+      tag: combo.tag,
+      relevant: combo.relevant,
       inDeckPieces: pieces.filter((p) => inDeck.has(p.id)),
       missingPieces: missing,
     });

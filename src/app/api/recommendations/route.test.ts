@@ -9,11 +9,17 @@
  * answer, and the 400s (malformed JSON, a bad body, One Piece, an unknown
  * format, ids that aren't live cards of the game) — none of which runs the
  * engine. The live answers are smoke:recommend's snapshot section.
+ *
+ * Y6a: every entry carries the read's facts (the adapter's flags among
+ * them, asked for by its declared paths), the draft's goals go to the
+ * engine checked against the game (goalsSchema), and the answer adds
+ * `hidden` and `combosTruncated`.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { findFormat, GAME_ID } from "@/db/seed-data";
+import { mtgAdapter } from "@/lib/games/mtg/adapter";
 
 const mocks = vi.hoisted(() => ({
   loadEntryFacts: vi.fn(),
@@ -35,14 +41,27 @@ const TYMNA = "22222222-2222-4222-8222-222222222222";
 const SOL = "33333333-3333-4333-8333-333333333333";
 const RATS = "44444444-4444-4444-8444-444444444444";
 
+/** What loadEntryFacts reads past type and cost (Y6a): the read's facts, flags included. */
+const read = (name: string, ciMask: number, flags: Record<string, unknown> = {}) => ({
+  name,
+  externalKey: `oracle-${name}`,
+  colorsMask: ciMask,
+  ciMask,
+  isLeaderCandidate: false,
+  isPreview: false,
+  cheapestUsd: "1.00",
+  popularity: 100,
+  flags,
+});
 const FACTS = new Map([
-  [THRASIOS, { name: "Thrasios", primaryType: "Creature", costValue: 2, ciMask: 2 | 16 }],
-  [TYMNA, { name: "Tymna", primaryType: "Creature", costValue: 3, ciMask: 1 | 4 }],
-  [SOL, { name: "Sol Ring", primaryType: "Artifact", costValue: 1, ciMask: 0 }],
-  [RATS, { name: "Relentless Rats", primaryType: "Creature", costValue: 3, ciMask: 4 }],
+  [THRASIOS, { primaryType: "Creature", costValue: 2, ...read("Thrasios", 2 | 16) }],
+  [TYMNA, { primaryType: "Creature", costValue: 3, ...read("Tymna", 1 | 4) }],
+  [SOL, { primaryType: "Artifact", costValue: 1, ...read("Sol Ring", 0) }],
+  [RATS, { primaryType: "Creature", costValue: 3, ...read("Relentless Rats", 4) }],
 ]);
 
 const REC = { cardId: "55555555-5555-4555-8555-555555555555", name: "Arcane Signet" };
+const HIDDEN = { cardId: "77777777-7777-4777-8777-777777777777", name: "Rhystic Study" };
 
 async function post(body: unknown) {
   const res = await POST(
@@ -62,13 +81,17 @@ beforeEach(() => {
       new Map(ids.filter((id) => FACTS.has(id)).map((id) => [id, FACTS.get(id)!])),
   );
   mocks.recommendForSnapshot.mockReset();
-  mocks.recommendForSnapshot.mockResolvedValue([REC]);
+  mocks.recommendForSnapshot.mockResolvedValue({
+    recommendations: [REC],
+    hidden: [],
+    combosTruncated: false,
+  });
   mocks.enforceRateLimit.mockReset();
   mocks.enforceRateLimit.mockResolvedValue(null);
 });
 
 describe("POST /api/recommendations", () => {
-  it("a seeded draft: the snapshot a stored deck would give — leaders first at one copy, then every entry with its copies; the leaders' OR; the budget through; { count, recommendations }, no-store", async () => {
+  it("a seeded draft: the snapshot a stored deck would give — leaders first at one copy, then every entry with its copies and its read facts; the leaders' OR; the budget through; { count, recommendations, hidden, combosTruncated }, no-store", async () => {
     const { res, body } = await post({
       game: "mtg",
       format: "commander",
@@ -81,9 +104,13 @@ describe("POST /api/recommendations", () => {
     });
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
-    expect(body).toEqual({ count: 1, recommendations: [REC] });
+    expect(body).toEqual({ count: 1, recommendations: [REC], hidden: [], combosTruncated: false });
 
-    expect(mocks.loadEntryFacts).toHaveBeenCalledWith(GAME_ID.mtg, [THRASIOS, TYMNA, SOL, RATS]);
+    expect(mocks.loadEntryFacts).toHaveBeenCalledWith(
+      GAME_ID.mtg,
+      [THRASIOS, TYMNA, SOL, RATS],
+      mtgAdapter.brackets!.flagPaths,
+    );
     expect(mocks.recommendForSnapshot).toHaveBeenCalledTimes(1);
     expect(mocks.recommendForSnapshot).toHaveBeenCalledWith(
       {
@@ -92,14 +119,87 @@ describe("POST /api/recommendations", () => {
         ciMask: 1 | 2 | 4 | 16,
         leaderIds: [THRASIOS, TYMNA],
         entries: [
-          { cardId: THRASIOS, qty: 1, primaryType: "Creature", costValue: 2 },
-          { cardId: TYMNA, qty: 1, primaryType: "Creature", costValue: 3 },
-          { cardId: SOL, qty: 1, primaryType: "Artifact", costValue: 1 },
-          { cardId: RATS, qty: 20, primaryType: "Creature", costValue: 3 },
+          {
+            cardId: THRASIOS,
+            qty: 1,
+            primaryType: "Creature",
+            costValue: 2,
+            facts: read("Thrasios", 2 | 16),
+          },
+          {
+            cardId: TYMNA,
+            qty: 1,
+            primaryType: "Creature",
+            costValue: 3,
+            facts: read("Tymna", 1 | 4),
+          },
+          {
+            cardId: SOL,
+            qty: 1,
+            primaryType: "Artifact",
+            costValue: 1,
+            facts: read("Sol Ring", 0),
+          },
+          {
+            cardId: RATS,
+            qty: 20,
+            primaryType: "Creature",
+            costValue: 3,
+            facts: read("Relentless Rats", 4),
+          },
         ],
       },
-      { maxPriceUsd: 5 },
+      { maxPriceUsd: 5, goals: null },
     );
+  });
+
+  it("a draft's goals (Y6a) reach the engine as given, checked against the game; its hidden cards come back", async () => {
+    mocks.recommendForSnapshot.mockResolvedValue({
+      recommendations: [REC],
+      hidden: [HIDDEN],
+      combosTruncated: true,
+    });
+    const goals = {
+      v: 1,
+      targetLevel: 2,
+      budget: { perCardUsd: 5 },
+      answers: { rulesetVersion: 1, play: { fast: "no" } },
+    };
+    const { res, body } = await post({
+      game: "mtg",
+      format: "commander",
+      leaderIds: [TYMNA],
+      goals,
+    });
+    expect(res.status).toBe(200);
+    expect(body).toEqual({
+      count: 1,
+      recommendations: [REC],
+      hidden: [HIDDEN],
+      combosTruncated: true,
+    });
+    expect(mocks.recommendForSnapshot.mock.calls[0][1]).toEqual({
+      maxPriceUsd: undefined,
+      goals,
+    });
+  });
+
+  it.each([
+    ["a target the game doesn't have", { v: 1, targetLevel: 7 }],
+    ["a budget tier the site doesn't offer", { v: 1, budget: { perCardUsd: 3 } }],
+    ["another version", { v: 2, targetLevel: 2 }],
+    ["an unknown key", { v: 1, targetLevel: 2, extra: true }],
+  ])("goals with %s answer 400 before any read", async (_label, goals) => {
+    const { res, body } = await post({
+      game: "mtg",
+      format: "commander",
+      leaderIds: [TYMNA],
+      goals,
+    });
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("Invalid goals");
+    expect(mocks.loadEntryFacts).not.toHaveBeenCalled();
+    expect(mocks.recommendForSnapshot).not.toHaveBeenCalled();
   });
 
   it("a leader alone is a snapshot too (entries default to none); no budget means none", async () => {
@@ -107,7 +207,7 @@ describe("POST /api/recommendations", () => {
     expect(res.status).toBe(200);
     expect(mocks.recommendForSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({ ciMask: 1 | 4, leaderIds: [TYMNA] }),
-      { maxPriceUsd: undefined },
+      { maxPriceUsd: undefined, goals: null },
     );
   });
 

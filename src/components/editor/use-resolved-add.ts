@@ -13,6 +13,10 @@
  * card than shown — fail instead. Resolve is rate-limited 20/min per IP,
  * fine for click-paced adds; the per-card cache keeps retries and re-adds
  * free.
+ *
+ * `announce: false` (Y6a — Suggestions, whose adds the editor toasts as
+ * "Added X · Undo"): a success says nothing here, so nothing announces
+ * twice; a failure still lands on the panel's live line.
  */
 import { useRef, useState } from "react";
 
@@ -28,6 +32,7 @@ export function useResolvedAdd(
   adapter: GameAdapter,
   format: FormatDef,
   onAdd: (card: EditorCard) => string | undefined,
+  { announce = true }: { announce?: boolean } = {},
 ) {
   const [pendingAdd, setPendingAdd] = useState<string | null>(null);
   const [notice, setNotice] = useState<PanelNotice | null>(null);
@@ -54,9 +59,8 @@ export function useResolvedAdd(
         cacheRef.current.set(target.cardId, card);
       }
       const error = onAdd(card);
-      setNotice(
-        error ? { text: error, tone: "err" } : { text: `Added ${target.name}`, tone: "ok" },
-      );
+      if (error) setNotice({ text: error, tone: "err" });
+      else if (announce) setNotice({ text: `Added ${target.name}`, tone: "ok" });
     } catch (err) {
       setNotice({
         text: err instanceof Error ? err.message : "Add failed — check your connection.",

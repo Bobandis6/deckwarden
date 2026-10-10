@@ -138,7 +138,11 @@ export interface RankInput {
    */
   tournamentsByCandidate?: ReadonlyMap<string, TournamentSignal>;
   tournamentContext?: TournamentContext | null;
-  limit: number;
+  /**
+   * The cut; absent = every candidate, ranked (Y6a: the engine ranks all,
+   * applies the deck's goals, and only then slices — recommend/goals.ts).
+   */
+  limit?: number;
 }
 
 export function rankCandidates(input: RankInput): Recommendation[] {
@@ -255,5 +259,5 @@ export function rankCandidates(input: RankInput): Recommendation[] {
     if (a.name !== b.name) return a.name < b.name ? -1 : 1;
     return a.cardId < b.cardId ? -1 : a.cardId > b.cardId ? 1 : 0;
   });
-  return ranked.slice(0, limit);
+  return limit === undefined ? ranked : ranked.slice(0, limit);
 }

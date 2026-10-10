@@ -8,7 +8,9 @@
  *
  * Y4b adds the player's side: Your target, the conflict callout, the table
  * exceptions, How it plays, the answers, and "Rules changed since you
- * answered".
+ * answered". Y6a adds goals in Suggestions: the goals line ("Your goals:
+ * Bracket 2 (Core) · ≤ $5 a card · Change"), the hidden count, the saved
+ * budget.
  */
 import type { BracketsMeta } from "@/lib/games/types";
 
@@ -75,7 +77,42 @@ export const BRACKET_COPY = {
   planOwner: "Plan (owner)",
   /** "checked Oct 5, 2026" — when the read's evidence was read. */
   checked: (date: string) => `checked ${date}`,
+
+  // Y6a (WAVE4 D7) — goals in Suggestions and atop the Why sheet.
+  /** Before the goals: "Your goals: Bracket 2 (Core) · ≤ $5 a card". */
+  goalsLead: "Your goals:",
+  /** The goals line's action — the Why sheet at Your target. */
+  changeGoals: "Change",
+  /** No target and no budget (LATER row 175's door): "No bracket target yet · Set one". */
+  noTarget: (noun: string) => `No ${noun} target yet`,
+  setTarget: "Set one",
+  /** "3 hidden by your goals" — the cards the goals took out of the list. */
+  hiddenByGoals: (n: number) => `${n} hidden by your goals`,
+  showHidden: "Show",
+  hideHidden: "Hide",
+  saveBudget: "Save as this deck's budget",
+  /** The one-away combo scan stopped at its cap, so the goals didn't see every combo. */
+  combosCapped:
+    "Combo checks stopped at the most popular combos near this deck — rarer ones weren't checked against your goals.",
 } as const;
+
+/**
+ * The goals line's parts (Y6a): the target in the level's own words, then
+ * the per-card budget's label — "Bracket 2 (Core)", "≤ $5 a card". Empty
+ * when neither is set.
+ */
+export function goalsParts(
+  brackets: Pick<BracketsMeta, "noun" | "levels"> | undefined,
+  goals: { targetLevel?: number; budget?: { perCardUsd?: number } } | null,
+  budgetLabel: (perCardUsd: number) => string,
+): string[] {
+  const parts: string[] = [];
+  if (brackets && goals?.targetLevel !== undefined) {
+    parts.push(levelLabel(brackets, goals.targetLevel));
+  }
+  if (goals?.budget?.perCardUsd !== undefined) parts.push(budgetLabel(goals.budget.perCardUsd));
+  return parts;
+}
 
 /**
  * "Bracket 3 (declared)" — the owner's target on tiles and unfurls (Y5,

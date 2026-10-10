@@ -1,6 +1,7 @@
+import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
-import { candidateConditions, type CandidateFilter } from "./queries";
+import { candidateConditions, flagsColumn, type CandidateFilter } from "./queries";
 
 /**
  * The deterministic filter is SQL built by one function; these tests pin its
@@ -84,5 +85,34 @@ describe("candidateConditions", () => {
         exclude: [{ jsonbPath: ["bad' key"] as unknown as [string], likePattern: "%x%" }],
       }),
     ).toThrow(/Invalid exclude path/);
+  });
+});
+
+/**
+ * Y6a — the adapter's bracket flags as one jsonb column: built from its
+ * declared paths only, each through exclude's key check before it reaches
+ * the SQL, absent keys dropped (jsonb_strip_nulls), `{}` for a game that
+ * declares none.
+ */
+describe("flagsColumn", () => {
+  const dialect = new PgDialect();
+  const render = (paths: Parameters<typeof flagsColumn>[0]) =>
+    dialect.sqlToQuery(flagsColumn(paths));
+
+  it("one jsonb object over the declared paths, nulls stripped, no parameters", () => {
+    const q = render([["game_changer"], ["mld"], ["extra_turn"]]);
+    expect(q.sql).toBe(
+      `jsonb_strip_nulls(jsonb_build_object('game_changer', "card_identities"."attrs"->'game_changer', 'mld', "card_identities"."attrs"->'mld', 'extra_turn', "card_identities"."attrs"->'extra_turn'))`,
+    );
+    expect(q.params).toEqual([]);
+  });
+
+  it("a game that declares none reads {}", () => {
+    expect(render(undefined).sql).toBe(`'{}'::jsonb`);
+    expect(render([]).sql).toBe(`'{}'::jsonb`);
+  });
+
+  it("a declared path outside the key alphabet throws — never SQL", () => {
+    expect(() => render([["mld'; drop table decks; --"]])).toThrow("Invalid flag path");
   });
 });

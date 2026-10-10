@@ -6,11 +6,14 @@
  * and nothing is minted to get it. Once a row exists the panel goes back
  * to the GET; this route never sees a deck id.
  *
- * Body: `{ game, format, leaderIds, entries, budget? }` — ids and
- * quantities only. Every fact (type, cost, color identity) is read
- * server-side through loadEntryFacts, W9a's autofill precedent, so a
- * crafted body can't widen the color filter; an id that isn't a live card
- * of that game answers 400. The snapshot is the one recommendForDeck
+ * Body: `{ game, format, leaderIds, entries, budget?, goals? }` — ids and
+ * quantities only. Every fact (type, cost, color identity, the bracket
+ * flags) is read server-side through loadEntryFacts, W9a's autofill
+ * precedent, so a crafted body can't widen the color filter; an id that
+ * isn't a live card of that game answers 400. `goals` (Y6a) is the draft's
+ * own — target, budget, answers — checked against the game like a stored
+ * deck's (goals.ts' goalsSchema), and applied the GET's way: the answer
+ * carries `hidden` and `combosTruncated` too. The snapshot is the one recommendForDeck
  * builds from a stored deck — the leaders (one copy each) plus every other
  * entry with its quantity (the ranker's curve counts copies), the leaders'
  * OR for the color identity — and then the same engine runs:
@@ -31,6 +34,7 @@ import { z } from "zod";
 
 import { findFormat, GAME_ID } from "@/db/seed-data";
 import { clientIp } from "@/lib/decks/access";
+import { goalsSchema } from "@/lib/decks/goals";
 import { getAdapter } from "@/lib/games/registry";
 import { recommendForSnapshot, type RecommendSnapshot } from "@/lib/recommend/engine";
 import { loadEntryFacts } from "@/lib/recommend/queries";
@@ -51,6 +55,8 @@ const BODY = z.object({
     .default([]),
   /** Budget in USD: only cards with a known price at or under it (the GET's `budget`). */
   budget: z.number().positive().max(100_000).optional(),
+  /** The draft's goals (Y6a) — shape-checked against the game below. */
+  goals: z.unknown().optional(),
 });
 
 const bad = (error: string, issues?: unknown) =>
@@ -70,13 +76,19 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return bad("Invalid body", parsed.error.issues);
   const { game, format, leaderIds, entries, budget } = parsed.data;
 
-  if (!getAdapter(game).recommend) return bad(`No recommendations for ${game}`);
+  const adapter = getAdapter(game);
+  if (!adapter.recommend) return bad(`No recommendations for ${game}`);
   const seededFormat = findFormat(game, format);
   if (!seededFormat) return bad(`Unknown format "${format}" for ${game}`);
+  const goals =
+    parsed.data.goals === undefined || parsed.data.goals === null
+      ? null
+      : goalsSchema(adapter.brackets).safeParse(parsed.data.goals);
+  if (goals && !goals.success) return bad("Invalid goals", goals.error.issues);
 
   // Server-authoritative facts for every id the client sent.
   const ids = [...new Set([...leaderIds, ...entries.map((e) => e.cardId)])];
-  const facts = await loadEntryFacts(GAME_ID[game], ids);
+  const facts = await loadEntryFacts(GAME_ID[game], ids, adapter.brackets?.flagPaths);
   const unknown = ids.filter((id) => !facts.has(id));
   if (unknown.length > 0) return bad("Unknown card ids for this game", unknown);
 
@@ -85,17 +97,18 @@ export async function POST(request: NextRequest) {
     formatId: seededFormat.id,
     ciMask: leaderIds.reduce((mask, id) => mask | facts.get(id)!.ciMask, 0),
     leaderIds: [...leaderIds],
-    entries: [...leaderIds.map((cardId) => ({ cardId, qty: 1 })), ...entries].map((e) => ({
-      cardId: e.cardId,
-      qty: e.qty,
-      primaryType: facts.get(e.cardId)!.primaryType,
-      costValue: facts.get(e.cardId)!.costValue,
-    })),
+    entries: [...leaderIds.map((cardId) => ({ cardId, qty: 1 })), ...entries].map((e) => {
+      const { primaryType, costValue, ...readFacts } = facts.get(e.cardId)!;
+      return { cardId: e.cardId, qty: e.qty, primaryType, costValue, facts: readFacts };
+    }),
   };
-  const recommendations = await recommendForSnapshot(snapshot, { maxPriceUsd: budget });
+  const { recommendations, hidden, combosTruncated } = await recommendForSnapshot(snapshot, {
+    maxPriceUsd: budget,
+    goals: goals?.data ?? null,
+  });
 
   return NextResponse.json(
-    { count: recommendations.length, recommendations },
+    { count: recommendations.length, recommendations, hidden, combosTruncated },
     { headers: NO_STORE },
   );
 }

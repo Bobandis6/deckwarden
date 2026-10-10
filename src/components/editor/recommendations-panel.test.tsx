@@ -184,3 +184,406 @@ describe("RecommendationsPanel — a draft (Y2b)", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 });
+
+// --- A saved deck (P3.2): what Y6a must keep while it grows the panel --------------
+
+const combo: Recommendation = {
+  cardId: "66666666-6666-4666-8666-666666666666",
+  name: "Rings of Brighthearth",
+  primaryType: "Artifact",
+  costValue: 3,
+  ciMask: 0,
+  cheapestUsd: null,
+  popularity: 900,
+  score: 0.6,
+  confidence: "high",
+  evidence: [
+    {
+      source: "curve-template",
+      why: "Fills a gap at mana value 3",
+      with: [],
+      howOften: null,
+      confidence: "low",
+    },
+    {
+      source: "spellbook",
+      why: "Completes a combo with Basalt Monolith: infinite colorless mana",
+      with: [{ cardId: sol.id, name: "Basalt Monolith" }],
+      howOften: "In 4,210 EDHREC decks",
+      confidence: "high",
+    },
+  ],
+};
+
+/** A resolve answer whose match is the shown card (the hook's id guard passes). */
+const resolveWire = (r: Recommendation, id = r.cardId) => ({
+  results: [
+    {
+      input: r.name,
+      match: { ...card({ name: r.name, primaryType: r.primaryType }), id, image: null },
+    },
+  ],
+});
+
+describe("RecommendationsPanel — a saved deck (P3.2)", () => {
+  const saved = (over: Partial<Props> = {}) => props({ deckId: "deck-1", ...over });
+
+  beforeEach(() => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (String(url) === "/api/cards/resolve") {
+        return { ok: true, status: 200, json: async () => resolveWire(rec) };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          deckId: "deck-1",
+          count: 2,
+          owned: { requested: false, applied: false },
+          recommendations: [rec, combo],
+        }),
+      };
+    });
+  });
+
+  it("GETs the deck once per settled key: a tag edit never asks again; the budget and Refresh do — the budget in USD; never the snapshot route", async () => {
+    const view = render(<RecommendationsPanel {...saved()} />);
+    await flush();
+    expect(deckGets().map(([url]) => String(url))).toEqual(["/api/decks/deck-1/recommendations"]);
+
+    const tagged = baseEntries.map((e) => ({ ...e, tags: ["ramp"] }));
+    view.rerender(<RecommendationsPanel {...saved({ entries: tagged })} />);
+    await flush();
+    expect(deckGets()).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "≤ $1 a card" }));
+    await flush();
+    expect(String(deckGets()[1][0])).toBe("/api/decks/deck-1/recommendations?budget=1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await flush();
+    expect(deckGets()).toHaveLength(3);
+    expect(snapshotCalls()).toHaveLength(0);
+  });
+
+  it("each row leads with its strongest evidence, names its sources and price; expanding shows every entry — the partners linked, how often, each confidence as reported", async () => {
+    render(<RecommendationsPanel {...saved()} />);
+    await flush();
+    // The collapsed row: the high-confidence combo line leads, not the low curve one.
+    expect(
+      screen.getAllByText("Completes a combo with Basalt Monolith: infinite colorless mana"),
+    ).toHaveLength(1);
+    // Source names follow the same order (strongest first).
+    expect(screen.getByText("Commander Spellbook · Curve template")).toBeTruthy();
+    expect(screen.getByText("EDHREC · $0.40")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand evidence for Rings of Brighthearth" }),
+    );
+    expect(screen.getByText("Fills a gap at mana value 3")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Basalt Monolith" }).getAttribute("href")).toBe(
+      `/cards/${sol.id}`,
+    );
+    expect(screen.getByText("In 4,210 EDHREC decks")).toBeTruthy();
+    expect(screen.getAllByText("low").length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Collapse evidence for Rings of Brighthearth" }),
+    ).toBeTruthy();
+  });
+
+  it("Add resolves the shown card (the id guard) and hands it to the editor's add — once; a card already in the deck reads In deck", async () => {
+    const onAdd = vi.fn<Props["onAdd"]>(() => undefined);
+    const view = render(<RecommendationsPanel {...saved({ onAdd })} />);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Add Arcane Signet to the deck" }));
+    await flush();
+    const resolves = fetchMock.mock.calls.filter(([url]) => url === "/api/cards/resolve");
+    expect(resolves).toHaveLength(1);
+    expect(JSON.parse((resolves[0][1] as RequestInit).body as string)).toEqual({
+      game: "mtg",
+      format: "commander",
+      names: ["Arcane Signet"],
+    });
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    expect(onAdd.mock.calls[0][0]).toMatchObject({ id: rec.cardId, name: "Arcane Signet" });
+
+    view.rerender(
+      <RecommendationsPanel {...saved({ onAdd, inDeckQty: new Map([[rec.cardId, 1]]) })} />,
+    );
+    expect(screen.getByText("In deck ✓")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add Arcane Signet to the deck" })).toBeNull();
+  });
+
+  it("a resolve that answers a different card adds nothing and says so", async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url) === "/api/cards/resolve"
+        ? { ok: true, status: 200, json: async () => resolveWire(rec, combo.cardId) }
+        : { ok: true, status: 200, json: async () => ({ recommendations: [rec] }) },
+    );
+    const onAdd = vi.fn<Props["onAdd"]>(() => undefined);
+    render(<RecommendationsPanel {...saved({ onAdd })} />);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Add Arcane Signet to the deck" }));
+    await flush();
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Couldn't load Arcane Signet — try adding it from search."),
+    ).toBeTruthy();
+  });
+
+  it("empty answers say why: nothing at All; nothing at a budget names the price and the way out", async () => {
+    fetchMock.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ recommendations: [] }),
+    }));
+    render(<RecommendationsPanel {...saved()} />);
+    await flush();
+    expect(screen.getByText("No suggestions right now.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "≤ $5 a card" }));
+    await flush();
+    expect(
+      screen.getByText("No suggestions with a known price of $5 or less — try a wider budget."),
+    ).toBeTruthy();
+  });
+
+  it("“Only cards I own” is disabled without a collection, with the honest hint; with one it asks ?owned=1", async () => {
+    const view = render(<RecommendationsPanel {...saved()} />);
+    await flush();
+    const toggle = screen.getByTestId("only-owned-toggle") as HTMLInputElement;
+    expect(toggle.disabled).toBe(true);
+    expect(screen.getByRole("link", { name: "import a collection" })).toBeTruthy();
+
+    view.rerender(<RecommendationsPanel {...saved({ ownedAvailable: true })} />);
+    fireEvent.click(screen.getByTestId("only-owned-toggle"));
+    await flush();
+    expect(String(deckGets().at(-1)![0])).toBe("/api/decks/deck-1/recommendations?owned=1");
+  });
+});
+
+// --- Goals (Y6a, WAVE4 D7) -------------------------------------------------------------------
+
+const hiddenRec = (name: string, why: string): Recommendation & { conflicts: unknown[] } => ({
+  ...rec,
+  cardId: `9${rec.cardId.slice(1, -2)}${String(name.length).padStart(2, "0")}`,
+  name,
+  conflicts: [
+    {
+      rule: "game-changers",
+      source: "Wizards' Game Changers list (via Scryfall)",
+      why,
+      severity: "hide",
+    },
+  ],
+});
+
+describe("RecommendationsPanel — goals (Y6a)", () => {
+  const goals2 = { v: 1 as const, targetLevel: 2, budget: { perCardUsd: 5 } };
+  let answer: Record<string, unknown>;
+  const saved = (over: Partial<Props> = {}) => props({ deckId: "deck-1", ...over });
+
+  beforeEach(() => {
+    answer = { recommendations: [rec], hidden: [], combosTruncated: false };
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url) === "/api/cards/resolve"
+        ? { ok: true, status: 200, json: async () => resolveWire(rec) }
+        : { ok: true, status: 200, json: async () => answer },
+    );
+  });
+
+  it("one goals line on top — the target in its level's words and the budget — whose Change opens Your target", async () => {
+    const onChangeGoals = vi.fn();
+    render(<RecommendationsPanel {...saved({ goals: goals2, onChangeGoals })} />);
+    await flush();
+    const line = document.querySelector('[data-slot="goals-line"]')!;
+    expect(line.textContent).toBe("Your goals: Bracket 2 (Core) · ≤ $5 a card · Change");
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect(onChangeGoals).toHaveBeenCalledTimes(1);
+  });
+
+  it("with no goals it is the door to a target (LATER row 175): No bracket target yet · Set one", async () => {
+    const onChangeGoals = vi.fn();
+    const view = render(<RecommendationsPanel {...saved({ onChangeGoals })} />);
+    await flush();
+    expect(document.querySelector('[data-slot="goals-line"]')!.textContent).toBe(
+      "No bracket target yet · Set one",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Set one" }));
+    expect(onChangeGoals).toHaveBeenCalledTimes(1);
+    // Without the door the line only reads.
+    view.rerender(<RecommendationsPanel {...saved()} />);
+    expect(screen.queryByRole("button", { name: "Set one" })).toBeNull();
+  });
+
+  it("the budget starts from the deck's own: that tier pressed and asked for — the GET in USD, a draft's POST with its goals", async () => {
+    const view = render(<RecommendationsPanel {...saved({ goals: goals2 })} />);
+    await flush();
+    expect(screen.getByRole("button", { name: "≤ $5 a card" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    expect(String(deckGets()[0][0])).toBe("/api/decks/deck-1/recommendations?budget=5");
+    view.unmount();
+
+    render(
+      <RecommendationsPanel
+        {...props({ goals: { ...goals2, exceptions: "one Game Changer, ask me" } })}
+      />,
+    );
+    await flush();
+    const body = JSON.parse((snapshotCalls()[0][1] as RequestInit).body as string);
+    expect(body.budget).toBe(5);
+    // The goals the check reads — never the exceptions line.
+    expect(body.goals).toEqual({ v: 1, targetLevel: 2, budget: { perCardUsd: 5 } });
+  });
+
+  it("another tier shows “Save as this deck's budget”, which saves the pick as the goal (a total stays); the deck's own tier hides it", async () => {
+    const onGoalsChange = vi.fn();
+    const withTotal = { ...goals2, budget: { perCardUsd: 5, totalUsd: 150 } };
+    const view = render(<RecommendationsPanel {...saved({ goals: withTotal, onGoalsChange })} />);
+    await flush();
+    expect(screen.queryByRole("button", { name: "Save as this deck's budget" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "≤ $1 a card" }));
+    await flush();
+    expect(String(deckGets().at(-1)![0])).toBe("/api/decks/deck-1/recommendations?budget=1");
+    fireEvent.click(screen.getByRole("button", { name: "≤ $5 a card" }));
+    expect(screen.queryByRole("button", { name: "Save as this deck's budget" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save as this deck's budget" }));
+    expect(onGoalsChange).toHaveBeenCalledWith({ v: 1, targetLevel: 2, budget: { totalUsd: 150 } });
+
+    // Saved: the control follows the deck's goal again.
+    view.rerender(
+      <RecommendationsPanel
+        {...saved({ goals: { v: 1, targetLevel: 2, budget: { totalUsd: 150 } }, onGoalsChange })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "All" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("button", { name: "Save as this deck's budget" })).toBeNull();
+  });
+
+  it("“N hidden by your goals · Show” — Show lists them with their reasons, Hide folds them; the list keeps its own rows", async () => {
+    answer = {
+      recommendations: [rec],
+      hidden: [
+        hiddenRec(
+          "Rhystic Study",
+          "A Game Changer (Wizards' list) — your Bracket 2 target allows none",
+        ),
+        hiddenRec(
+          "Cyclonic Rift",
+          "A Game Changer (Wizards' list) — your Bracket 2 target allows none",
+        ),
+      ],
+      combosTruncated: false,
+    };
+    render(<RecommendationsPanel {...saved({ goals: goals2 })} />);
+    await flush();
+    const toggle = screen.getByRole("button", { name: "Show" });
+    expect(toggle.closest("p")!.textContent).toBe("2 hidden by your goals · Show");
+    expect(screen.queryByText("Rhystic Study")).toBeNull();
+
+    fireEvent.click(toggle);
+    const list = screen.getByRole("list", { name: "Hidden by your goals" });
+    expect(list.querySelectorAll('li[data-goals="hidden"]')).toHaveLength(2);
+    expect(list.textContent).toContain("Rhystic Study");
+    expect(list.textContent).toContain(
+      "A Game Changer (Wizards' list) — your Bracket 2 target allows none",
+    );
+    expect(screen.getByRole("button", { name: "Hide" }).getAttribute("aria-expanded")).toBe("true");
+    // A hidden card can still be added — it's the owner's deck.
+    expect(screen.getByRole("button", { name: "Add Rhystic Study to the deck" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.queryByRole("list", { name: "Hidden by your goals" })).toBeNull();
+    expect(screen.getByText("Arcane Signet")).toBeTruthy();
+  });
+
+  it("a row's flags ride beside its evidence, never in it; a combo scan cut at its cap says so", async () => {
+    answer = {
+      recommendations: [
+        {
+          ...rec,
+          conflicts: [
+            {
+              rule: "game-changers",
+              source: "Wizards' Game Changers list (via Scryfall)",
+              why: "Would make this deck at least Bracket 3 — a Game Changer (Wizards' list)",
+              severity: "flag",
+            },
+            {
+              rule: "budget",
+              source: "Card price",
+              why: "Costs $45.00 — over your ≤ $5 a card budget",
+              severity: "flag",
+            },
+          ],
+        },
+      ],
+      hidden: [],
+      combosTruncated: true,
+    };
+    render(<RecommendationsPanel {...saved()} />);
+    await flush();
+    const row = screen.getByText("Arcane Signet").closest("li")!;
+    expect(row.getAttribute("data-goals")).toBe("flagged");
+    expect([...row.querySelectorAll("[data-conflict]")].map((p) => p.textContent)).toEqual([
+      "Would make this deck at least Bracket 3 — a Game Changer (Wizards' list)",
+      "Costs $45.00 — over your ≤ $5 a card budget",
+    ]);
+    expect(screen.getByText(/Combo checks stopped at the most popular combos/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Show" })).toBeNull();
+  });
+
+  it("the goals are in the key: a new target asks again once it has saved; an exceptions edit never does", async () => {
+    const view = render(<RecommendationsPanel {...saved({ goals: goals2 })} />);
+    await flush();
+    expect(deckGets()).toHaveLength(1);
+    view.rerender(
+      <RecommendationsPanel {...saved({ goals: { ...goals2, exceptions: "ask me" } })} />,
+    );
+    await flush();
+    expect(deckGets()).toHaveLength(1);
+
+    const goals3 = { ...goals2, targetLevel: 3 };
+    view.rerender(<RecommendationsPanel {...saved({ goals: goals3, saveStatus: "saving" })} />);
+    await flush();
+    expect(deckGets()).toHaveLength(1);
+    view.rerender(<RecommendationsPanel {...saved({ goals: goals3 })} />);
+    await flush();
+    expect(deckGets()).toHaveLength(2);
+  });
+
+  it("an add says nothing on the live line (the editor toasts it with Undo); a failure still does", async () => {
+    const onAdd = vi.fn<Props["onAdd"]>(() => undefined);
+    const view = render(<RecommendationsPanel {...saved({ onAdd })} />);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Add Arcane Signet to the deck" }));
+    await flush();
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Added Arcane Signet")).toBeNull();
+
+    view.rerender(<RecommendationsPanel {...saved({ onAdd: () => "Main deck is full" })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add Arcane Signet to the deck" }));
+    await flush();
+    expect(screen.getByText("Main deck is full")).toBeTruthy();
+  });
+
+  it("every card hidden: the list says nothing else fits the goals", async () => {
+    answer = {
+      recommendations: [],
+      hidden: [
+        hiddenRec(
+          "Rhystic Study",
+          "A Game Changer (Wizards' list) — your Bracket 2 target allows none",
+        ),
+      ],
+      combosTruncated: false,
+    };
+    render(<RecommendationsPanel {...saved({ goals: goals2 })} />);
+    await flush();
+    expect(screen.getByText("Nothing else fits your goals right now.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show" })).toBeTruthy();
+  });
+});

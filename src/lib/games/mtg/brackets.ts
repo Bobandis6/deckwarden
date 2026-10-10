@@ -65,8 +65,10 @@
  */
 import type {
   BracketAnswers,
+  BracketConflict,
   BracketFactor,
   BracketFreshness,
+  BracketImpactInput,
   BracketInput,
   BracketQuestion,
   BracketRead,
@@ -827,6 +829,248 @@ export function assessBracket(input: BracketInput<MtgAttrs>): BracketRead {
   };
 }
 
+// --- Goals (Y6a, WAVE4 D7): one more card, against the read --------------------------
+
+/** The attrs keys the read takes — all of them (`assess` and `impact` read nothing else). */
+export const MTG_BRACKET_FLAG_PATHS = [["game_changer"], ["mld"], ["extra_turn"]] as const;
+
+const ORDINAL_WORDS = [
+  "zeroth",
+  "first",
+  "second",
+  "third",
+  "fourth",
+  "fifth",
+  "sixth",
+  "seventh",
+  "eighth",
+  "ninth",
+  "tenth",
+];
+/** 4 → "fourth", 21 → "21st". */
+function ordinal(n: number): string {
+  if (ORDINAL_WORDS[n]) return ORDINAL_WORDS[n];
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  const suffix = teen ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n}${suffix}`;
+}
+
+const SOURCE_SHORT = {
+  gameChangers: "Wizards' list",
+  tagger: "Scryfall Tagger",
+  spellbook: "Commander Spellbook",
+} as const;
+
+/** One rule the card fires — firm (the cards would prove it) or a question it would open (`call`). */
+interface Effect {
+  rule: "game-changers" | "land-denial" | "extra-turns" | "combo";
+  level: number;
+  call: boolean;
+  source: string;
+  /** Game Changers / extra turns: which copy the card would be (1 = the first). */
+  nth?: number;
+  /** A combo the two-card rule rates. */
+  twoCard?: boolean;
+}
+
+/** With a target: why it sits above it. Every line names its source (D0). */
+function overTargetWords(e: Effect, target: number): string {
+  switch (e.rule) {
+    case "game-changers": {
+      const allowance = levelOf(target).gameChangers ?? 0;
+      return allowance === 0
+        ? `A Game Changer (${SOURCE_SHORT.gameChangers}) — your Bracket ${target} target allows none`
+        : `A ${ordinal(e.nth ?? 1)} Game Changer (${SOURCE_SHORT.gameChangers}) — your Bracket ${target} target allows up to ${numberWord(allowance)}`;
+    }
+    case "land-denial": {
+      const where = bracketsPhrase(levelsWhere((l) => !l.landDenial));
+      return e.call
+        ? `Possible mass land denial, your call — Wizards expects none at ${where} (${SOURCE_SHORT.tagger})`
+        : `Mass land denial — Wizards expects none at ${where} (${SOURCE_SHORT.tagger})`;
+    }
+    case "extra-turns":
+      return e.level >= CHAINED_TURNS_LEVEL
+        ? `A ${ordinal(e.nth ?? 2)} extra-turn card — ${bracketsVerb(
+            levelsWhere((l) => l.extraTurns === "few"),
+            "avoids",
+            "avoid",
+          )} chaining extra turns (${SOURCE_SHORT.tagger})`
+        : `An extra-turn card — ${bracketsVerb(
+            levelsWhere((l) => l.extraTurns === "none"),
+            "expects",
+            "expect",
+          )} none (${SOURCE_SHORT.tagger})`;
+    case "combo":
+      if (e.call)
+        return `Completes a combo that may make a deck Bracket ${e.level} — your call (${SOURCE_SHORT.spellbook})`;
+      return e.twoCard
+        ? `Completes a two-card combo — Wizards expects none at ${bracketsPhrase(
+            levelsWhere((l) => l.twoCardCombos === "none"),
+          )} (${SOURCE_SHORT.spellbook})`
+        : `Completes a combo that alone makes a deck at least Bracket ${e.level} (${SOURCE_SHORT.spellbook})`;
+  }
+}
+
+/** With no target: how it would raise the line. */
+function raiseWords(e: Effect): string {
+  const head = e.call
+    ? `Could make this deck Bracket ${e.level}`
+    : `Would make this deck at least Bracket ${e.level}`;
+  switch (e.rule) {
+    case "game-changers":
+      return `${head} — ${(e.nth ?? 1) > 1 ? `a ${ordinal(e.nth!)}` : "a"} Game Changer (${SOURCE_SHORT.gameChangers})`;
+    case "land-denial":
+      return `${head} — ${e.call ? "possible mass land denial, your call" : "mass land denial"} (${SOURCE_SHORT.tagger})`;
+    case "extra-turns":
+      return e.level >= CHAINED_TURNS_LEVEL
+        ? `${head} — a ${ordinal(e.nth ?? 2)} extra-turn card, if these turns chain (${SOURCE_SHORT.tagger})`
+        : `${head} — an extra-turn card (${SOURCE_SHORT.tagger})`;
+    case "combo":
+      return `${head} — completes a ${e.twoCard ? "two-card combo" : "combo"}${e.call ? ", your call" : ""} (${SOURCE_SHORT.spellbook})`;
+  }
+}
+
+/**
+ * What one more card would do to the read (Y6a): the rules it fires, each
+ * through the same helpers `assessBracket` uses — a Game Changer counts
+ * against the list's own (the allowance is per list), an extra-turn card
+ * past the first opens "Do these extra turns chain?", a combo reads exactly
+ * as `readCombo` would read it in the list. A question the player already
+ * answered (its stable id) counts as answered: no settles it, yes makes it
+ * firm. With a target, every rule above it; with none, every rule above the
+ * line as it reads now (the answers' level, else the minimum). One line per
+ * rule — firm before a question, then the highest.
+ */
+export function mtgBracketImpact(input: BracketImpactInput<MtgAttrs>): BracketConflict[] {
+  const { deck, cards, card, read } = input;
+  const format = mtgFormat(deck.formatCode);
+  if (!format) return [];
+  const leaderZones = new Set(format.zones.filter((z) => z.isLeaderZone).map((z) => z.id));
+  const copies = new Map<string, number>();
+  const commanderIds = new Set<string>();
+  for (const [zoneId, entries] of Object.entries(deck.zones)) {
+    for (const e of entries) {
+      copies.set(e.cardId, (copies.get(e.cardId) ?? 0) + e.qty);
+      if (leaderZones.has(zoneId)) commanderIds.add(e.cardId);
+    }
+  }
+  if (copies.has(card.id)) return [];
+  const held: { card: MtgCard; qty: number }[] = [];
+  for (const [id, qty] of copies) {
+    const c = cards.get(id);
+    if (c) held.push({ card: c, qty });
+  }
+  const calls = input.answers?.calls ?? {};
+  /** A question's answer: no settles it (null), yes makes it firm. */
+  const asked = (id: string): { call: boolean } | null => {
+    const answer = calls[id];
+    if (answer === "no") return null;
+    return { call: answer !== "yes" };
+  };
+
+  const effects: Effect[] = [];
+  if (card.attrs.game_changer === true) {
+    const n = held.reduce((s, h) => s + (h.card.attrs.game_changer === true ? h.qty : 0), 0);
+    effects.push({
+      rule: "game-changers",
+      level: gameChangerLevel(n + 1),
+      call: false,
+      source: BRACKET_SOURCES.gameChangers,
+      nth: n + 1,
+    });
+  }
+  if (card.attrs.mld === "clear") {
+    effects.push({
+      rule: "land-denial",
+      level: LAND_DENIAL_LEVEL,
+      call: false,
+      source: BRACKET_SOURCES.tagger,
+    });
+  } else if (card.attrs.mld === "edge") {
+    const a = asked(`land-denial:${card.externalKey}`);
+    if (a)
+      effects.push({
+        rule: "land-denial",
+        level: LAND_DENIAL_LEVEL,
+        call: a.call,
+        source: BRACKET_SOURCES.tagger,
+      });
+  }
+  if (card.attrs.extra_turn === true) {
+    const turns = held.filter((h) => h.card.attrs.extra_turn === true);
+    const t = turns.reduce((s, h) => s + h.qty, 0);
+    effects.push({
+      rule: "extra-turns",
+      level: EXTRA_TURN_LEVEL,
+      call: false,
+      source: BRACKET_SOURCES.tagger,
+      nth: t + 1,
+    });
+    if (t >= 1) {
+      const id = `extra-turns:${[...turns.map((h) => h.card.externalKey), card.externalKey]
+        .sort()
+        .join("+")}`;
+      const a = asked(id);
+      if (a)
+        effects.push({
+          rule: "extra-turns",
+          level: CHAINED_TURNS_LEVEL,
+          call: a.call,
+          source: BRACKET_SOURCES.tagger,
+          nth: t + 1,
+        });
+    }
+  }
+  const withCard = new Map(cards).set(card.id, card);
+  for (const combo of input.completes) {
+    if (!combo.cardPieces.includes(card.id)) continue;
+    if (!combo.cardPieces.every((id) => id === card.id || copies.has(id))) continue;
+    const r = readCombo(combo, withCard, commanderIds);
+    if (r.factor?.atLeast) {
+      const others = combo.cardPieces.filter((id) => !commanderIds.has(id)).length;
+      effects.push({
+        rule: "combo",
+        level: r.factor.atLeast,
+        call: false,
+        source: r.factor.source,
+        twoCard:
+          r.factor.atLeast === TWO_CARD_LEVEL &&
+          combo.templates.length === 0 &&
+          combo.relevant === true &&
+          others <= 2,
+      });
+    }
+    if (r.question) {
+      const a = asked(r.question.id);
+      if (a)
+        effects.push({
+          rule: "combo",
+          level: r.question.raisesTo,
+          call: a.call,
+          source: r.question.source,
+        });
+    }
+  }
+
+  const target = input.targetLevel ?? null;
+  const line = read.suggested ?? read.minimum;
+  const above = effects.filter((e) => e.level > (target ?? line));
+  const best = new Map<Effect["rule"], Effect>();
+  for (const e of above) {
+    const kept = best.get(e.rule);
+    if (!kept || (kept.call && !e.call) || (kept.call === e.call && e.level > kept.level))
+      best.set(e.rule, e);
+  }
+  return [...best.values()]
+    .sort((a, b) => Number(a.call) - Number(b.call) || b.level - a.level)
+    .map((e) => ({
+      rule: e.rule,
+      level: e.level,
+      source: e.source,
+      why: target !== null ? overTargetWords(e, target) : raiseWords(e),
+    }));
+}
+
 /** The Magic adapter's `brackets` declaration (Y3b; the line and the sheet's links, Y4a). */
 export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   noun: "bracket",
@@ -841,4 +1085,6 @@ export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   table: mtgBracketTable,
   tableNote: MTG_TABLE_NOTE,
   links: MTG_BRACKET_LINKS,
+  flagPaths: MTG_BRACKET_FLAG_PATHS,
+  impact: mtgBracketImpact,
 };

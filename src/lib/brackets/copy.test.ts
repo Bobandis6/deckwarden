@@ -9,7 +9,9 @@ import { describe, expect, it } from "vitest";
 
 import { getAdapter } from "@/lib/games/registry";
 
-import { BRACKET_COPY, dateLabel, declaredLabel, levelLabel } from "./copy";
+import { budgetLabel } from "@/components/deck/goals-line";
+
+import { BRACKET_COPY, dateLabel, declaredLabel, goalsParts, levelLabel } from "./copy";
 
 /** The table's word-builders — the guard calls each one (a new one must join it here). */
 const BUILDERS = [
@@ -22,6 +24,8 @@ const BUILDERS = [
   "aboveTargetLead",
   "answered",
   "checked",
+  "noTarget",
+  "hiddenByGoals",
 ];
 
 /** Every string the table can produce, its builders called with real inputs. */
@@ -49,6 +53,14 @@ function everyString(): string[] {
     C.checked(dateLabel("2026-10-05T12:00:00.000Z")),
     ...mtg.questions.flatMap((q) => (q.table ? [q.table.label, q.table.yes, q.table.no] : [])),
     mtg.tableNote,
+    // Y6a: the goals line and the hidden count (the impact lines are
+    // guarded in bracket-impact.test.ts).
+    C.noTarget(mtg.noun),
+    C.hiddenByGoals(1),
+    C.hiddenByGoals(12),
+    ...mtg.levels.flatMap((l) =>
+      goalsParts(mtg, { targetLevel: l.level, budget: { perCardUsd: 5 } }, budgetLabel),
+    ),
   ];
 }
 
@@ -120,6 +132,31 @@ describe("BRACKET_COPY — D5's own lines and the sheet's words", () => {
   });
 });
 
+describe("Y6a's words — the goals line and the hidden count", () => {
+  const mtg = getAdapter("mtg").brackets!;
+
+  it("the goals line's parts: the target in the level's own words, then the budget's label; none when neither is set", () => {
+    expect(goalsParts(mtg, { targetLevel: 2, budget: { perCardUsd: 5 } }, budgetLabel)).toEqual([
+      "Bracket 2 (Core)",
+      "≤ $5 a card",
+    ]);
+    expect(goalsParts(mtg, { budget: { perCardUsd: 1 } }, budgetLabel)).toEqual(["≤ $1 a card"]);
+    expect(goalsParts(mtg, { v: 1 } as never, budgetLabel)).toEqual([]);
+    expect(goalsParts(mtg, null, budgetLabel)).toEqual([]);
+    // A game without brackets never says a level.
+    expect(
+      goalsParts(undefined, { targetLevel: 2, budget: { perCardUsd: 5 } }, budgetLabel),
+    ).toEqual(["≤ $5 a card"]);
+  });
+
+  it("D7's words without notation", () => {
+    expect(BRACKET_COPY.goalsLead).toBe("Your goals:");
+    expect(BRACKET_COPY.noTarget("bracket")).toBe("No bracket target yet");
+    expect(BRACKET_COPY.hiddenByGoals(3)).toBe("3 hidden by your goals");
+    expect(BRACKET_COPY.saveBudget).toBe("Save as this deck's budget");
+  });
+});
+
 describe("copy guard (WAVE4 D0)", () => {
   it("reads every string the table has — each plain string and each builder", () => {
     const builders = Object.entries(BRACKET_COPY)
@@ -139,5 +176,9 @@ describe("copy guard (WAVE4 D0)", () => {
         /ruthless|spicy|powerful|oddball|precon appropriate|casual/i.test(s),
       ),
     ).toEqual([]);
+  });
+
+  it("plain words, never notation: no '+', no '(est.)'", () => {
+    expect(everyString().filter((s) => /\d\+|est\./i.test(s))).toEqual([]);
   });
 });

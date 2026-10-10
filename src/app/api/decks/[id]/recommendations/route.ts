@@ -17,10 +17,20 @@
  * the P3.1 contract expects; a very large collection makes that a long
  * parameter list, which is fine on Postgres and noted in LATER.md.
  *
+ * Goals (Y6a, WAVE4 D7): the deck's own, read from the row this route
+ * already loads — the target hides what would put the deck above it (or,
+ * with none, flags what would raise its bracket); the per-card budget flags
+ * a card over it. The budget and the answers are the owner's alone, so a
+ * visitor's request applies the public target only. The answer adds
+ * `hidden` (the cards the goals took out of the list, with their reasons)
+ * and `combosTruncated` (the combo scan hit its cap, so rarer combos
+ * weren't checked). One more statement than before for a deck the read
+ * covers: the list's complete combos (engine.ts).
+ *
  * Caching intent: force-dynamic + no-store — output depends on the deck's
- * current cards (mid-edit) and on who is asking (x-deck-token / session for
- * private decks, the collection for ?owned=1), so neither CDN nor browser
- * may cache it.
+ * current cards (mid-edit) and goals, and on who is asking (x-deck-token /
+ * session for private decks and the owner's goals, the collection for
+ * ?owned=1), so neither CDN nor browser may cache it.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
@@ -29,6 +39,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { ownedIdentityIds } from "@/lib/collection/owned";
 import { MAX_LIMIT, recommendForDeck } from "@/lib/recommend/engine";
 import { clientIp } from "@/lib/decks/access";
+import { publicGoals, readGoals } from "@/lib/decks/goals";
 import { requireReadableDeck } from "@/lib/decks/route-helpers";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
@@ -60,7 +71,7 @@ export async function GET(
   const { id } = await ctx.params;
   const access = await requireReadableDeck(request.headers, id);
   if (access instanceof NextResponse) return access;
-  const { deck } = access;
+  const { deck, isOwner } = access;
 
   const params = request.nextUrl.searchParams;
   const parsed = QUERY.safeParse({
@@ -92,14 +103,23 @@ export async function GET(
     }
   }
 
-  const recommendations = await recommendForDeck(deck, {
+  const goals = readGoals(deck.goals);
+  const { recommendations, hidden, combosTruncated } = await recommendForDeck(deck, {
     maxPriceUsd: parsed.data.budget,
     limit: parsed.data.limit,
     ownedCardIds,
+    goals: isOwner ? goals : publicGoals(goals),
   });
 
   return NextResponse.json(
-    { deckId: deck.id, count: recommendations.length, owned, recommendations },
+    {
+      deckId: deck.id,
+      count: recommendations.length,
+      owned,
+      recommendations,
+      hidden,
+      combosTruncated,
+    },
     { headers: NO_STORE },
   );
 }

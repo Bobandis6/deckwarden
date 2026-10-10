@@ -317,6 +317,9 @@ export function DeckEditor({
   const [cards, setCards] = useState<ReadonlyMap<string, EditorCard>>(new Map());
   const [preview, setPreview] = useState<EditorCard | null>(null);
   const [dialog, setDialog] = useState<EditorDialog | null>(null);
+  // Where the Why sheet opens (Y6a): at Your target when the goals line's
+  // "Change" opened it, at its top from "Why?".
+  const [sheetAt, setSheetAt] = useState<"target" | null>(null);
   // Who opened the dialog decides where focus lands when it closes: a
   // menu-opened one goes back to the More trigger (its menu item is gone by
   // then); the `?` sheet returns to wherever `?` was pressed (R3).
@@ -1162,6 +1165,26 @@ export function DeckEditor({
     [format, applyEdit],
   );
 
+  // Suggestions' adds (Y6a, WAVE4 D7): the panels' path plus the add
+  // toast — "Added X" with an Undo that is a REAL edit back to the previous
+  // quantity, like the search pane's (F3). The panel's live line keeps only
+  // failures. The Combo Radar keeps its own notices: its combo-piece adds
+  // toast once for the whole batch.
+  const handleSuggestionAdd = useCallback(
+    (card: EditorCard): string | undefined => {
+      const mainZone = format?.zones.find((z) => !z.isLeaderZone);
+      const previousQty =
+        entriesRef.current.find((e) => e.zone === mainZone?.id && e.cardId === card.id)?.qty ?? 0;
+      const error = handlePanelAdd(card);
+      if (error || !format || !mainZone) return error;
+      notify(`Added ${card.name}`, () =>
+        applyEdit(setQty(entriesRef.current, format, mainZone.id, card.id, previousQty)),
+      );
+      return undefined;
+    },
+    [format, handlePanelAdd, notify, applyEdit],
+  );
+
   const handleSetQty = useCallback(
     (zoneId: string, cardId: string, qty: number): string | undefined => {
       if (!format) return undefined;
@@ -1248,6 +1271,16 @@ export function DeckEditor({
   // default), never to the More trigger.
   const openBracket = useCallback(() => {
     setDialogFromMenu(false);
+    setSheetAt(null);
+    setDialog("bracket");
+  }, []);
+  // The goals line's "Change" / "Set one" in Suggestions (Y6a, WAVE4 D7 —
+  // LATER row 175's door): the same sheet, opened at Your target, so a
+  // target can be set before the list has found anything. Focus lands on
+  // the target's choice and goes back to "Change" on close.
+  const openGoals = useCallback(() => {
+    setDialogFromMenu(false);
+    setSheetAt("target");
     setDialog("bracket");
   }, []);
 
@@ -1693,8 +1726,11 @@ export function DeckEditor({
                 inDeckQty={inDeckQty}
                 saveStatus={autosave.status}
                 active={rightTab === "suggest"}
-                onAdd={handlePanelAdd}
+                onAdd={handleSuggestionAdd}
                 ownedAvailable={hasCollection}
+                goals={goals}
+                onGoalsChange={handleGoalsChange}
+                onChangeGoals={load.adapter.brackets ? openGoals : undefined}
               />
             </TabsContent>
           )}
@@ -1885,6 +1921,7 @@ export function DeckEditor({
               phone={tier === "phone"}
               goals={goals}
               onGoalsChange={handleGoalsChange}
+              openAt={sheetAt}
               onClose={() => setDialog(null)}
             />
           )}

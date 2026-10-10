@@ -15,7 +15,7 @@ import { and, asc, desc, eq, inArray, notInArray, sql, type SQL } from "drizzle-
 
 import { getDb, schema } from "@/db";
 import { loadCombosNearDeck } from "@/lib/combos/queries";
-import type { RecommendMeta } from "@/lib/games/types";
+import type { BracketsMeta, RecommendMeta } from "@/lib/games/types";
 import type { TournamentContext, TournamentSignal } from "./rank";
 import type { CandidateCard, CandidateCombo } from "./types";
 
@@ -103,15 +103,40 @@ export function candidateConditions(f: CandidateFilter): SQL[] {
   return conditions;
 }
 
-const CANDIDATE_PROJECTION = {
-  id: cardIdentities.id,
-  name: cardIdentities.name,
-  primaryType: cardIdentities.primaryType,
-  costValue: cardIdentities.costValue,
-  ciMask: cardIdentities.ciMask,
-  cheapestUsd: cardIdentities.cheapestUsd,
-  popularity: cardIdentities.popularity,
-};
+/** The adapter's declared bracket flags (Y6a): single-segment attrs paths, `brackets.flagPaths`. */
+export type FlagPaths = BracketsMeta["flagPaths"];
+
+/**
+ * The declared flags as one jsonb column (Y6a) — `{game_changer: true}`,
+ * absent keys dropped, `{}` for a card that has none or a game that
+ * declares none. Exported for tests. Each path faces exclude's key check
+ * before it reaches `sql.raw`, so a declaration can never smuggle SQL.
+ */
+export function flagsColumn(flagPaths: FlagPaths | undefined): SQL<Record<string, unknown>> {
+  if (!flagPaths || flagPaths.length === 0) return sql<Record<string, unknown>>`'{}'::jsonb`;
+  const pairs = flagPaths.map(([key]) => {
+    if (!JSONB_KEY_RE.test(key)) throw new Error(`Invalid flag path: ${key}`);
+    return sql`${sql.raw(`'${key}'`)}, ${cardIdentities.attrs}->${sql.raw(`'${key}'`)}`;
+  });
+  return sql<
+    Record<string, unknown>
+  >`jsonb_strip_nulls(jsonb_build_object(${sql.join(pairs, sql`, `)}))`;
+}
+
+/** The candidate rows' columns — with the adapter's flags (Y6a) and the external key the read's questions use. */
+function candidateProjection(flagPaths: FlagPaths | undefined) {
+  return {
+    id: cardIdentities.id,
+    name: cardIdentities.name,
+    primaryType: cardIdentities.primaryType,
+    costValue: cardIdentities.costValue,
+    ciMask: cardIdentities.ciMask,
+    cheapestUsd: cardIdentities.cheapestUsd,
+    popularity: cardIdentities.popularity,
+    externalKey: cardIdentities.externalKey,
+    flags: flagsColumn(flagPaths),
+  };
+}
 
 /**
  * The popularity-ranked candidate pool (the staples query, parameterized).
@@ -121,9 +146,10 @@ const CANDIDATE_PROJECTION = {
 export async function loadCandidatePool(
   filter: CandidateFilter,
   limit: number,
+  flagPaths?: FlagPaths,
 ): Promise<CandidateCard[]> {
   return getDb()
-    .select(CANDIDATE_PROJECTION)
+    .select(candidateProjection(flagPaths))
     .from(cardIdentities)
     .where(and(...candidateConditions(filter), sql`${cardIdentities.popularity} IS NOT NULL`))
     .orderBy(asc(cardIdentities.popularity), asc(cardIdentities.id))
@@ -134,10 +160,11 @@ export async function loadCandidatePool(
 export async function loadCandidateRows(
   filter: CandidateFilter,
   ids: readonly string[],
+  flagPaths?: FlagPaths,
 ): Promise<CandidateCard[]> {
   if (ids.length === 0) return [];
   return getDb()
-    .select(CANDIDATE_PROJECTION)
+    .select(candidateProjection(flagPaths))
     .from(cardIdentities)
     .where(and(...candidateConditions(filter), inArray(cardIdentities.id, [...ids])));
 }
@@ -152,26 +179,38 @@ export async function loadCandidateRows(
  * The detection SQL is THE shared layer (combos/queries.ts, P3.3) — the
  * Combo Radar runs the same query with `includeComplete: true`; this stays a
  * pure pivot so the two surfaces can never drift apart.
+ *
+ * Y6a: each combo carries what the goals check reads — its key, the
+ * source's rating and "relevant" mark, its piece count and whether one of
+ * `leaderIds` is a piece — and `truncated` (the scan cap was reached, so a
+ * rarer combo a candidate completes may not be here; the routes disclose it).
  */
 export async function loadComboSignals(
   deckCardIds: readonly string[],
   deckCiMask: number,
-): Promise<Map<string, CandidateCombo[]>> {
+  leaderIds: readonly string[] = [],
+): Promise<{ byCandidate: Map<string, CandidateCombo[]>; truncated: boolean }> {
   const byCandidate = new Map<string, CandidateCombo[]>();
+  const leaders = new Set(leaderIds);
   const found = await loadCombosNearDeck(deckCardIds, deckCiMask, { includeComplete: false });
   for (const combo of found.combos) {
     if (combo.missingPieces.length !== 1) continue; // one-away mode guarantees this
     const candidateId = combo.missingPieces[0].id;
     const list = byCandidate.get(candidateId) ?? [];
     list.push({
+      key: combo.externalKey,
       withPieces: combo.inDeckPieces.map((p) => ({ cardId: p.id, name: p.name })),
       results: combo.results,
       templates: combo.templates,
       popularity: combo.popularity,
+      tag: combo.tag,
+      relevant: combo.relevant,
+      pieceCount: combo.inDeckPieces.length + 1,
+      usesLeader: combo.inDeckPieces.some((p) => leaders.has(p.id)),
     });
     byCandidate.set(candidateId, list);
   }
-  return byCandidate;
+  return { byCandidate, truncated: found.truncated };
 }
 
 /**
@@ -246,10 +285,11 @@ export async function loadTournamentCandidates(
   filter: CandidateFilter,
   leaderIds: readonly string[],
   limit: number,
+  flagPaths?: FlagPaths,
 ): Promise<CandidateCard[]> {
   if (leaderIds.length === 0) return [];
   return getDb()
-    .select(CANDIDATE_PROJECTION)
+    .select(candidateProjection(flagPaths))
     .from(commanderCardStats)
     .innerJoin(cardIdentities, eq(cardIdentities.id, commanderCardStats.cardIdentityId))
     .where(
@@ -263,28 +303,57 @@ export async function loadTournamentCandidates(
 }
 
 /**
+ * What a card holds for the server-side bracket read (Y6a): the declared
+ * flags and the identity facts beside them — `attrs` is never selected
+ * whole (the read takes only `flagPaths` from it), and legality stays the
+ * candidate filter's and validate's.
+ */
+export interface ReadFacts {
+  name: string;
+  externalKey: string;
+  colorsMask: number;
+  ciMask: number;
+  isLeaderCandidate: boolean;
+  isPreview: boolean;
+  cheapestUsd: string | null;
+  popularity: number | null;
+  flags: Record<string, unknown>;
+}
+
+function readFactsColumns(flagPaths: FlagPaths | undefined) {
+  return {
+    name: cardIdentities.name,
+    externalKey: cardIdentities.externalKey,
+    colorsMask: cardIdentities.colorsMask,
+    ciMask: cardIdentities.ciMask,
+    isLeaderCandidate: cardIdentities.isLeaderCandidate,
+    isPreview: cardIdentities.isPreview,
+    cheapestUsd: cardIdentities.cheapestUsd,
+    popularity: cardIdentities.popularity,
+    flags: flagsColumn(flagPaths),
+  };
+}
+
+/**
  * Facts for a client-sent card list (W9a): the autofill route takes ids
  * only — every fact (type, cost, color identity) comes from the server, so
  * a crafted body can never smuggle a wrong ciMask past the filter. Missing
- * ids simply aren't returned; the caller 400s on the difference.
+ * ids simply aren't returned; the caller 400s on the difference. Y6a: with
+ * the read's facts too (the snapshot route's goals check), in the same
+ * statement.
  */
 export async function loadEntryFacts(
   gameId: number,
   ids: readonly string[],
-): Promise<
-  Map<
-    string,
-    { name: string; primaryType: string | null; costValue: number | null; ciMask: number }
-  >
-> {
+  flagPaths?: FlagPaths,
+): Promise<Map<string, ReadFacts & { primaryType: string | null; costValue: number | null }>> {
   if (ids.length === 0) return new Map();
   const rows = await getDb()
     .select({
       id: cardIdentities.id,
-      name: cardIdentities.name,
       primaryType: cardIdentities.primaryType,
       costValue: cardIdentities.costValue,
-      ciMask: cardIdentities.ciMask,
+      ...readFactsColumns(flagPaths),
     })
     .from(cardIdentities)
     .where(
@@ -311,7 +380,7 @@ export async function loadFillerRows(
 ): Promise<CandidateCard[]> {
   if (names.length === 0) return [];
   return getDb()
-    .select(CANDIDATE_PROJECTION)
+    .select(candidateProjection(undefined))
     .from(cardIdentities)
     .where(
       and(
@@ -329,20 +398,42 @@ export async function loadFillerRows(
     );
 }
 
-/** The deck's cards with the fields curve bucketing reads (all zones). */
+/**
+ * The deck's cards with the fields curve bucketing reads (all zones) — and,
+ * Y6a, each entry's zone and the read's facts (ReadFacts), still one
+ * statement.
+ */
 export async function loadDeckEntries(
   deckId: string,
+  flagPaths?: FlagPaths,
 ): Promise<
-  { cardId: string; qty: number; primaryType: string | null; costValue: number | null }[]
+  {
+    cardId: string;
+    zone: string;
+    qty: number;
+    primaryType: string | null;
+    costValue: number | null;
+    facts: ReadFacts;
+  }[]
 > {
-  return getDb()
+  const rows = await getDb()
     .select({
       cardId: deckCards.cardIdentityId,
+      zone: deckCards.zone,
       qty: deckCards.quantity,
       primaryType: cardIdentities.primaryType,
       costValue: cardIdentities.costValue,
+      ...readFactsColumns(flagPaths),
     })
     .from(deckCards)
     .innerJoin(cardIdentities, eq(cardIdentities.id, deckCards.cardIdentityId))
     .where(eq(deckCards.deckId, deckId));
+  return rows.map(({ cardId, zone, qty, primaryType, costValue, ...facts }) => ({
+    cardId,
+    zone,
+    qty,
+    primaryType,
+    costValue,
+    facts,
+  }));
 }

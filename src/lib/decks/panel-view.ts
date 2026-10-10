@@ -8,6 +8,7 @@
  * answers a draft (no row) through POST /api/recommendations, whose body
  * snapshotBody builds from the same facts the key reads.
  */
+import type { DeckGoals } from "@/lib/decks/goals";
 import type { FormatDef, GameId } from "@/lib/games/types";
 
 /** The entry fields the deck-derived server computations actually depend on. */
@@ -45,6 +46,8 @@ export interface SnapshotBody {
   leaderIds: string[];
   entries: { cardId: string; qty: number }[];
   budget?: number;
+  /** Y6a: the draft's goals the check reads (goals.ts' suggestionGoals); absent = none. */
+  goals?: DeckGoals;
 }
 
 /**
@@ -53,13 +56,14 @@ export interface SnapshotBody {
  * and every other entry with its copies (the ranker's curve counts them) —
  * built from the same (card, zone, qty) facts deckStateKey keys on, so an
  * unchanged draft never asks twice. `budgetUsd` is the GET's `budget`;
- * absent = no budget.
+ * absent = no budget. `goals` (Y6a) rides along when there are any.
  */
 export function snapshotBody(
   game: GameId,
   format: FormatDef,
   entries: readonly DeckKeyEntry[],
   budgetUsd?: number,
+  goals?: DeckGoals | null,
 ): SnapshotBody {
   const leaderZones = new Set(format.zones.filter((z) => z.isLeaderZone).map((z) => z.id));
   return {
@@ -70,5 +74,6 @@ export function snapshotBody(
       .filter((e) => !leaderZones.has(e.zone))
       .map((e) => ({ cardId: e.cardId, qty: e.qty })),
     ...(budgetUsd !== undefined ? { budget: budgetUsd } : {}),
+    ...(goals ? { goals } : {}),
   };
 }

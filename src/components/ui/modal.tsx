@@ -12,7 +12,7 @@
  * focus restore to the opener on close, Escape and backdrop-press dismiss
  * routed through onOpenChange, and the labelled `role="dialog"`.
  */
-import { createContext, useContext, type RefObject } from "react";
+import { createContext, useContext, type ComponentProps, type RefObject } from "react";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -30,12 +30,15 @@ export function Modal({
   label,
   onClose,
   wide = false,
+  initialFocus,
   children,
 }: {
   label: string;
   onClose: () => void;
   /** List-heavy dialogs (P3.6 history/diff) get a wider panel. */
   wide?: boolean;
+  /** Where focus lands on open (Y6a: the Why sheet opened at Your target); absent = Base UI's default. */
+  initialFocus?: ComponentProps<typeof DialogContent>["initialFocus"];
   children: React.ReactNode;
 }) {
   const finalFocus = useContext(ModalFinalFocus);
@@ -48,6 +51,7 @@ export function Modal({
     >
       <DialogContent
         finalFocus={finalFocus}
+        initialFocus={initialFocus}
         className={cn(
           "flex max-h-[85dvh] flex-col gap-3 overflow-y-auto text-base",
           wide ? "sm:max-w-2xl" : "sm:max-w-lg",

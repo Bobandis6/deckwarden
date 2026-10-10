@@ -55,14 +55,32 @@ export interface CandidateCard {
   ciMask: number;
   cheapestUsd: string | null;
   popularity: number | null;
+  /** The card's external key — the read's question ids use it (Y6a). */
+  externalKey: string;
+  /**
+   * The adapter's declared bracket flags off `attrs` (Y6a — `brackets
+   * .flagPaths`, absent keys dropped; `{}` for a game without them).
+   * Facts for the goals check, never evidence and never scored.
+   */
+  flags: Record<string, unknown>;
 }
 
 /** One combo a candidate would complete the card requirements of. */
 export interface CandidateCombo {
+  /** The source's id for the combo (Commander Spellbook's variant id). */
+  key: string;
   /** Deck cards already supplying the combo's other pieces. */
   withPieces: { cardId: string; name: string }[];
   results: string[];
   templates: string[];
   /** Spellbook popularity (EDHREC deck count); null = unranked. */
   popularity: number | null;
+  /** The source's rating of the combo alone (Y6a — CompleteCombo's `tag`); null = not ingested. */
+  tag: string | null;
+  /** The source's "relevant" mark; null = not ingested. */
+  relevant: boolean | null;
+  /** Card pieces, the candidate included. */
+  pieceCount: number;
+  /** One of the deck's leaders is a piece. */
+  usesLeader: boolean;
 }

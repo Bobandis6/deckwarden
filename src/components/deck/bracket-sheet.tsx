@@ -35,6 +35,11 @@
  * blocks, and on each of Your call's questions the owner's answer when the
  * page shows it (a yes or a no the read used; goals.ts' tableGoals).
  *
+ * Y6a: the owner's goals line under the lead ("Your goals: Bracket 2 (Core)
+ * · ≤ $5 a card · Change" — the budget's only place in the sheet), its
+ * "Change" bringing Your target into view; and `openAt: "target"` (the goals
+ * line in Suggestions) opens the sheet with focus on the target's choice.
+ *
  * Every change goes through goals.ts' pure edits and back to the editor,
  * which saves it like any edit (a draft mints its row) — and never asks
  * for the combo facts again: goals don't change the card set.
@@ -45,8 +50,9 @@
  * the adapter's or BRACKET_COPY's (D0's copy guard reads both).
  */
 import { ArrowUpRightIcon, ChevronDownIcon, XIcon } from "lucide-react";
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode, type RefObject } from "react";
 
+import { GoalsLine } from "@/components/deck/goals-line";
 import { Segmented } from "@/components/deck/segmented";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -93,6 +99,7 @@ export function BracketSheet({
   phone,
   goals = null,
   onGoalsChange,
+  openAt = null,
   onClose,
 }: {
   adapter: GameAdapter;
@@ -109,10 +116,22 @@ export function BracketSheet({
   goals?: DeckGoals | null;
   /** Y4b: the target and the answers become choices; absent, the sheet only reads. */
   onGoalsChange?: (next: DeckGoals | null) => void;
+  /** Y6a: "target" opens the sheet with focus on Your target's choice (the goals line's "Change"). */
+  openAt?: "target" | null;
   onClose: () => void;
 }) {
   const cardsId = useId();
   const assumesId = useId();
+  const targetRef = useRef<HTMLElement>(null);
+  /** Your target's pressed choice ("Not set" when none), else the block. */
+  const targetFocus = () =>
+    targetRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]') ?? targetRef.current;
+  const initialFocus =
+    openAt === "target" && onGoalsChange ? () => targetFocus() ?? null : undefined;
+  const goToTarget = () => {
+    targetRef.current?.scrollIntoView?.({ block: "start" });
+    targetFocus()?.focus();
+  };
   const brackets = adapter.brackets;
   if (!brackets) return null;
   const title = BRACKET_COPY.sheetTitle(brackets.noun);
@@ -140,6 +159,10 @@ export function BracketSheet({
         {read.status === "draft" && (
           <p className="text-muted-foreground mt-1 text-xs">{BRACKET_COPY.draftNote}</p>
         )}
+        {onGoalsChange &&
+          (goals?.targetLevel !== undefined || goals?.budget?.perCardUsd !== undefined) && (
+            <GoalsLine brackets={brackets} goals={goals} onChange={goToTarget} className="mt-1" />
+          )}
       </div>
 
       {onGoalsChange && read.answersStale && (
@@ -216,7 +239,13 @@ export function BracketSheet({
       </section>
 
       {onGoalsChange && (
-        <TargetBlock brackets={brackets} read={read} goals={goals} onGoalsChange={onGoalsChange} />
+        <TargetBlock
+          brackets={brackets}
+          read={read}
+          goals={goals}
+          onGoalsChange={onGoalsChange}
+          sectionRef={targetRef}
+        />
       )}
 
       {onGoalsChange && (
@@ -263,7 +292,7 @@ export function BracketSheet({
         }}
         showSwipeHandle
       >
-        <DrawerContent aria-label={title}>
+        <DrawerContent aria-label={title} initialFocus={initialFocus}>
           <div className="flex shrink-0 items-center justify-between gap-2 pr-2 pl-4">
             <DrawerTitle className="text-sm font-semibold">{title}</DrawerTitle>
             <DrawerClose
@@ -287,7 +316,7 @@ export function BracketSheet({
     );
   }
   return (
-    <Modal label={title} onClose={onClose}>
+    <Modal label={title} onClose={onClose} initialFocus={initialFocus}>
       {content}
     </Modal>
   );
@@ -303,11 +332,14 @@ function TargetBlock({
   read,
   goals,
   onGoalsChange,
+  sectionRef,
 }: {
   brackets: BracketsMeta;
   read: BracketRead;
   goals: DeckGoals | null;
   onGoalsChange: (next: DeckGoals | null) => void;
+  /** Y6a: the goals line's "Change" and `openAt: "target"` bring this block into view. */
+  sectionRef?: RefObject<HTMLElement | null>;
 }) {
   const headingId = useId();
   const exceptionsId = useId();
@@ -323,7 +355,12 @@ function TargetBlock({
   const conflicting = read.factors.filter((f) => above.has(f.id));
 
   return (
-    <section aria-labelledby={headingId} data-slot="bracket-target" className="space-y-2">
+    <section
+      ref={sectionRef}
+      aria-labelledby={headingId}
+      data-slot="bracket-target"
+      className="scroll-mt-2 space-y-2"
+    >
       <h3 id={headingId} className={SECTION_HEADING}>
         {BRACKET_COPY.yourTarget}
       </h3>

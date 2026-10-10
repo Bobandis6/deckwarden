@@ -39,6 +39,17 @@
  * fixture deck's cards as a snapshot and must answer exactly what the deck
  * GET just answered (ids, order, evidence), honor the budget, and answer
  * 400 for One Piece, a stray id, no leader and malformed JSON.
+ *
+ * Y6a: goals in Suggestions, on the same fixture deck. With no target every
+ * row's conflicts are flags (Rings of Brighthearth says what it would make
+ * the deck); with a target of 2 and a $1 budget saved through the goals
+ * PATCH (the owner's token), the over-target cards are hidden and counted —
+ * the kept list is the no-goals list minus them, in order, still 25 long
+ * (rank all → goals → slice) — the budget flags pricier rows, a visitor
+ * (no token) gets the same hidden cards and never the budget, and the
+ * snapshot with the same goals answers the same list and the same hidden
+ * cards. The goals are cleared before the Radar section. The Radar's rows
+ * carry the combo's tag and "relevant" mark now (Y6a's plumbing).
  */
 export {}; // import-free file: stay a module so `main` doesn't collide with other scripts
 
@@ -95,6 +106,12 @@ interface Evidence {
   howOften: string | null;
   confidence: string;
 }
+interface Conflict {
+  rule: string;
+  source: string;
+  why: string;
+  severity: "hide" | "flag";
+}
 interface Rec {
   cardId: string;
   name: string;
@@ -103,6 +120,12 @@ interface Rec {
   score: number;
   confidence: string;
   evidence: Evidence[];
+  conflicts: Conflict[];
+}
+interface RecsBody {
+  recommendations?: Rec[];
+  hidden?: Rec[];
+  combosTruncated?: boolean;
 }
 interface ComboPieceWire {
   id: string;
@@ -114,6 +137,8 @@ interface DeckCombo {
   results: string[];
   templates: string[];
   popularity: number | null;
+  tag: string | null;
+  relevant: boolean | null;
   inDeckPieces: ComboPieceWire[];
   missingPieces: ComboPieceWire[];
 }
@@ -325,6 +350,114 @@ async function main() {
     });
     check("snapshot with malformed JSON → 400", malformed.status === 400);
 
+    // --- Goals (Y6a): the deck's own target and budget, off the row --------
+    const plain = res.json as RecsBody;
+    check(
+      "the answer carries hidden and combosTruncated; no goals → nothing hidden",
+      Array.isArray(plain.hidden) &&
+        plain.hidden.length === 0 &&
+        typeof plain.combosTruncated === "boolean",
+      { hidden: plain.hidden?.length, combosTruncated: plain.combosTruncated },
+    );
+    check(
+      "every row carries conflicts beside its evidence; with no target they're flags only",
+      recs.every(
+        (r) => Array.isArray(r.conflicts) && r.conflicts.every((c) => c.severity === "flag"),
+      ),
+    );
+    const ringsImpact = rings?.conflicts.find((c) => c.rule === "combo");
+    check(
+      "no target: Rings of Brighthearth says what it would make the deck (the Basalt Monolith pair)",
+      ringsImpact !== undefined &&
+        ringsImpact.why.startsWith("Would make this deck at least Bracket"),
+      rings?.conflicts,
+    );
+
+    const goals = { v: 1, targetLevel: 2, budget: { perCardUsd: 1 } };
+    const patched = await api("PATCH", `/api/decks/${deckId}`, { token, body: { goals } });
+    check("goals PATCH (target 2, $1 a card) → 200", patched.status === 200, patched.json);
+    const owner = (await api("GET", `/api/decks/${deckId}/recommendations`, { token }))
+      .json as RecsBody;
+    const ownerRecs = owner.recommendations ?? [];
+    const ownerHidden = owner.hidden ?? [];
+    check(
+      "target 2: cards are hidden, each with a reason that names the target or its rule",
+      ownerHidden.length > 0 &&
+        ownerHidden.every((r) =>
+          r.conflicts.some((c) => c.severity === "hide" && c.why.length > 0 && c.source.length > 0),
+        ),
+      ownerHidden.slice(0, 5).map((r) => [r.name, r.conflicts.map((c) => c.why)]),
+    );
+    check(
+      "Rings of Brighthearth — the two-card pair's last piece — is hidden at target 2",
+      ownerHidden.some((r) => r.name === "Rings of Brighthearth"),
+    );
+    check(
+      "the kept list holds no hidden reason, and is still full (rank all → goals → slice)",
+      ownerRecs.length === recs.length &&
+        ownerRecs.every((r) => r.conflicts.every((c) => c.severity === "flag")),
+      { kept: ownerRecs.length, before: recs.length },
+    );
+    const hiddenIds = new Set(ownerHidden.map((r) => r.cardId));
+    const survivors = recs.filter((r) => !hiddenIds.has(r.cardId)).map((r) => r.cardId);
+    check(
+      "the kept list is the no-goals list minus the hidden cards, in order, then the next ones",
+      JSON.stringify(ownerRecs.slice(0, survivors.length).map((r) => r.cardId)) ===
+        JSON.stringify(survivors),
+      {
+        survivors: survivors.length,
+        kept: ownerRecs.slice(0, 5).map((r) => r.name),
+        hidden: ownerHidden.map((r) => r.name),
+      },
+    );
+    check(
+      "scores and evidence untouched by goals",
+      ownerRecs
+        .filter((r) => recs.some((x) => x.cardId === r.cardId))
+        .every((r) => {
+          const before = recs.find((x) => x.cardId === r.cardId)!;
+          return (
+            r.score === before.score &&
+            JSON.stringify(r.evidence) === JSON.stringify(before.evidence)
+          );
+        }),
+    );
+    check(
+      "the owner's $1 budget flags pricier rows (the panel asked for All); a card at or under $1 never",
+      ownerRecs.some((r) => r.conflicts.some((c) => c.rule === "budget")) &&
+        ownerRecs
+          .filter((r) => r.cheapestUsd !== null && parseFloat(r.cheapestUsd) <= 1)
+          .every((r) => !r.conflicts.some((c) => c.rule === "budget")),
+    );
+    const visitor = (await api("GET", `/api/decks/${deckId}/recommendations`)).json as RecsBody;
+    check(
+      "a visitor gets the public target — the same hidden cards — and never the owner's budget",
+      JSON.stringify((visitor.hidden ?? []).map((r) => r.cardId)) ===
+        JSON.stringify(ownerHidden.map((r) => r.cardId)) &&
+        (visitor.recommendations ?? []).every((r) => !r.conflicts.some((c) => c.rule === "budget")),
+    );
+    const snapGoals = (
+      await api("POST", "/api/recommendations", { body: { ...snapshotBody, goals } })
+    ).json as RecsBody;
+    const conflictsOf = (list: Rec[]) =>
+      JSON.stringify(list.map((r) => [r.cardId, r.conflicts.map((c) => c.why)]));
+    check(
+      "the snapshot with the same goals answers the same list and the same hidden cards",
+      ranking(snapGoals.recommendations ?? []) === ranking(ownerRecs) &&
+        conflictsOf(snapGoals.recommendations ?? []) === conflictsOf(ownerRecs) &&
+        conflictsOf(snapGoals.hidden ?? []) === conflictsOf(ownerHidden),
+    );
+    check(
+      "snapshot goals with a target the game doesn't have → 400",
+      (
+        await api("POST", "/api/recommendations", {
+          body: { ...snapshotBody, goals: { v: 1, targetLevel: 9 } },
+        })
+      ).status === 400,
+    );
+    const cleared = await api("PATCH", `/api/decks/${deckId}`, { token, body: { goals: null } });
+    check("goals cleared (PATCH null) → 200", cleared.status === 200, cleared.json);
+
     // --- Combo Radar (P3.3): the same fixture, the other question ------------
     // Basalt Monolith in deck, Rings of Brighthearth not → the pair must
     // show up one card away with the add target and the deck partner named.
@@ -353,6 +486,14 @@ async function main() {
             c.externalKey.length > 0 &&
             (c.popularity === null || typeof c.popularity === "number"),
         ),
+    );
+    check(
+      "radar rows carry the combo's tag and its relevant mark (Y6a; null = not ingested)",
+      oneAway.every(
+        (c) =>
+          (c.tag === null || (typeof c.tag === "string" && c.tag.length === 1)) &&
+          (c.relevant === null || typeof c.relevant === "boolean"),
+      ),
     );
     const ringsCombo = oneAway.find((c) => c.missingPieces[0]?.name === "Rings of Brighthearth");
     check(

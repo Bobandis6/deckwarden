@@ -202,6 +202,8 @@ describe("ComboRadarPanel — Suggest full list on the deck's own rows (X3)", ()
     results: ["Infinite mana"],
     templates: ["Nonland mana rocks producing 3+ mana"],
     popularity: 900,
+    tag: "E",
+    relevant: true,
     inDeckPieces: [ref(reversal), ref(scepter)],
     missingPieces: [],
   };
@@ -211,6 +213,8 @@ describe("ComboRadarPanel — Suggest full list on the deck's own rows (X3)", ()
     results: ["Infinite hasty tokens"],
     templates: [],
     popularity: 700,
+    tag: "R",
+    relevant: true,
     inDeckPieces: [ref(commander)],
     missingPieces: [ref(pestermite)],
   };

@@ -65,16 +65,23 @@ function candidate(over: Partial<CandidateCard> = {}): CandidateCard {
     ciMask: 0,
     cheapestUsd: "1.00",
     popularity: null,
+    externalKey: `key-${nextId}`,
+    flags: {},
     ...over,
   };
 }
 
 function combo(over: Partial<CandidateCombo> = {}): CandidateCombo {
   return {
+    key: "1-2",
     withPieces: [{ cardId: "deck-1", name: "Deck Piece" }],
     results: ["Infinite value"],
     templates: [],
     popularity: 500,
+    tag: "E",
+    relevant: true,
+    pieceCount: 2,
+    usesLeader: false,
     ...over,
   };
 }

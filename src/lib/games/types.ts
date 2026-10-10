@@ -659,6 +659,39 @@ export interface BracketTableRow {
 }
 
 /**
+ * One card a recommendation would add, checked against the list's read
+ * (Y6a, WAVE4 D7) — the same input `assess` took, the read it returned,
+ * the card, and the combos the card would complete. The server builds the
+ * cards from the declared `flagPaths` alone (and no legality), which is
+ * all a read takes from them.
+ */
+export interface BracketImpactInput<A = Record<string, unknown>> extends BracketInput<A> {
+  /** `assess` over the same input: the list as it stands. */
+  read: BracketRead;
+  /** The card that would be added — not in the list. */
+  card: CardData<A>;
+  /** Its combos with the list: every other card piece is in it already. */
+  completes: readonly CompleteCombo[];
+}
+
+/**
+ * One way a card would move the read (Y6a), in the adapter's words — with
+ * a target, why it's above it; with none, how it would raise the line.
+ * Core's applyGoals decides what that means for a suggestion (hidden with
+ * a target, a flag without) and never scores it.
+ */
+export interface BracketConflict {
+  /** Stable: the read's factor or question kind ("game-changers", "land-denial", "extra-turns", "combo"). */
+  rule: string;
+  /** The level it alone puts the list at — or, for a question it would open, the level a "yes" means. */
+  level: number;
+  /** The named source (D0). */
+  source: string;
+  /** One plain line, its source named in it. */
+  why: string;
+}
+
+/**
  * A game's power-level read (Y3b). Optional — a game without it shows no
  * bracket anywhere, with no apology copy (One Piece declares none).
  */
@@ -707,6 +740,23 @@ export interface BracketsMeta<A = Record<string, unknown>> {
   table(read: BracketRead): BracketTableRow[];
   /** The copied text's closing line: what the read reads, and its combo source. */
   tableNote: string;
+  /**
+   * The card facts the read takes from `attrs` (Y6a), as single-segment
+   * paths — declared the way RecommendMeta.exclude declares its jsonbPath,
+   * so core selects exactly these on the server (the recommend routes'
+   * read) and never names one. `assess` and `impact` read nothing else
+   * from `attrs` (pinned).
+   */
+  flagPaths: readonly (readonly [string])[];
+  /**
+   * Pure (Y6a): what one more card would do to the read. With a target,
+   * the reasons it would sit above it — a count rule against the list (a
+   * fourth Game Changer at a target of 3, a second extra-turn card), any
+   * other rule on the card alone, a question it would open counted at what
+   * a "yes" means. With no target, only what would raise the line. Each
+   * rule at most once; empty when the card changes nothing.
+   */
+  impact(input: BracketImpactInput<A>): BracketConflict[];
   /** Where the Why sheet links (Y4a): the rules' own page, and an evidence line's source by its id. */
   links: {
     rules: { label: string; href: string };

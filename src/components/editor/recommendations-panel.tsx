@@ -35,21 +35,49 @@
  * imported collection; otherwise the checkbox is disabled with the honest
  * hint. The server may still decline (session expired, collection wiped in
  * another tab) — its `owned.reason` is shown, never a silent empty list.
+ *
+ * Goals (Y6a, WAVE4 D7): the deck's target and per-card budget, checked by
+ * the server (rank all → goals → slice, recommend/goals.ts) — this panel
+ * shows what came back:
+ * - one goals line on top ("Your goals: Bracket 2 (Core) · ≤ $5 a card ·
+ *   Change"; with none, "No bracket target yet · Set one" — LATER row 175's
+ *   door); its action opens the Why sheet at Your target;
+ * - the budget control starts from the deck's own per-card budget; picking
+ *   another tier shows "Save as this deck's budget", which saves it as a
+ *   goal (a draft mints its row, like a target);
+ * - "N hidden by your goals · Show": the cards the target took out of the
+ *   list, shown with their reasons on request (this session only — a
+ *   reload hides them again);
+ * - each row's goal lines beside its evidence — with no target, what a card
+ *   would make the deck ("Would make this deck at least Bracket 3 — a Game
+ *   Changer (Wizards' list)"); with a budget, a card over it;
+ * - a combo scan that hit its cap says so.
+ * The fetch key carries the goals, so a goals change asks again once it has
+ * saved (the GET reads them off the row); a draft sends them in its body.
+ * Adds are announced by the editor's toast ("Added X · Undo"), so the live
+ * line keeps only failures.
  */
-import { ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
+import { ArrowRightIcon, ArrowUpRightIcon, GaugeIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { GoalsLine } from "@/components/deck/goals-line";
 import { Segmented } from "@/components/deck/segmented";
 import { useResolvedAdd } from "@/components/editor/use-resolved-add";
+import { BRACKET_COPY } from "@/lib/brackets/copy";
 import type { EditorCard } from "@/lib/decks/editor-state";
+import { goalsPatchBody, suggestionGoals, withBudget, type DeckGoals } from "@/lib/decks/goals";
 import { deckStateKey, hasLeader, snapshotBody } from "@/lib/decks/panel-view";
 import { getDeckToken } from "@/lib/decks/token-store";
+import type { GoalConflict } from "@/lib/recommend/goals";
 import type { Confidence, Recommendation } from "@/lib/recommend/types";
-import { BUDGET_OPTIONS, type BudgetTier } from "@/lib/recommend/budget";
+import { BUDGET_OPTIONS, tierOf, usdOf, type BudgetTier } from "@/lib/recommend/budget";
 import { orderEvidence } from "@/lib/recommend/view";
 import type { FormatDef, GameAdapter } from "@/lib/games/types";
+
+/** A row as the routes answer it (Y6a): the recommendation, its goal conflicts beside the evidence. */
+type SuggestionRec = Recommendation & { conflicts?: GoalConflict[] };
 
 interface RecommendationsPanelProps {
   adapter: GameAdapter;
@@ -62,10 +90,16 @@ interface RecommendationsPanelProps {
   saveStatus: "saved" | "dirty" | "saving" | "error";
   /** Tab visibility: no fetching (lazy) and no work while hidden. */
   active: boolean;
-  /** Quiet add to the main zone via the editor's own edit path. */
+  /** Add to the main zone via the editor's own edit path — the editor toasts it with Undo (Y6a). */
   onAdd: (card: EditorCard) => string | undefined;
   /** The user has an imported collection (P3.7) — enables "only cards I own". */
   ownedAvailable?: boolean;
+  /** The deck's goals (Y6a): the target and per-card budget the list follows. */
+  goals?: DeckGoals | null;
+  /** Saves a goals change — "Save as this deck's budget" (the editor's goals edit). */
+  onGoalsChange?: (next: DeckGoals | null) => void;
+  /** The goals line's "Change": the Why sheet at Your target. Absent = the line only reads. */
+  onChangeGoals?: () => void;
 }
 
 interface OwnedFilterMeta {
@@ -84,37 +118,45 @@ export function RecommendationsPanel({
   active,
   onAdd,
   ownedAvailable = false,
+  goals = null,
+  onGoalsChange,
+  onChangeGoals,
 }: RecommendationsPanelProps) {
-  const [budget, setBudget] = useState<BudgetTier>("all");
+  // The budget starts from the deck's goal; a pick of its own wins until it's saved.
+  const goalTier = tierOf(goals?.budget?.perCardUsd);
+  const [pick, setPick] = useState<BudgetTier | null>(null);
+  const budget = pick ?? goalTier;
   const [onlyOwned, setOnlyOwned] = useState(false);
   const [ownedMeta, setOwnedMeta] = useState<OwnedFilterMeta | null>(null);
-  const [recs, setRecs] = useState<Recommendation[] | null>(null);
+  const [recs, setRecs] = useState<SuggestionRec[] | null>(null);
+  const [hidden, setHidden] = useState<SuggestionRec[]>([]);
+  const [showHidden, setShowHidden] = useState(false);
+  const [combosTruncated, setCombosTruncated] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   // Force-refetch counter (Refresh button / error retry) — part of the key.
   const [nonce, setNonce] = useState(0);
   const lastKeyRef = useRef<string | null>(null);
-  const { pendingAdd, notice, add } = useResolvedAdd(adapter, format, onAdd);
+  const { pendingAdd, notice, add } = useResolvedAdd(adapter, format, onAdd, { announce: false });
 
   const leader = hasLeader(entries, format);
   const wantOwned = onlyOwned && ownedAvailable;
-  const fetchKey = `${deckStateKey(entries)}§b:${budget}§o:${wantOwned ? 1 : 0}§n:${nonce}`;
+  // The goals the server checks (Y6a), canonical: an edit that leaves them
+  // alone (the exceptions line) never asks again; one that changes them does.
+  const sentGoals = useMemo(() => suggestionGoals(goals), [goals]);
+  const goalsKey = goalsPatchBody(sentGoals);
+  const fetchKey = `${deckStateKey(entries)}§b:${budget}§o:${wantOwned ? 1 : 0}§g:${goalsKey}§n:${nonce}`;
   // A draft's request (Y2b): a string, so an edit that leaves the snapshot
   // alone (a tag, a printing) leaves the effect alone too.
   const draftBody = useMemo(
     () =>
       deckId === null
         ? JSON.stringify(
-            snapshotBody(
-              adapter.id,
-              format,
-              entries,
-              budget === "all" ? undefined : Number(budget),
-            ),
+            snapshotBody(adapter.id, format, entries, usdOf(budget) ?? undefined, sentGoals),
           )
         : null,
-    [deckId, adapter.id, format, entries, budget],
+    [deckId, adapter.id, format, entries, budget, sentGoals],
   );
 
   useEffect(() => {
@@ -151,10 +193,16 @@ export function RecommendationsPanel({
           throw new Error("Suggestions are rate-limited for a moment — try again shortly.");
         }
         if (!res.ok) throw new Error(`Suggestions failed to load (${res.status}).`);
-        const json: { recommendations: Recommendation[]; owned?: OwnedFilterMeta } =
-          await res.json();
+        const json: {
+          recommendations: SuggestionRec[];
+          hidden?: SuggestionRec[];
+          combosTruncated?: boolean;
+          owned?: OwnedFilterMeta;
+        } = await res.json();
         lastKeyRef.current = fetchKey;
         setRecs(json.recommendations);
+        setHidden(json.hidden ?? []);
+        setCombosTruncated(json.combosTruncated ?? false);
         setOwnedMeta(json.owned ?? null);
         setFetching(false);
       } catch (err) {
@@ -182,10 +230,19 @@ export function RecommendationsPanel({
     );
   }
 
+  const brackets = adapter.brackets;
+  // "Save as this deck's budget": a pick the deck's own budget doesn't hold yet.
+  const canSaveBudget = onGoalsChange !== undefined && pick !== null && pick !== goalTier;
+  const saveBudget = () => {
+    onGoalsChange?.(withBudget(goals, usdOf(budget)));
+    setPick(null); // the control follows the saved goal again
+  };
+
   return (
     <div className="p-3">
+      <GoalsLine brackets={brackets} goals={goals} onChange={onChangeGoals} className="mb-1.5" />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Segmented label="Budget" options={BUDGET_OPTIONS} value={budget} onChange={setBudget} />
+        <Segmented label="Budget" options={BUDGET_OPTIONS} value={budget} onChange={setPick} />
         <Button
           variant="ghost"
           size="xs"
@@ -195,6 +252,15 @@ export function RecommendationsPanel({
           Refresh
         </Button>
       </div>
+      {canSaveBudget && (
+        <button
+          type="button"
+          onClick={saveBudget}
+          className="text-foreground mt-1 cursor-pointer text-xs font-medium underline underline-offset-4 hover:no-underline pointer-coarse:min-h-11"
+        >
+          {BRACKET_COPY.saveBudget}
+        </button>
+      )}
 
       <label
         className={`mt-1.5 flex items-center gap-2 text-xs ${ownedAvailable ? "" : "text-muted-foreground"}`}
@@ -238,6 +304,43 @@ export function RecommendationsPanel({
                 : "")}
       </p>
 
+      {recs !== null && hidden.length > 0 && (
+        <div data-slot="goals-hidden" className="mt-1">
+          <p className="text-muted-foreground text-xs">
+            {BRACKET_COPY.hiddenByGoals(hidden.length)}
+            {" · "}
+            <button
+              type="button"
+              aria-expanded={showHidden}
+              onClick={() => setShowHidden((v) => !v)}
+              className="text-foreground cursor-pointer font-medium underline underline-offset-4 hover:no-underline pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+            >
+              {showHidden ? BRACKET_COPY.hideHidden : BRACKET_COPY.showHidden}
+            </button>
+          </p>
+          {showHidden && (
+            <ul aria-label="Hidden by your goals" className="mt-1 space-y-1.5">
+              {hidden.map((rec) => (
+                <SuggestionRow
+                  key={rec.cardId}
+                  adapter={adapter}
+                  rec={rec}
+                  hidden
+                  inDeck={(inDeckQty.get(rec.cardId) ?? 0) > 0}
+                  expanded={expanded.has(rec.cardId)}
+                  pending={pendingAdd === rec.cardId}
+                  onToggle={() => toggleExpanded(rec.cardId)}
+                  onAdd={() => void add({ cardId: rec.cardId, name: rec.name })}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {recs !== null && combosTruncated && (
+        <p className="text-muted-foreground mt-1 text-xs">{BRACKET_COPY.combosCapped}</p>
+      )}
+
       {fetchError ? (
         <div className="mt-2 text-sm">
           <p className="text-destructive">{fetchError}</p>
@@ -261,9 +364,11 @@ export function RecommendationsPanel({
         <p className="text-muted-foreground mt-2 text-sm">
           {ownedMeta?.applied
             ? "Nothing you own fits this deck right now — untick “Only cards I own” for the full list."
-            : budget === "all"
-              ? "No suggestions right now."
-              : `No suggestions with a known price of $${budget} or less — try a wider budget.`}
+            : hidden.length > 0
+              ? "Nothing else fits your goals right now."
+              : budget === "all"
+                ? "No suggestions right now."
+                : `No suggestions with a known price of $${budget} or less — try a wider budget.`}
         </p>
       ) : (
         <ul className="mt-1 space-y-1.5">
@@ -308,6 +413,7 @@ export function sourceMeta(adapter: GameAdapter, source: string): { label: strin
 function SuggestionRow({
   adapter,
   rec,
+  hidden = false,
   inDeck,
   expanded,
   pending,
@@ -315,7 +421,9 @@ function SuggestionRow({
   onAdd,
 }: {
   adapter: GameAdapter;
-  rec: Recommendation;
+  rec: SuggestionRec;
+  /** Hidden by the goals (Y6a), shown on request: a dashed border beside its reasons. */
+  hidden?: boolean;
   inDeck: boolean;
   expanded: boolean;
   pending: boolean;
@@ -328,7 +436,10 @@ function SuggestionRow({
   const price = rec.cheapestUsd !== null ? `$${Number(rec.cheapestUsd).toFixed(2)}` : null;
 
   return (
-    <li className="rounded-lg border px-2.5 py-2">
+    <li
+      data-goals={hidden ? "hidden" : rec.conflicts?.length ? "flagged" : undefined}
+      className={`rounded-lg border px-2.5 py-2 ${hidden ? "border-dashed" : ""}`}
+    >
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -361,6 +472,19 @@ function SuggestionRow({
         {sourceLabels.join(" · ")}
         {price ? ` · ${price}` : ""}
       </p>
+      {/* Goals (Y6a): beside the evidence, never part of it — each line names its source. */}
+      {rec.conflicts?.map((c) => (
+        <p
+          key={`${c.rule}:${c.why}`}
+          data-conflict={c.rule}
+          className="text-muted-foreground mt-0.5 flex items-baseline gap-1 text-xs"
+        >
+          {c.rule !== "budget" && (
+            <GaugeIcon aria-hidden className="size-3.5 shrink-0 translate-y-[2px]" />
+          )}
+          <span>{c.why}</span>
+        </p>
+      ))}
 
       {expanded && (
         <div className="mt-2 space-y-2 border-t pt-2">
