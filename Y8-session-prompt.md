@@ -1,5 +1,23 @@
 # Y8 session prompt — Budget Twin (the total budget in goals; "Fit my budget": the priciest non-leader cards first, one to three alternatives each from Y7a's route, a running "est. $X of your $150", checkbox review, one apply with Undo; "No suitable alternative under your goals.")
 
+## Ship note — 2026-10-10, feat `c12c6c8`, deployed (Vercel status success on the full sha at 23:35:04 Z; CI green)
+
+**Shipped. The prompt below is history. Next is `Y9a-session-prompt.md` (Journal core — migration `0018`, migrate before push). The r/EDH post (P2.9 round 3) hadn't gone out at this session's start; it stays the owner's to schedule.**
+
+**Pre-flight**: Y7b's docs at `3e65b1e`; `_journal.json` at idx 17; nightlies green through run 38072279069 (`tagger roles: 17 fresh, 0 kept, 0 off`; `extra_turn.added` 0, `mld.unreviewed` 0; the ruleset watch green). Read-only database access and dev writes approved. Y7b's owed click: done, it worked. Baseline on `3e65b1e`: 1,933 tests / 189 files / 6 warnings / 0 errors; the route table saved. Census 209 deck rows (16 account + 12 guest + 181 precons, 1 user); `pnpm db:size` 285.9 MB.
+
+**What shipped** (decisions in WAVE4's tracker and REDESIGN.md "Y8 decisions"):
+- **`src/lib/recommend/fit.ts`** (pure) — `deckEstimate` (cheapest printings over the counted zones, owned $0 only with a collection, unpriced counted beside), `fitConsidered` (priciest first: main-list, offered, priced, holding a declared role off the wire, not owned, not a combo piece, single copy; the skipped named), `fitOptions` (the route's rows: priced, cheaper, inside the per-card budget, three), `planFit` (the fewest swaps of the priciest cards, best-ranked, the cheapest of three when that can't reach the total; the player's picks win; never one alternative twice), `fitList`, `totalPhrase` / `afterPhrase`, `FIT_COPY`.
+- **`src/components/editor/fit-sheet.tsx`** — "Fit my budget": the Deck total field + presets ($50 · $100 · $150 · $250), Swap Lab's route per card (three at a time, only while short, nine per open), the review (checkbox + one to three radios, "picked for X"), the running total, one apply; the dialog slot `"fit"` (Drawer on phones, the wide Modal from md).
+- **The doors and the line** — More → "Fit my budget…" (games declaring `swap`) and the Suggestions goals line's "Fit my budget" while over; every goals line reads "est. $212 of your $150"; `withTotal`; `suggestionGoals` drops the total.
+- **The editor** — `handleFitApply`: ONE `applyListSwap` ("Swapped N cards", one Undo) and the total saved in the same burst; focus back to the goals line after the closing commit.
+
+**Found by the live checks**: (1) role-less pricey cards dominate some precons (5 of the Angels precon's 8 priciest), so the best-ranked picks reached $222 at $150 (dev) — now each card takes its cheapest of three when that gets closer, said aloud ($214 on prod); (2) the option rows were 20 px to a finger — now 44 px on a coarse pointer; (3) review needed a look at the cards — names preview on hover (the Autofill sheet's `CardNamePreview`); (4) from the goals line the door vanishes once the deck fits — focus now returns to the line's "Change".
+
+**Verified**: `pnpm check` 1,985 tests / 191 files / the same 6 warnings / 0 errors; 61 mutation checks, 60 caught (the survivor an equivalent guard, folded); the route table byte-identical; the dev pass at 390 / 768 / 1200 / 1440 in both themes (one QA deck, deleted with its token — 204, then 404; the census re-proved at 209); `smoke:alternatives` green on dev (the gold set 88.0%, unchanged); prod signed out with zero deck writes (Forces at $150: three asks in parallel, 1.26 s, "est. $145 of your $150"; Angels at $150: nine asks, 2.5 s, "Gets you to $214 of your $150"; Nelson & Murdock's share page carries no budget word).
+
+**Owed — the owner's click** (signed in, prod): on Nelson & Murdock (est. ≈ $145, ≤ $5 a card, target 3), More → **Fit my budget…** → type **100** → Fit → the sheet asks and checks the fewest swaps → review (uncheck one, pick another option) → **Swap N cards** → the toast "Swapped N cards · Undo" and the Suggestions goals line reads "est. $… of your $100" → **Undo** before the toast closes (the whole list back). The $100 total stays saved; remove it from the sheet ("Remove this deck's total") or keep it.
+
 Pull latest, then run Y8, the thirteenth Wave-4 package. **`WAVE4.md` is the contract.** Read these, in this order:
 
 1. Section **A**'s goals row (73: one nullable `decks.goals` jsonb, its own PATCH, the budget owner-only) and the Context rows on budget (91: the per-card SQL cap behind three controls; `applyListSwap` gives a whole-list swap one save and one Undo).
