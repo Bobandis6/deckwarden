@@ -769,11 +769,19 @@ describe("DeckEditor — Start from this precon (W8b)", () => {
     expect(saveStatus()).toBe("saved");
 
     // First real edit: one create carrying the seeded name, one full PUT
-    // with the precon's own printingIds intact, and NO meta PATCH.
+    // with the precon's own printingIds intact, and NO meta PATCH. The list
+    // is at 100, so search's add is "Swap in…" (Y7b): one card in, one out —
+    // opening the sheet is no edit.
     const input = screen.getByRole("combobox", { name: "Card search" });
     fireEvent.change(input, { target: { value: "sol" } });
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring to Main deck" }));
+    fireEvent.click(screen.getByRole("button", { name: "Swap in Sol Ring…" }));
+    const swapIn = await pollFor(() => screen.queryByRole("dialog", { name: "Swap in Sol Ring" }));
+    await settle(1500);
+    expect(posts()).toBe(0);
+    fireEvent.click(
+      within(swapIn).getByRole("button", { name: "Swap Precon Card 99 for Sol Ring" }),
+    );
     await settle(1500);
     await act(async () => {});
     expect(posts()).toBe(1);
@@ -786,7 +794,7 @@ describe("DeckEditor — Start from this precon (W8b)", () => {
     ) as { name?: string };
     expect(createBody.name).toBe("Breed Lethality");
     const saved = lastPutEntries();
-    expect(saved).toHaveLength(101);
+    expect(saved).toHaveLength(100);
     expect(saved.find((e) => e.cardId === commander.id)?.printingId).toBe(SEED_PRINTING);
     expect(saved.filter((e) => e.printingId !== undefined)).toHaveLength(2);
   });
@@ -2674,6 +2682,11 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       stubViewport(1440);
       render(<DeckEditor deckId="deck-1" />);
       await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      // Below the maximum an add is an add (at 100 it's "Swap in…", Y7b): one Wastes out first.
+      fireEvent.click(screen.getByRole("button", { name: "One fewer Wastes" }));
+      await settle(1500);
+      await act(async () => {});
+      expect(puts()).toBe(1);
       await suggestions();
       fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring to the deck" }));
       const toastEl = (await pollFor(() => screen.queryByText("Added Sol Ring"))).closest(
@@ -2683,15 +2696,50 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       expect(screen.getAllByText("Added Sol Ring")).toHaveLength(1);
       await settle(1500);
       await act(async () => {});
-      expect(puts()).toBe(1);
+      expect(puts()).toBe(2);
       expect(lastPutEntries().some((e) => e.cardId === sol.id)).toBe(true);
 
       fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
       expect(saveStatus()).toBe("dirty");
       await settle(1500);
       await act(async () => {});
-      expect(puts()).toBe(2);
+      expect(puts()).toBe(3);
       expect(lastPutEntries().some((e) => e.cardId === sol.id)).toBe(false);
+    });
+
+    it("Y7b: at 100 / 100 the Suggestions Add reads Swap in… — the card comes in, a card of its mana value goes out, the tab stays put", async () => {
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await suggestions();
+      const button = screen.getByRole("button", { name: "Swap in Sol Ring…" });
+      expect(button.textContent).toBe("Swap in…");
+      fireEvent.click(button);
+      const sheetEl = await pollFor(() =>
+        screen.queryByRole("dialog", { name: "Swap in Sol Ring" }),
+      );
+      // Mana Vault is the only other mana value 1 card, and it carries no signal data: no named partner.
+      expect(
+        within(sheetEl).getByText("No suggested cut at mana value 1 — choose the card to cut."),
+      ).toBeTruthy();
+      expect(
+        within(sheetEl).getByRole("region", { name: "Also at mana value 1" }).textContent,
+      ).toContain("No signal data");
+      expect(puts()).toBe(0);
+      fireEvent.click(
+        within(sheetEl).getByRole("button", { name: "Swap Mana Vault for Sol Ring" }),
+      );
+      await pollFor(() => screen.queryByText("Swapped Mana Vault → Sol Ring"));
+      expect(screen.queryByRole("dialog", { name: "Swap in Sol Ring" })).toBeNull();
+      expect(screen.getByRole("tab", { name: "Suggestions" }).getAttribute("aria-selected")).toBe(
+        "true",
+      );
+      await settle(1500);
+      await act(async () => {});
+      expect(puts()).toBe(1);
+      const saved = lastPutEntries() as unknown as { cardId: string; qty: number }[];
+      expect(saved.reduce((n, e) => n + e.qty, 0)).toBe(100);
+      expect(saved.map((e) => e.cardId)).toEqual([kozilek.id, sol.id, edge.id, wastes.id]);
     });
 
     it("“Save as this deck's budget” is ONE goals PATCH — no PUT; the goals line says it, and the panel asks with it", async () => {
@@ -2891,20 +2939,37 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       stubViewport(1440);
       render(<DeckEditor deckId="deck-1" />);
       await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      // Below the maximum an add is an add (at 100 it's "Swap in…", Y7b): one Wastes out first.
+      fireEvent.click(screen.getByRole("button", { name: "One fewer Wastes" }));
+      await settle(1500);
+      await act(async () => {});
+      expect(puts()).toBe(1);
       await combosTab();
       fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring to the deck" }));
       const toastEl = await toastOf("Added Sol Ring");
       expect(screen.getAllByText("Added Sol Ring")).toHaveLength(1);
       await settle(1500);
       await act(async () => {});
-      expect(puts()).toBe(1);
+      expect(puts()).toBe(2);
       expect(lastPutEntries().some((e) => e.cardId === sol.id)).toBe(true);
 
       fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
       await settle(1500);
       await act(async () => {});
-      expect(puts()).toBe(2);
+      expect(puts()).toBe(3);
       expect(lastPutEntries().some((e) => e.cardId === sol.id)).toBe(false);
+    });
+
+    it("Y7b: at 100 / 100 the Radar's one-card Add reads Swap in… and opens the sheet; a combo's pieces keep their add", async () => {
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await combosTab();
+      expect(screen.getByRole("button", { name: "Add 2 pieces" })).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Swap in Sol Ring…" }));
+      await pollFor(() => screen.queryByRole("dialog", { name: "Swap in Sol Ring" }));
+      await settle(1500);
+      expect(puts()).toBe(0);
     });
 
     it("LATER row 179: a combo's pieces toast ONCE — Added 2 combo pieces — and ONE Undo takes both back", async () => {
@@ -2973,6 +3038,134 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       expect(dialog.querySelector("[data-slot=goals-line]")?.textContent).toBe(
         "Your goals: Bracket 2 (Core) · ≤ $5 a card",
       );
+    });
+  });
+
+  describe("the conflict callout's Swap… (Y7b)", () => {
+    const mindStone: CardWire = {
+      ...card({
+        name: "Mind Stone",
+        primaryType: "Artifact",
+        costValue: 2,
+        attrs: { type_line: "Artifact", oracle_text: "", roles: ["mana-rock", "ramp"] },
+      }),
+      image: null,
+    };
+    const altCalls = () =>
+      fetchMock.mock.calls.filter(
+        ([url, init]) => url === "/api/alternatives" && init?.method === "POST",
+      );
+    function calloutRoute(input: RequestInfo | URL, init?: RequestInit) {
+      if (String(input) === "/api/alternatives" && init?.method === "POST") {
+        return ok({
+          cardId: vault.id,
+          roles: ["mana-rock", "ramp"],
+          alternatives: [
+            {
+              cardId: mindStone.id,
+              name: "Mind Stone",
+              costValue: 2,
+              cheapestUsd: null,
+              evidence: [
+                {
+                  source: "scryfall_tagger",
+                  why: "Both: ramp · mana rock — community-tagged on Scryfall Tagger",
+                  with: [],
+                  howOften: null,
+                  confidence: "medium",
+                },
+              ],
+              conflicts: [],
+              shared: ["ramp", "mana-rock"],
+              card: { ...mindStone, legality: [] },
+            },
+          ],
+          hidden: [],
+          combosTruncated: false,
+          tradeoff: null,
+        });
+      }
+      return y4bRoute(input, init);
+    }
+
+    it("target 2: Swap Mana Vault… closes the sheet, asks under the goals, swaps in place — the conflict is gone and focus is back on the bracket line", async () => {
+      deckGoals = { v: 1, targetLevel: 2 };
+      fetchMock.mockImplementation(calloutRoute);
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      const dialogEl = await openSheet();
+      const callout = dialogEl.querySelector<HTMLElement>("[data-slot=bracket-conflicts]")!;
+      expect(callout.querySelector('[data-conflict="game-changers"]')).toBeTruthy();
+      // Tectonic Edge is a land: named, never offered.
+      expect(within(callout).queryByRole("button", { name: /Tectonic Edge/ })).toBeNull();
+      fireEvent.click(within(callout).getByRole("button", { name: "Swap Mana Vault…" }));
+      const swapEl = await pollFor(() => screen.queryByRole("dialog", { name: "Swap Mana Vault" }));
+      expect(sheet()).toBeNull();
+      expect(altCalls()).toHaveLength(1);
+      expect(JSON.parse(altCalls()[0][1].body as string)).toMatchObject({
+        cardId: vault.id,
+        goals: { targetLevel: 2 },
+      });
+      expect(puts()).toBe(0);
+
+      fireEvent.click(
+        await pollFor(() =>
+          within(swapEl).queryByRole("button", { name: "Swap Mana Vault for Mind Stone" }),
+        ),
+      );
+      await pollFor(() => screen.queryByText("Swapped Mana Vault → Mind Stone"));
+      expect(screen.queryByRole("dialog", { name: "Swap Mana Vault" })).toBeNull();
+      // Focus comes back to the bracket line — its facts are being checked for
+      // the new list, so "Why?" is a Tab away once they land.
+      expect(document.activeElement).toBe(line());
+      expect(line()?.getAttribute("data-facts")).toBe("checking");
+      await settle(1500);
+      await act(async () => {});
+      expect(puts()).toBe(1);
+      const saved = lastPutEntries() as unknown as { cardId: string; qty: number }[];
+      expect(saved.map((e) => e.cardId)).toEqual([kozilek.id, mindStone.id, edge.id, wastes.id]);
+      expect(saved.reduce((n, e) => n + e.qty, 0)).toBe(100);
+
+      // The read follows the list: no Game Changer left above the target.
+      const again = await openSheet();
+      expect(again.querySelector('[data-conflict="game-changers"]')).toBeNull();
+    });
+
+    it("a Game Changer commander is named in the callout but never offered a swap", async () => {
+      deckGoals = { v: 1, targetLevel: 2 };
+      fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === "/api/decks/deck-1" && (init?.method ?? "GET") === "GET") {
+          const saved = savedDeck(deckGoals);
+          return ok({
+            ...saved,
+            deck: { ...saved.deck, leaderIds: [urza.id] },
+            cards: [
+              {
+                cardId: urza.id,
+                zone: "commander",
+                qty: 1,
+                tags: [],
+                printingId: null,
+                card: urza,
+              },
+              ...listCards.slice(1),
+            ],
+          });
+        }
+        return calloutRoute(input, init);
+      });
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      const dialogEl = await openSheet();
+      const gc = dialogEl.querySelector<HTMLElement>(
+        '[data-slot=bracket-conflicts] [data-conflict="game-changers"]',
+      )!;
+      expect(gc.textContent).toContain("Urza, Lord High Artificer");
+      expect(
+        within(gc)
+          .getAllByRole("button")
+          .map((b) => b.textContent),
+      ).toEqual(["Swap Mana Vault…"]);
     });
   });
 });
@@ -3197,6 +3390,36 @@ describe("DeckEditor — the Card tab's Alternatives (Y7a, WAVE4 D8)", () => {
     expect(altCalls()).toHaveLength(0);
   });
 
+  it("Y7b: a draft row's Swap… opens the sheet — opening and closing mint nothing; the swap is the draft's first edit, exactly one create", async () => {
+    await showSolInSeededDraft();
+    fireEvent.click(within(section("Deck list")).getByRole("button", { name: "Swap Sol Ring…" }));
+    await pollFor(() => screen.queryByRole("dialog", { name: "Swap Sol Ring" }));
+    expect(altCalls()).toHaveLength(1);
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await pollFor(() =>
+      screen.queryByRole("dialog", { name: "Swap Sol Ring" }) === null ? document.body : null,
+    );
+    await settle(1500);
+    expect(posts()).toBe(0);
+    // Cancelled: focus goes back to the row's own Swap….
+    expect(document.activeElement).toBe(
+      within(section("Deck list")).getByRole("button", { name: "Swap Sol Ring…" }),
+    );
+
+    fireEvent.click(within(section("Deck list")).getByRole("button", { name: "Swap Sol Ring…" }));
+    const sheetEl = await pollFor(() => screen.queryByRole("dialog", { name: "Swap Sol Ring" }));
+    fireEvent.click(
+      await pollFor(() =>
+        within(sheetEl).queryByRole("button", { name: "Swap Sol Ring for Mind Stone" }),
+      ),
+    );
+    await pollFor(() => screen.queryByText("Swapped Sol Ring → Mind Stone"));
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+  });
+
   it("One Piece declares no swap: no section, no request", async () => {
     stubViewport(1440);
     render(<DeckEditor deckId={null} draftGame="optcg" draftFormat="standard" />);
@@ -3210,5 +3433,388 @@ describe("DeckEditor — the Card tab's Alternatives (Y7a, WAVE4 D8)", () => {
     expect(within(tools()).getByRole("heading", { name: "Sol Ring" })).toBeTruthy();
     expect(within(tools()).queryByRole("button", { name: /^Alternatives/ })).toBeNull();
     expect(altCalls()).toHaveLength(0);
+  });
+});
+
+// ------------------------------------------------------------------- Y7b
+describe("DeckEditor — swap in place (Y7b, WAVE4 D8)", () => {
+  const kozilek: CardWire = {
+    ...card({
+      name: "Kozilek, the Great Distortion",
+      primaryType: "Creature",
+      costValue: 10,
+      isLeaderCandidate: true,
+      attrs: { type_line: "Legendary Creature — Eldrazi", oracle_text: "" },
+    }),
+    image: null,
+  };
+  const wire = (
+    name: string,
+    costValue: number,
+    {
+      popularity = null,
+      gameChanger = false,
+    }: { popularity?: number | null; gameChanger?: boolean } = {},
+  ): CardWire => ({
+    ...card({
+      name,
+      primaryType: "Artifact",
+      costValue,
+      popularity,
+      attrs: {
+        type_line: "Artifact",
+        oracle_text: "",
+        ...(gameChanger ? { game_changer: true } : {}),
+      },
+    }),
+    image: null,
+  });
+  const vault = wire("Mana Vault", 1, { gameChanger: true });
+  // Fringe (a cut-side popularity line) and a staple (a keep line), both at mana value 2.
+  const fellwar = wire("Fellwar Stone", 2, { popularity: 30_000 });
+  const talisman = wire("Talisman of Dominance", 2, { popularity: 500 });
+  const mindStone = wire("Mind Stone", 2);
+  const wastes: CardWire = {
+    ...card({
+      name: "Wastes",
+      primaryType: "Land",
+      costValue: null,
+      attrs: { type_line: "Basic Land — Wastes", oracle_text: "" },
+    }),
+    image: null,
+  };
+  const SOL_PRINTING = "cccccccc-0000-4000-8000-000000000001";
+  const FELLWAR_PRINTING = "cccccccc-0000-4000-8000-000000000002";
+  const row = (
+    c: CardWire,
+    zone: string,
+    qty: number,
+    tags: string[] = [],
+    printingId: string | null = null,
+  ) => ({
+    cardId: c.id,
+    zone,
+    qty,
+    tags,
+    printingId,
+    card: c,
+  });
+  /** Kozilek + Sol Ring (tagged, a printing) + Mana Vault + two 2-drops + 95 Wastes = 100. */
+  const fullDeck = {
+    deck: {
+      id: "deck-1",
+      publicId: "abcdefgh1234",
+      game: "mtg",
+      format: "commander",
+      name: "Full",
+      description: null,
+      notes: null,
+      visibility: "unlisted",
+      isOwner: true,
+      forkedFrom: null,
+      leaderIds: [kozilek.id],
+    },
+    cards: [
+      row(kozilek, "commander", 1),
+      row(sol, "main", 1, ["Ramp"], SOL_PRINTING),
+      row(vault, "main", 1),
+      row(fellwar, "main", 1, ["Ramp"], FELLWAR_PRINTING),
+      row(talisman, "main", 1),
+      row(wastes, "main", 95),
+    ],
+    owned: [],
+    hasCollection: false,
+  };
+  const ANSWER = {
+    cardId: sol.id,
+    roles: ["mana-rock", "ramp"],
+    alternatives: [
+      {
+        cardId: mindStone.id,
+        name: "Mind Stone",
+        costValue: 2,
+        cheapestUsd: null,
+        evidence: [
+          {
+            source: "scryfall_tagger",
+            why: "Both: ramp · mana rock — community-tagged on Scryfall Tagger",
+            with: [],
+            howOften: null,
+            confidence: "medium",
+          },
+        ],
+        conflicts: [],
+        shared: ["ramp", "mana-rock"],
+        card: { ...mindStone, legality: [] },
+      },
+    ],
+    hidden: [],
+    combosTruncated: false,
+    tradeoff: null,
+  };
+  const altCalls = () =>
+    fetchMock.mock.calls.filter(
+      ([url, init]) => url === "/api/alternatives" && init?.method === "POST",
+    );
+  function fullRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    if (url === "/api/decks/deck-1" && method === "GET") return ok(fullDeck);
+    if (url === "/api/alternatives" && method === "POST") return ok(ANSWER);
+    return route(input, init);
+  }
+  async function pollFor<T>(query: () => T | null): Promise<T> {
+    for (let i = 0; i < 40; i++) {
+      const found = query();
+      if (found) return found;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: never appeared");
+  }
+  const deckList = () => section("Deck list");
+  const total = (entries: { qty: number }[]) => entries.reduce((n, e) => n + e.qty, 0);
+  /** Base UI moves a dialog's initial focus on an animation frame — real, unlike this file's timers. */
+  async function focusSettles(done: () => boolean) {
+    for (let i = 0; i < 20 && !done(); i++) {
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      });
+    }
+    expect(done()).toBe(true);
+  }
+  const savedRows = () =>
+    lastPutEntries() as unknown as {
+      cardId: string;
+      zone: string;
+      qty: number;
+      tags: string[];
+      printingId?: string;
+    }[];
+  async function renderFull(width = 1440) {
+    fetchMock.mockImplementation(fullRoute);
+    stubViewport(width);
+    render(<DeckEditor deckId="deck-1" />);
+    await pollFor(() => (factsGets().length > 0 ? true : null));
+    await settle(50);
+  }
+  async function searchFor(query: string) {
+    const input = screen.getByRole("combobox", { name: "Card search" }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: query } });
+    await settle();
+    return input;
+  }
+
+  it("a row's Swap…: only main-list nonland cards offer it; the sheet asks once, swaps in place at 100, focus lands on the new row; one Undo restores both", async () => {
+    const consoleError = vi.spyOn(console, "error");
+    await renderFull();
+    expect(within(deckList()).getByRole("button", { name: "Swap Sol Ring…" })).toBeTruthy();
+    expect(within(deckList()).getByRole("button", { name: "Swap Mana Vault…" })).toBeTruthy();
+    expect(within(deckList()).queryByRole("button", { name: "Swap Wastes…" })).toBeNull();
+    expect(within(deckList()).queryByRole("button", { name: /^Swap Kozilek/ })).toBeNull();
+    expect(altCalls()).toHaveLength(0);
+
+    fireEvent.click(within(deckList()).getByRole("button", { name: "Swap Sol Ring…" }));
+    const sheetEl = await pollFor(() => screen.queryByRole("dialog", { name: "Swap Sol Ring" }));
+    expect(altCalls()).toHaveLength(1);
+    expect(JSON.parse(altCalls()[0][1].body as string)).toMatchObject({ cardId: sol.id });
+    const list = await pollFor(() =>
+      within(sheetEl).queryByRole("list", { name: "Alternatives to Sol Ring" }),
+    );
+    expect(list.textContent).toContain(
+      "Both: ramp · mana rock — community-tagged on Scryfall Tagger",
+    );
+    expect(puts()).toBe(0);
+
+    fireEvent.click(within(sheetEl).getByRole("button", { name: "Swap Sol Ring for Mind Stone" }));
+    const toastEl = (
+      await pollFor(() => screen.queryByText("Swapped Sol Ring → Mind Stone"))
+    ).closest('[data-slot="toast"]') as HTMLElement;
+    expect(screen.queryByRole("dialog", { name: "Swap Sol Ring" })).toBeNull();
+    expect(document.activeElement).toBe(
+      within(deckList()).getByRole("button", { name: "Swap Mind Stone…" }),
+    );
+    await settle(1500);
+    await act(async () => {});
+    expect(puts()).toBe(1);
+    expect(total(savedRows())).toBe(100);
+    // In place: Mind Stone takes Sol Ring's row — without its tag or printing.
+    expect(savedRows()[1]).toEqual({ cardId: mindStone.id, zone: "main", qty: 1, tags: [] });
+
+    fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(puts()).toBe(2);
+    expect(total(savedRows())).toBe(100);
+    expect(savedRows()[1]).toEqual({
+      cardId: sol.id,
+      zone: "main",
+      qty: 1,
+      tags: ["Ramp"],
+      printingId: SOL_PRINTING,
+    });
+    expect(savedRows().some((e) => e.cardId === mindStone.id)).toBe(false);
+    expect(posts()).toBe(0);
+    expect(consoleError.mock.calls.filter((c) => String(c[0]).includes("same key"))).toEqual([]);
+    consoleError.mockRestore();
+  });
+
+  it("Swap in… from search at 100 / 100: the Cut Coach's cheapest 2-drop named with its tradeoff; the swap keeps 100, clears the box and focuses it; one Undo restores both", async () => {
+    await renderFull();
+    const input = await searchFor("sig");
+    expect(screen.getByText(/swap in/).closest("[data-slot=search-hints]")).toBeTruthy();
+    // The commander's add stays an add.
+    expect(screen.getByRole("button", { name: "Add Arcane Signet as Commander" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Swap in Arcane Signet…" }));
+    const sheetEl = await pollFor(() =>
+      screen.queryByRole("dialog", { name: "Swap in Arcane Signet" }),
+    );
+    expect(sheetEl.textContent).toContain(
+      "Arcane Signet comes in and one card goes out — the deck stays at 100.",
+    );
+    // The combo facts are in, so no combo note.
+    expect(sheetEl.textContent).not.toMatch(/combos/i);
+    const partner = within(sheetEl).getByRole("region", { name: "Suggested cut" });
+    expect(partner.textContent).toContain("Fellwar Stone");
+    expect(partner.textContent).toContain("Outside the widely-played tier of Commander cards");
+    const swap = within(partner).getByRole("button", {
+      name: "Swap Fellwar Stone for Arcane Signet",
+    });
+    // The sheet opens on the partner's Swap — Enter, Enter from the search box.
+    await focusSettles(() => document.activeElement === swap);
+
+    // Choose another: the staple at the same mana value, then everything else on request.
+    fireEvent.click(within(sheetEl).getByRole("button", { name: "Choose another card" }));
+    await act(async () => {});
+    const same = within(sheetEl).getByRole("region", { name: "Also at mana value 2" });
+    expect(same.textContent).toContain("Talisman of Dominance");
+    fireEvent.click(within(sheetEl).getByRole("button", { name: "Show the other 3 cards" }));
+    expect(
+      within(within(sheetEl).getByRole("list", { name: "Other cards" }))
+        .getAllByRole("button")
+        .map((b) => b.getAttribute("aria-label")),
+    ).toEqual([
+      "Swap Mana Vault for Arcane Signet",
+      "Swap Sol Ring for Arcane Signet",
+      "Swap Wastes for Arcane Signet",
+    ]);
+    expect(puts()).toBe(0);
+
+    fireEvent.click(swap);
+    const toastEl = (
+      await pollFor(() => screen.queryByText("Swapped Fellwar Stone → Arcane Signet"))
+    ).closest('[data-slot="toast"]') as HTMLElement;
+    expect(screen.queryByRole("dialog", { name: "Swap in Arcane Signet" })).toBeNull();
+    expect(input.value).toBe("");
+    expect(document.activeElement).toBe(input);
+    await settle(1500);
+    await act(async () => {});
+    expect(puts()).toBe(1);
+    expect(total(savedRows())).toBe(100);
+    expect(savedRows()[3]).toEqual({ cardId: signet.id, zone: "main", qty: 1, tags: [] });
+
+    fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(puts()).toBe(2);
+    expect(total(savedRows())).toBe(100);
+    expect(savedRows()[3]).toEqual({
+      cardId: fellwar.id,
+      zone: "main",
+      qty: 1,
+      tags: ["Ramp"],
+      printingId: FELLWAR_PRINTING,
+    });
+    expect(savedRows().some((e) => e.cardId === signet.id)).toBe(false);
+  });
+
+  it("Enter at 100 / 100 opens the sheet, never an add; Escape changes nothing and hands focus back to the box", async () => {
+    await renderFull();
+    const input = await searchFor("sig");
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter" });
+    const sheetEl = await pollFor(() => screen.queryByRole("dialog", { name: "Swap in Sol Ring" }));
+    await focusSettles(() => sheetEl.contains(document.activeElement));
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await pollFor(() =>
+      screen.queryByRole("dialog", { name: "Swap in Sol Ring" }) === null ? true : null,
+    );
+    await act(async () => {});
+    expect(input.value).toBe("sig");
+    expect(document.activeElement).toBe(input);
+    await settle(1500);
+    expect(puts()).toBe(0);
+    expect(document.querySelector('[data-slot="toast"]')).toBeNull();
+  });
+
+  it("a land coming in names no partner and says why; every card stays choosable", async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).startsWith("/api/cards/search")) return ok({ results: [wastes] });
+      return fullRoute(input, init);
+    });
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await pollFor(() => (factsGets().length > 0 ? true : null));
+    await searchFor("wastes");
+    fireEvent.click(screen.getByRole("button", { name: "Swap in Wastes…" }));
+    const sheetEl = await pollFor(() => screen.queryByRole("dialog", { name: "Swap in Wastes" }));
+    expect(within(sheetEl).queryByRole("region", { name: "Suggested cut" })).toBeNull();
+    expect(sheetEl.textContent).toContain(
+      "A land gets no suggested partner — which land to cut depends on its colors. Choose the card to cut.",
+    );
+    // Wastes itself is never its own partner.
+    expect(
+      within(within(sheetEl).getByRole("list", { name: "Every card" }))
+        .getAllByRole("button")
+        .map((b) => b.getAttribute("aria-label")),
+    ).toEqual([
+      "Swap Fellwar Stone for Wastes",
+      "Swap Talisman of Dominance for Wastes",
+      "Swap Mana Vault for Wastes",
+      "Swap Sol Ring for Wastes",
+    ]);
+  });
+
+  it("on a phone the swap-in sheet is the bottom Drawer, opened on the partner's Swap (not its Close)", async () => {
+    await renderFull(375);
+    fireEvent.click(screen.getByRole("tab", { name: "Search" }));
+    await searchFor("sig");
+    fireEvent.click(screen.getByRole("button", { name: "Swap in Arcane Signet…" }));
+    const sheetEl = await pollFor(() =>
+      screen.queryByRole("dialog", { name: "Swap in Arcane Signet" }),
+    );
+    expect(sheetPopup()).toBeTruthy();
+    const swap = within(sheetEl).getByRole("button", {
+      name: "Swap Fellwar Stone for Arcane Signet",
+    });
+    await focusSettles(() => document.activeElement === swap);
+  });
+
+  it("One Piece declares no swap: a full deck's add stays an add, and no row has Swap…", async () => {
+    const leader = {
+      ...card({ name: "Nami", primaryType: "Leader", isLeaderCandidate: true, costValue: 5 }),
+      image: null,
+    };
+    const filler = {
+      ...card({ name: "Usopp", primaryType: "Character", costValue: 2 }),
+      image: null,
+    };
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/decks/deck-1" && (init?.method ?? "GET") === "GET") {
+        return ok({
+          ...fullDeck,
+          deck: { ...fullDeck.deck, game: "optcg", format: "standard", leaderIds: [leader.id] },
+          cards: [row(leader, "leader", 1), row(filler, "main", 50)],
+        });
+      }
+      return route(input, init);
+    });
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await pollFor(() => (deckList() ? within(deckList()).queryByText("Usopp") : null));
+    expect(within(deckList()).queryByRole("button", { name: /^Swap/ })).toBeNull();
+    await searchFor("sol");
+    expect(screen.getByRole("button", { name: "Add Sol Ring to Deck" }).textContent).toBe("Add");
+    expect(screen.queryByRole("button", { name: /Swap in/ })).toBeNull();
   });
 });

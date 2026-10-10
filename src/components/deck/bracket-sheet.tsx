@@ -40,6 +40,14 @@
  * "Change" bringing Your target into view; and `openAt: "target"` (the goals
  * line in Suggestions) opens the sheet with focus on the target's choice.
  *
+ * Y7b (WAVE4 D8): the conflict callout's rows gain "Swap {card}…" — one per
+ * card a finding names that the editor can swap (`canSwap`: a main-list
+ * card the adapter offers alternatives for, so never the commander or a
+ * land). `onSwapCard` hands the card to the editor, which closes this
+ * sheet and opens that card's alternatives under the goals; focus comes
+ * back to "Why?", so the next card is one Enter away. Without
+ * `onSwapCard` (the share page) the callout reads as before.
+ *
  * Every change goes through goals.ts' pure edits and back to the editor,
  * which saves it like any edit (a draft mints its row) — and never asks
  * for the combo facts again: goals don't change the card set.
@@ -100,6 +108,8 @@ export function BracketSheet({
   goals = null,
   onGoalsChange,
   openAt = null,
+  onSwapCard,
+  canSwap,
   onClose,
 }: {
   adapter: GameAdapter;
@@ -118,6 +128,10 @@ export function BracketSheet({
   onGoalsChange?: (next: DeckGoals | null) => void;
   /** Y6a: "target" opens the sheet with focus on Your target's choice (the goals line's "Change"). */
   openAt?: "target" | null;
+  /** Y7b: the conflict callout's "Swap {card}…" — the editor's swap sheet for that card. */
+  onSwapCard?: (cardId: string) => void;
+  /** Y7b: which of a finding's cards the editor can swap. */
+  canSwap?: (cardId: string) => boolean;
   onClose: () => void;
 }) {
   const cardsId = useId();
@@ -245,6 +259,9 @@ export function BracketSheet({
           goals={goals}
           onGoalsChange={onGoalsChange}
           sectionRef={targetRef}
+          cards={cards}
+          onSwapCard={onSwapCard}
+          canSwap={canSwap}
         />
       )}
 
@@ -333,6 +350,9 @@ function TargetBlock({
   goals,
   onGoalsChange,
   sectionRef,
+  cards,
+  onSwapCard,
+  canSwap,
 }: {
   brackets: BracketsMeta;
   read: BracketRead;
@@ -340,6 +360,10 @@ function TargetBlock({
   onGoalsChange: (next: DeckGoals | null) => void;
   /** Y6a: the goals line's "Change" and `openAt: "target"` bring this block into view. */
   sectionRef?: RefObject<HTMLElement | null>;
+  /** Card names for the callout's swap buttons. */
+  cards: ReadonlyMap<string, { name: string }>;
+  onSwapCard?: (cardId: string) => void;
+  canSwap?: (cardId: string) => boolean;
 }) {
   const headingId = useId();
   const exceptionsId = useId();
@@ -385,14 +409,37 @@ function TargetBlock({
             {BRACKET_COPY.aboveTargetLead(levelLabel(brackets, target))}
           </p>
           <ul className="space-y-1.5">
-            {conflicting.map((factor) => (
-              <li key={factor.id} data-conflict={factor.id}>
-                <p className="text-sm">{factor.sentence}</p>
-                {factor.change && (
-                  <p className="text-muted-foreground mt-0.5 text-xs">{factor.change}</p>
-                )}
-              </li>
-            ))}
+            {conflicting.map((factor) => {
+              // Y7b: one "Swap…" per card the editor can swap, in the factor's (name)
+              // order — none without a way to swap (the share page).
+              const swappable = onSwapCard
+                ? factor.cards.filter((id) => cards.has(id) && (canSwap?.(id) ?? false))
+                : [];
+              return (
+                <li key={factor.id} data-conflict={factor.id}>
+                  <p className="text-sm">{factor.sentence}</p>
+                  {factor.change && (
+                    <p className="text-muted-foreground mt-0.5 text-xs">{factor.change}</p>
+                  )}
+                  {swappable.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {swappable.map((id) => (
+                        <Button
+                          key={id}
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          className="max-w-full pointer-coarse:h-11 pointer-coarse:px-3"
+                          onClick={() => onSwapCard?.(id)}
+                        >
+                          <span className="truncate">Swap {cards.get(id)?.name}…</span>
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

@@ -30,4 +30,11 @@ export const mtgSwap: SwapMeta = {
     else if (isGameChanger(out)) chips.push("Not a Game Changer");
     return chips;
   },
+  // Y7b: "Swap in…" names its partner from the same mana value. A land
+  // names none — which land to cut is a question of colors (LATER row 31).
+  bucketName: (bucketLabel) => `mana value ${bucketLabel}`,
+  unmatched: (card) =>
+    card.primaryType === "Land"
+      ? "A land gets no suggested partner — which land to cut depends on its colors. Choose the card to cut."
+      : `${card.name} has no mana cost to match — choose the card to cut.`,
 };

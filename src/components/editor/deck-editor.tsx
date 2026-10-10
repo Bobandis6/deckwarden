@@ -64,6 +64,15 @@
  * goals edit mints the row with the goals in its create, and no PATCH
  * follows. A goals change never asks for the combo facts again.
  *
+ * Y7b (WAVE4 D8, swap in place): a swap is made from where the player is,
+ * so a full deck never passes through 99 or 101. A text row's "Swap…" and
+ * each card of the Why sheet's conflict callout open the swap sheet ("swap":
+ * that card's alternatives under the goals); at the deck's maximum, an add
+ * from search, Suggestions or the Radar's one-away row opens "swap-in" (the
+ * card in, a cut partner out). Every one of them lands in `swapOne` — Y7a's
+ * swap, one copy out and one in, in place — with one toast, "Swapped A → B",
+ * whose one Undo restores both cards.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
@@ -97,6 +106,7 @@ import { HistoryDialog } from "@/components/editor/history-dialog";
 import { ExportDialog, ImportDialog } from "@/components/editor/import-export";
 import { RecommendationsPanel } from "@/components/editor/recommendations-panel";
 import { SearchPane, type SearchPaneHandle } from "@/components/editor/search-pane";
+import { SwapInSheet, SwapSheet } from "@/components/editor/swap-sheet";
 import { ShareDialog, type DeckVisibility } from "@/components/editor/share-dialog";
 import { ShortcutsSheet } from "@/components/editor/shortcuts-sheet";
 import { useAutosave } from "@/components/editor/use-autosave";
@@ -322,6 +332,21 @@ export function DeckEditor({
   // Where the Why sheet opens (Y6a): at Your target when the goals line's
   // "Change" opened it, at its top from "Why?".
   const [sheetAt, setSheetAt] = useState<"target" | null>(null);
+  // The swap sheets (Y7b): whose alternatives "swap" shows and who asked (a
+  // deck row or the conflict callout); what "swap-in" brings in, and from
+  // where (search or a panel). `closeFocusRef` says where focus goes once
+  // the sheet has closed — resolved after that commit (see the effect), as
+  // the element it names may only exist then.
+  const [swapTarget, setSwapTarget] = useState<{
+    card: EditorCard;
+    from: "row" | "callout";
+  } | null>(null);
+  const [swapInTarget, setSwapInTarget] = useState<{
+    card: EditorCard;
+    qty: number;
+    from: "search" | "panel";
+  } | null>(null);
+  const closeFocusRef = useRef<(() => HTMLElement | null) | null>(null);
   // Who opened the dialog decides where focus lands when it closes: a
   // menu-opened one goes back to the More trigger (its menu item is gone by
   // then); the `?` sheet returns to wherever `?` was pressed (R3).
@@ -1058,6 +1083,63 @@ export function DeckEditor({
   );
   const inspectCard = useCallback((card: EditorCard) => showCard(card, true), [showCard]);
 
+  // The swap sheets' doors (Y7b). Both are the dialog slot, so opening one
+  // from the Why sheet's callout closes that sheet; neither touches the deck.
+  // A callout's sheet hands focus to "Why?" — or, while the new list's facts
+  // are checked and "Why?" is away, to the bracket line, one Tab before it.
+  const focusBracketLine = useCallback(() => {
+    const line = document.querySelector<HTMLElement>("[data-slot=bracket-line]");
+    return line?.querySelector<HTMLElement>("button[aria-haspopup=dialog]") ?? line;
+  }, []);
+  const openSwap = useCallback(
+    (card: EditorCard, from: "row" | "callout") => {
+      // The callout's own button is gone with its sheet: "Why?" either way.
+      // A row's goes back to its "Swap…" — named, since a click doesn't focus
+      // a button everywhere (Safari), so "what was focused" can't be trusted.
+      closeFocusRef.current =
+        from === "callout"
+          ? focusBracketLine
+          : () => document.querySelector<HTMLElement>(`[data-swap-row="${card.id}"]`);
+      setSwapTarget({ card, from });
+      setDialogFromMenu(false);
+      setDialog("swap");
+    },
+    [focusBracketLine],
+  );
+  const openSwapIn = useCallback((card: EditorCard, qty: number, from: "search" | "panel") => {
+    // From search, focus goes back to the box either way (the add flow's
+    // rule); a panel's opener keeps Base UI's default.
+    closeFocusRef.current = from === "search" ? () => searchRef.current?.element() ?? null : null;
+    setSwapInTarget({ card, qty, from });
+    setDialogFromMenu(false);
+    setDialog("swap-in");
+  }, []);
+  // A sheet's swap landed (Y7b): say where focus goes instead (null keeps
+  // what the opener set), then close the sheet.
+  const swapLanded = useCallback((focus: (() => HTMLElement | null) | null) => {
+    if (focus) closeFocusRef.current = focus;
+    setDialog(null);
+  }, []);
+  // Base UI's own return focus stands down whenever a target is set: it
+  // resolves its target before the closing commit reaches the DOM.
+  const sheetFinalFocus = useCallback(() => closeFocusRef.current === null, []);
+  useEffect(() => {
+    if (dialog !== null || closeFocusRef.current === null) return;
+    const target = closeFocusRef.current();
+    closeFocusRef.current = null;
+    target?.focus();
+  }, [dialog]);
+  // "Swap in…" needs the adapter's swap and cut declarations (One Piece: neither).
+  const swapInOn = Boolean(adapter?.recommend?.swap && adapter.recommend.cuts);
+  /** The list is at (or past) the format's maximum: an add would push it over. */
+  const atMax = useCallback(
+    (list: readonly EditorEntry[]) =>
+      format !== null &&
+      format.deckSize.max !== null &&
+      deckSizeCount(list, format) >= format.deckSize.max,
+    [format],
+  );
+
   const handleAdd = useCallback(
     (card: EditorCard, zoneId: string, qty: number): string | undefined => {
       if (!format || !adapter) return "Deck not loaded yet";
@@ -1173,6 +1255,11 @@ export function DeckEditor({
   // pane's (F3). The panels' live lines keep only failures.
   const handleUndoableAdd = useCallback(
     (card: EditorCard): string | undefined => {
+      // Y7b: at the maximum the panels' single add is "Swap in…" — the sheet, no add.
+      if (swapInOn && atMax(entriesRef.current)) {
+        openSwapIn(card, 1, "panel");
+        return undefined;
+      }
       const mainZone = format?.zones.find((z) => !z.isLeaderZone);
       const previousQty =
         entriesRef.current.find((e) => e.zone === mainZone?.id && e.cardId === card.id)?.qty ?? 0;
@@ -1183,7 +1270,7 @@ export function DeckEditor({
       );
       return undefined;
     },
-    [format, handlePanelAdd, notify, applyEdit],
+    [format, handlePanelAdd, notify, applyEdit, swapInOn, atMax, openSwapIn],
   );
 
   // A combo's pieces from the Combo Radar (Y6b, LATER row 179): each one
@@ -1218,28 +1305,30 @@ export function DeckEditor({
     [format, handlePanelAdd, notify, applyEdit],
   );
 
-  // Swap Lab (Y7a, WAVE4 D8): the Card tab's Alternatives pick — one copy
-  // out, one in (swapCard), so the count never moves; the pane then shows
-  // the new card. The toast's Undo is a REAL edit per card (Y6b's per-piece
-  // rule, not applyListSwap's whole-list restore): the new card back to the
-  // quantity it had, the old row restored exactly — tags, printing, place —
-  // so an edit made in between survives.
-  const handleSwap = useCallback(
-    (out: EditorCard, wire: CardWire): string | undefined => {
+  // Swap Lab (Y7a, WAVE4 D8): one copy out, one in (swapCard), so the
+  // count never moves — the Card tab's Alternatives pick and, since Y7b,
+  // every swap sheet. The toast's Undo is a REAL edit per card (Y6b's
+  // per-piece rule, not applyListSwap's whole-list restore): the new card
+  // back to the quantity it had, the old row restored exactly — tags,
+  // printing, place — so an edit made in between survives. The preview
+  // follows the new card; `quiet` (a panel's swap-in) keeps the tab, as the
+  // panels' adds do.
+  const swapOne = useCallback(
+    (out: EditorCard, incoming: EditorCard, quiet = false): string | undefined => {
       const mainZone = format?.zones.find((z) => !z.isLeaderZone);
       if (!format || !mainZone) return "Deck not loaded yet";
       const before = entriesRef.current;
       const index = before.findIndex((e) => e.zone === mainZone.id && e.cardId === out.id);
-      const result = swapCard(before, format, mainZone.id, out.id, wire.id);
+      const result = swapCard(before, format, mainZone.id, out.id, incoming.id);
       if (result.error || index < 0) return result.error ?? "That card isn't in the deck anymore";
       const removed = before[index];
       const previousQty =
-        before.find((e) => e.zone === mainZone.id && e.cardId === wire.id)?.qty ?? 0;
-      const incoming = toEditorCard(wire);
+        before.find((e) => e.zone === mainZone.id && e.cardId === incoming.id)?.qty ?? 0;
       setCards((prev) => (prev.has(incoming.id) ? prev : new Map(prev).set(incoming.id, incoming)));
       const error = applyEdit(result);
       if (error) return error;
-      showCard(incoming);
+      if (quiet) setPreview(incoming);
+      else showCard(incoming);
       notify(`Swapped ${out.name} → ${incoming.name}`, () => {
         const back = setQty(entriesRef.current, format, mainZone.id, incoming.id, previousQty);
         applyEdit(restoreEntry(back.entries, format, removed, index));
@@ -1247,6 +1336,28 @@ export function DeckEditor({
       return undefined;
     },
     [format, applyEdit, showCard, notify],
+  );
+  const handleSwap = useCallback(
+    (out: EditorCard, wire: CardWire) => swapOne(out, toEditorCard(wire)),
+    [swapOne],
+  );
+
+  // "Swap in…" (Y7b): the chosen card goes out and the sheet's card comes
+  // in — the same swap, the same toast. A swap from search clears the box,
+  // as an add does; the sheet closes and hands focus back.
+  const handleSwapIn = useCallback(
+    (outId: string): string | undefined => {
+      if (!swapInTarget) return "Nothing to swap in";
+      const out = cards.get(outId);
+      if (!out) return "That card isn't in the deck anymore";
+      const error = swapOne(out, swapInTarget.card, swapInTarget.from === "panel");
+      if (error) return error;
+      // From search: the box clears (and takes focus back), as an add does.
+      if (swapInTarget.from === "search") searchRef.current?.reset();
+      swapLanded(null);
+      return undefined;
+    },
+    [swapInTarget, cards, swapOne, swapLanded],
   );
 
   const handleSetQty = useCallback(
@@ -1615,6 +1726,55 @@ export function DeckEditor({
     };
   }, [preview, adapter, format, entries, goals, handleSwap]);
 
+  // The swap sheet's ask (Y7b): the same body for the sheet's card; a pick
+  // swaps, then closes the sheet.
+  const sheetSwap = useMemo<SwapEditing | null>(() => {
+    if (!swapTarget || !adapter || !format) return null;
+    const out = swapTarget.card;
+    const snapshot = hasLeader(entries, format)
+      ? snapshotBody(adapter.id, format, entries, undefined, suggestionGoals(goals))
+      : null;
+    return {
+      body: snapshot ? { ...snapshot, cardId: out.id } : null,
+      onSwap: (wire: CardWire) => {
+        const error = handleSwap(out, wire);
+        if (error) return error;
+        // A row's: the new card's own row "Swap…"; the callout's: as opened.
+        swapLanded(
+          swapTarget.from === "row"
+            ? () => document.querySelector<HTMLElement>(`[data-swap-row="${wire.id}"]`)
+            : null,
+        );
+        return undefined;
+      },
+    };
+  }, [swapTarget, adapter, format, entries, goals, handleSwap, swapLanded]);
+
+  // Which cards get "Swap…" (Y7b): a main-list card the adapter offers
+  // alternatives for — never a commander, a land, or anything in One Piece.
+  const swapMeta = adapter?.recommend?.swap;
+  const mainZoneId = format?.zones.find((z) => !z.isLeaderZone)?.id ?? null;
+  const canSwapRow = useCallback(
+    (entry: EditorEntry, card: EditorCard) =>
+      entry.zone === mainZoneId && (swapMeta?.offers(card) ?? false),
+    [mainZoneId, swapMeta],
+  );
+  const canSwapId = useCallback(
+    (cardId: string) => {
+      const card = cards.get(cardId);
+      if (!card || !entries.some((e) => e.zone === mainZoneId && e.cardId === cardId)) return false;
+      return swapMeta?.offers(card) ?? false;
+    },
+    [cards, entries, mainZoneId, swapMeta],
+  );
+  const swapFromCallout = useCallback(
+    (cardId: string) => {
+      const card = cards.get(cardId);
+      if (card) openSwap(card, "callout");
+    },
+    [cards, openSwap],
+  );
+
   // Live validation (P1.4) and analytics (P1.5): the adapter's pure functions
   // on every edit, over one shared snapshot. validate is the same code the PUT
   // route re-runs server-side on save; analyze feeds the middle pane's blocks.
@@ -1733,6 +1893,8 @@ export function DeckEditor({
   const mainZone = load.format.zones.find((z) => !z.isLeaderZone);
   const leaderZone = load.format.zones.find((z) => z.isLeaderZone);
   const tabbed = Boolean(load.adapter.recommend || load.adapter.capabilities.combos);
+  // Y7b: at the maximum, every single-card add is "Swap in…".
+  const deckFull = swapInOn && atMax(entries);
   // The empty list's start doors (Y2b): Paste a list for any deck; the
   // precon and Surprise doors only while no row exists. The leader zone's
   // Browse link is the Pick door. None while a URL seed is still landing —
@@ -1816,6 +1978,7 @@ export function DeckEditor({
                 goals={goals}
                 onGoalsChange={handleGoalsChange}
                 onChangeGoals={load.adapter.brackets ? openGoals : undefined}
+                swapIn={deckFull}
               />
             </TabsContent>
           )}
@@ -1834,6 +1997,7 @@ export function DeckEditor({
                 onAddPieces={handleComboPiecesAdd}
                 goals={goals}
                 onOpenAutofill={load.adapter.recommend?.autofill ? openComboAutofill : undefined}
+                swapIn={deckFull}
               />
             </TabsContent>
           )}
@@ -2011,6 +2175,35 @@ export function DeckEditor({
               goals={goals}
               onGoalsChange={handleGoalsChange}
               openAt={sheetAt}
+              onSwapCard={swapMeta ? swapFromCallout : undefined}
+              canSwap={canSwapId}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {/* Y7b: the swap sheets — a card's alternatives, and "Swap in…". */}
+          {dialog === "swap" && swapTarget && (
+            <SwapSheet
+              adapter={load.adapter}
+              card={swapTarget.card}
+              swap={sheetSwap}
+              phone={tier === "phone"}
+              finalFocus={sheetFinalFocus}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {dialog === "swap-in" && swapInTarget && (
+            <SwapInSheet
+              adapter={load.adapter}
+              format={load.format}
+              incoming={swapInTarget.card}
+              qty={swapInTarget.qty}
+              entries={entries}
+              cards={cards}
+              combos={bracketFacts.combos}
+              factsState={bracketFacts.state}
+              phone={tier === "phone"}
+              onSwap={handleSwapIn}
+              finalFocus={sheetFinalFocus}
               onClose={() => setDialog(null)}
             />
           )}
@@ -2032,6 +2225,8 @@ export function DeckEditor({
           onAdd={handleAdd}
           onPreview={showCard}
           onInspect={inspectCard}
+          swapIn={deckFull}
+          onSwapIn={(card, qty) => openSwapIn(card, qty, "search")}
         />
       }
       deck={
@@ -2045,6 +2240,8 @@ export function DeckEditor({
           onSetQty={handleSetQty}
           onRemove={handleRemove}
           onPreview={inspectCard}
+          onSwap={swapMeta ? (card) => openSwap(card, "row") : undefined}
+          canSwap={canSwapRow}
           onOpenCuts={load.adapter.recommend?.cuts ? openCuts : undefined}
           onChooseLeader={focusSearch}
           onBrowseLeader={handleBrowseLeader}

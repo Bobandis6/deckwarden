@@ -32,6 +32,12 @@
  * pointers only — a phone has no keyboard to hint at — and says ⌘ on a Mac
  * (decided after hydration, `useIsMac`).
  *
+ * Y7b (WAVE4 D8): at the deck's maximum (`swapIn`), the main-list add —
+ * the row's button, Enter and a double-click — becomes "Swap in…": the
+ * editor's swap-in sheet opens (`onSwapIn`) and nothing is added yet. The
+ * leader's button keeps its add. Once the swap lands the editor clears the
+ * box (`reset`) and the closing sheet hands it focus (`element`), like an add.
+ *
  * Game knowledge (zone ids/labels, leader noun, pips, subtitles) comes off the
  * adapter — this component never mentions a specific game.
  */
@@ -59,6 +65,10 @@ export interface SearchPaneHandle {
    * not applied). Same channel as add rejections — clears on the next input.
    */
   announce(text: string, tone?: "ok" | "err"): void;
+  /** Y7b: after a swap-in lands — clear the box, as an add does (the sheet hands focus back). */
+  reset(): void;
+  /** Y7b: the box itself — where a swap-in sheet sends focus once its swap lands. */
+  element(): HTMLElement | null;
 }
 
 interface SearchPaneProps {
@@ -72,6 +82,9 @@ interface SearchPaneProps {
   onPreview: (card: EditorCard) => void;
   /** Explicit: a click or tap on a row (R4); defaults to `onPreview`. */
   onInspect?: (card: EditorCard) => void;
+  /** Y7b: the deck is at its maximum — a main-list add becomes "Swap in…" (`onSwapIn`). */
+  swapIn?: boolean;
+  onSwapIn?: (card: EditorCard, qty: number) => void;
   /** The editor's handle: `/` and "Choose commander" focus the box through it. */
   ref?: Ref<SearchPaneHandle>;
 }
@@ -83,6 +96,8 @@ export function SearchPane({
   onAdd,
   onPreview,
   onInspect,
+  swapIn = false,
+  onSwapIn,
   ref,
 }: SearchPaneProps) {
   const [state, dispatch] = useReducer(searchReducer, INITIAL_SEARCH_STATE);
@@ -97,6 +112,8 @@ export function SearchPane({
     () => ({
       focus: () => inputRef.current?.focus(),
       announce: (text, tone = "err") => dispatch({ type: "notice", notice: { text, tone } }),
+      reset: () => dispatch({ type: "added" }),
+      element: () => inputRef.current,
     }),
     [],
   );
@@ -154,6 +171,12 @@ export function SearchPane({
     dispatch({ type: "added" });
     inputRef.current?.focus();
   };
+  // The main-list add, or — at the deck's maximum — the swap-in sheet (Y7b).
+  const swapping = swapIn && onSwapIn !== undefined;
+  const addMain = (card: EditorCard, count: number) => {
+    if (swapIn && onSwapIn) onSwapIn(card, count);
+    else add(card, mainZone?.id, count);
+  };
 
   const moveSel = (delta: number) => {
     if (results.length === 0) return;
@@ -174,7 +197,8 @@ export function SearchPane({
       e.preventDefault();
       const card = results[sel];
       if (!card) return;
-      add(card, e.ctrlKey || e.metaKey ? leaderZone?.id : mainZone?.id, qty);
+      if (e.ctrlKey || e.metaKey) add(card, leaderZone?.id, qty);
+      else addMain(card, qty);
     } else if (e.key === "Escape") {
       dispatch({ type: "clear" });
     }
@@ -206,7 +230,7 @@ export function SearchPane({
           data-slot="search-hints"
           className="text-muted-foreground mt-1.5 text-xs leading-5 pointer-coarse:hidden"
         >
-          <Kbd>↑</Kbd> <Kbd>↓</Kbd> select · <Kbd>Enter</Kbd> add
+          <Kbd>↑</Kbd> <Kbd>↓</Kbd> select · <Kbd>Enter</Kbd> {swapping ? "swap in" : "add"}
           {leaderZone && (
             <>
               {" "}
@@ -249,7 +273,7 @@ export function SearchPane({
                 dispatch({ type: "select", index: i });
                 (onInspect ?? onPreview)(card);
               }}
-              onDoubleClick={() => add(card, mainZone?.id, qty)}
+              onDoubleClick={() => addMain(card, qty)}
             >
               {/* Thumbnail (F6): the full card at 36 px tall — never cropped —
                   in a box of that width whether or not an image exists, so
@@ -287,13 +311,15 @@ export function SearchPane({
                     size="xs"
                     variant="secondary"
                     className="pointer-coarse:h-11 pointer-coarse:px-3"
-                    aria-label={`Add ${card.name} to ${mainZone.label}`}
+                    aria-label={
+                      swapping ? `Swap in ${card.name}…` : `Add ${card.name} to ${mainZone.label}`
+                    }
                     onClick={(e) => {
                       e.stopPropagation();
-                      add(card, mainZone.id, qty);
+                      addMain(card, qty);
                     }}
                   >
-                    Add
+                    {swapping ? "Swap in…" : "Add"}
                   </Button>
                 )}
                 {leaderZone && (

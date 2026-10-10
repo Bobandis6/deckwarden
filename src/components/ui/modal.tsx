@@ -31,6 +31,7 @@ export function Modal({
   onClose,
   wide = false,
   initialFocus,
+  finalFocus,
   children,
 }: {
   label: string;
@@ -39,9 +40,11 @@ export function Modal({
   wide?: boolean;
   /** Where focus lands on open (Y6a: the Why sheet opened at Your target); absent = Base UI's default. */
   initialFocus?: ComponentProps<typeof DialogContent>["initialFocus"];
+  /** Where focus goes on close (Y7b: the swap sheets), over the context's; absent = the context's. */
+  finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
   children: React.ReactNode;
 }) {
-  const finalFocus = useContext(ModalFinalFocus);
+  const contextFocus = useContext(ModalFinalFocus);
   return (
     <Dialog
       open
@@ -50,7 +53,7 @@ export function Modal({
       }}
     >
       <DialogContent
-        finalFocus={finalFocus}
+        finalFocus={finalFocus ?? contextFocus}
         initialFocus={initialFocus}
         className={cn(
           "flex max-h-[85dvh] flex-col gap-3 overflow-y-auto text-base",

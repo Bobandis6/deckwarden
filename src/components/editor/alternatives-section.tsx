@@ -21,6 +21,10 @@
  *
  * A pick is the editor's swap (`onSwap`): one copy out, one in, with a
  * "Swapped A → B · Undo" toast; an error comes back as a line here.
+ *
+ * Y7b: the ask (`useAlternatives`) and what it shows (`AlternativesContent`)
+ * are shared with the swap sheet (./swap-sheet.tsx) — a deck row's
+ * "Swap…" and the bracket sheet's conflict callout open the same list.
  */
 import { ArrowUpRightIcon, ChevronDownIcon, GaugeIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -71,7 +75,7 @@ export interface AlternativesResponse {
   reason?: "no-roles" | "not-offered" | "goals" | "none";
 }
 
-type AlternativesState =
+export type AlternativesState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "done"; data: AlternativesResponse };
@@ -85,28 +89,20 @@ export function priceDelta(outUsd: number | null, inUsd: string | null): string 
   return `$${(Math.abs(cents) / 100).toFixed(2)} ${cents > 0 ? "more" : "less"}`;
 }
 
-export function AlternativesSection({
-  adapter,
-  card,
-  swap,
-}: {
-  adapter: GameAdapter;
-  card: EditorCard;
-  swap: SwapEditing;
-}) {
-  const meta = adapter.recommend?.swap;
-  const [open, setOpen] = useState(false);
+/**
+ * The ask, shared by the Card tab's section and Y7b's swap sheet: one POST
+ * per list while `enabled`, each answer kept per list (`doneRef`) so closing
+ * and reopening asks nothing; a list edited meanwhile asks again.
+ */
+export function useAlternatives(key: string | null, enabled: boolean) {
   const [results, setResults] = useState<ReadonlyMap<string, AlternativesState>>(() => new Map());
   const [nonce, setNonce] = useState(0);
-  const [showHidden, setShowHidden] = useState(false);
-  const [swapError, setSwapError] = useState<string | null>(null);
   // Keys answered: closing and reopening asks nothing. A request cut short
   // (closed mid-flight, StrictMode's twin) never lands here, so it asks again.
   const doneRef = useRef<Set<string>>(new Set());
-  const key = swap.body ? JSON.stringify(swap.body) : null;
 
   useEffect(() => {
-    if (!open || key === null || doneRef.current.has(key)) return;
+    if (!enabled || key === null || doneRef.current.has(key)) return;
     const controller = new AbortController();
     void (async () => {
       setResults((prev) => new Map(prev).set(key, { status: "loading" }));
@@ -136,16 +132,31 @@ export function AlternativesSection({
       }
     })();
     return () => controller.abort();
-  }, [open, key, nonce]);
+  }, [enabled, key, nonce]);
+
+  const state = key ? (results.get(key) ?? null) : null;
+  return { state, retry: () => setNonce((n) => n + 1) };
+}
+
+export function AlternativesSection({
+  adapter,
+  card,
+  swap,
+}: {
+  adapter: GameAdapter;
+  card: EditorCard;
+  swap: SwapEditing;
+}) {
+  const meta = adapter.recommend?.swap;
+  const [open, setOpen] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
+  const [swapError, setSwapError] = useState<string | null>(null);
+  const key = swap.body ? JSON.stringify(swap.body) : null;
+  const { state, retry } = useAlternatives(key, open);
 
   if (!meta) return null;
-  const state = key ? (results.get(key) ?? null) : null;
   const done = state?.status === "done" ? state.data : null;
   const count = done ? done.alternatives.length : null;
-
-  const pick = (row: AlternativeRow) => {
-    setSwapError(swap.onSwap(row.card) ?? null);
-  };
 
   return (
     <Collapsible
@@ -165,41 +176,89 @@ export function AlternativesSection({
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-1.5" data-slot="alternatives">
-        {key === null ? (
-          <p className="text-muted-foreground text-xs">
-            Add a {adapter.display.leaderNoun} first — alternatives follow its color identity.
-          </p>
-        ) : state?.status === "error" ? (
-          <p className="text-destructive text-xs">
-            {state.message}{" "}
-            <button
-              type="button"
-              onClick={() => setNonce((n) => n + 1)}
-              className="cursor-pointer underline pointer-coarse:min-h-11"
-            >
-              Try again
-            </button>
-          </p>
-        ) : done === null ? (
-          <p className="text-muted-foreground text-xs">Finding alternatives…</p>
-        ) : (
-          <AlternativesBodyView
-            adapter={adapter}
-            meta={meta}
-            card={card}
-            data={done}
-            showHidden={showHidden}
-            onToggleHidden={() => setShowHidden((v) => !v)}
-            onPick={pick}
-          />
-        )}
-        {swapError && (
-          <p role="alert" className="text-destructive mt-1 text-xs">
-            {swapError}
-          </p>
-        )}
+        <AlternativesContent
+          adapter={adapter}
+          meta={meta}
+          card={card}
+          asked={key !== null}
+          state={state}
+          onRetry={retry}
+          showHidden={showHidden}
+          onToggleHidden={() => setShowHidden((v) => !v)}
+          onPick={(row) => setSwapError(swap.onSwap(row.card) ?? null)}
+          swapError={swapError}
+        />
       </CollapsibleContent>
     </Collapsible>
+  );
+}
+
+/**
+ * What an ask shows (the section's body, and the swap sheet's): the
+ * no-leader sentence, the error with Try again, the wait, the answer, and
+ * a swap's error line.
+ */
+export function AlternativesContent({
+  adapter,
+  meta,
+  card,
+  asked,
+  state,
+  onRetry,
+  showHidden,
+  onToggleHidden,
+  onPick,
+  swapError,
+}: {
+  adapter: GameAdapter;
+  meta: SwapMeta;
+  card: EditorCard;
+  /** False while the deck has no leader — nothing is asked. */
+  asked: boolean;
+  state: AlternativesState | null;
+  onRetry: () => void;
+  showHidden: boolean;
+  onToggleHidden: () => void;
+  onPick: (row: AlternativeRow) => void;
+  swapError: string | null;
+}) {
+  const done = state?.status === "done" ? state.data : null;
+  return (
+    <>
+      {!asked ? (
+        <p className="text-muted-foreground text-xs">
+          Add a {adapter.display.leaderNoun} first — alternatives follow its color identity.
+        </p>
+      ) : state?.status === "error" ? (
+        <p className="text-destructive text-xs">
+          {state.message}{" "}
+          <button
+            type="button"
+            onClick={onRetry}
+            className="cursor-pointer underline pointer-coarse:min-h-11"
+          >
+            Try again
+          </button>
+        </p>
+      ) : done === null ? (
+        <p className="text-muted-foreground text-xs">Finding alternatives…</p>
+      ) : (
+        <AlternativesBodyView
+          adapter={adapter}
+          meta={meta}
+          card={card}
+          data={done}
+          showHidden={showHidden}
+          onToggleHidden={onToggleHidden}
+          onPick={onPick}
+        />
+      )}
+      {swapError && (
+        <p role="alert" className="text-destructive mt-1 text-xs">
+          {swapError}
+        </p>
+      )}
+    </>
   );
 }
 

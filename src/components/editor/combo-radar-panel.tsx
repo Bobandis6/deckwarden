@@ -138,6 +138,12 @@ interface ComboRadarPanelProps {
    * button without it.
    */
   onOpenAutofill?: (pin: ComboPin) => void;
+  /**
+   * Y7b: the deck is at its maximum — a one-away combo's single Add reads
+   * "Swap in…" (the editor opens the swap-in sheet). A combo's pieces keep
+   * their add: several cards in need several cards out (the Cut Coach's job).
+   */
+  swapIn?: boolean;
 }
 
 export function ComboRadarPanel({
@@ -153,6 +159,7 @@ export function ComboRadarPanel({
   onAddPieces,
   goals = null,
   onOpenAutofill,
+  swapIn = false,
 }: ComboRadarPanelProps) {
   const [data, setData] = useState<RadarData | null>(null);
   const [fetching, setFetching] = useState(false);
@@ -469,6 +476,7 @@ export function ComboRadarPanel({
                         externalUrl={combosMeta.externalUrl}
                         inDeck={(inDeckQty.get(combo.missingPieces[0]?.id ?? "") ?? 0) > 0}
                         pending={pendingAdd === combo.missingPieces[0]?.id}
+                        swapIn={swapIn}
                         onAdd={() => {
                           const target = combo.missingPieces[0];
                           if (target) void add({ cardId: target.id, name: target.name });
@@ -697,6 +705,7 @@ function OneAwayComboRow({
   externalUrl,
   inDeck,
   pending,
+  swapIn = false,
   onAdd,
   busy,
   suggestPending,
@@ -707,6 +716,8 @@ function OneAwayComboRow({
   externalUrl: (externalKey: string) => string;
   inDeck: boolean;
   pending: boolean;
+  /** Y7b: the deck is full — the add opens the swap-in sheet. */
+  swapIn?: boolean;
   onAdd: () => void;
   /** ANY combo row is resolving — one in-flight resolve at a time. */
   busy: boolean;
@@ -731,10 +742,10 @@ function OneAwayComboRow({
             size="xs"
             variant="secondary"
             disabled={pending}
-            aria-label={`Add ${target.name} to the deck`}
+            aria-label={swapIn ? `Swap in ${target.name}…` : `Add ${target.name} to the deck`}
             onClick={onAdd}
           >
-            {pending ? "Adding…" : "Add"}
+            {pending ? "Adding…" : swapIn ? "Swap in…" : "Add"}
           </Button>
         )}
       </div>

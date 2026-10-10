@@ -25,8 +25,14 @@
  * the steppers and remove become 44 px and always visible — a finger has
  * no hover — while the pip column narrows to make room; mouse rows keep
  * today's density, and the read-only share page changes nothing.
+ *
+ * Y7b (WAVE4 D8): `onSwap` adds "Swap…" before the remove button — revealed
+ * the same way, 44 px on touch — on each row `canSwap` accepts (the editor:
+ * a main-list card the adapter offers alternatives for). A row it refuses (a
+ * land) keeps a same-width spacer so the pip column stays aligned. The share
+ * page passes neither, so no row there has one.
  */
-import { XIcon } from "lucide-react";
+import { ArrowLeftRightIcon, XIcon } from "lucide-react";
 
 import { CardNamePreview } from "@/components/deck/card-name-preview";
 import { CostPips } from "@/components/deck/cost-pips";
@@ -54,6 +60,9 @@ interface DeckTextViewProps {
   onSetQty?: (zoneId: string, cardId: string, qty: number) => void;
   /** Absent = read-only (share pages): no remove button. */
   onRemove?: (zoneId: string, cardId: string) => void;
+  /** Y7b: "Swap…" on the rows `canSwap` accepts; absent = none (share pages). */
+  onSwap?: (card: EditorCard) => void;
+  canSwap?: (entry: EditorEntry, card: EditorCard) => boolean;
   onPreview: (card: EditorCard) => void;
   /** Card ids the viewer owns any printing of (P3.7); absent = no collection, no marks. */
   owned?: ReadonlySet<string>;
@@ -71,6 +80,8 @@ export function DeckTextView({
   severity,
   onSetQty,
   onRemove,
+  onSwap,
+  canSwap,
   onPreview,
   owned,
   stickyHeaders = false,
@@ -189,6 +200,22 @@ export function DeckTextView({
                   >
                     <CostPips html={adapter.display.costHtml(card)} className="text-xs" />
                   </span>
+                  {onSwap &&
+                    (canSwap?.(entry, card) ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`Swap ${card.name}…`}
+                        title="Swap…"
+                        data-swap-row={card.id}
+                        className={REVEAL_CLASS}
+                        onClick={() => onSwap(card)}
+                      >
+                        <ArrowLeftRightIcon />
+                      </Button>
+                    ) : (
+                      <span aria-hidden className="size-6 shrink-0 pointer-coarse:size-11" />
+                    ))}
                   {onRemove && (
                     <Button
                       variant="ghost"

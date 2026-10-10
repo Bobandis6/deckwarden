@@ -64,7 +64,10 @@ export type EditorDialog =
   | "share"
   | "history"
   | "shortcuts"
-  | "bracket";
+  | "bracket"
+  // Y7b: the swap sheets — a deck row's or the callout's "Swap…", and "Swap in…".
+  | "swap"
+  | "swap-in";
 
 export function EditorHeader({
   adapter,

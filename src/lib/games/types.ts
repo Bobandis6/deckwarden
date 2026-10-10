@@ -420,6 +420,14 @@ export interface SwapMeta {
    * core's chips.
    */
   chips(out: CardData, candidate: CardData): string[];
+  /**
+   * Y7b — "Swap in…" at the deck's maximum: a curve bucket's name inside a
+   * sentence (MTG: "mana value 3"); the cut partner comes from the incoming
+   * card's bucket.
+   */
+  bucketName(bucketLabel: string): string;
+  /** Why a card outside the curve (no bucket) gets no named partner, ending in what to do. */
+  unmatched(card: CurveCardInput & { name: string }): string;
 }
 
 export interface RecommendMeta {

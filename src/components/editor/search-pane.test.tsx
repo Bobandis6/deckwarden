@@ -154,6 +154,39 @@ describe("SearchPane", () => {
     expect(document.activeElement).toBe(input);
   });
 
+  it("Y7b: at the deck's maximum the main add is Swap in… — the button, Enter and a double-click open the sheet; the leader's add stays", async () => {
+    const onAdd = vi.fn<(...args: unknown[]) => string | undefined>();
+    const onSwapIn = vi.fn();
+    render(
+      <SearchPane
+        adapter={mtg}
+        format={COMMANDER}
+        inDeckQty={new Map()}
+        onAdd={onAdd}
+        onPreview={() => {}}
+        swapIn
+        onSwapIn={onSwapIn}
+      />,
+    );
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    expect(screen.getByText(/swap in/).closest("[data-slot=search-hints]")).toBeTruthy();
+    respond([sol]);
+    type(input, "4 sol");
+    await settle();
+    const button = screen.getByRole("button", { name: "Swap in Sol Ring…" });
+    expect(button.textContent).toBe("Swap in…");
+    fireEvent.click(button);
+    expect(onSwapIn).toHaveBeenLastCalledWith(expect.objectContaining({ name: "Sol Ring" }), 4);
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.doubleClick(screen.getByRole("option"));
+    expect(onSwapIn).toHaveBeenCalledTimes(3);
+    expect(onAdd).not.toHaveBeenCalled();
+    // Nothing was added yet: the box keeps its query until the swap lands.
+    expect((input as HTMLInputElement).value).toBe("4 sol");
+    fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
+    expect(onAdd).toHaveBeenCalledWith(expect.anything(), "commander", 4);
+  });
+
   it("the placeholder's promise end to end: '4 OP01-025' reaches the wire as name=OP01-025, qty 4 (P4.8)", async () => {
     // The pane never classifies — the id pass lives in the route. This pins
     // that the id-shaped query survives parseQuickAdd and the fetch effect.

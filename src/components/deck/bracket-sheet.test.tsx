@@ -76,6 +76,8 @@ function sheet(
     phone = false,
     goals,
     onGoalsChange,
+    onSwapCard,
+    canSwap,
   }: {
     combos?: CompleteCombo[] | null;
     freshness?: BracketFreshness | null;
@@ -83,6 +85,9 @@ function sheet(
     /** Y4b: the deck's goals — the read is assessed with them, as the editor does. */
     goals?: DeckGoals | null;
     onGoalsChange?: (next: DeckGoals | null) => void;
+    /** Y7b: the callout's swaps. */
+    onSwapCard?: (cardId: string) => void;
+    canSwap?: (cardId: string) => boolean;
   } = {},
 ) {
   const read: BracketRead = mtg.brackets!.assess({
@@ -113,6 +118,8 @@ function sheet(
       phone={phone}
       goals={goals}
       onGoalsChange={onGoalsChange}
+      onSwapCard={onSwapCard}
+      canSwap={canSwap}
       onClose={onClose}
     />,
   );
@@ -317,6 +324,47 @@ describe("Y4b — the player's side of the sheet", () => {
     expect(
       block("What the cards show").querySelectorAll("[data-factor]").length,
     ).toBeGreaterThanOrEqual(3);
+  });
+
+  it("Y7b: each card a conflict names gets Swap {card}… where the editor can swap it — the commander and the lands get none", () => {
+    const onSwapCard = vi.fn();
+    const scapes = named("Armageddon Twin", { mld: "clear" }, { primaryType: "Land" });
+    sheet(spec([conscripts, rhystic, armageddon, scapes]), {
+      goals: { v: 1, targetLevel: 2 },
+      onGoalsChange: vi.fn(),
+      onSwapCard,
+      // The editor's rule: a main-list card the adapter offers (never the commander or a land).
+      canSwap: (id) => id !== kiki.id && id !== scapes.id,
+    });
+    const callout = block("Your target").querySelector<HTMLElement>(
+      "[data-slot=bracket-conflicts]",
+    )!;
+    const swaps = within(callout)
+      .getAllByRole("button")
+      .map((b) => b.textContent);
+    // Land denial names both — only the spell swaps; the combo's commander doesn't.
+    expect(swaps).toEqual(["Swap Armageddon…", "Swap Rhystic Study…", "Swap Zealous Conscripts…"]);
+    const denial = callout.querySelector<HTMLElement>('[data-conflict="land-denial"]')!;
+    expect(denial.textContent).toContain("Armageddon Twin");
+    const gc = callout.querySelector<HTMLElement>('[data-conflict="game-changers"]')!;
+    fireEvent.click(within(gc).getByRole("button", { name: "Swap Rhystic Study…" }));
+    expect(onSwapCard).toHaveBeenCalledWith(rhystic.id);
+    // The findings list above stays without buttons — the callout is the one place.
+    expect(
+      within(block("What the cards show")).queryByRole("button", { name: /^Swap/ }),
+    ).toBeNull();
+  });
+
+  it("Y7b: without onSwapCard (the share page) the callout has no swaps — whatever canSwap says", () => {
+    sheet(spec([rhystic]), {
+      combos: [],
+      goals: { v: 1, targetLevel: 2 },
+      onGoalsChange: vi.fn(),
+      canSwap: () => true,
+    });
+    const callout = document.querySelector<HTMLElement>("[data-slot=bracket-conflicts]")!;
+    expect(callout).toBeTruthy();
+    expect(within(callout).queryByRole("button")).toBeNull();
   });
 
   it("no callout at or above what the cards prove, or with no target", () => {

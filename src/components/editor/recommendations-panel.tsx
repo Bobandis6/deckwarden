@@ -100,6 +100,8 @@ interface RecommendationsPanelProps {
   onGoalsChange?: (next: DeckGoals | null) => void;
   /** The goals line's "Change": the Why sheet at Your target. Absent = the line only reads. */
   onChangeGoals?: () => void;
+  /** Y7b: the deck is at its maximum — Add reads "Swap in…" (the editor opens the swap-in sheet). */
+  swapIn?: boolean;
 }
 
 interface OwnedFilterMeta {
@@ -121,6 +123,7 @@ export function RecommendationsPanel({
   goals = null,
   onGoalsChange,
   onChangeGoals,
+  swapIn = false,
 }: RecommendationsPanelProps) {
   // The budget starts from the deck's goal; a pick of its own wins until it's saved.
   const goalTier = tierOf(goals?.budget?.perCardUsd);
@@ -329,6 +332,7 @@ export function RecommendationsPanel({
                   inDeck={(inDeckQty.get(rec.cardId) ?? 0) > 0}
                   expanded={expanded.has(rec.cardId)}
                   pending={pendingAdd === rec.cardId}
+                  swapIn={swapIn}
                   onToggle={() => toggleExpanded(rec.cardId)}
                   onAdd={() => void add({ cardId: rec.cardId, name: rec.name })}
                 />
@@ -380,6 +384,7 @@ export function RecommendationsPanel({
               inDeck={(inDeckQty.get(rec.cardId) ?? 0) > 0}
               expanded={expanded.has(rec.cardId)}
               pending={pendingAdd === rec.cardId}
+              swapIn={swapIn}
               onToggle={() => toggleExpanded(rec.cardId)}
               onAdd={() => void add({ cardId: rec.cardId, name: rec.name })}
             />
@@ -417,6 +422,7 @@ function SuggestionRow({
   inDeck,
   expanded,
   pending,
+  swapIn = false,
   onToggle,
   onAdd,
 }: {
@@ -427,6 +433,8 @@ function SuggestionRow({
   inDeck: boolean;
   expanded: boolean;
   pending: boolean;
+  /** Y7b: the deck is full — the add opens the swap-in sheet. */
+  swapIn?: boolean;
   onToggle: () => void;
   onAdd: () => void;
 }) {
@@ -458,10 +466,10 @@ function SuggestionRow({
             size="xs"
             variant="secondary"
             disabled={pending}
-            aria-label={`Add ${rec.name} to the deck`}
+            aria-label={swapIn ? `Swap in ${rec.name}…` : `Add ${rec.name} to the deck`}
             onClick={onAdd}
           >
-            {pending ? "Adding…" : "Add"}
+            {pending ? "Adding…" : swapIn ? "Swap in…" : "Add"}
           </Button>
         )}
       </div>

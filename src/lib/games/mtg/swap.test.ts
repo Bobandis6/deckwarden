@@ -66,4 +66,15 @@ describe("mtgSwap", () => {
     ]);
     expect(mtgSwap.chips(card({}), card({}, null))).toEqual([]);
   });
+
+  it("Y7b: names the partner's bucket in a sentence; a land or a costless card says why none is named", () => {
+    expect(mtgSwap.bucketName("3")).toBe("mana value 3");
+    expect(mtgSwap.bucketName("7+")).toBe("mana value 7+");
+    expect(mtgSwap.unmatched({ name: "Command Tower", primaryType: "Land", costValue: 0 })).toBe(
+      "A land gets no suggested partner — which land to cut depends on its colors. Choose the card to cut.",
+    );
+    expect(mtgSwap.unmatched({ name: "Living End", primaryType: "Sorcery", costValue: null })).toBe(
+      "Living End has no mana cost to match — choose the card to cut.",
+    );
+  });
 });

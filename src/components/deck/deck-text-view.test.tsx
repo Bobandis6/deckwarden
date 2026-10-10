@@ -149,6 +149,53 @@ describe("DeckTextView", () => {
   });
 });
 
+describe("DeckTextView — Swap… (Y7b, WAVE4 D8)", () => {
+  it("the editor's rows get Swap… where canSwap says so — revealed like remove, 44 px on touch; a refused row keeps a spacer", () => {
+    const onSwap = vi.fn();
+    render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol }, { card: forest }])}
+        severity={new Map()}
+        onSetQty={() => {}}
+        onRemove={() => {}}
+        onSwap={onSwap}
+        canSwap={(_entry, c) => c.primaryType !== "Land"}
+        onPreview={() => {}}
+      />,
+    );
+    const swap = screen.getByRole("button", { name: "Swap Sol Ring…" });
+    expect(swap.getAttribute("title")).toBe("Swap…");
+    expect(swap.getAttribute("data-swap-row")).toBe(sol.id);
+    expect(swap.className).toContain("group-focus-within/row:opacity-100");
+    expect(swap.className).toContain("pointer-coarse:size-11");
+    expect(swap.className).toContain("pointer-coarse:opacity-100");
+    // Before the remove button, after the pips.
+    const row = swap.closest("li")!;
+    const buttons = [...row.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
+    expect(buttons.slice(-2)).toEqual(["Swap Sol Ring…", "Remove Sol Ring"]);
+    expect(screen.queryByRole("button", { name: "Swap Forest…" })).toBeNull();
+    const forestRow = screen.getByRole("button", { name: "Remove Forest" }).closest("li")!;
+    const spacer = forestRow.querySelector("span[aria-hidden].size-6");
+    expect(spacer?.className).toContain("pointer-coarse:size-11");
+    fireEvent.click(swap);
+    expect(onSwap).toHaveBeenCalledWith(sol);
+  });
+
+  it("share rows (and an editor without onSwap) have no Swap… and no spacer", () => {
+    render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol }])}
+        severity={new Map()}
+        onPreview={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /^Swap/ })).toBeNull();
+    expect(document.querySelector("li span[aria-hidden].size-6")).toBeNull();
+  });
+});
+
 describe("DeckTextView — F5 previews (share pages)", () => {
   it("with `preview`, the name button is the hover-card trigger and opens the image on focus; without it, a plain button", () => {
     vi.useFakeTimers();

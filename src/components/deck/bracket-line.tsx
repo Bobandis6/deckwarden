@@ -13,6 +13,11 @@
  * live region: it changes on every settled edit (the progress line's
  * reasoning). "Why?" and "Retry" are 44 px on coarse pointers, like the
  * ValidationPanel's toggle.
+ *
+ * Y7b: the line takes focus programmatically (`tabIndex={-1}`, never in the
+ * tab order) — where a swap made from the Why sheet's callout hands focus
+ * back while the facts for the new list are still being checked and "Why?"
+ * isn't there yet; one Tab reaches it once it is.
  */
 import { GaugeIcon } from "lucide-react";
 
@@ -45,7 +50,8 @@ export function BracketLine({
       data-slot="bracket-line"
       data-status={read.status}
       data-facts={facts}
-      className="text-muted-foreground mt-1.5 flex items-baseline gap-1.5 text-xs"
+      tabIndex={-1}
+      className="text-muted-foreground focus-visible:ring-ring/50 mt-1.5 flex items-baseline gap-1.5 rounded-sm text-xs outline-none focus-visible:ring-2"
     >
       {/* On the first line's baseline, whatever that line's height (a 44 px
           "Why?" on touch makes it tall); the Warden shield's size, so both

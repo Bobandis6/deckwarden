@@ -39,6 +39,11 @@
  * Y4a (WAVE4 D5): `bracket` — the editor's BracketLine — renders directly
  * after the validation panel: the bracket lives on the legality line, with
  * no tab of its own.
+ *
+ * Y7b (WAVE4 D8): `onSwap` / `canSwap` give the text rows "Swap…". The
+ * grid gets none — its top corners carry the badges and its bottom edge the
+ * artist / © line, and a card's click already opens the Card tab's
+ * Alternatives.
  */
 import { PlusIcon } from "lucide-react";
 import Link from "next/link";
@@ -85,6 +90,10 @@ interface DeckListPaneProps {
   onSetQty: (zoneId: string, cardId: string, qty: number) => string | undefined;
   onRemove: (zoneId: string, cardId: string) => void;
   onPreview: (card: EditorCard) => void;
+  /** Y7b: a text row's "Swap…" — the editor's swap sheet; absent = no row has one. */
+  onSwap?: (card: EditorCard) => void;
+  /** Which rows get "Swap…" (the editor: main-list cards the adapter offers alternatives for). */
+  canSwap?: (entry: EditorEntry, card: EditorCard) => boolean;
   /** Opens the Cut Coach tab (P3.4); absent when the game declares no cuts. */
   onOpenCuts?: (() => void) | undefined;
   /** The empty leader zone's ghost "Search by name" — focuses search (R3, demoted in W4). */
@@ -137,6 +146,8 @@ export function DeckListPane({
   onSetQty,
   onRemove,
   onPreview,
+  onSwap,
+  canSwap,
   onOpenCuts,
   onChooseLeader,
   onBrowseLeader,
@@ -407,6 +418,8 @@ export function DeckListPane({
           severity={severity}
           onSetQty={setQtyChecked}
           onRemove={onRemove}
+          onSwap={onSwap}
+          canSwap={canSwap}
           onPreview={onPreview}
           owned={owned}
           stickyHeaders
