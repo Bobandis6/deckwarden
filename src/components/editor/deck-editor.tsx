@@ -78,6 +78,7 @@ import { BracketSheet } from "@/components/deck/bracket-sheet";
 import { BuyDeckDialog, countedEntries } from "@/components/deck/buy-deck-menu";
 import { SampleHand } from "@/components/deck/sample-hand";
 import { useBracketFacts } from "@/components/deck/use-bracket-facts";
+import type { SwapEditing } from "@/components/editor/alternatives-section";
 import { AutofillSheet } from "@/components/editor/autofill-sheet";
 import { CardDetailPane, type PrintingEditing } from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
@@ -125,6 +126,7 @@ import {
   setPrinting,
   setQty,
   setTags,
+  swapCard,
   toEditorCard,
   toSavePayload,
   zoneQty,
@@ -134,10 +136,10 @@ import {
   type EditResult,
 } from "@/lib/decks/editor-state";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
-import { goalsPatchBody, readGoals, type DeckGoals } from "@/lib/decks/goals";
+import { goalsPatchBody, readGoals, suggestionGoals, type DeckGoals } from "@/lib/decks/goals";
 import type { ImportOutcome } from "@/lib/decks/import";
 import { clearPickIntent, pickIntentFor, writePickIntent } from "@/lib/decks/leader-pick-intent";
-import { hasLeader } from "@/lib/decks/panel-view";
+import { hasLeader, snapshotBody } from "@/lib/decks/panel-view";
 import { addMorePhrase, deckProgress } from "@/lib/decks/progress";
 import { startDoors } from "@/lib/decks/start-doors";
 import { getDeckToken, removeDeckToken, setDeckToken } from "@/lib/decks/token-store";
@@ -1216,6 +1218,37 @@ export function DeckEditor({
     [format, handlePanelAdd, notify, applyEdit],
   );
 
+  // Swap Lab (Y7a, WAVE4 D8): the Card tab's Alternatives pick — one copy
+  // out, one in (swapCard), so the count never moves; the pane then shows
+  // the new card. The toast's Undo is a REAL edit per card (Y6b's per-piece
+  // rule, not applyListSwap's whole-list restore): the new card back to the
+  // quantity it had, the old row restored exactly — tags, printing, place —
+  // so an edit made in between survives.
+  const handleSwap = useCallback(
+    (out: EditorCard, wire: CardWire): string | undefined => {
+      const mainZone = format?.zones.find((z) => !z.isLeaderZone);
+      if (!format || !mainZone) return "Deck not loaded yet";
+      const before = entriesRef.current;
+      const index = before.findIndex((e) => e.zone === mainZone.id && e.cardId === out.id);
+      const result = swapCard(before, format, mainZone.id, out.id, wire.id);
+      if (result.error || index < 0) return result.error ?? "That card isn't in the deck anymore";
+      const removed = before[index];
+      const previousQty =
+        before.find((e) => e.zone === mainZone.id && e.cardId === wire.id)?.qty ?? 0;
+      const incoming = toEditorCard(wire);
+      setCards((prev) => (prev.has(incoming.id) ? prev : new Map(prev).set(incoming.id, incoming)));
+      const error = applyEdit(result);
+      if (error) return error;
+      showCard(incoming);
+      notify(`Swapped ${out.name} → ${incoming.name}`, () => {
+        const back = setQty(entriesRef.current, format, mainZone.id, incoming.id, previousQty);
+        applyEdit(restoreEntry(back.entries, format, removed, index));
+      });
+      return undefined;
+    },
+    [format, applyEdit, showCard, notify],
+  );
+
   const handleSetQty = useCallback(
     (zoneId: string, cardId: string, qty: number): string | undefined => {
       if (!format) return undefined;
@@ -1562,6 +1595,26 @@ export function DeckEditor({
     };
   }, [preview, entries, handleSetPrinting]);
 
+  // Swap Lab (Y7a): the Card tab's Alternatives for a main-list card the
+  // adapter offers them for (Magic: not a land; One Piece: never). The body
+  // is the draft Suggestions snapshot plus the card — drafts and saved decks
+  // ask the same way — and null until a leader gives the deck its colors.
+  const swapEditing = useMemo<SwapEditing | null>(() => {
+    const swapMeta = adapter?.recommend?.swap;
+    const mainZone = format?.zones.find((z) => !z.isLeaderZone);
+    if (!preview || !adapter || !format || !swapMeta || !mainZone) return null;
+    const previewed = preview;
+    if (!entries.some((e) => e.zone === mainZone.id && e.cardId === previewed.id)) return null;
+    if (!swapMeta.offers(previewed)) return null;
+    const snapshot = hasLeader(entries, format)
+      ? snapshotBody(adapter.id, format, entries, undefined, suggestionGoals(goals))
+      : null;
+    return {
+      body: snapshot ? { ...snapshot, cardId: previewed.id } : null,
+      onSwap: (wire: CardWire) => handleSwap(previewed, wire),
+    };
+  }, [preview, adapter, format, entries, goals, handleSwap]);
+
   // Live validation (P1.4) and analytics (P1.5): the adapter's pure functions
   // on every edit, over one shared snapshot. validate is the same code the PUT
   // route re-runs server-side on save; analyze feeds the middle pane's blocks.
@@ -1745,6 +1798,7 @@ export function DeckEditor({
               card={preview}
               tagging={tagging}
               printing={printingEditing}
+              swap={swapEditing}
             />
           </TabsContent>
           {load.adapter.recommend && (
@@ -1811,6 +1865,7 @@ export function DeckEditor({
             card={preview}
             tagging={tagging}
             printing={printingEditing}
+            swap={swapEditing}
           />
         </>
       )}
@@ -2024,6 +2079,7 @@ export function DeckEditor({
           card={preview}
           tagging={tagging}
           printing={printingEditing}
+          swap={swapEditing}
         />
       }
       sheetTitle={preview?.name ?? null}

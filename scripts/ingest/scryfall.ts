@@ -19,6 +19,11 @@
  * before any card write). A Tagger read that fails keeps the stored flags and
  * never fails this step; stats.tagger says which flags are fresh.
  *
+ * Swap Lab's roles (Y7a, WAVE4 D8) ride the same read: the whitelist in
+ * src/lib/games/mtg/roles.ts becomes sparse, sorted `attrs.roles`, each role
+ * with the flags' fallback (a role that can't be read keeps its stored cards)
+ * and its own switch in the overrides file; stats.tagger.roles says which.
+ *
  * IMPORTANT: uses the DIRECT (non `-pooler`) connection — temp tables and
  * pg_advisory_lock are session state, which transaction-mode pooling breaks.
  *
@@ -39,7 +44,13 @@ import postgres from "postgres";
 
 import { GAME_ID } from "../../src/db/seed-data";
 import { assignLeaderSlugs } from "./assign-leader-slugs";
-import { readPreviousStaleSince, readStoredFlags, readTagIndex } from "./tagger-read";
+import {
+  readPreviousRoleStaleSince,
+  readPreviousStaleSince,
+  readStoredFlags,
+  readStoredRoles,
+  readTagIndex,
+} from "./tagger-read";
 import {
   gameChangerDigest,
   mapIdentity,
@@ -57,6 +68,7 @@ import {
   resolveTagger,
   TAGGER_FLAGS,
   taggerCounts,
+  taggerRoleStats,
   type TaggerStats,
 } from "../../src/lib/games/mtg/tagger";
 
@@ -217,8 +229,10 @@ async function main() {
     console.log(`sets upserted: ${setIds.size}`);
     await createStaging(sql);
 
-    // Tagger flags (Y3a), resolved before staging: identities are mapped with them.
+    // Tagger flags (Y3a) and Swap Lab's roles (Y7a), resolved before staging:
+    // identities are mapped with them.
     const storedFlags = await readStoredFlags(sql);
+    const storedRoles = await readStoredRoles(sql);
     const tagRead = await readTagIndex(
       bulk.data.find((d) => d.type === "oracle_tags"),
       HEADERS,
@@ -229,13 +243,24 @@ async function main() {
       stored: storedFlags,
       previousStaleSince: await readPreviousStaleSince(sql),
       nowIso: new Date(started).toISOString(),
+      storedRoles,
+      previousRoleStaleSince: await readPreviousRoleStaleSince(sql),
     });
-    if (tagRead.error) console.warn(`WARNING: ${tagRead.error} — keeping the stored flags`);
+    if (tagRead.error)
+      console.warn(`WARNING: ${tagRead.error} — keeping the stored flags and roles`);
     for (const note of tagger.notes)
       console.warn(`WARNING: tagger ${note} — keeping the stored flags`);
+    for (const note of tagger.roles.notes)
+      console.warn(`WARNING: tagger ${note} — keeping its stored cards`);
     for (const flag of TAGGER_FLAGS) {
       console.log(`tagger ${flag}: ${tagger.status[flag]}, ${tagger.tagged[flag].size} tagged`);
     }
+    const roleStatuses = Object.values(tagger.roles.status);
+    console.log(
+      `tagger roles: ${roleStatuses.filter((x) => x === "fresh").length} fresh, ` +
+        `${roleStatuses.filter((x) => x === "kept").length} kept, ` +
+        `${roleStatuses.filter((x) => x === "disabled").length} off`,
+    );
 
     const stats: Stats = {
       lines: 0,
@@ -350,10 +375,15 @@ async function main() {
       stale_since: tagger.staleSince,
       counts: taggerCounts(tagger, overrides, storedFlags, seenOracle),
       error: [tagRead.error, ...tagger.notes].filter(Boolean).join("; ") || null,
+      roles: taggerRoleStats(tagger, storedRoles, seenOracle),
     };
     console.log(
       `game changers: ${stats.game_changers.count} (md5 ${stats.game_changers.md5}); ` +
         `tagger counts ${JSON.stringify(stats.tagger.counts)}`,
+    );
+    console.log(
+      `tagger roles: ${stats.tagger.roles!.cards} cards hold one; ` +
+        `counts ${JSON.stringify(stats.tagger.roles!.counts)}`,
     );
     if (unreviewedNames.length) {
       console.warn(

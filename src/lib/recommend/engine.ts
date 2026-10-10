@@ -153,14 +153,25 @@ export interface GatherOptions {
   poolLimit?: number;
   /** Tournament-candidate pool size; default TOURNAMENT_POOL_LIMIT. */
   tournamentPoolLimit?: number;
-  /** Whitelisted primary_type scope (W9a: curve pool `ne` Land, base pool `eq` Land). */
+  /**
+   * Whitelisted scopes (W9a: curve pool `ne` Land, base pool `eq` Land; Y7a:
+   * Swap Lab's nonland scope and cost window together).
+   */
   scope?: CandidateFilter["scope"];
   /** Combo signals load (default true; the base-pool call turns it off). */
   includeCombos?: boolean;
+  /** Swap Lab (Y7a): only cards sharing a role; each candidate carries its roles. */
+  roles?: CandidateFilter["roles"];
+  /**
+   * Never candidates beyond the snapshot's own cards (Y7a: the swapped card,
+   * which the snapshot leaves out so the combo scan and the curve see the
+   * list without it).
+   */
+  excludeCardIds?: readonly string[];
 }
 
 /** The game's adapter, or undefined for an unknown game id. */
-function adapterFor(gameId: number): GameAdapter | undefined {
+export function adapterFor(gameId: number): GameAdapter | undefined {
   const gameCode = gameCodeById(gameId);
   return gameCode ? getAdapter(gameCode) : undefined;
 }
@@ -197,11 +208,12 @@ export async function gatherSignals(
     gameId: snapshot.gameId,
     formatId: snapshot.formatId,
     deckCiMask: snapshot.ciMask,
-    excludeCardIds: deckCardIds,
+    excludeCardIds: [...new Set([...deckCardIds, ...(opts.excludeCardIds ?? [])])],
     maxPriceUsd: opts.maxPriceUsd,
     ownedCardIds: opts.ownedCardIds,
     exclude: meta.exclude,
     scope: opts.scope,
+    roles: opts.roles,
   };
 
   const [pool, comboSignals, tournamentPool] = await Promise.all([
@@ -270,7 +282,7 @@ export function readCard(
 }
 
 /** Whether this snapshot gets a server-side read: the game has `brackets`, the list a leader and every entry its facts. */
-function readable(adapter: GameAdapter, snapshot: RecommendSnapshot): boolean {
+export function readable(adapter: GameAdapter, snapshot: RecommendSnapshot): boolean {
   return (
     adapter.brackets !== undefined &&
     snapshot.leaderIds.length > 0 &&
@@ -287,7 +299,7 @@ function readable(adapter: GameAdapter, snapshot: RecommendSnapshot): boolean {
  * read sees it, with the combos it would complete (the one-away pivot,
  * whole: every other piece in the list).
  */
-function goalsRead(
+export function goalsRead(
   adapter: GameAdapter,
   snapshot: RecommendSnapshot,
   combos: readonly CompleteCombo[],

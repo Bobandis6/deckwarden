@@ -2976,3 +2976,234 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
     });
   });
 });
+
+// ------------------------------------------------------------------- Y7a
+describe("DeckEditor — the Card tab's Alternatives (Y7a, WAVE4 D8)", () => {
+  const tools = () => section("Card detail and suggestions");
+  const odric = card({
+    name: "Odric, Lunarch Marshal",
+    primaryType: "Creature",
+    isLeaderCandidate: true,
+    ciMask: 1,
+  });
+  const wastes = card({ name: "Wastes", primaryType: "Land", costValue: null });
+  const mindStone: CardWire = {
+    ...card({
+      name: "Mind Stone",
+      primaryType: "Artifact",
+      costValue: 2,
+      cheapestUsd: 1.29,
+      attrs: { type_line: "Artifact", oracle_text: "", mana_cost: "{2}", roles: [] },
+    }),
+    image: null,
+  };
+  const seedResponse = {
+    deck: { name: "Swap Lab", game: "mtg", format: "commander", leaderIds: [odric.id] },
+    // Sol Ring priced at $1.00, so the price chip has something to stand beside.
+    cards: [odric, { ...sol, cheapestUsd: 1 }, wastes].map((c, i) => ({
+      cardId: c.id,
+      zone: i === 0 ? "commander" : "main",
+      qty: c === wastes ? 30 : 1,
+      tags: c.id === sol.id ? ["Ramp"] : [],
+      printingId: null,
+      card: { ...c, image: null },
+    })),
+  };
+  const ROW = {
+    cardId: mindStone.id,
+    name: "Mind Stone",
+    costValue: 2,
+    cheapestUsd: "1.29",
+    evidence: [
+      {
+        source: "scryfall_tagger",
+        why: "Both: ramp · mana rock — community-tagged on Scryfall Tagger",
+        with: [],
+        howOften: null,
+        confidence: "medium",
+      },
+      {
+        source: "edhrec_rank",
+        why: "A Commander staple in EDHREC decklists",
+        with: [],
+        howOften: "rank 40",
+        confidence: "high",
+      },
+    ],
+    conflicts: [],
+    shared: ["ramp", "mana-rock"],
+    card: { ...mindStone, legality: [] },
+  };
+  const ANSWER = {
+    cardId: sol.id,
+    roles: ["ramp", "mana-rock"],
+    alternatives: [ROW],
+    hidden: [],
+    combosTruncated: false,
+    tradeoff: [
+      {
+        source: "edhrec_rank",
+        why: "A Commander staple in EDHREC decklists — cutting it gives up a proven card",
+        with: [],
+        howOften: "rank 1",
+        confidence: "high",
+        side: "keep",
+      },
+    ],
+  };
+  const altCalls = () =>
+    fetchMock.mock.calls.filter(
+      ([url, init]) => url === "/api/alternatives" && init?.method === "POST",
+    );
+  function swapRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    if (url === "/api/precons/swaplab") return ok(seedResponse);
+    if (url === "/api/alternatives" && init?.method === "POST") return ok(ANSWER);
+    return route(input, init);
+  }
+  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
+    for (let i = 0; i < 40; i++) {
+      const el = query();
+      if (el) return el;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: element never appeared");
+  }
+  /** The seeded draft, Sol Ring shown in the Card tab — nothing created yet. */
+  async function showSolInSeededDraft() {
+    fetchMock.mockImplementation(swapRoute);
+    stubViewport(1440);
+    render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftFromSlug="swaplab" />,
+    );
+    await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+    fireEvent.click(within(section("Deck list")).getByRole("button", { name: "Sol Ring" }));
+    await act(async () => {});
+    expect(within(tools()).getByRole("heading", { name: "Sol Ring" })).toBeTruthy();
+  }
+
+  it("asks on FIRST open only, with the snapshot and the card; the swap is the draft's first edit — exactly one create; Swapped A → B · Undo restores per card", async () => {
+    await showSolInSeededDraft();
+    const trigger = within(tools()).getByRole("button", { name: /^Alternatives/ });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(altCalls()).toHaveLength(0);
+
+    fireEvent.click(trigger);
+    await act(async () => {});
+    expect(altCalls()).toHaveLength(1);
+    expect(JSON.parse(altCalls()[0][1].body as string)).toEqual({
+      game: "mtg",
+      format: "commander",
+      leaderIds: [odric.id],
+      entries: [
+        { cardId: sol.id, qty: 1 },
+        { cardId: wastes.id, qty: 30 },
+      ],
+      cardId: sol.id,
+    });
+    const list = within(tools()).getByRole("list", { name: "Alternatives to Sol Ring" });
+    expect(list.textContent).toContain("Mind Stone");
+    expect(list.textContent).toContain(
+      "Both: ramp · mana rock — community-tagged on Scryfall Tagger",
+    );
+    // The adapter's chips, then the price beside Sol Ring's ($1.00 → $1.29).
+    expect(list.textContent).toContain("Mana value 2 · $0.29 more");
+    expect(
+      within(list)
+        .getByRole("link", { name: /mana rock/ })
+        .getAttribute("href"),
+    ).toBe("https://tagger.scryfall.com/tags/card/mana-rock");
+    expect(within(tools()).getByText(/If you cut Sol Ring/)).toBeTruthy();
+    expect(within(tools()).getByRole("button", { name: /Alternatives · 1/ })).toBeTruthy();
+
+    // Close and reopen: the answer is kept, nothing asked again; nothing minted by browsing.
+    fireEvent.click(within(tools()).getByRole("button", { name: /Alternatives · 1/ }));
+    await act(async () => {});
+    fireEvent.click(within(tools()).getByRole("button", { name: /Alternatives · 1/ }));
+    await act(async () => {});
+    expect(altCalls()).toHaveLength(1);
+    await settle(1500);
+    expect(posts()).toBe(0);
+
+    // The swap: one copy out, one in, in place — the deck's first real edit.
+    fireEvent.click(within(tools()).getByRole("button", { name: "Swap Sol Ring for Mind Stone" }));
+    const swapToast = (
+      await pollFor(() => screen.queryByText("Swapped Sol Ring → Mind Stone"))
+    ).closest('[data-slot="toast"]') as HTMLElement;
+    expect(swapToast).toBeTruthy();
+    expect(within(tools()).getByRole("heading", { name: "Mind Stone" })).toBeTruthy();
+    expect(within(section("Deck list")).queryByText("Sol Ring")).toBeNull();
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+    expect(lastPutEntries()).toEqual([
+      { cardId: odric.id, zone: "commander", qty: 1, tags: [] },
+      { cardId: mindStone.id, zone: "main", qty: 1, tags: [] },
+      { cardId: wastes.id, zone: "main", qty: 30, tags: [] },
+    ]);
+
+    // Undo is a REAL edit per card: Sol Ring back in its place with its tag, Mind Stone gone.
+    fireEvent.click(within(swapToast).getByRole("button", { name: "Undo" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(puts()).toBe(2);
+    expect(lastPutEntries()).toEqual([
+      { cardId: odric.id, zone: "commander", qty: 1, tags: [] },
+      { cardId: sol.id, zone: "main", qty: 1, tags: ["Ramp"] },
+      { cardId: wastes.id, zone: "main", qty: 30, tags: [] },
+    ]);
+    expect(posts()).toBe(1);
+  });
+
+  it("the deck's goals ride the request; a land and the commander get no section", async () => {
+    await showSolInSeededDraft();
+    fireEvent.click(within(tools()).getByRole("button", { name: /^Alternatives/ }));
+    await act(async () => {});
+    expect(JSON.parse(altCalls()[0][1].body as string)).not.toHaveProperty("goals");
+
+    // The row's name button holds a problem marker too (30 fixture Wastes aren't basics).
+    fireEvent.click(within(section("Deck list")).getByText("Wastes").closest("button")!);
+    await act(async () => {});
+    expect(within(tools()).getByRole("heading", { name: "Wastes" })).toBeTruthy();
+    expect(within(tools()).queryByRole("button", { name: /^Alternatives/ })).toBeNull();
+    fireEvent.click(
+      within(section("Deck list")).getByRole("button", { name: `Show ${odric.name}` }),
+    );
+    await act(async () => {});
+    expect(within(tools()).queryByRole("button", { name: /^Alternatives/ })).toBeNull();
+    expect(altCalls()).toHaveLength(1);
+  });
+
+  it("no commander yet: the section says so and asks nothing", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    fireEvent.change(input, { target: { value: "sol" } });
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring to Main deck" }));
+    await act(async () => {});
+    fireEvent.click(within(tools()).getByRole("button", { name: /^Alternatives/ }));
+    await act(async () => {});
+    expect(
+      within(tools()).getByText("Add a Commander first — alternatives follow its color identity."),
+    ).toBeTruthy();
+    expect(altCalls()).toHaveLength(0);
+  });
+
+  it("One Piece declares no swap: no section, no request", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="optcg" draftFormat="standard" />);
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    fireEvent.change(input, { target: { value: "sol" } });
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring to Deck" }));
+    await act(async () => {});
+    // The add shows the card in the pane — in the deck, and still no section.
+    expect(within(section("Deck list")).getByText("Sol Ring")).toBeTruthy();
+    expect(within(tools()).getByRole("heading", { name: "Sol Ring" })).toBeTruthy();
+    expect(within(tools()).queryByRole("button", { name: /^Alternatives/ })).toBeNull();
+    expect(altCalls()).toHaveLength(0);
+  });
+});

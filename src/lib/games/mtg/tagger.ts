@@ -15,14 +15,21 @@
  *   parsed, or a pinned tag is missing from it or flags no card, that flag
  *   keeps the cards already stored ("kept"), split again by today's overrides,
  *   and its stale_since says since when.
+ *
+ * Y7a adds Swap Lab's roles (WAVE4 D8): the whitelist in ./roles.ts becomes
+ * sparse `attrs.roles` the same way — the same index, the same roll-up (minus
+ * each role's `except` tags), the same three outcomes per role, and a
+ * per-role kill-switch in the file's sibling `roles` key. Roles are not
+ * bracket flags: the read never sees them.
  */
 import type { MtgAttrs } from "./attrs";
+import { MTG_ROLE_KEYS, MTG_ROLES, type MtgRole, type MtgRoleKey } from "./roles";
 
 export const TAGGER_FLAGS = ["mld", "extra_turn"] as const;
 export type TaggerFlag = (typeof TAGGER_FLAGS)[number];
 
-/** One card's Tagger flags as written to attrs — sparse. */
-export type TaggerCardFlags = Pick<MtgAttrs, "mld" | "extra_turn">;
+/** One card's Tagger facts as written to attrs — sparse; `roles` sorted (Y7a). */
+export type TaggerCardFlags = Pick<MtgAttrs, "mld" | "extra_turn" | "roles">;
 
 // --- The overrides file ----------------------------------------------------------
 
@@ -41,9 +48,17 @@ export interface TaggerFlagOverrides {
   disabledCards: Record<string, string>;
 }
 
+/** Swap Lab's per-role switch (Y7a). The tag itself is declared in ./roles.ts. */
+export interface TaggerRoleOverrides {
+  /** The kill-switch: false writes this role for no card, so no card matches on it. */
+  enabled: boolean;
+}
+
 export interface TaggerOverrides {
   reviewed: string;
   flags: Record<TaggerFlag, TaggerFlagOverrides>;
+  /** Every declared role, by key — the file lists them all, so each switch is visible. */
+  roles: Record<MtgRoleKey, TaggerRoleOverrides>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -109,7 +124,24 @@ export function parseTaggerOverrides(json: unknown): TaggerOverrides {
       disabledCards,
     };
   }
-  return { reviewed: json.reviewed, flags };
+  return { reviewed: json.reviewed, flags, roles: parseRoleOverrides(json.roles) };
+}
+
+/** The sibling `roles` key (Y7a): exactly the declared roles, each with a boolean switch. */
+function parseRoleOverrides(raw: unknown): Record<MtgRoleKey, TaggerRoleOverrides> {
+  if (!isObject(raw)) throw problem("roles must be an object");
+  for (const key of Object.keys(raw)) {
+    if (!(MTG_ROLE_KEYS as readonly string[]).includes(key))
+      throw problem(`unknown role ${JSON.stringify(key)} (known: ${MTG_ROLE_KEYS.join(", ")})`);
+  }
+  const roles = {} as Record<MtgRoleKey, TaggerRoleOverrides>;
+  for (const key of MTG_ROLE_KEYS) {
+    const r = raw[key];
+    if (!isObject(r)) throw problem(`roles.${key} is missing`);
+    if (typeof r.enabled !== "boolean") throw problem(`roles.${key}.enabled must be true or false`);
+    roles[key] = { enabled: r.enabled };
+  }
+  return roles;
 }
 
 /** Every oracle id the file names — each must be a card the run stages (the unknown-id check). */
@@ -166,6 +198,22 @@ export function rollUp(index: TagIndex, rootId: string): Set<string> | null {
   return out;
 }
 
+/**
+ * A role's cards (Y7a): its tag's roll-up minus every `except` tag's roll-up.
+ * null when the bulk lacks the tag or one of its except tags — the role then
+ * keeps its stored cards, since a missing except would quietly widen it.
+ */
+export function rollUpRole(index: TagIndex, role: MtgRole): Set<string> | null {
+  const cards = rollUp(index, role.tag.id);
+  if (!cards) return null;
+  for (const except of role.except ?? []) {
+    const out = rollUp(index, except.id);
+    if (!out) return null;
+    for (const id of out) cards.delete(id);
+  }
+  return cards;
+}
+
 // --- Resolution ------------------------------------------------------------------
 
 /** fresh = read tonight; kept = the stored cards kept (the read failed); disabled = switched off. */
@@ -181,6 +229,20 @@ export interface TaggerInputs {
   previousStaleSince: Partial<Record<TaggerFlag, string | null>> | null;
   /** This run's start, ISO. */
   nowIso: string;
+  /** Y7a: oracle ids carrying each role now — the per-role fallback. Absent = none stored. */
+  storedRoles?: Partial<Record<MtgRoleKey, ReadonlySet<string>>>;
+  /** Y7a: each role's stale_since from the latest successful run's stats.tagger.roles. */
+  previousRoleStaleSince?: Partial<Record<MtgRoleKey, string | null>> | null;
+}
+
+/** The roles' half of a resolution (Y7a) — the flags' three outcomes, per role. */
+export interface TaggerRoleResolution {
+  status: Record<MtgRoleKey, TaggerFlagStatus>;
+  staleSince: Record<MtgRoleKey, string | null>;
+  /** Per role, the oracle ids: the roll-up, or the stored ones when kept; empty when disabled. */
+  tagged: Record<MtgRoleKey, Set<string>>;
+  /** Why a role was kept, when the bulk itself was read. */
+  notes: string[];
 }
 
 export interface TaggerResolution {
@@ -189,10 +251,46 @@ export interface TaggerResolution {
   staleSince: Record<TaggerFlag, string | null>;
   /** Per flag, the oracle ids before overrides: the tag's roll-up, or the stored ones when kept. */
   tagged: Record<TaggerFlag, Set<string>>;
-  /** oracle id → the flags to write, after overrides. */
+  /** oracle id → the flags and roles to write, after overrides. */
   cards: Map<string, TaggerCardFlags>;
   /** Why a flag was kept, when the bulk itself was read. */
   notes: string[];
+  roles: TaggerRoleResolution;
+}
+
+function resolveRoles(input: TaggerInputs): TaggerRoleResolution {
+  const { overrides, index } = input;
+  const status = {} as Record<MtgRoleKey, TaggerFlagStatus>;
+  const staleSince = {} as Record<MtgRoleKey, string | null>;
+  const tagged = {} as Record<MtgRoleKey, Set<string>>;
+  const notes: string[] = [];
+  for (const role of MTG_ROLES) {
+    const key = role.key;
+    if (!overrides.roles[key].enabled) {
+      status[key] = "disabled";
+      staleSince[key] = null;
+      tagged[key] = new Set();
+      continue;
+    }
+    const fresh = index ? rollUpRole(index, role) : null;
+    if (fresh && fresh.size > 0) {
+      status[key] = "fresh";
+      staleSince[key] = null;
+      tagged[key] = fresh;
+      continue;
+    }
+    if (index) {
+      notes.push(
+        fresh
+          ? `role ${key}: the pinned tag ${role.tag.slug} (${role.tag.id}) tags no card`
+          : `role ${key}: the pinned tag ${role.tag.slug} or one of its except tags is not in the bulk`,
+      );
+    }
+    status[key] = "kept";
+    staleSince[key] = input.previousRoleStaleSince?.[key] ?? input.nowIso;
+    tagged[key] = new Set(input.storedRoles?.[key]);
+  }
+  return { status, staleSince, tagged, notes };
 }
 
 export function resolveTagger(input: TaggerInputs): TaggerResolution {
@@ -239,7 +337,21 @@ export function resolveTagger(input: TaggerInputs): TaggerResolution {
       cards.set(id, entry);
     }
   }
-  return { status, staleSince, tagged, cards, notes };
+  // Roles (Y7a): each card's keys, sorted, so a night with the same tags
+  // writes the same array and the merge's tuple compare leaves the row alone.
+  const roles = resolveRoles(input);
+  const roleKeys = new Map<string, MtgRoleKey[]>();
+  for (const key of MTG_ROLE_KEYS) {
+    for (const id of roles.tagged[key]) {
+      const list = roleKeys.get(id) ?? [];
+      list.push(key);
+      roleKeys.set(id, list);
+    }
+  }
+  for (const [id, keys] of roleKeys) {
+    cards.set(id, { ...cards.get(id), roles: keys.sort() });
+  }
+  return { status, staleSince, tagged, cards, notes, roles };
 }
 
 /** Tagged mass-land-denial cards neither list names — they read "edge" until reviewed. */
@@ -268,6 +380,28 @@ export interface TaggerFlagCounts {
   unreviewed?: number;
 }
 
+/** Per role (Y7a): what the roll-up held, what this run staged, wrote and changed. */
+export interface TaggerRoleCounts {
+  /** Distinct oracle ids the roll-up held (or the stored ones, when kept). */
+  tagged: number;
+  /** …of those, identities this run staged — every one is written (no per-card review yet). */
+  written: number;
+  added: number;
+  removed: number;
+}
+
+/** ingest_runs.stats.tagger.roles (Y7a) — the flags' fields, per role, beside them. */
+export interface TaggerRoleStats {
+  tag_ids: Record<MtgRoleKey, string>;
+  status: Record<MtgRoleKey, TaggerFlagStatus>;
+  stale_since: Record<MtgRoleKey, string | null>;
+  counts: Record<MtgRoleKey, TaggerRoleCounts>;
+  /** Identities carrying at least one role after the run. */
+  cards: number;
+  /** Why a role was kept; null when every enabled role is fresh. */
+  error: string | null;
+}
+
 /** ingest_runs.stats.tagger — Y3b's freshness loader reads status and stale_since. */
 export interface TaggerStats {
   /** The oracle_tags bulk's updated_at; null when it wasn't read. */
@@ -278,6 +412,8 @@ export interface TaggerStats {
   counts: Record<TaggerFlag, TaggerFlagCounts>;
   /** Why the read failed or a flag was kept; null when every enabled flag is fresh. */
   error: string | null;
+  /** Swap Lab's roles (Y7a) — a sibling block, so the bracket freshness reader never sees them. */
+  roles?: TaggerRoleStats;
 }
 
 export function taggerCounts(
@@ -318,4 +454,36 @@ export function taggerCounts(
     out[flag] = counts;
   }
   return out;
+}
+
+/** Per-role counts (Y7a), the flags' arithmetic: staged identities only. */
+export function taggerRoleStats(
+  res: TaggerResolution,
+  storedRoles: Partial<Record<MtgRoleKey, ReadonlySet<string>>>,
+  staged: ReadonlySet<string>,
+): TaggerRoleStats {
+  const counts = {} as Record<MtgRoleKey, TaggerRoleCounts>;
+  const tagIds = {} as Record<MtgRoleKey, string>;
+  for (const role of MTG_ROLES) {
+    const key = role.key;
+    tagIds[key] = role.tag.id;
+    const stored = storedRoles[key] ?? new Set<string>();
+    const written = new Set([...res.roles.tagged[key]].filter((id) => staged.has(id)));
+    counts[key] = {
+      tagged: res.roles.tagged[key].size,
+      written: written.size,
+      added: [...written].filter((id) => !stored.has(id)).length,
+      removed: [...stored].filter((id) => !written.has(id)).length,
+    };
+  }
+  let cards = 0;
+  for (const [id, facts] of res.cards) if (facts.roles?.length && staged.has(id)) cards++;
+  return {
+    tag_ids: tagIds,
+    status: res.roles.status,
+    stale_since: res.roles.staleSince,
+    counts,
+    cards,
+    error: res.roles.notes.join("; ") || null,
+  };
 }

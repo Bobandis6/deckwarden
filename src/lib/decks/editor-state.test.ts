@@ -16,6 +16,7 @@ import {
   setQty,
   setTags,
   singleQtyIncrease,
+  swapCard,
   toSavePayload,
   zoneQty,
   type EditorEntry,
@@ -269,6 +270,53 @@ describe("replaceLeader (R3 — the max-1 leader zone swap)", () => {
 
   it("refuses an unknown zone", () => {
     expect(replaceLeader([], STANDARD, "sideboard", "x").error).toBe('Unknown zone "sideboard"');
+  });
+});
+
+describe("swapCard (Y7a — Swap Lab's one-for-one)", () => {
+  const list = () => [
+    entry({ cardId: "kenrith", zone: "commander" }),
+    entry({ cardId: "sol", tags: ["Ramp"], printingId: "p1" }),
+    entry({ cardId: "bolt" }),
+  ];
+
+  it("replaces a single copy in place — the new card takes the row, without its tags or printing", () => {
+    const result = swapCard(list(), COMMANDER, "main", "sol", "signet");
+    expect(result.error).toBeUndefined();
+    expect(result.entries).toEqual([
+      entry({ cardId: "kenrith", zone: "commander" }),
+      { cardId: "signet", zone: "main", qty: 1, tags: [] },
+      entry({ cardId: "bolt" }),
+    ]);
+    expect(deckSizeCount(result.entries, COMMANDER)).toBe(deckSizeCount(list(), COMMANDER));
+  });
+
+  it("with more copies, one leaves and one joins — an existing row of the new card increments", () => {
+    const many = [entry({ cardId: "rats", qty: 3 }), entry({ cardId: "seer", qty: 1 })];
+    expect(swapCard(many, COMMANDER, "main", "rats", "bolt").entries).toEqual([
+      entry({ cardId: "rats", qty: 2 }),
+      entry({ cardId: "seer" }),
+      { cardId: "bolt", zone: "main", qty: 1, tags: [] },
+    ]);
+    expect(swapCard(many, COMMANDER, "main", "rats", "seer").entries).toEqual([
+      entry({ cardId: "rats", qty: 2 }),
+      entry({ cardId: "seer", qty: 2 }),
+    ]);
+  });
+
+  it("undoes exactly: the new card back to its quantity, the old row restored at its index", () => {
+    const before = list();
+    const swapped = swapCard(before, COMMANDER, "main", "sol", "signet").entries;
+    const back = setQty(swapped, COMMANDER, "main", "signet", 0).entries;
+    expect(restoreEntry(back, COMMANDER, before[1], 1).entries).toEqual(before);
+  });
+
+  it("refuses a card that left meanwhile, and a swap for itself changes nothing", () => {
+    expect(swapCard(list(), COMMANDER, "main", "gone", "signet").error).toBe(
+      "That card isn't in the deck anymore",
+    );
+    expect(swapCard(list(), COMMANDER, "commander", "sol", "signet").error).toBeDefined();
+    expect(swapCard(list(), COMMANDER, "main", "sol", "sol").entries).toEqual(list());
   });
 });
 

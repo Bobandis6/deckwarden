@@ -6,6 +6,7 @@
  * index signature, which is what lets GameAdapter<MtgAttrs> flow through the
  * registry as a plain GameAdapter.
  */
+import type { MtgRoleKey } from "./roles";
 
 export type MtgFaceAttrs = {
   name?: string;
@@ -40,4 +41,10 @@ export type MtgAttrs = {
   mld?: "clear" | "edge";
   /** Scryfall Tagger's extra-turn. */
   extra_turn?: true;
+  /**
+   * Swap Lab's roles (Y7a, WAVE4 D8): the jobs Scryfall Tagger's community
+   * tags give the card, as our keys (./roles.ts), sorted; absent when none.
+   * Not a bracket flag — the read never takes it.
+   */
+  roles?: MtgRoleKey[];
 };

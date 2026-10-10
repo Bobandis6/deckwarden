@@ -137,6 +137,39 @@ export function restoreEntry(
   return { entries: [...entries.slice(0, at), removed, ...entries.slice(at)] };
 }
 
+/**
+ * Swap one copy for another card (Y7a, Swap Lab): one copy of `outId` leaves
+ * the zone and one copy of `inId` joins it, so the zone's count never moves
+ * (a full 100 stays 100). A single copy is replaced IN PLACE — the new card
+ * takes the row's position, without the old row's tags or printing (it is a
+ * different card); with more copies the old row loses one and the new card
+ * is added, an existing row of it incrementing. Undo is the caller's: put
+ * the new card back to its previous quantity, then `restoreEntry` the old
+ * row at its index.
+ */
+export function swapCard(
+  entries: readonly EditorEntry[],
+  format: FormatDef,
+  zoneId: string,
+  outId: string,
+  inId: string,
+): EditResult {
+  const at = entries.findIndex((e) => e.zone === zoneId && e.cardId === outId);
+  if (at < 0) return { entries: [...entries], error: "That card isn't in the deck anymore" };
+  if (outId === inId) return { entries: [...entries] };
+  const out = entries[at];
+  const existingIn = entries.some((e) => e.zone === zoneId && e.cardId === inId);
+  if (out.qty === 1 && !existingIn) {
+    return {
+      entries: entries.map((e, i) =>
+        i === at ? { cardId: inId, zone: zoneId, qty: 1, tags: [] } : e,
+      ),
+    };
+  }
+  const lessOut = setQty(entries, format, zoneId, outId, out.qty - 1).entries;
+  return addCard(lessOut, format, zoneId, inId, 1);
+}
+
 /** Set an entry's quantity; 0 or less removes it. Zone maximums re-checked on increase. */
 export function setQty(
   entries: readonly EditorEntry[],

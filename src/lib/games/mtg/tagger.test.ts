@@ -1,13 +1,16 @@
 /**
  * Y3a — the Tagger flags' pure half: the hand-edited overrides file (strict:
  * a typo fails before any write), the roll-up over descendant tags, and the
- * fallback rule (a failing source never lowers the read).
+ * fallback rule (a failing source never lowers the read). Y7a adds Swap
+ * Lab's roles: the file's `roles` switchboard, the except roll-up, and the
+ * same fallback per role.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { MTG_ROLE_KEYS, MTG_ROLES, mtgRole, type MtgRoleKey } from "./roles";
 import {
   indexTagLine,
   isUnreviewedMld,
@@ -15,7 +18,9 @@ import {
   parseTaggerOverrides,
   resolveTagger,
   rollUp,
+  rollUpRole,
   taggerCounts,
+  taggerRoleStats,
   type TagIndex,
   type TaggerFlag,
   type TaggerInputs,
@@ -35,10 +40,17 @@ const DISABLED = id(4);
 const TIME_WARP = id(5);
 const CHILD_ONLY = id(6);
 
+/** Every declared role switched on — the file's `roles` key (Y7a). */
+const allRoles = (over: Record<string, unknown> = {}) => ({
+  ...Object.fromEntries(MTG_ROLE_KEYS.map((k) => [k, { enabled: true }])),
+  ...over,
+});
+
 function file(over: Record<string, unknown> = {}, mld: Record<string, unknown> = {}) {
   return {
     $comment: ["ignored"],
     reviewed: "2026-10-01",
+    roles: allRoles(),
     flags: {
       mld: {
         tag: { id: MLD_TAG, slug: "mass-land-denial" },
@@ -326,5 +338,160 @@ describe("taggerCounts", () => {
     expect(counts.mld).toMatchObject({ flagged: 1, edge: 1, unreviewed: 1, listed_untagged: 3 });
     const kept = resolveTagger(inputs({ index: null }));
     expect(taggerCounts(kept, overrides(), NONE, staged).mld.listed_untagged).toBeNull();
+  });
+});
+
+// --- Y7a: Swap Lab's roles -------------------------------------------------------
+
+const RAMP = mtgRole("ramp");
+const ROCK = mtgRole("mana-rock");
+const TUTOR = mtgRole("tutor");
+const TUTOR_LAND = TUTOR.except![0].id;
+const SOL_RING = id(20);
+const DEMONIC = id(21);
+const CULTIVATE = id(22);
+const SIGNET = id(23);
+
+/** A bulk where every role's tag exists; `ramp` rolls up `mana-rock`, `tutor` holds a land tutor. */
+function roleBulk(extra: string[] = []): TagIndex {
+  const lines = MTG_ROLES.flatMap((r) =>
+    ("except" in r ? r.except : []).map((e) => line(e.id, e.id === TUTOR_LAND ? [CULTIVATE] : [])),
+  );
+  for (const r of MTG_ROLES) {
+    if (r.key === "ramp") lines.push(line(r.tag.id, [CULTIVATE], [ROCK.tag.id]));
+    else if (r.key === "mana-rock") lines.push(line(r.tag.id, [SOL_RING, SIGNET]));
+    else if (r.key === "tutor") lines.push(line(r.tag.id, [DEMONIC], [TUTOR_LAND]));
+    else lines.push(line(r.tag.id, [id(100 + MTG_ROLE_KEYS.indexOf(r.key))]));
+  }
+  return bulk(line(MLD_TAG, [ARMAGEDDON]), line(TURN_TAG, [TIME_WARP]), ...lines, ...extra);
+}
+
+describe("the roles switchboard in the overrides file", () => {
+  it("parses the real file: every declared role listed and on", () => {
+    const raw = JSON.parse(
+      readFileSync(path.join(process.cwd(), "data/mtg/tagger-overrides.json"), "utf8"),
+    ) as unknown;
+    const o = parseTaggerOverrides(raw);
+    expect(Object.keys(o.roles)).toEqual([...MTG_ROLE_KEYS]);
+    expect(Object.values(o.roles).every((r) => r.enabled)).toBe(true);
+  });
+
+  it("fails loudly on a role it doesn't declare, a missing role, or a non-boolean switch", () => {
+    const bad: Array<[unknown, RegExp]> = [
+      [file({ roles: undefined }), /roles must be an object/],
+      [file({ roles: [] }), /roles must be an object/],
+      [file({ roles: allRoles({ tutors: { enabled: true } }) }), /unknown role "tutors"/],
+      [file({ roles: { ...allRoles(), ramp: undefined } }), /roles\.ramp is missing/],
+      [file({ roles: allRoles({ burn: { enabled: "no" } }) }), /roles\.burn\.enabled must be/],
+    ];
+    for (const [raw, message] of bad) {
+      expect(() => parseTaggerOverrides(raw)).toThrow(message);
+    }
+  });
+});
+
+describe("rollUpRole", () => {
+  it("takes the except tags' cards back out, wherever else they're tagged", () => {
+    const index = roleBulk();
+    expect(rollUpRole(index, TUTOR)).toEqual(new Set([DEMONIC]));
+    expect(rollUp(index, TUTOR.tag.id)).toEqual(new Set([DEMONIC, CULTIVATE]));
+    expect(rollUpRole(index, RAMP)).toEqual(new Set([CULTIVATE, SOL_RING, SIGNET]));
+  });
+
+  it("is null when the bulk lacks the tag or an except tag (a missing except never widens a role)", () => {
+    expect(rollUpRole(bulk(), TUTOR)).toBeNull();
+    expect(rollUpRole(bulk(line(TUTOR.tag.id, [DEMONIC])), TUTOR)).toBeNull();
+  });
+});
+
+describe("resolveTagger — roles", () => {
+  it("fresh: each card gets its role keys, sorted, beside its flags", () => {
+    // A later line for a tag replaces it: Armageddon stays, Sol Ring joins (a fixture, not a claim).
+    const res = resolveTagger(inputs({ index: roleBulk([line(MLD_TAG, [ARMAGEDDON, SOL_RING])]) }));
+    expect(new Set(Object.values(res.roles.status))).toEqual(new Set(["fresh"]));
+    expect(res.roles.notes).toEqual([]);
+    expect(res.cards.get(SOL_RING)).toEqual({ mld: "edge", roles: ["mana-rock", "ramp"] });
+    expect(res.cards.get(CULTIVATE)).toEqual({ roles: ["ramp"] });
+    expect(res.cards.get(DEMONIC)).toEqual({ roles: ["tutor"] });
+    expect(res.cards.get(ARMAGEDDON)).toEqual({ mld: "clear" });
+  });
+
+  it("a failed read keeps each role's stored cards, and stale_since is carried per role", () => {
+    const storedRoles = { "mana-rock": new Set([SOL_RING]), ramp: new Set([SOL_RING]) };
+    const res = resolveTagger(
+      inputs({
+        index: null,
+        storedRoles,
+        previousRoleStaleSince: { ramp: "2026-10-09T15:00:00.000Z" },
+      }),
+    );
+    expect(res.roles.status.ramp).toBe("kept");
+    expect(res.roles.staleSince.ramp).toBe("2026-10-09T15:00:00.000Z");
+    expect(res.roles.staleSince["mana-rock"]).toBe("2026-10-02T10:37:00.000Z");
+    expect(res.cards.get(SOL_RING)).toEqual({ roles: ["mana-rock", "ramp"] });
+    expect(res.roles.notes).toEqual([]); // the read's own error is the caller's to report
+  });
+
+  it("a role whose tag is missing or tags nothing keeps its own cards; the others stay fresh", () => {
+    const withoutRock = new Map(roleBulk());
+    withoutRock.delete(ROCK.tag.id);
+    const res = resolveTagger(
+      inputs({ index: withoutRock, storedRoles: { "mana-rock": new Set([SIGNET]) } }),
+    );
+    expect(res.roles.status["mana-rock"]).toBe("kept");
+    expect(res.roles.status.ramp).toBe("fresh");
+    expect(res.roles.notes).toEqual([
+      `role mana-rock: the pinned tag mana-rock or one of its except tags is not in the bulk`,
+    ]);
+    expect(res.notes).toEqual([]); // the flags' notes stay the flags'
+    expect(res.cards.get(SIGNET)).toEqual({ roles: ["mana-rock"] });
+    // ramp's roll-up lost the rock child too, so Sol Ring holds nothing tonight.
+    expect(res.cards.get(SOL_RING)).toBeUndefined();
+
+    const empty = new Map(roleBulk());
+    empty.set(ROCK.tag.id, { childIds: [], oracleIds: [] });
+    const res2 = resolveTagger(inputs({ index: empty }));
+    expect(res2.roles.status["mana-rock"]).toBe("kept");
+    expect(res2.roles.notes[0]).toMatch(/role mana-rock: the pinned tag mana-rock .* tags no card/);
+  });
+
+  it("a switched-off role is written for no card and isn't stale", () => {
+    const off = parseTaggerOverrides(
+      file({ roles: allRoles({ "mana-rock": { enabled: false } }) }),
+    );
+    const res = resolveTagger(
+      inputs({
+        overrides: off,
+        index: roleBulk(),
+        storedRoles: { "mana-rock": new Set([SOL_RING]) },
+      }),
+    );
+    expect(res.roles.status["mana-rock"]).toBe("disabled");
+    expect(res.roles.staleSince["mana-rock"]).toBeNull();
+    expect(res.cards.get(SOL_RING)).toEqual({ roles: ["ramp"] }); // ramp still rolls the rocks up
+    expect([...res.cards.values()].some((c) => c.roles?.includes("mana-rock"))).toBe(false);
+  });
+
+  it("without stored roles or a previous run, a failed read writes no role at all", () => {
+    const res = resolveTagger(inputs({ index: null }));
+    expect([...res.cards.values()].some((c) => c.roles !== undefined)).toBe(false);
+    expect(new Set(Object.values(res.roles.status))).toEqual(new Set(["kept"]));
+  });
+});
+
+describe("taggerRoleStats", () => {
+  it("counts per role what was tagged, written, added and removed, and the cards holding one", () => {
+    const storedRoles: Partial<Record<MtgRoleKey, ReadonlySet<string>>> = {
+      "mana-rock": new Set([SOL_RING, id(99)]),
+    };
+    const res = resolveTagger(inputs({ index: roleBulk(), storedRoles }));
+    const staged = new Set([SOL_RING, CULTIVATE, DEMONIC]); // Signet isn't staged tonight
+    const stats = taggerRoleStats(res, storedRoles, staged);
+    expect(stats.counts["mana-rock"]).toEqual({ tagged: 2, written: 1, added: 0, removed: 1 });
+    expect(stats.counts.ramp).toEqual({ tagged: 3, written: 2, added: 2, removed: 0 });
+    expect(stats.tag_ids.tutor).toBe(TUTOR.tag.id);
+    expect(stats.status.tutor).toBe("fresh");
+    expect(stats.cards).toBe(3);
+    expect(stats.error).toBeNull();
   });
 });

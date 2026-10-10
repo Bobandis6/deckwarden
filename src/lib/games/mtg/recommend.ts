@@ -12,6 +12,7 @@
  * computed/curated advice is fine, faked community stats are not).
  */
 import type { AutofillMeta, CurveCardInput, RecommendMeta } from "../types";
+import { mtgSwap } from "./swap";
 
 /**
  * Editorial nonland target curve, buckets 0–7+ (the analytics histogram
@@ -332,10 +333,15 @@ export const mtgRecommend: RecommendMeta = {
     "land-template": { label: "Land template" },
     "role-template": { label: "Role template" },
     price: { label: "Card price" },
+    // Swap Lab's role matches (Y7a): community tags, credited and linked (D0).
+    scryfall_tagger: { label: "Scryfall Tagger", href: "https://tagger.scryfall.com" },
   },
 
   // Starter-shell autofill (W9a) — declared above, consumed by the core planner.
   autofill: mtgAutofill,
+
+  // Swap Lab (Y7a): alternatives by shared Tagger roles, phrased in ./swap.ts.
+  swap: mtgSwap,
 
   // Basic lands are never advice (hub staples precedent).
   exclude: [{ jsonbPath: ["type_line"], likePattern: "%Basic%" }],

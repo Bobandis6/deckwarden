@@ -23,12 +23,18 @@
  * "Use this printing in deck" (rendered with the in-deck line when the card
  * has an entry, the TagEditor idiom) goes through the editor's real edit
  * path via `printing.onSetPrinting`.
+ *
+ * Y7a adds Swap Lab's Alternatives (./alternatives-section.tsx) between the
+ * footer line and Printings, on the same terms: closed by default, asked on
+ * first open, and present only when the editor hands over a `swap` — the
+ * shown card is in the main list and the adapter offers alternatives.
  */
 import { ArrowRightIcon, ArrowUpRightIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
+import { AlternativesSection, type SwapEditing } from "@/components/editor/alternatives-section";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -69,11 +75,14 @@ export function CardDetailPane({
   card,
   tagging = null,
   printing = null,
+  swap = null,
 }: {
   adapter: GameAdapter;
   card: EditorCard | null;
   tagging?: TagEditing | null;
   printing?: PrintingEditing | null;
+  /** Y7a: present only for a main-list card the adapter offers alternatives for. */
+  swap?: SwapEditing | null;
 }) {
   // Printings sub-state (W6) lives on the pane, not a keyed child: the rows
   // cache must survive card switches (one fetch per card per pane session),
@@ -182,6 +191,9 @@ export function CardDetailPane({
           </Link>
         </span>
       </p>
+
+      {/* Y7a: Swap Lab's Alternatives — per card (a fresh section each), asked on open. */}
+      {swap && <AlternativesSection key={card.id} adapter={adapter} card={card} swap={swap} />}
 
       {/* D5: after the footer line, closed by default. The count appears once
           fetched — the pane can't know N without the request R2 forbids

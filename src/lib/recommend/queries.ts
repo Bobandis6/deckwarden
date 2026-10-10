@@ -10,6 +10,12 @@
  * The deterministic candidate filter lives here as ONE condition builder
  * shared by both entry points (popularity pool + combo-candidate recheck),
  * so "legal / color-fit / budget / not-in-deck" cannot drift apart.
+ *
+ * Swap Lab (Y7a, WAVE4 D8) narrows the same filter, never a second one: a
+ * `cost_value` window joins the scope whitelist, and `roles` keeps the cards
+ * that share at least one of the swapped card's roles — matched with `@>`
+ * per role, which the jsonb_path_ops GIN (ci_attrs_gin) serves (`?|` would
+ * not) — while the pool orders the closest matches first.
  */
 import { and, asc, desc, eq, inArray, notInArray, sql, type SQL } from "drizzle-orm";
 
@@ -41,21 +47,83 @@ export interface CandidateFilter {
   /** Adapter's never-advise rules (MTG: basic lands). */
   exclude?: RecommendMeta["exclude"];
   /**
-   * Column scope (W9a): restricts the pool by one WHITELISTED column, the
-   * way `exclude` goes through this builder — never string-built SQL. The
+   * Column scope (W9a): restricts the pool by WHITELISTED columns, the way
+   * `exclude` goes through this builder — never string-built SQL. The
    * autofill route derives it from the adapter's `autofill.base.scope`
    * (curve pool `ne` Land, base pool `eq` Land). `ne` is IS DISTINCT FROM,
-   * so NULL-typed cards stay in the `ne` pool (they are not Lands).
+   * so NULL-typed cards stay in the `ne` pool (they are not Lands). Y7a: a
+   * list ANDs its scopes, and `cost_value` takes an inclusive `between`
+   * (Swap Lab's window; a card without a cost never falls inside one).
    */
-  scope?: { column: "primary_type"; op: "eq" | "ne"; value: string };
+  scope?: CandidateScope | readonly CandidateScope[];
+  /**
+   * Shared roles (Y7a): only cards holding at least one of `any` in the
+   * adapter's declared single-segment attrs path (`swap.rolesPath`). An
+   * empty `any` matches nothing — a card with no role has no alternatives.
+   */
+  roles?: { path: string; any: readonly string[] };
 }
+
+/** One whitelisted column scope (W9a; Y7a adds the cost window). */
+export type CandidateScope =
+  | { column: "primary_type"; op: "eq" | "ne"; value: string }
+  | { column: "cost_value"; op: "between"; min: number; max: number };
 
 /** The scope whitelist: every column a CandidateFilter.scope may name. */
 const SCOPE_COLUMNS = {
   primary_type: cardIdentities.primaryType,
+  cost_value: cardIdentities.costValue,
 } as const;
 
 const JSONB_KEY_RE = /^[a-z0-9_]+$/;
+
+/** A role key as adapters declare them (kebab-case) — checked before it reaches a parameter. */
+const ROLE_KEY_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function scopeCondition(scope: CandidateScope): SQL {
+  if (!Object.hasOwn(SCOPE_COLUMNS, scope.column)) {
+    throw new Error(`Invalid scope column: ${scope.column}`);
+  }
+  if (scope.column === "cost_value") {
+    const { op, min, max } = scope;
+    if (op !== "between" || !Number.isInteger(min) || !Number.isInteger(max) || min > max) {
+      throw new Error("Invalid scope on cost_value: an integer between min and max");
+    }
+    return sql`${SCOPE_COLUMNS.cost_value} BETWEEN ${min} AND ${max}`;
+  }
+  const column = SCOPE_COLUMNS.primary_type;
+  if (scope.op === "eq") return sql`${column} = ${scope.value}`;
+  if (scope.op === "ne") return sql`${column} IS DISTINCT FROM ${scope.value}`;
+  throw new Error(`Invalid scope op on primary_type: ${String((scope as { op: unknown }).op)}`);
+}
+
+/** The containment document for one role — `{"roles": ["mana-rock"]}`, a bound parameter. */
+function roleDocument(path: string, role: string): string {
+  if (!JSONB_KEY_RE.test(path)) throw new Error(`Invalid roles path: ${path}`);
+  if (!ROLE_KEY_RE.test(role)) throw new Error(`Invalid role: ${role}`);
+  return JSON.stringify({ [path]: [role] });
+}
+
+/**
+ * How many of `roles.any` a card holds (Y7a) — one `@>` per role, summed.
+ * Exported for tests; the pool orders by it, the closest matches first.
+ */
+export function sharedRolesCount(roles: NonNullable<CandidateFilter["roles"]>): SQL<number> {
+  if (roles.any.length === 0) return sql<number>`0`;
+  const terms = roles.any.map(
+    (r) => sql`(${cardIdentities.attrs} @> ${roleDocument(roles.path, r)}::jsonb)::int`,
+  );
+  return sql<number>`(${sql.join(terms, sql` + `)})`;
+}
+
+/** Shares a role: an OR of `@>` per role — each one a ci_attrs_gin bitmap scan. */
+function rolesCondition(roles: NonNullable<CandidateFilter["roles"]>): SQL {
+  if (roles.any.length === 0) return sql`false`;
+  const terms = roles.any.map(
+    (r) => sql`${cardIdentities.attrs} @> ${roleDocument(roles.path, r)}::jsonb`,
+  );
+  return sql`(${sql.join(terms, sql` OR `)})`;
+}
 
 /** Exported for tests: the deterministic filter, one condition list. */
 export function candidateConditions(f: CandidateFilter): SQL[] {
@@ -91,15 +159,10 @@ export function candidateConditions(f: CandidateFilter): SQL[] {
       f.ownedCardIds.size === 0 ? sql`false` : inArray(cardIdentities.id, [...f.ownedCardIds]),
     );
   }
-  if (f.scope !== undefined) {
-    const column = SCOPE_COLUMNS[f.scope.column];
-    if (!column) throw new Error(`Invalid scope column: ${f.scope.column}`);
-    conditions.push(
-      f.scope.op === "eq"
-        ? sql`${column} = ${f.scope.value}`
-        : sql`${column} IS DISTINCT FROM ${f.scope.value}`,
-    );
-  }
+  const scopes: readonly CandidateScope[] =
+    f.scope === undefined ? [] : Array.isArray(f.scope) ? f.scope : [f.scope as CandidateScope];
+  for (const scope of scopes) conditions.push(scopeCondition(scope));
+  if (f.roles !== undefined) conditions.push(rolesCondition(f.roles));
   return conditions;
 }
 
@@ -123,8 +186,27 @@ export function flagsColumn(flagPaths: FlagPaths | undefined): SQL<Record<string
   >`jsonb_strip_nulls(jsonb_build_object(${sql.join(pairs, sql`, `)}))`;
 }
 
-/** The candidate rows' columns — with the adapter's flags (Y6a) and the external key the read's questions use. */
-function candidateProjection(flagPaths: FlagPaths | undefined) {
+/**
+ * A card's roles (Y7a) as the declared path holds them — a jsonb array, or
+ * null for a card with none. Exported for tests; the path faces exclude's
+ * key check before `sql.raw`.
+ */
+export function rolesColumn(path: string): SQL<unknown> {
+  if (!JSONB_KEY_RE.test(path)) throw new Error(`Invalid roles path: ${path}`);
+  return sql<unknown>`${cardIdentities.attrs}->${sql.raw(`'${path}'`)}`;
+}
+
+/** Role keys off a jsonb value: strings only, anything else none. */
+export function roleKeys(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((r): r is string => typeof r === "string") : [];
+}
+
+/**
+ * The candidate rows' columns — with the adapter's flags (Y6a) and the
+ * external key the read's questions use; with the filter's roles path
+ * (Y7a), each card's roles too.
+ */
+function candidateProjection(flagPaths: FlagPaths | undefined, rolesPath?: string) {
   return {
     id: cardIdentities.id,
     name: cardIdentities.name,
@@ -135,25 +217,47 @@ function candidateProjection(flagPaths: FlagPaths | undefined) {
     popularity: cardIdentities.popularity,
     externalKey: cardIdentities.externalKey,
     flags: flagsColumn(flagPaths),
+    ...(rolesPath !== undefined ? { roles: rolesColumn(rolesPath) } : {}),
   };
+}
+
+/** Rows to CandidateCards: the roles column, when selected, becomes plain keys. */
+function toCandidates(
+  rows: (Omit<CandidateCard, "roles"> & { roles?: unknown })[],
+): CandidateCard[] {
+  return rows.map(({ roles, ...row }) =>
+    roles === undefined ? row : { ...row, roles: roleKeys(roles) },
+  );
 }
 
 /**
  * The popularity-ranked candidate pool (the staples query, parameterized).
  * Requires a popularity value — this pool IS the popularity signal; cards
- * without one can still enter through combo participation.
+ * without one can still enter through combo participation. With `roles`
+ * (Y7a) the cards sharing the most roles come first, then by popularity, so
+ * the cut keeps the closest matches.
  */
 export async function loadCandidatePool(
   filter: CandidateFilter,
   limit: number,
   flagPaths?: FlagPaths,
 ): Promise<CandidateCard[]> {
-  return getDb()
-    .select(candidateProjection(flagPaths))
+  const rows = await getDb()
+    .select(candidateProjection(flagPaths, filter.roles?.path))
     .from(cardIdentities)
     .where(and(...candidateConditions(filter), sql`${cardIdentities.popularity} IS NOT NULL`))
-    .orderBy(asc(cardIdentities.popularity), asc(cardIdentities.id))
+    .orderBy(...candidatePoolOrder(filter))
     .limit(limit);
+  return toCandidates(rows);
+}
+
+/** The pool's order (exported for tests): the most shared roles first (Y7a), then popularity, then id. */
+export function candidatePoolOrder(filter: CandidateFilter): SQL[] {
+  return [
+    ...(filter.roles ? [desc(sharedRolesCount(filter.roles))] : []),
+    asc(cardIdentities.popularity),
+    asc(cardIdentities.id),
+  ];
 }
 
 /** Combo-sourced candidates re-checked through the SAME deterministic filter. */
@@ -163,10 +267,11 @@ export async function loadCandidateRows(
   flagPaths?: FlagPaths,
 ): Promise<CandidateCard[]> {
   if (ids.length === 0) return [];
-  return getDb()
-    .select(candidateProjection(flagPaths))
+  const rows = await getDb()
+    .select(candidateProjection(flagPaths, filter.roles?.path))
     .from(cardIdentities)
     .where(and(...candidateConditions(filter), inArray(cardIdentities.id, [...ids])));
+  return toCandidates(rows);
 }
 
 /**
@@ -288,8 +393,8 @@ export async function loadTournamentCandidates(
   flagPaths?: FlagPaths,
 ): Promise<CandidateCard[]> {
   if (leaderIds.length === 0) return [];
-  return getDb()
-    .select(candidateProjection(flagPaths))
+  const rows = await getDb()
+    .select(candidateProjection(flagPaths, filter.roles?.path))
     .from(commanderCardStats)
     .innerJoin(cardIdentities, eq(cardIdentities.id, commanderCardStats.cardIdentityId))
     .where(
@@ -300,6 +405,7 @@ export async function loadTournamentCandidates(
     )
     .orderBy(desc(commanderCardStats.lists), asc(cardIdentities.id))
     .limit(limit);
+  return toCandidates(rows);
 }
 
 /**
@@ -346,7 +452,14 @@ export async function loadEntryFacts(
   gameId: number,
   ids: readonly string[],
   flagPaths?: FlagPaths,
-): Promise<Map<string, ReadFacts & { primaryType: string | null; costValue: number | null }>> {
+  /** Y7a: the adapter's roles path — each card's roles ride the same statement. */
+  rolesPath?: string,
+): Promise<
+  Map<
+    string,
+    ReadFacts & { primaryType: string | null; costValue: number | null; roles?: string[] }
+  >
+> {
   if (ids.length === 0) return new Map();
   const rows = await getDb()
     .select({
@@ -354,6 +467,7 @@ export async function loadEntryFacts(
       primaryType: cardIdentities.primaryType,
       costValue: cardIdentities.costValue,
       ...readFactsColumns(flagPaths),
+      ...(rolesPath !== undefined ? { roles: rolesColumn(rolesPath) } : {}),
     })
     .from(cardIdentities)
     .where(
@@ -363,7 +477,12 @@ export async function loadEntryFacts(
         inArray(cardIdentities.id, [...new Set(ids)]),
       ),
     );
-  return new Map(rows.map((r) => [r.id, r]));
+  return new Map(
+    rows.map(({ roles, ...r }) => [
+      r.id,
+      rolesPath !== undefined ? { ...r, roles: roleKeys(roles) } : r,
+    ]),
+  );
 }
 
 /**
@@ -379,7 +498,7 @@ export async function loadFillerRows(
   names: readonly string[],
 ): Promise<CandidateCard[]> {
   if (names.length === 0) return [];
-  return getDb()
+  const rows = await getDb()
     .select(candidateProjection(undefined))
     .from(cardIdentities)
     .where(
@@ -396,6 +515,7 @@ export async function loadFillerRows(
             AND l.status IN ('banned', 'not_legal'))`,
       ),
     );
+  return toCandidates(rows);
 }
 
 /**

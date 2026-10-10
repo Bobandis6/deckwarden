@@ -391,6 +391,37 @@ export interface AutofillMeta {
   curveLabel(bucketLabel: string): string;
 }
 
+/**
+ * Swap Lab declaration (Y7a, WAVE4 D8) — pure data + pure phrasing the core
+ * (src/lib/recommend/alternatives.ts, POST /api/alternatives, the Card tab)
+ * consumes. "Does the same job" means shared roles from a named source the
+ * adapter stores in `attrs` (Magic: Scryfall Tagger's community function
+ * tags); core names no role and no source, and its words never claim two
+ * cards do exactly the same thing.
+ */
+export interface SwapMeta {
+  /** The single-segment attrs path holding a card's role keys (MTG: "roles"). */
+  rolesPath: string;
+  /** Every role a card can hold, display order: the stored key, our label, the source's page for it. */
+  roles: readonly { key: string; label: string; href: string }[];
+  /** Evidence-source slug for a role match; the sibling `sources` map credits it. */
+  source: string;
+  /** The role match's evidence line over the shared roles' labels, display order. */
+  evidence(sharedLabels: readonly string[]): { why: string };
+  /** Whether a card gets alternatives at all (MTG: everything but lands — LATER row 31). */
+  offers(card: CurveCardInput): boolean;
+  /** Candidates' own scope beside the cost window, through the query whitelist (MTG: nonland). */
+  candidateScope?: { column: "primary_type"; op: "eq" | "ne"; value: string };
+  /** Half-width of the cost window around the swapped card's cost (MTG: 1 — the gold set's best). */
+  costWindow: number;
+  /**
+   * A candidate's fact chips in the game's words, next to the outgoing card
+   * (MTG: "Mana value 2", the Game Changer status). Prices and roles are
+   * core's chips.
+   */
+  chips(out: CardData, candidate: CardData): string[];
+}
+
 export interface RecommendMeta {
   /**
    * What CardData.popularity is for this game (MTG: edhrec_rank). Absent =
@@ -475,6 +506,12 @@ export interface RecommendMeta {
    * from the API, no apology copy.
    */
   autofill?: AutofillMeta;
+  /**
+   * Swap Lab (Y7a, WAVE4 D8): alternatives that share a card's job. Absent =
+   * no Alternatives section and a 400 from POST /api/alternatives, no
+   * apology copy (One Piece).
+   */
+  swap?: SwapMeta;
   /**
    * Cards that are never advice (MTG: basic lands — "Forest is not advice").
    * Declarative single-segment attrs paths the core translates to SQL

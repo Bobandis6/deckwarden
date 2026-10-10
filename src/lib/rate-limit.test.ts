@@ -61,4 +61,20 @@ describe("RATE_LIMITS policies", () => {
       [200, 3600],
     ]);
   });
+
+  it("Swap Lab's route (Y7a) has its own bucket too, shared with no other route", () => {
+    const own = RATE_LIMITS.alternatives("1.2.3.4").map((l) => l.key);
+    expect(own).toEqual(["alternatives:ip:1.2.3.4", "alternatives:ip-hour:1.2.3.4"]);
+    for (const [name, policy] of Object.entries(RATE_LIMITS)) {
+      if (name === "alternatives") continue;
+      const keys = (policy as (p: string, d: string) => RateLimit[])("1.2.3.4", "deck").map(
+        (l) => l.key,
+      );
+      expect(keys.some((key) => own.includes(key))).toBe(false);
+    }
+    expect(RATE_LIMITS.alternatives("1.2.3.4").map((l) => [l.max, l.windowSeconds])).toEqual([
+      [30, 60],
+      [200, 3600],
+    ]);
+  });
 });

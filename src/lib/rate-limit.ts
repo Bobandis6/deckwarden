@@ -109,6 +109,17 @@ export const RATE_LIMITS = {
     { key: `recommend-snapshot:ip-hour:${ip ?? "unknown"}`, max: 200, windowSeconds: 3600 },
   ],
   /**
+   * POST /api/alternatives (Y7a) — Swap Lab: the same engine as the draft
+   * Suggestions POST aimed at one slot, body-driven and reachable without a
+   * deck row, so the same stance in its own bucket. The Card tab asks once
+   * per card per settled list when its Alternatives are opened, so neither
+   * number is reachable in honest use.
+   */
+  alternatives: (ip: string | null): RateLimit[] => [
+    { key: `alternatives:ip:${ip ?? "unknown"}`, max: 30, windowSeconds: 60 },
+    { key: `alternatives:ip-hour:${ip ?? "unknown"}`, max: 200, windowSeconds: 3600 },
+  ],
+  /**
    * GET /api/decks/[id]/combos — the Combo Radar read (P3.3). Cheaper than
    * recommendations (~4 queries vs ~6, no ranking pass) but publicly
    * reachable the same way and fetched under the same once-per-settled-save

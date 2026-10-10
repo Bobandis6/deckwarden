@@ -205,6 +205,7 @@ export interface PrintingRow {
 /**
  * Typed as MtgAttrs (LATER row, fired by P2.5) so the attrs contract can't drift from ingest.
  * Bracket facts are sparse (Y3a): `game_changer` only when true, Tagger flags only when given.
+ * Swap Lab's roles (Y7a) likewise: written only when the card has at least one.
  */
 function buildAttrs(card: ScryfallCard, flags: TaggerCardFlags): MtgAttrs {
   const faces = card.card_faces;
@@ -241,6 +242,7 @@ function buildAttrs(card: ScryfallCard, flags: TaggerCardFlags): MtgAttrs {
   if (card.game_changer === true) attrs.game_changer = true;
   if (flags.mld) attrs.mld = flags.mld;
   if (flags.extra_turn) attrs.extra_turn = true;
+  if (flags.roles?.length) attrs.roles = [...flags.roles];
   return attrs;
 }
 
@@ -290,7 +292,7 @@ export function dedupeReversibleFaces(card: ScryfallCard): ScryfallCard {
   };
 }
 
-/** `flags`: this card's Scryfall Tagger flags, resolved by the ingest before staging (Y3a). */
+/** `flags`: this card's Scryfall Tagger flags and roles, resolved by the ingest before staging (Y3a, Y7a). */
 export function mapIdentity(
   rawCard: ScryfallCard,
   todayIso: string,

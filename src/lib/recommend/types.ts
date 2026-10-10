@@ -63,6 +63,8 @@ export interface CandidateCard {
    * Facts for the goals check, never evidence and never scored.
    */
   flags: Record<string, unknown>;
+  /** Swap Lab's role keys (Y7a) — present only when the gather asked for roles. */
+  roles?: string[];
 }
 
 /** One combo a candidate would complete the card requirements of. */

@@ -346,6 +346,19 @@ describe("mapIdentity", () => {
     });
     expect(JSON.parse(mapIdentity(bolt, TODAY, {}).attrs)).toEqual(plain);
   });
+
+  // Y7a: Swap Lab's roles are sparse like the flags — a card the whitelist
+  // doesn't reach serializes exactly as before, so only role holders rewrite.
+  it("writes Swap Lab's roles when the ingest passes some, and none by default", () => {
+    const roles: ("burn" | "creature-removal")[] = ["burn", "creature-removal"];
+    const tagged = JSON.parse(mapIdentity(bolt, TODAY, { roles }).attrs);
+    expect(tagged.roles).toEqual(["burn", "creature-removal"]);
+    expect(tagged).toMatchObject({ type_line: "Instant", mana_cost: "{R}" });
+    expect(JSON.parse(mapIdentity(bolt, TODAY, { roles: [] }).attrs)).not.toHaveProperty("roles");
+    expect(JSON.parse(mapIdentity(bolt, TODAY).attrs)).not.toHaveProperty("roles");
+    const both = JSON.parse(mapIdentity(bolt, TODAY, { extra_turn: true, roles }).attrs);
+    expect(both).toMatchObject({ extra_turn: true, roles });
+  });
 });
 
 describe("gameChangerDigest", () => {
