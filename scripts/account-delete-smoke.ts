@@ -5,7 +5,9 @@
  * likes_count (the cascade alone would leave it high), and forks of the
  * deleted user's decks survive with their upstream pointer nulled (seeded by
  * SQL — no fork API exists until M3). P3.7: the user's imported collection
- * (collections.user_id ON DELETE CASCADE) must go with the account. Runs
+ * (collections.user_id ON DELETE CASCADE) must go with the account. Y9a:
+ * so must her logged games (deck_games cascades from decks) — and the
+ * played snapshot her game minted with them. Runs
  * against a live server + real DB — deliberately outside `pnpm check`.
  *
  * P2.9 round 2: also the wiring pin for the closed Better Auth routes
@@ -138,6 +140,16 @@ async function main() {
     const [{ n: collectionBefore }] =
       await sql`select count(*)::int as n from collections where user_id = ${alice.id}`;
     check("precondition: alice holds 1 collection row", Number(collectionBefore) === 1);
+    // A logged game (Y9a) — through the route, so it mints its played snapshot.
+    const logged = await api("POST", `/api/decks/${aliceDeck.id}/games`, {
+      cookie: alice.cookie,
+      body: { result: "win", podSize: 4 },
+    });
+    check(
+      "precondition: alice logs a game on her deck → 201, a played snapshot minted",
+      logged.status === 201 && j(logged.json).minted === true,
+      logged.json,
+    );
 
     const [{ n: bobLikesBefore }] =
       await sql`select likes_count as n from decks where id = ${bobDeck.id}`;
@@ -332,6 +344,14 @@ async function main() {
     const [{ n: collectionAfter }] =
       await sql`select count(*)::int as n from collections where user_id = ${alice.id}`;
     check("her collection gone (P3.7 cascade)", Number(collectionAfter) === 0);
+    const [{ games, versions }] = await sql`
+      select (select count(*)::int from deck_games where deck_id = ${aliceDeck.id}) as games,
+             (select count(*)::int from deck_versions where deck_id = ${aliceDeck.id}) as versions`;
+    check(
+      "her games gone, the played snapshot with them (Y9a cascade)",
+      Number(games) === 0 && Number(versions) === 0,
+      { games, versions },
+    );
 
     // The two invariants the cascade alone would break:
     const [bobRow] = await sql`

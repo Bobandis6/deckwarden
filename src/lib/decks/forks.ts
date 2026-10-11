@@ -11,7 +11,8 @@
  *
  * What copies: name + the live card list (zones, quantities, tags, chosen
  * printings) + the leader_ids/ci_mask denorms (same list, same denorm).
- * NOT copied: likes, bookmarks, versions, description/notes (the author's
+ * NOT copied: likes, bookmarks, versions, logged games (Y9a — a journal is
+ * its owner's record of their own games), description/notes (the author's
  * prose), visibility (forks are born unlisted like every create), claim
  * state (the forker's session is the ownership proof), goals (Y4b — the
  * target, answers and budget are the upstream owner's; the explicit

@@ -19,7 +19,10 @@ DIRECT_URL="${DATABASE_URL/-pooler./.}"
 # `precon_products` (W8a): forks, likes and bookmarks reference precon deck
 # ids — a restore without the product meta would orphan them and the next
 # ingest would collide on public_id.
-USER_TABLES="users decks deck_folders deck_cards deck_versions deck_likes deck_bookmarks collections precon_products"
+# `deck_games` (Y9a, migration 0018): the game journal — one row per logged
+# game, cascading from decks; its `version` numbers point into deck_versions
+# (no FK) and its opponents are external keys, so it restores as-is.
+USER_TABLES="users decks deck_folders deck_cards deck_versions deck_likes deck_bookmarks collections precon_products deck_games"
 EXISTING=$(psql "$DIRECT_URL" -Atc \
   "SELECT string_agg(tablename, ' ') FROM pg_tables WHERE schemaname='public'
    AND tablename = ANY(string_to_array('$USER_TABLES', ' '))")

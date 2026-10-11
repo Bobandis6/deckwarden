@@ -23,6 +23,10 @@
  * More than four options (the target's 1–5 · Not set) take 8 px of side
  * padding on coarse pointers instead of 12: equal segments as wide as the
  * widest label then fit a 360 px phone — each still at least 44 px wide.
+ *
+ * Y9a (the Games dialog's Players, 2–8): one-character labels made 24 px
+ * segments on a phone, so a touch item is never narrower than 44 px — a
+ * no-op wherever a label already made it wider (every other call site).
  */
 import type { CSSProperties } from "react";
 
@@ -101,7 +105,7 @@ export function Segmented<T extends string>({
             size="sm"
             className={cn(
               "text-muted-foreground hover:text-foreground h-auto min-w-0 rounded-none px-2 py-0.5 text-xs font-normal hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-accent-foreground data-[state=on]:bg-transparent",
-              touch && "pointer-coarse:min-h-11",
+              touch && "pointer-coarse:min-h-11 pointer-coarse:min-w-11",
               touch && (options.length > 4 ? "pointer-coarse:px-2" : "pointer-coarse:px-3"),
             )}
           >

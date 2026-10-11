@@ -759,6 +759,36 @@ export interface BracketComboBadge {
   source: string;
 }
 
+// ---------------------------------------------------------------------------
+// Journal (Y9a, WAVE4 D10) — the games an owner logs
+// ---------------------------------------------------------------------------
+
+/**
+ * What a logged game can say in this game. Pure data plus one pure label
+ * builder: core validates a game against these numbers
+ * (src/lib/journal/check.ts) and renders the choices from them. Core names
+ * stay game-agnostic — `pod`, `tableLevel`, `seat`; the words are the
+ * adapter's.
+ */
+export interface JournalMeta {
+  /** Players at the table, the logger included; `default` is a first visit's pick. */
+  pod: { min: number; max: number; default: number };
+  /**
+   * The level the table agreed to play at (Magic: the bracket). Absent =
+   * never asked and never stored. Empty unless the player picks one — no
+   * assumed value is ever stored as data.
+   */
+  tableLevel?: { noun: string; levels: readonly { level: number; name: string }[] };
+  /**
+   * The seat choices at a pod size — 1-based turn order, in the game's
+   * words: `label` on the choice ("2nd", "Went second"), `phrase` in a
+   * game's line ("went 2nd", "went second").
+   */
+  seats(podSize: number): readonly { seat: number; label: string; phrase: string }[];
+  /** Most leader cards one opponent's deck names (Magic: 2, partners; One Piece: 1). */
+  opponentLeaders: number;
+}
+
 /**
  * A game's power-level read (Y3b). Optional — a game without it shows no
  * bracket anywhere, with no apology copy (One Piece declares none).
@@ -989,6 +1019,12 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
    * this game. Pure data + pure functions; the IO is core.
    */
   brackets?: BracketsMeta<A>;
+
+  /**
+   * The game journal (Y9a, WAVE4 D10). Absent = no "Games…" and a 400 from
+   * the games routes, no apology copy. Declarative; the IO is core.
+   */
+  journal?: JournalMeta;
 
   capabilities: {
     /**

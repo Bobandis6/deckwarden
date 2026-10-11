@@ -62,8 +62,8 @@ export function DeleteAccount() {
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-muted-foreground text-sm">
-          Deleting your account permanently removes your decks, folders, likes, bookmarks, and
-          imported collection.
+          Deleting your account permanently removes your decks (with their versions and logged
+          games), folders, likes, bookmarks, and imported collection.
         </p>
         <Button
           variant="outline"
@@ -89,8 +89,8 @@ export function DeleteAccount() {
             <AlertDialogTitle>Delete account</AlertDialogTitle>
             <AlertDialogDescription>
               This permanently deletes your account and everything in it — all your decks (including
-              public ones), folders, likes, bookmarks, and your imported collection. There is no
-              undo and no grace period.
+              public ones, with their versions and logged games), folders, likes, bookmarks, and
+              your imported collection. There is no undo and no grace period.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-1.5">

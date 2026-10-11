@@ -45,7 +45,8 @@ import { cutCombosFromFacts, planSwapIn, type SwapInOption } from "@/lib/recomme
 type FinalFocus = ComponentProps<typeof Modal>["finalFocus"];
 type InitialFocus = ComponentProps<typeof Modal>["initialFocus"];
 
-function SheetShell({
+/** The editor's sheet split (Y7b): a bottom Drawer on phones, a Modal from md. Y9a's Games dialog shares it. */
+export function SheetShell({
   title,
   phone,
   initialFocus,

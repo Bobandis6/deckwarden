@@ -54,6 +54,14 @@ describe("Segmented", () => {
     }
   });
 
+  it("Y9a: a touch item is never narrower than 44 px — one-digit labels (Players 2–8) included", () => {
+    const pods = ["2", "3", "4", "5", "6", "7", "8"].map((label) => ({ value: label, label }));
+    render(<Segmented ariaLabel="Players" options={pods} value="4" onChange={() => {}} />);
+    for (const item of screen.getAllByRole("button")) {
+      expect(item.className).toContain("pointer-coarse:min-w-11");
+    }
+  });
+
   it("Y4b: a null value presses nothing and shows no thumb; the first pick changes it", () => {
     const onChange = vi.fn();
     const answers = [

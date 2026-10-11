@@ -4111,3 +4111,186 @@ describe("DeckEditor — Fit my budget (Y8, WAVE4 D9)", () => {
     expect(within(menu).queryByRole("menuitem", { name: "Fit my budget…" })).toBeNull();
   });
 });
+
+// ------------------------------------------------------------------- Y9a
+describe("DeckEditor — Games… (Y9a, WAVE4 D10)", () => {
+  /** Base UI menu triggers open on the pointer sequence, not a bare click. */
+  function openMenu(trigger: HTMLElement) {
+    fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
+    fireEvent.mouseDown(trigger, { button: 0 });
+    fireEvent.click(trigger, { button: 0 });
+  }
+  async function pollFor<T>(query: () => T | null): Promise<T> {
+    for (let i = 0; i < 40; i++) {
+      const found = query();
+      if (found) return found;
+      await settle(50);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("pollFor: never appeared");
+  }
+  const logged = (over: Record<string, unknown> = {}) => ({
+    game: {
+      id: 42,
+      version: 8,
+      playedOn: "2026-10-10",
+      podSize: 4,
+      result: "win",
+      endTurn: null,
+      tableLevel: null,
+      seat: null,
+      opponents: null,
+      notes: null,
+      createdAt: "2026-10-10T20:00:00.000Z",
+    },
+    version: 8,
+    minted: true,
+    capped: false,
+    ...over,
+  });
+  let logAnswer = logged();
+  function gamesRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    if (url === "/api/decks/deck-1" && method === "GET") {
+      return ok({
+        deck: {
+          id: "deck-1",
+          publicId: "abcdefgh1234",
+          game: "mtg",
+          format: "commander",
+          name: "Saved",
+          description: null,
+          notes: null,
+          visibility: "unlisted",
+          isOwner: true,
+          forkedFrom: null,
+          leaderIds: [],
+        },
+        cards: [sol, signet].map((c) => ({
+          cardId: c.id,
+          zone: "main",
+          qty: 1,
+          tags: [],
+          printingId: null,
+          card: c,
+        })),
+        owned: [],
+        hasCollection: false,
+      });
+    }
+    if (url === "/api/decks/deck-1/games" && method === "GET") {
+      return ok({ games: [], total: 0, playedSnapshots: 0, playedAllowance: 100 });
+    }
+    if (url === "/api/decks/deck-1/games" && method === "POST") {
+      return { ok: true, status: 201, json: async () => logAnswer };
+    }
+    if (url === "/api/decks/deck-1/games/42" && method === "DELETE") {
+      return ok({ deleted: true, snapshotRemoved: true });
+    }
+    return route(input, init);
+  }
+  /** Every request after the hydrate, in order: "METHOD url". */
+  const traffic = () =>
+    fetchMock.mock.calls.map(
+      ([url, init]) => `${(init as RequestInit | undefined)?.method ?? "GET"} ${String(url)}`,
+    );
+  const gamesDialog = () => screen.queryByRole("dialog", { name: "Games" });
+
+  beforeEach(() => {
+    logAnswer = logged();
+    fetchMock.mockImplementation(gamesRoute);
+  });
+
+  async function openGames() {
+    openMenu(screen.getByRole("button", { name: "More" }));
+    const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Games…" }));
+    return pollFor(gamesDialog);
+  }
+
+  it("an unsaved edit is saved BEFORE the log; the dialog closes for the toast, whose Undo deletes the game", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await act(async () => {});
+    await act(async () => {});
+    fireEvent.click(
+      within(section("Deck list")).getByRole("button", { name: "One more Sol Ring" }),
+    );
+    expect(saveStatus()).toBe("dirty");
+    const dialog = await openGames();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Won" }));
+    const toastEl = (await pollFor(() => screen.queryByText("Logged a win"))).closest(
+      '[data-slot="toast"]',
+    ) as HTMLElement;
+    const sent = traffic();
+    const put = sent.indexOf("PUT /api/decks/deck-1/cards");
+    const log = sent.indexOf("POST /api/decks/deck-1/games");
+    expect(put).toBeGreaterThan(-1);
+    expect(log).toBeGreaterThan(put);
+    expect(saveStatus()).toBe("saved");
+    expect(gamesDialog()).toBeNull();
+
+    fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+    await act(async () => {});
+    expect(traffic()).toContain("DELETE /api/decks/deck-1/games/42");
+  });
+
+  it("a save that fails logs nothing — the dialog stays and says so", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await act(async () => {});
+    await act(async () => {});
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) =>
+      String(input) === "/api/decks/deck-1/cards" && init?.method === "PUT"
+        ? { ok: false, status: 500, json: async () => ({}) }
+        : gamesRoute(input, init),
+    );
+    fireEvent.click(
+      within(section("Deck list")).getByRole("button", { name: "One more Sol Ring" }),
+    );
+    const dialog = await openGames();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Won" }));
+    await pollFor(() =>
+      dialog.textContent?.includes("Your latest changes didn't save") ? dialog : null,
+    );
+    expect(traffic()).not.toContain("POST /api/decks/deck-1/games");
+    expect(gamesDialog()).not.toBeNull();
+  });
+
+  it("at the played allowance the toast says the game keeps no list of its own", async () => {
+    logAnswer = logged({ version: null, minted: false, capped: true });
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await act(async () => {});
+    await act(async () => {});
+    const dialog = await openGames();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Won" }));
+    await pollFor(() =>
+      screen.queryByText(
+        "This deck already keeps 100 played lists, so this game keeps no list of its own.",
+      ),
+    );
+  });
+
+  it("a guest deck (its key in this browser) reads the sign-in sentence and asks nothing", async () => {
+    window.localStorage.setItem("deckwarden:deck-token:deck-1", "token-1");
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await act(async () => {});
+    await act(async () => {});
+    const dialog = await openGames();
+    expect(
+      within(dialog).getByRole("link", { name: "Sign in to keep a game journal" }),
+    ).toBeTruthy();
+    expect(traffic().some((t) => t.includes("/games"))).toBe(false);
+  });
+
+  it("a draft has no Games… (a game logs against a saved list)", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+    openMenu(screen.getByRole("button", { name: "More" }));
+    const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
+    expect(within(menu).queryByRole("menuitem", { name: "Games…" })).toBeNull();
+  });
+});

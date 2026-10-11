@@ -6,9 +6,11 @@
  * (F9 — the four states never shift the row, and "Save failed" + Retry stay
  * visible outside any menu) · Share as the primary action once a server row
  * exists (a draft has nothing to share, so nothing shows) · More (Details,
- * Import, Autofill…, Fit my budget… (Y8), Export, Buy, History — History
- * only with a live deck; Autofill and Fit only where the adapter declares
- * them — and the keyboard-shortcut sheet, so `?` is discoverable by mouse) ·
+ * Import, Autofill…, Fit my budget… (Y8), Export, Buy, History, Games… (Y9a)
+ * — History and Games… only with a live deck, Games… only where the
+ * adapter declares a journal; Autofill and Fit only where the adapter
+ * declares them — and the keyboard-shortcut sheet, so `?` is discoverable
+ * by mouse) ·
  * the appearance menu. That last one retires R1b's AppearanceRow: exactly
  * one appearance control per page, and on the editor routes it is this one.
  *
@@ -70,7 +72,9 @@ export type EditorDialog =
   | "swap"
   | "swap-in"
   // Y8: the Fit sheet — More's "Fit my budget…" or the goals line's "Fit my budget".
-  | "fit";
+  | "fit"
+  // Y9a: the Games dialog — More's "Games…" (live decks, games with a journal).
+  | "games";
 
 export function EditorHeader({
   adapter,
@@ -188,6 +192,11 @@ export function EditorHeader({
                 not a fourth right-pane tab. Needs a server row (not a draft). */}
             {canHistory && (
               <DropdownMenuItem onClick={() => onOpen("history")}>History</DropdownMenuItem>
+            )}
+            {/* The game journal (Y9a, D10) — a game logs against a saved list,
+                so a draft has none; only for games whose adapter declares one. */}
+            {canHistory && adapter.journal && (
+              <DropdownMenuItem onClick={() => onOpen("games")}>Games…</DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onOpen("shortcuts")}>

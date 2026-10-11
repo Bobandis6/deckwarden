@@ -16,6 +16,11 @@ import { validateMtg } from "./validate";
 
 type MtgCard = CardData<MtgAttrs>;
 
+/** "1st", "2nd", "3rd", "4th" … — a seat in turn order (pods top out at 8). */
+function ordinal(n: number): string {
+  return `${n}${n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th"}`;
+}
+
 /**
  * Declarative filters with the explicit index contract (build plan §4 tiers):
  * promoted btree columns → the one jsonb_path_ops GIN → post-filter (upgraded
@@ -187,6 +192,20 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
   // ladder adjusted to Wizards' text, pure in ./brackets.ts; IO is core
   // (loadCompleteCombos, the freshness loader).
   brackets: mtgBrackets,
+
+  // The game journal (Y9a, WAVE4 D10): Commander pods of 2–8, the table's
+  // bracket (left empty unless picked), seats in turn order, partner pairs.
+  journal: {
+    pod: { min: 2, max: 8, default: 4 },
+    tableLevel: { noun: mtgBrackets.noun, levels: mtgBrackets.levels },
+    seats: (podSize) =>
+      Array.from({ length: podSize }, (_, i) => ({
+        seat: i + 1,
+        label: ordinal(i + 1),
+        phrase: `went ${ordinal(i + 1)}`,
+      })),
+    opponentLeaders: 2,
+  },
 
   capabilities: {
     // Ambient artwork (R2): Scryfall's art_crop with the artist credit

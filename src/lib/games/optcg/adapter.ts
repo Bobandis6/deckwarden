@@ -207,6 +207,17 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
       "1 Enel (OP15-058)\n4 OP01-025\n…paste a sim-style list or a Limitless export.",
   },
 
+  // The game journal (Y9a, WAVE4 D10): One Piece is 1v1 — the seat is
+  // whether you went first or second; no table level.
+  journal: {
+    pod: { min: 2, max: 2, default: 2 },
+    seats: () => [
+      { seat: 1, label: "Went first", phrase: "went first" },
+      { seat: 2, label: "Went second", phrase: "went second" },
+    ],
+    opponentLeaders: 1,
+  },
+
   capabilities: {
     // Tournament results: Limitless (P4.5 ingest). Query IO is core
     // (src/lib/tournaments/); this is the required visible credit + the

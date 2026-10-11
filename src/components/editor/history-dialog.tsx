@@ -6,6 +6,9 @@
  *
  *   - Save version: freeze the live list under a note. Shows n / cap and
  *     says so when the cap is hit — nothing is evicted behind the user.
+ *     The cap counts saved versions only (Y9a): a logged game's played
+ *     snapshot is listed too, but never takes a slot, and stays while its
+ *     games do (no Delete; the route refuses a version a game uses).
  *   - Versions list: note, date, card count; Compare (diff to the live
  *     list, via the pure diff), Restore (confirmed; the editor flushes
  *     pending edits first and re-hydrates after), Delete (confirmed).
@@ -31,6 +34,8 @@ import type { FormatDef } from "@/lib/games/types";
 interface VersionSummary {
   version: number;
   note: string | null;
+  /** saved = counts toward the cap · played = a logged game's list (Y9a). */
+  kind: "saved" | "played";
   createdAt: string;
   cardCount: number;
 }
@@ -267,13 +272,19 @@ export function HistoryDialog({
         method: "DELETE",
         headers: authHeaders(deckId),
       });
+      if (res.status === 409) {
+        const json = (await res.json()) as { error: string };
+        throw new Error(json.error);
+      }
       if (!res.ok && res.status !== 204) throw new Error(`Couldn't delete (${res.status}).`);
       if (compare?.version === v.version) setCompare(null);
       setStatus(`Deleted version ${v.version}.`);
       await refresh();
     });
 
-  const atCap = list !== null && list.versions.length >= list.cap;
+  // The cap counts saved versions only (Y9a): played snapshots never block a save or a restore.
+  const savedCount = list?.versions.filter((v) => v.kind !== "played").length ?? 0;
+  const atCap = list !== null && savedCount >= list.cap;
   const live = toFrozen(entries);
 
   return (
@@ -299,7 +310,7 @@ export function HistoryDialog({
         </Button>
         {list && (
           <span className="text-muted-foreground text-xs tabular-nums">
-            {list.versions.length} / {list.cap}
+            {savedCount} / {list.cap}
           </span>
         )}
       </form>
@@ -361,15 +372,18 @@ export function HistoryDialog({
                   >
                     Restore
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    disabled={busy}
-                    aria-label={`Delete version ${v.version}`}
-                    onClick={() => void deleteVersion(v)}
-                  >
-                    Delete
-                  </Button>
+                  {/* A played snapshot goes with its last game (Y9a), never from here. */}
+                  {v.kind !== "played" && (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      disabled={busy}
+                      aria-label={`Delete version ${v.version}`}
+                      onClick={() => void deleteVersion(v)}
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </span>
               </li>
             ))}

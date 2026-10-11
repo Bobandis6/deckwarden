@@ -27,6 +27,15 @@
  * in the UI — when it's hit the user deletes an old version, nothing is
  * evicted behind their back.
  *
+ * Played snapshots (Y9a, WAVE4 D10): a logged game freezes the list it was
+ * played with — reusing the newest version whose playable-list hash
+ * (list-hash.ts, stamped by insertVersion) matches, or minting a `played`
+ * version. The 50 cap counts `saved` versions only; `played` ones have
+ * their own allowance (MAX_PLAYED_SNAPSHOTS_PER_DECK), so a game never
+ * blocks Save version or Restore. A version a logged game was played with
+ * is never deleted from History (deleteVersion refuses it); a played
+ * snapshot goes with its last game (src/lib/journal/games.ts).
+ *
  * Restore (decision 2) is ONE transaction — safety snapshot, then the frozen
  * list replaces deck_cards through writeDeckCards, the same code path the
  * editor's PUT uses, so leader_ids/ci_mask can't drift between the two
@@ -41,15 +50,27 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema, type DbExecutor, type Tx } from "@/db";
+import type { DeckVersionKind } from "@/db/schema";
 import { cardListIssues, type DeckCardInput } from "@/lib/decks/cards";
 import type { FrozenCard } from "@/lib/decks/diff";
+import { playableListHash } from "@/lib/decks/list-hash";
+import { MAX_PLAYED_SNAPSHOTS_PER_DECK } from "@/lib/journal/limits";
 import { writeDeckCards, type SavedDeckCards } from "@/lib/decks/save-cards";
 import type { FormatDef } from "@/lib/games/types";
 
-const { decks, deckCards, deckVersions, cardIdentities, cardPrintings } = schema;
+const { decks, deckCards, deckVersions, deckGames, cardIdentities, cardPrintings } = schema;
 
-/** Per-deck ceiling, enforced at write time (saves, restores' safety snapshot, forks' baseline). */
+/**
+ * Per-deck ceiling on `saved` versions, enforced at write time (saves,
+ * restores' safety snapshot, forks' baseline). Played snapshots don't count.
+ */
 export const MAX_VERSIONS_PER_DECK = 50;
+/**
+ * Played snapshots' own per-deck allowance (Y9a, src/lib/journal/limits.ts):
+ * at it a game still logs, with no version of its own. Worst case ~100 ×
+ * 3 KB on disk per deck.
+ */
+export { MAX_PLAYED_SNAPSHOTS_PER_DECK };
 export const MAX_VERSION_NOTE_LENGTH = 200;
 
 /** The frozen shape (schema.ts): [{cardId, zone, qty, tags, printingId}]. */
@@ -104,6 +125,8 @@ export function frozenToInputs(frozen: readonly FrozenCard[]): DeckCardInput[] {
 export interface VersionSummary {
   version: number;
   note: string | null;
+  /** saved = the owner's (counts toward the cap) · played = a logged game's list (Y9a). */
+  kind: DeckVersionKind;
   createdAt: Date;
   cardCount: number;
 }
@@ -118,6 +141,7 @@ export async function listVersions(deckId: string): Promise<VersionSummary[]> {
     .select({
       version: deckVersions.version,
       note: deckVersions.note,
+      kind: deckVersions.kind,
       createdAt: deckVersions.createdAt,
       cardCount: sql<number>`coalesce((select sum((c->>'qty')::int) from jsonb_array_elements(${deckVersions.cards}) c), 0)::int`,
     })
@@ -135,6 +159,7 @@ export async function loadVersion(
     .select({
       version: deckVersions.version,
       note: deckVersions.note,
+      kind: deckVersions.kind,
       createdAt: deckVersions.createdAt,
       cards: deckVersions.cards,
     })
@@ -146,6 +171,7 @@ export async function loadVersion(
   return {
     version: row.version,
     note: row.note,
+    kind: row.kind,
     createdAt: row.createdAt,
     cards,
     cardCount: cards.reduce((n, c) => n + c.qty, 0),
@@ -177,6 +203,14 @@ export class VersionCapError extends Error {
   }
 }
 
+/** At the played allowance (Y9a): the caller logs the game without a version of its own. */
+export class PlayedAllowanceError extends Error {
+  constructor() {
+    super(`This deck already keeps ${MAX_PLAYED_SNAPSHOTS_PER_DECK} played lists.`);
+    this.name = "PlayedAllowanceError";
+  }
+}
+
 /** Lock the deck row for the rest of the transaction; serializes every version writer. */
 export async function lockDeck(tx: Tx, deckId: string): Promise<boolean> {
   const rows = await tx
@@ -188,20 +222,24 @@ export async function lockDeck(tx: Tx, deckId: string): Promise<boolean> {
 }
 
 /**
- * Freeze `cards` as the deck's next version. Caller holds the row lock
- * (lockDeck) — the count check is only safe under it.
+ * Freeze `cards` as the deck's next version, stamped with its playable-list
+ * hash. Caller holds the row lock (lockDeck) — the count check is only safe
+ * under it. Each kind counts against its own ceiling: `saved` the 50 cap
+ * (VersionCapError), `played` the allowance (PlayedAllowanceError).
  */
 export async function insertVersion(
   tx: Tx,
   deckId: string,
   cards: readonly FrozenCard[],
   note: string | null,
+  kind: DeckVersionKind = "saved",
 ): Promise<{ version: number; cardCount: number }> {
   const [{ n }] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(deckVersions)
-    .where(eq(deckVersions.deckId, deckId));
-  if (n >= MAX_VERSIONS_PER_DECK) throw new VersionCapError();
+    .where(and(eq(deckVersions.deckId, deckId), eq(deckVersions.kind, kind)));
+  if (kind === "saved" && n >= MAX_VERSIONS_PER_DECK) throw new VersionCapError();
+  if (kind === "played" && n >= MAX_PLAYED_SNAPSHOTS_PER_DECK) throw new PlayedAllowanceError();
   const [bumped] = await tx
     .update(decks)
     .set({ currentVersion: sql`${decks.currentVersion} + 1` })
@@ -212,6 +250,8 @@ export async function insertVersion(
     version: bumped.version,
     note,
     cards: cards as unknown as object,
+    listHash: playableListHash(cards),
+    kind,
   });
   return { version: bumped.version, cardCount: cards.reduce((c, e) => c + e.qty, 0) };
 }
@@ -229,13 +269,38 @@ export async function saveVersion(
   });
 }
 
-export async function deleteVersion(deckId: string, version: number): Promise<boolean> {
+/**
+ * Delete one version — unless a logged game was played with it (Y9a): a
+ * game always knows its exact list, so that version stays while the game
+ * does. Under the deck lock, like every writer: a game being logged
+ * against this version either commits first (and the version stays) or
+ * waits and finds it gone (and mints its own).
+ */
+export async function deleteVersion(
+  deckId: string,
+  version: number,
+): Promise<"deleted" | "in_use" | "not_found"> {
   const db = getDb();
-  const deleted = await db
-    .delete(deckVersions)
-    .where(and(eq(deckVersions.deckId, deckId), eq(deckVersions.version, version)))
-    .returning({ version: deckVersions.version });
-  return deleted.length === 1;
+  return db.transaction(async (tx) => {
+    await lockDeck(tx, deckId);
+    const deleted = await tx
+      .delete(deckVersions)
+      .where(
+        and(
+          eq(deckVersions.deckId, deckId),
+          eq(deckVersions.version, version),
+          sql`not exists (select 1 from ${deckGames} where ${deckGames.deckId} = ${deckId} and ${deckGames.version} = ${version})`,
+        ),
+      )
+      .returning({ version: deckVersions.version });
+    if (deleted.length === 1) return "deleted" as const;
+    const [still] = await tx
+      .select({ version: deckVersions.version })
+      .from(deckVersions)
+      .where(and(eq(deckVersions.deckId, deckId), eq(deckVersions.version, version)))
+      .limit(1);
+    return still ? ("in_use" as const) : ("not_found" as const);
+  });
 }
 
 export interface ResolvedFrozen {

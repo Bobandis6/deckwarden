@@ -81,6 +81,13 @@
  * The estimate (`deckEstimate`: cheapest printings, owned copies at $0 only
  * with a collection) feeds every goals line.
  *
+ * Y9a (WAVE4 D10, the journal): "games" is the Games dialog — More's
+ * "Games…" on a live deck whose game declares a journal. A log flushes
+ * autosave first, so the list the game keeps is the list on screen (a
+ * failed save logs nothing), then closes the dialog for the toast "Logged
+ * a win · Undo"; Undo deletes the game, and the played snapshot it minted
+ * when no other game was played with it.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
@@ -101,6 +108,7 @@ import { CardDetailPane, type PrintingEditing } from "@/components/editor/card-d
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
 import { CutCoachPanel } from "@/components/editor/cut-coach-panel";
 import { FitSheet, type FitApply } from "@/components/editor/fit-sheet";
+import { GamesDialog } from "@/components/editor/games-dialog";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
 import { DetailsDialog, type DeckDetails } from "@/components/editor/details-dialog";
 import { EditorAttribution } from "@/components/editor/editor-attribution";
@@ -162,6 +170,9 @@ import {
   withTotal,
   type DeckGoals,
 } from "@/lib/decks/goals";
+import { JOURNAL_COPY } from "@/lib/journal/copy";
+import type { LogResult } from "@/lib/journal/games";
+import { MAX_PLAYED_SNAPSHOTS_PER_DECK } from "@/lib/journal/limits";
 import type { ImportOutcome } from "@/lib/decks/import";
 import { clearPickIntent, pickIntentFor, writePickIntent } from "@/lib/decks/leader-pick-intent";
 import { hasLeader, snapshotBody } from "@/lib/decks/panel-view";
@@ -1680,6 +1691,46 @@ export function DeckEditor({
     if (deckId) await hydrate(deckId);
   }, [hydrate]);
 
+  // The game journal (Y9a): flush first, so the list the game keeps is the
+  // list on screen — true once nothing unsaved is left. A save that fails
+  // leaves the deck dirty, and the dialog logs nothing.
+  const beforeLog = useCallback(async () => {
+    await flush();
+    return !isDirty();
+  }, [flush, isDirty]);
+  // A game logged: the dialog closes so the toast's Undo is reachable (a
+  // modal blocks it), and that Undo is the games route's DELETE — the game
+  // and, when no other game was played with it, the snapshot it minted.
+  const handleLogged = useCallback((logged: LogResult) => {
+    setDialog(null);
+    const deckId = deckIdRef.current;
+    if (!deckId) return;
+    const undo = async () => {
+      try {
+        const res = await fetch(`/api/decks/${deckId}/games/${logged.game.id}`, {
+          method: "DELETE",
+          headers: writeHeaders(deckId),
+        });
+        if (!res.ok) throw new Error(`Undo failed (${res.status})`);
+      } catch {
+        toast.add({ title: JOURNAL_COPY.undoFailed, type: "error", timeout: TOAST_MS });
+      }
+    };
+    const id = toast.add({
+      title: JOURNAL_COPY.logged(logged.game.result),
+      ...(logged.capped ? { description: JOURNAL_COPY.capped(MAX_PLAYED_SNAPSHOTS_PER_DECK) } : {}),
+      type: "success",
+      timeout: TOAST_MS,
+      actionProps: {
+        children: "Undo",
+        onClick: () => {
+          toast.close(id);
+          void undo();
+        },
+      },
+    });
+  }, []);
+
   const inDeckQty = useMemo(() => {
     const counts = new Map<string, number>();
     for (const e of entries) counts.set(e.cardId, (counts.get(e.cardId) ?? 0) + e.qty);
@@ -2211,6 +2262,19 @@ export function DeckEditor({
               forkedFrom={forkedFrom}
               onBeforeRestore={beforeRestore}
               onRestored={afterRestore}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {/* Y9a: the Games dialog — live decks whose game declares a journal. */}
+          {dialog === "games" && liveDeckId && share && load.adapter.journal && (
+            <GamesDialog
+              deckId={liveDeckId}
+              adapter={load.adapter}
+              accountDeck={share.accountDeck}
+              phone={tier === "phone"}
+              finalFocus={moreRef}
+              onBeforeLog={beforeLog}
+              onLogged={handleLogged}
               onClose={() => setDialog(null)}
             />
           )}

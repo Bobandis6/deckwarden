@@ -197,6 +197,22 @@ export const RATE_LIMITS = {
   deckFork: (userId: string): RateLimit[] => [
     { key: `deck-fork:user:${userId}`, max: 10, windowSeconds: 3600 },
   ],
+  /**
+   * POST /api/decks/[id]/games and PATCH/DELETE …/games/[gameId] (Y9a,
+   * WAVE4 D10) — session-only, so the principal is the user id ("a
+   * per-user bucket, windows ≤ 1 day"). A write mints a ~210-byte game row
+   * and at most one played snapshot (~3 KB on disk, capped per deck); a
+   * game night is ten or twenty of them, so 30/min absorbs a burst of
+   * Undo-and-log-again and 200 a day bounds a scripted account.
+   */
+  gamesWrite: (userId: string): RateLimit[] => [
+    { key: `games:user:${userId}`, max: 30, windowSeconds: 60 },
+    { key: `games:user-day:${userId}`, max: 200, windowSeconds: 86400 },
+  ],
+  /** GET /api/decks/[id]/games — the Games dialog's list, one indexed read per open. */
+  gamesRead: (userId: string): RateLimit[] => [
+    { key: `games-read:user:${userId}`, max: 60, windowSeconds: 60 },
+  ],
   /** DELETE /api/account — a legit user needs this once, ever. */
   accountDelete: (userId: string): RateLimit[] => [
     { key: `account-delete:user:${userId}`, max: 3, windowSeconds: 3600 },

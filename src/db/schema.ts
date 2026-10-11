@@ -576,6 +576,15 @@ export const deckBookmarks = pgTable(
   ],
 );
 
+/**
+ * What minted a version (Y9a, WAVE4 D10): `saved` = Save version, a
+ * restore's safety snapshot, a fork's baseline — the 50 cap counts these
+ * only; `played` = the list a logged game was played with, under its own
+ * allowance, so a game never blocks Save version or Restore.
+ */
+export const DECK_VERSION_KINDS = ["saved", "played"] as const;
+export type DeckVersionKind = (typeof DECK_VERSION_KINDS)[number];
+
 /** Frozen snapshots for history/versioning (M3 feature; provisioned now, no migration later). */
 export const deckVersions = pgTable(
   "deck_versions",
@@ -588,9 +597,70 @@ export const deckVersions = pgTable(
     note: text("note"),
     /** Frozen [{cardId, zone, qty, tags, printingId}]. */
     cards: jsonb("cards").notNull(),
+    /**
+     * The playable-list hash (Y9a, src/lib/decks/list-hash.ts) — zones, cards
+     * and quantities only, so a printing or tag change keeps it. Stamped by
+     * insertVersion; rows from before 0018 stay NULL until the deck's first
+     * logged game hashes them in its own transaction.
+     */
+    listHash: text("list_hash"),
+    kind: text("kind").$type<DeckVersionKind>().notNull().default("saved"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [unique("deck_versions_deck_version").on(t.deckId, t.version)],
+  (t) => [
+    unique("deck_versions_deck_version").on(t.deckId, t.version),
+    check("deck_versions_kind_check", sql`${t.kind} in ('saved','played')`),
+  ],
+);
+
+export const GAME_RESULTS = ["win", "loss", "draw"] as const;
+export type GameResult = (typeof GAME_RESULTS)[number];
+
+/**
+ * The game journal (Y9a, WAVE4 D10) — one row per game an owner logs.
+ * Account-only (the routes answer a guest deck 400); `games` is the
+ * card-game registry's name, hence `deck_games`.
+ *
+ * `version` is the deck-scoped number of the snapshot the game was played
+ * with (no FK: versions are numbered per deck, and a played snapshot is
+ * removed only with its last game) and `list_hash` the list's hash, kept
+ * even when the played allowance leaves `version` NULL. `table_level` stays
+ * NULL unless the player picks one (the adapter's noun: Magic's bracket);
+ * `opponents` holds up to seven entries of one or two of the game's
+ * external card keys (Scryfall oracle ids for Magic) — external, so an
+ * identity rebuild can't strand them. Never stored: life totals, timelines,
+ * player names, opponents' lists, streaks, ratings, win counters.
+ *
+ * Lifecycle: ON DELETE CASCADE from decks — the single delete, account
+ * deletion and the anon purge take the games with no new delete code.
+ *
+ * Neon math, out loud: ~210 bytes a row with its index entry; a player
+ * logging 10 games a week for a year is ~110 KB.
+ */
+export const deckGames = pgTable(
+  "deck_games",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    deckId: uuid("deck_id")
+      .notNull()
+      .references(() => decks.id, { onDelete: "cascade" }),
+    version: integer("version"),
+    listHash: text("list_hash"),
+    playedOn: date("played_on").notNull(),
+    podSize: smallint("pod_size").notNull(),
+    result: text("result").$type<GameResult>().notNull(),
+    endTurn: smallint("end_turn"),
+    tableLevel: smallint("table_level"),
+    seat: smallint("seat"),
+    opponents: jsonb("opponents").$type<string[][]>(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("deck_games_result_check", sql`${t.result} in ('win','loss','draw')`),
+    /** The journal reads one deck's games, newest first. */
+    index("deck_games_deck_played").on(t.deckId, t.playedOn.desc()),
+  ],
 );
 
 /**

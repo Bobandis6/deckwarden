@@ -20,9 +20,12 @@ import { canReadDeck, deckTokenFrom, isDeckOwner } from "@/lib/decks/access";
 import { isFolderOwner, loadFolder, type FolderRow } from "@/lib/decks/folders";
 import type { DeckRow } from "@/lib/decks/serialize";
 import { getAdapter } from "@/lib/games/registry";
-import type { FormatDef, GameAdapter } from "@/lib/games/types";
+import type { FormatDef, GameAdapter, JournalMeta } from "@/lib/games/types";
+import { JOURNAL_COPY } from "@/lib/journal/copy";
+import { enforceRateLimit, type RateLimit } from "@/lib/rate-limit";
 
 const UUID = z.uuid();
+const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function loadDeck(id: string): Promise<DeckRow | null> {
   if (!UUID.safeParse(id).success) return null;
@@ -94,6 +97,49 @@ export async function requireEngageableDeck(
     return NextResponse.json({ error: "This deck is private" }, { status: 403 });
   }
   return { deck, userId };
+}
+
+/**
+ * The journal gate (Y9a, WAVE4 D10), in the contract's order: session (401)
+ * → the per-user bucket → the deck (404) and its owner (403) → a guest deck
+ * answers 400 "Sign in to keep a game journal" (the folderId precedent: a
+ * signed-in holder of an unclaimed deck's key claims it by signing in on
+ * /account) → a game without a journal declaration, 400. The journal is
+ * account-only: games are rows per person, and the anon purge keys on
+ * updated_at, which a logged game never moves.
+ */
+export async function requireJournalDeck(
+  headers: Headers,
+  id: string,
+  limits: (userId: string) => RateLimit[],
+): Promise<{ deck: DeckRow; userId: string; journal: JournalMeta } | NextResponse> {
+  const userId = await getSessionUserId(headers);
+  if (!userId) {
+    return NextResponse.json({ error: JOURNAL_COPY.signIn }, { status: 401, headers: NO_STORE });
+  }
+  const limited = await enforceRateLimit(limits(userId));
+  if (limited) return limited;
+  const deck = await loadDeck(id);
+  if (!deck) {
+    return NextResponse.json({ error: "Deck not found" }, { status: 404, headers: NO_STORE });
+  }
+  if (!isDeckOwner(deck, deckTokenFrom(headers), userId)) {
+    return NextResponse.json(
+      { error: "You don't have edit access to this deck" },
+      { status: 403, headers: NO_STORE },
+    );
+  }
+  if (deck.userId === null) {
+    return NextResponse.json({ error: JOURNAL_COPY.signIn }, { status: 400, headers: NO_STORE });
+  }
+  const journal = deckFormat(deck)?.adapter.journal;
+  if (!journal) {
+    return NextResponse.json(
+      { error: "This game has no game journal" },
+      { status: 400, headers: NO_STORE },
+    );
+  }
+  return { deck, userId, journal };
 }
 
 /**

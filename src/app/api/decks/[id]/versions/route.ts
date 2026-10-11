@@ -1,9 +1,11 @@
 /**
  * /api/decks/[id]/versions (P3.6) — the deck's named versions.
  *
- * GET  — list, newest first: version, note, date, card count (no snapshots;
- *        a single version's cards come from /versions/[version]). Plus the
- *        cap so the UI can show "n / 50" honestly.
+ * GET  — list, newest first: version, note, kind, date, card count (no
+ *        snapshots; a single version's cards come from /versions/[version]).
+ *        Plus the cap so the UI can show "n / 50" honestly — it counts
+ *        `saved` versions only (Y9a); `played` snapshots have their own
+ *        allowance, sent beside it.
  * POST — "Save version": freeze the live list under an optional note.
  *        409 at the cap (MAX_VERSIONS_PER_DECK); the message names the fix.
  *
@@ -18,6 +20,7 @@ import { clientIp } from "@/lib/decks/access";
 import { requireOwnedDeck } from "@/lib/decks/route-helpers";
 import {
   listVersions,
+  MAX_PLAYED_SNAPSHOTS_PER_DECK,
   MAX_VERSION_NOTE_LENGTH,
   MAX_VERSIONS_PER_DECK,
   saveVersion,
@@ -39,6 +42,7 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
       versions,
       currentVersion: access.deck.currentVersion,
       cap: MAX_VERSIONS_PER_DECK,
+      playedAllowance: MAX_PLAYED_SNAPSHOTS_PER_DECK,
     },
     { headers: NO_STORE },
   );

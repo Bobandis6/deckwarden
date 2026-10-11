@@ -2,8 +2,8 @@
  * The editor header (R3): the mark → home (no "Back to home" text link), the
  * game / format chip, the name input's unchanged contract, the fixed-width
  * save slot across all four states with Retry outside the menu, Share only
- * once a server row exists, the More menu's items (History only with a
- * live deck) opening the right dialog, and exactly one appearance control
+ * once a server row exists, the More menu's items (History and Games… only
+ * with a live deck) opening the right dialog, and exactly one appearance control
  * — the same assertion the site header test makes for the (site) pages.
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -149,7 +149,7 @@ describe("EditorHeader", () => {
     expect(onOpen).toHaveBeenCalledWith("share");
   });
 
-  it("More lists Details, Import, Autofill…, Fit my budget…, Export, Buy (+ History with a live deck) and the shortcut sheet", async () => {
+  it("More lists Details, Import, Autofill…, Fit my budget…, Export, Buy (+ History and Games… with a live deck) and the shortcut sheet", async () => {
     const onOpen = vi.fn();
     const { rerender } = render(header({ onOpen }));
     open(screen.getByRole("button", { name: "More" }));
@@ -181,6 +181,38 @@ describe("EditorHeader", () => {
     ).toContain("History");
     fireEvent.click(within(menu).getByRole("menuitem", { name: "History" }));
     expect(onOpen).toHaveBeenCalledWith("history");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+
+    // Y9a: Games… joins History on a live deck (the draft list above stays exact).
+    open(screen.getByRole("button", { name: "More" }));
+    menu = await screen.findByRole("menu", { name: "More" });
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((i) => i.textContent),
+    ).toContain("Games…");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Games…" }));
+    expect(onOpen).toHaveBeenCalledWith("games");
+  });
+
+  it("Games… needs a live deck and a game that declares a journal — both games do (Y9a)", async () => {
+    const onOpen = vi.fn();
+    const optcg = getAdapter("optcg");
+    const { rerender } = render(
+      header({ onOpen, adapter: optcg, format: optcg.formats[0], canHistory: true }),
+    );
+    open(screen.getByRole("button", { name: "More" }));
+    const opMenu = await screen.findByRole("menu", { name: "More" });
+    fireEvent.click(within(opMenu).getByRole("menuitem", { name: "Games…" }));
+    expect(onOpen).toHaveBeenCalledWith("games");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+
+    // A game without the declaration gets no door and no apology copy.
+    rerender(header({ onOpen, adapter: { ...mtg, journal: undefined }, canHistory: true }));
+    open(screen.getByRole("button", { name: "More" }));
+    const menu = await screen.findByRole("menu", { name: "More" });
+    expect(within(menu).getByRole("menuitem", { name: "History" })).toBeTruthy();
+    expect(within(menu).queryByRole("menuitem", { name: "Games…" })).toBeNull();
   });
 
   it("Buy this deck… opens the buy dialog, and only for games that declare buy (W7)", async () => {

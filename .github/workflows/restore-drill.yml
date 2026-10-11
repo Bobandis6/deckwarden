@@ -88,14 +88,33 @@ jobs:
           DECKS=$(psql "$SCRATCH_URL" -Atc "SELECT count(*) FROM decks")
           CARDS=$(psql "$SCRATCH_URL" -Atc "SELECT count(*) FROM deck_cards")
           MAPPED=$(psql "$SCRATCH_URL" -Atc "SELECT count(*) FROM identity_map")
+          # Identity refs: deck_cards, the leader_ids denorm, and (Y9a) the
+          # cardIds frozen inside deck_versions.cards — a version restored
+          # into a rebuilt corpus needs the same remap as the live list.
           DANGLING=$(psql "$SCRATCH_URL" -Atc "
             SELECT (SELECT count(*) FROM deck_cards dc LEFT JOIN identity_map m ON m.id = dc.card_identity_id WHERE m.id IS NULL)
-                 + (SELECT count(*) FROM (SELECT unnest(leader_ids) AS lid FROM decks) l LEFT JOIN identity_map m ON m.id = l.lid WHERE m.id IS NULL)")
+                 + (SELECT count(*) FROM (SELECT unnest(leader_ids) AS lid FROM decks) l LEFT JOIN identity_map m ON m.id = l.lid WHERE m.id IS NULL)
+                 + (SELECT count(*) FROM (SELECT (c->>'cardId')::uuid AS cid FROM deck_versions v, jsonb_array_elements(v.cards) c) f LEFT JOIN identity_map m ON m.id = f.cid WHERE m.id IS NULL)")
           echo "restored: $DECKS deck(s), $CARDS deck_cards row(s); identity map: $MAPPED ids; dangling refs: $DANGLING"
           psql "$SCRATCH_URL" -c "SELECT d.name, d.visibility, count(dc.card_identity_id) AS cards FROM decks d LEFT JOIN deck_cards dc ON dc.deck_id = d.id GROUP BY d.id ORDER BY d.created_at"
           [ "$DECKS" -ge 1 ] || { echo "FAIL: no decks restored"; exit 1; }
           [ "$CARDS" -ge 1 ] || { echo "FAIL: no deck_cards restored"; exit 1; }
           [ "$DANGLING" = "0" ] || { echo "FAIL: deck rows reference ids missing from the identity map"; exit 1; }
+          # The game journal (Y9a, 0018): every game's deck restored, and every
+          # version a game names present in that deck's history (no FK — a
+          # played snapshot goes only with its last game). Opponents are
+          # external keys and need no map. Dumps from before 0018 have no table.
+          if [ "$(psql "$SCRATCH_URL" -Atc "SELECT to_regclass('public.deck_games') IS NOT NULL")" = "t" ]; then
+            GAMES=$(psql "$SCRATCH_URL" -Atc "SELECT count(*) FROM deck_games")
+            GAME_DANGLING=$(psql "$SCRATCH_URL" -Atc "
+              SELECT (SELECT count(*) FROM deck_games g LEFT JOIN decks d ON d.id = g.deck_id WHERE d.id IS NULL)
+                   + (SELECT count(*) FROM deck_games g WHERE g.version IS NOT NULL AND NOT EXISTS (
+                        SELECT 1 FROM deck_versions v WHERE v.deck_id = g.deck_id AND v.version = g.version))")
+            echo "deck_games: $GAMES game(s); dangling deck/version refs: $GAME_DANGLING"
+            [ "$GAME_DANGLING" = "0" ] || { echo "FAIL: logged games reference a missing deck or version"; exit 1; }
+          else
+            echo "deck_games absent from this dump (taken before migration 0018) — journal check skipped"
+          fi
           echo "restore drill PASSED"
 
       - name: Verify account-links CSV loads and covers restored users

@@ -64,9 +64,9 @@ export default function PrivacyPage() {
           <Link href="/account" className="underline">
             account page
           </Link>{" "}
-          — it permanently and immediately removes your account and everything in it: decks,
-          folders, likes, bookmarks, and your imported collection. If you can no longer sign in,
-          email{" "}
+          — it permanently and immediately removes your account and everything in it: decks (with
+          their saved versions and the games you logged), folders, likes, bookmarks, and your
+          imported collection. If you can no longer sign in, email{" "}
           <a href="mailto:contact@deckwarden.gg" className="underline">
             contact@deckwarden.gg
           </a>{" "}
@@ -78,9 +78,12 @@ export default function PrivacyPage() {
         <h2 className="font-display text-lg font-semibold">Decks you build</h2>
         <p>
           Decks are stored on our servers: the card list, deck name, description, and visibility
-          (public, unlisted, or private). Anyone you give a share link can view a public or unlisted
-          deck — that’s the point of the link. Private decks are viewable only from the browser that
-          created them or by the signed-in account that owns them.
+          (public, unlisted, or private). If you keep a game journal (signed in only), each game you
+          log stores its date, result, number of players, the deck list you played, and any details
+          you add — the turn it ended, your seat, the table’s bracket, notes. Your games are visible
+          only to you. Anyone you give a share link can view a public or unlisted deck — that’s the
+          point of the link. Private decks are viewable only from the browser that created them or
+          by the signed-in account that owns them.
         </p>
         <p>
           The edit key for each deck lives in your browser’s localStorage (not a cookie — it is
@@ -90,8 +93,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           You can delete a deck yourself from the editor at any time; deletion is immediate and
-          permanent. Housekeeping also deletes anonymous decks left empty for 30 days or untouched
-          for 12 months.
+          permanent, and takes the deck’s versions and logged games with it. Housekeeping also
+          deletes anonymous decks left empty for 30 days or untouched for 12 months.
         </p>
       </section>
 

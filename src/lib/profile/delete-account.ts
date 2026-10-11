@@ -19,7 +19,8 @@
  *      claim token) would be uneditable forever and the anon purge would
  *      reap it inside 12 months anyway — and "delete my account" should
  *      mean the decks too, which is what the privacy page now promises.
- *      The cascade takes deck_cards, deck_versions, and other people's
+ *      The cascade takes deck_cards, deck_versions, deck_games (Y9a — the
+ *      journal; smoke:account proves "her games gone") and other people's
  *      likes/bookmarks ON those decks (their denorms die with the rows).
  *   4. Delete the user row — cascades sessions, accounts, folders (which
  *      SET NULL any surviving decks' folder_id — there are none by now),

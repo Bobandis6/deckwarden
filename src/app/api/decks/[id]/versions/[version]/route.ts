@@ -6,7 +6,9 @@
  *          (src/lib/decks/diff.ts) against the live list and render names
  *          for cards no longer in the deck.
  * DELETE — remove the version. Version numbers are never reused (the
- *          counter is decks.current_version), so a gap is expected.
+ *          counter is decks.current_version), so a gap is expected. 409
+ *          when a logged game was played with it (Y9a) — the game keeps
+ *          its exact list, so the version stays while the game does.
  *
  * Owner-only; force-dynamic + no-store.
  */
@@ -16,6 +18,7 @@ import { getDb } from "@/db";
 import { clientIp } from "@/lib/decks/access";
 import { requireOwnedDeck } from "@/lib/decks/route-helpers";
 import { cardNamesById, deleteVersion, loadVersion, parseVersionParam } from "@/lib/decks/versions";
+import { JOURNAL_COPY } from "@/lib/journal/copy";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -63,8 +66,14 @@ export async function DELETE(
   if (access instanceof NextResponse) return access;
 
   const deleted = await deleteVersion(access.deck.id, version);
-  if (!deleted) {
+  if (deleted === "not_found") {
     return NextResponse.json({ error: "Version not found" }, { status: 404, headers: NO_STORE });
+  }
+  if (deleted === "in_use") {
+    return NextResponse.json(
+      { error: JOURNAL_COPY.versionInUse },
+      { status: 409, headers: NO_STORE },
+    );
   }
   return new NextResponse(null, { status: 204, headers: NO_STORE });
 }
