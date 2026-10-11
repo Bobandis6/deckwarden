@@ -36,6 +36,11 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh: vi.fn() }),
 }));
 
+// The owner row / tile menu preloads the Games dialog's chunk (Y9b); load it
+// here first so that preload resolves from the module cache — under a full
+// run a cold import could outlive this file's environment (Y10).
+await import("@/components/editor/log-game-dialog");
+
 const commanderZone = COMMANDER.zones.find((z) => z.isLeaderZone)!.id;
 const mainZone = COMMANDER.zones.find((z) => !z.isLeaderZone)!.id;
 
@@ -894,7 +899,15 @@ describe("DeckShareView — Log a game (Y9b, WAVE4 D10)", () => {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ games: [], total: 0, playedSnapshots: 0, playedAllowance: 100 }),
+          json: async () => ({
+            games: [],
+            total: 0,
+            playedSnapshots: 0,
+            playedAllowance: 100,
+            record: [],
+            lists: [],
+            names: {},
+          }),
         };
       }
       if (url === GAMES && method === "POST") {

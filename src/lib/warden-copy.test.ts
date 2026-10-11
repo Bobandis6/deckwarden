@@ -20,4 +20,9 @@ describe("WARDEN_COPY", () => {
     expect(WARDEN_COPY.error.hint).toMatch(/^The Warden /);
     expect(WARDEN_COPY.error.title).toBe("Something went wrong");
   });
+
+  it("the first logged game earns one restrained line, in the Warden's voice (Y10)", () => {
+    expect(WARDEN_COPY.journal.firstGame).toBe("The Warden keeps this deck's record from here.");
+    expect(Object.keys(WARDEN_COPY.journal)).toEqual(["firstGame"]);
+  });
 });

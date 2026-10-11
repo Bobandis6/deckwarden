@@ -135,7 +135,10 @@ export interface VersionDetail extends VersionSummary {
   cards: FrozenCard[];
 }
 
-export async function listVersions(deckId: string): Promise<VersionSummary[]> {
+/** The versions list, newest first, with each row's playable-list hash (Y10: the versions GET's "No card changes since vN"). */
+export async function listVersions(
+  deckId: string,
+): Promise<(VersionSummary & { listHash: string | null })[]> {
   const db = getDb();
   return db
     .select({
@@ -144,6 +147,7 @@ export async function listVersions(deckId: string): Promise<VersionSummary[]> {
       kind: deckVersions.kind,
       createdAt: deckVersions.createdAt,
       cardCount: sql<number>`coalesce((select sum((c->>'qty')::int) from jsonb_array_elements(${deckVersions.cards}) c), 0)::int`,
+      listHash: deckVersions.listHash,
     })
     .from(deckVersions)
     .where(eq(deckVersions.deckId, deckId))

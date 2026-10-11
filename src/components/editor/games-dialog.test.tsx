@@ -10,6 +10,12 @@
  * chips and log as external keys; at most pod − 1; partners as one entry
  * of two, the second box over every card; One Piece's one leader), typed
  * text never picked stopping the log, and `returnPath` for the sign-in.
+ *
+ * Y10: the record (fixture numbers: W–L–D, by players with the baseline,
+ * by list with its diff line, a percentage only from 10 games, "Too few
+ * games to compare" below 5, the games with no list kept), the recent
+ * games naming their opponents, and editing one — what the edit shows is
+ * what it saves.
  */
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -43,6 +49,9 @@ const list = (over: Partial<GamesList> = {}): GamesList => ({
   total: 0,
   playedSnapshots: 0,
   playedAllowance: 100,
+  record: [],
+  lists: [],
+  names: {},
   ...over,
 });
 const logged = (over: Partial<LogResult> = {}): LogResult => ({
@@ -50,6 +59,7 @@ const logged = (over: Partial<LogResult> = {}): LogResult => ({
   version: 8,
   minted: true,
   capped: false,
+  first: false,
   ...over,
 });
 
@@ -95,9 +105,13 @@ const posts = () => fetchMock.mock.calls.filter(([, init]) => init?.method === "
 const postBody = (i = 0) => JSON.parse(posts()[i][1].body as string);
 
 let getAnswer: ReturnType<typeof reply>;
+let patchAnswer: ReturnType<typeof reply>;
+let deleteAnswer: ReturnType<typeof reply>;
 beforeEach(() => {
   window.localStorage.clear();
   getAnswer = reply(200, list());
+  patchAnswer = reply(200, { game: game() });
+  deleteAnswer = reply(200, { deleted: true, snapshotRemoved: false });
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (_url: string, init?: RequestInit) =>
     init?.method === "POST" ? reply(201, logged()) : getAnswer,
@@ -132,6 +146,8 @@ function renderDialog({
       order.push("post");
       return reply(201, logged());
     }
+    if (init?.method === "PATCH") return patchAnswer;
+    if (init?.method === "DELETE") return deleteAnswer;
     if (url.startsWith("/api/cards/suggest")) {
       const params = new URL(url, "http://x").searchParams;
       const q = params.get("q") ?? "";
@@ -358,9 +374,7 @@ describe("GamesDialog — the journal around the log", () => {
       return ul as HTMLElement;
     });
     expect(
-      within(recent)
-        .getAllByRole("listitem")
-        .map((li) => li.textContent),
+      [...recent.querySelectorAll("[data-slot=game-line]")].map((line) => line.textContent),
     ).toEqual([
       "Oct 9 · Won · 4 players · went 1st · v7",
       "Oct 2 · Lost · 4 players · no list kept",
@@ -568,5 +582,384 @@ describe("GamesDialog — opponents (Y9b)", () => {
     fireEvent.click(button(dialog, "Won"));
     await waitFor(() => expect(onLogged).toHaveBeenCalled());
     expect(postBody().opponents).toEqual([[ATRAXA.externalKey]]);
+  });
+});
+
+/** An element's text as the eye reads it — the screen-reader-only words left out. */
+function visible(el: Element): string {
+  const clone = el.cloneNode(true) as Element;
+  clone.querySelectorAll(".sr-only").forEach((n) => n.remove());
+  return clone.textContent ?? "";
+}
+const cell = (
+  version: number | null,
+  podSize: number,
+  result: GameWire["result"],
+  games: number,
+) => ({
+  version,
+  podSize,
+  result,
+  games,
+});
+/** Thirteen games: v8 (7), v5 (3), two with no list kept, one on v2 — older than the lists described. */
+const RECORD = [
+  cell(8, 4, "win", 3),
+  cell(8, 4, "loss", 3),
+  cell(8, 3, "loss", 1),
+  cell(5, 4, "win", 2),
+  cell(5, 4, "loss", 1),
+  cell(null, 4, "loss", 2),
+  cell(2, 4, "win", 1),
+];
+const LISTS = [
+  { version: 8, since: 5, change: "+2 · -2" },
+  { version: 5, since: 2, change: "+1 · -1" },
+];
+async function record(dialog: HTMLElement) {
+  return waitFor(() => {
+    const section = dialog.querySelector("[data-slot=games-record]");
+    expect(section).not.toBeNull();
+    return section as HTMLElement;
+  });
+}
+
+describe("GamesDialog — the record (Y10)", () => {
+  it("the fixture's numbers: N games · W–L, by players with the baseline, by list with its diff line", async () => {
+    getAnswer = reply(200, list({ total: 13, record: RECORD, lists: LISTS }));
+    const { dialog } = renderDialog();
+    const section = await record(dialog);
+    const headings = within(dialog).getAllByRole("heading", { level: 3 });
+    expect(headings.map((h) => h.textContent)).toEqual(["Log a game", "Record", "Recent games"]);
+    // 13 games: a percentage (from 10).
+    const line = section.querySelector("[data-slot=games-record-line]")!;
+    expect(visible(line)).toBe("13 games · 6–7 · won 46%");
+    expect(line.textContent).toContain("6 wins, 7 losses");
+    expect(
+      [...section.querySelectorAll("[data-slot=games-record-pods] li")].map((li) => li.textContent),
+    ).toEqual([
+      "3 players · won 0 of 1 · an even table wins 1 in 3",
+      "4 players · won 6 of 12 · 50% · an even table wins 1 in 4",
+    ]);
+    const rows = [...section.querySelectorAll("[data-slot=games-record-lists] li")].map((li) =>
+      [...li.children].map((c) => c.textContent),
+    );
+    expect(rows).toEqual([
+      ["v8, since v5: +2 · -2", "won 3 of 7"],
+      ["v5, since v2: +1 · -1", "won 2 of 3", "Too few games to compare"],
+      ["No list kept", "won 0 of 2", "Too few games to compare"],
+    ]);
+    expect(section.textContent).toContain("and 1 earlier list");
+  });
+
+  it("a percentage only from 10 games — 9 games show the count alone", async () => {
+    getAnswer = reply(
+      200,
+      list({
+        total: 9,
+        record: [cell(3, 4, "win", 5), cell(3, 4, "loss", 3), cell(3, 4, "draw", 1)],
+        lists: [{ version: 3, since: null, change: null }],
+      }),
+    );
+    const { dialog } = renderDialog();
+    const section = await record(dialog);
+    expect(visible(section.querySelector("[data-slot=games-record-line]")!)).toBe(
+      "9 games · 5–3–1",
+    );
+    expect(section.textContent).not.toContain("%");
+    // The first list played is its number alone; 9 games are enough to compare.
+    expect(
+      [...section.querySelectorAll("[data-slot=games-record-lists] li")].map(
+        (li) => li.textContent,
+      ),
+    ).toEqual(["v3won 5 of 9"]);
+  });
+
+  it("One Piece is always 1v1: the baseline said once, no split by players", async () => {
+    getAnswer = reply(
+      200,
+      list({
+        total: 12,
+        record: [cell(4, 2, "win", 7), cell(4, 2, "loss", 5)],
+        lists: [{ version: 4, since: null, change: null }],
+      }),
+    );
+    const { dialog } = renderDialog({ adapter: optcg });
+    const section = await record(dialog);
+    expect(visible(section.querySelector("[data-slot=games-record-line]")!)).toBe(
+      "12 games · 7–5 · won 58%",
+    );
+    expect(section.textContent).toContain("An even table wins 1 in 2.");
+    expect(section.querySelector("[data-slot=games-record-pods]")).toBeNull();
+    expect(section.textContent).toContain("won 7 of 12 · 58%");
+  });
+
+  it("no games: no record", async () => {
+    const { dialog } = renderDialog();
+    await waitFor(() => expect(dialog.textContent).toContain("No games logged yet."));
+    expect(dialog.querySelector("[data-slot=games-record]")).toBeNull();
+  });
+});
+
+const KRAUM = suggestRow("Kraum, Ludevic's Opus", "0d7b2b7d-2f2c-4d1c-9c8f-4b2a8f9f2e11");
+const TYMNA = suggestRow("Tymna the Weaver", "6b3d0f1e-9a2c-4e7b-8d5f-1c2b3a4d5e6f");
+const NAMES = {
+  [ATRAXA.externalKey]: ATRAXA.name,
+  [KRAUM.externalKey]: KRAUM.name,
+  [TYMNA.externalKey]: TYMNA.name,
+};
+/** A game with everything filled in, as the GET returns it. */
+const FULL = game({
+  id: 41,
+  version: 7,
+  playedOn: "2026-10-09",
+  podSize: 4,
+  result: "win",
+  endTurn: 9,
+  tableLevel: 3,
+  seat: 2,
+  opponents: [[ATRAXA.externalKey], [KRAUM.externalKey, TYMNA.externalKey]],
+  notes: "gg",
+});
+const patches = () =>
+  fetchMock.mock.calls.filter(([, init]) => init?.method === "PATCH") as [string, RequestInit][];
+const gets = () =>
+  fetchMock.mock.calls.filter(
+    ([url, init]) => url === `/api/decks/${DECK}/games` && (init?.method ?? "GET") === "GET",
+  );
+async function openEdit(dialog: HTMLElement, index = 0) {
+  const recent = await waitFor(() => {
+    const ul = dialog.querySelector("[data-slot=games-recent]");
+    expect(ul).not.toBeNull();
+    return ul as HTMLElement;
+  });
+  const edit = within(recent).getAllByRole("button", { name: "Edit" })[index];
+  fireEvent.click(edit);
+  return { edit, view: await within(dialog).findByRole("region", { name: /^Edit the game of/ }) };
+}
+
+describe("GamesDialog — the recent games, named and editable (Y10)", () => {
+  it("each game names its opponents ('; ' between them, '+' in a pair); an unknown key shows as itself", async () => {
+    getAnswer = reply(
+      200,
+      list({
+        total: 2,
+        games: [FULL, game({ id: 40, opponents: [["1111aaaa-2222-4333-8444-555566667777"]] })],
+        names: NAMES,
+      }),
+    );
+    const { dialog } = renderDialog();
+    await waitFor(() => expect(dialog.querySelectorAll("[data-slot=game-vs]")).toHaveLength(2));
+    expect([...dialog.querySelectorAll("[data-slot=game-vs]")].map((v) => v.textContent)).toEqual([
+      "vs Atraxa, Praetors' Voice; Kraum, Ludevic's Opus + Tymna the Weaver",
+      "vs 1111aaaa-2222-4333-8444-555566667777",
+    ]);
+    // The Edit button is described by its game's line.
+    const edit = within(dialog).getAllByRole("button", { name: "Edit" })[0];
+    expect(document.getElementById(edit.getAttribute("aria-describedby")!)!.textContent).toContain(
+      "Oct 9 · Won · 4 players · went 2nd · v7",
+    );
+  });
+
+  it("One Piece names the leader with its printed id, like the chip", async () => {
+    getAnswer = reply(
+      200,
+      list({
+        total: 1,
+        games: [game({ podSize: 2, seat: 1, opponents: [["OP15-058"]] })],
+        names: { "OP15-058": "Enel" },
+      }),
+    );
+    const { dialog } = renderDialog({ adapter: optcg });
+    await waitFor(() =>
+      expect(dialog.querySelector("[data-slot=game-vs]")?.textContent).toBe("vs Enel (OP15-058)"),
+    );
+  });
+
+  it("Edit shows the game as stored — what it shows is what it saves — and the list it was played with", async () => {
+    getAnswer = reply(200, list({ total: 1, games: [FULL], names: NAMES }));
+    const { dialog } = renderDialog();
+    const { view } = await openEdit(dialog);
+    expect(view.querySelector("h3")!.textContent).toBe("Edit the game of Oct 9");
+    expect(document.activeElement).toBe(view.querySelector("h3"));
+    expect(view.textContent).toContain("Played with v7 — an edit never changes the list.");
+    const pressed = (name: string) =>
+      within(within(view).getByRole("group", { name })).getByRole("button", { pressed: true })
+        .textContent;
+    expect(pressed("Result")).toBe("Won");
+    expect(pressed("Players")).toBe("4");
+    expect(pressed("Bracket")).toBe("3");
+    expect(pressed("Seat")).toBe("2nd");
+    expect((view.querySelector("input[type=date]") as HTMLInputElement).value).toBe("2026-10-09");
+    expect((view.querySelector("input[type=number]") as HTMLInputElement).value).toBe("9");
+    expect((view.querySelector("textarea") as HTMLTextAreaElement).value).toBe("gg");
+    expect(chips(view)).toEqual([ATRAXA.name, KRAUM.name, TYMNA.name]);
+    // Saving it untouched sends nothing.
+    fireEvent.click(within(view).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(dialog.querySelector("[data-slot=game-edit]")).toBeNull());
+    expect(patches()).toHaveLength(0);
+    expect(gets()).toHaveLength(1);
+  });
+
+  it("Save sends only what changed; the list loads again, says so, and focus returns to its Edit", async () => {
+    getAnswer = reply(200, list({ total: 1, games: [FULL], names: NAMES }));
+    const { dialog } = renderDialog();
+    await openEdit(dialog);
+    const view = dialog.querySelector("[data-slot=game-edit]") as HTMLElement;
+    fireEvent.click(
+      within(within(view).getByRole("group", { name: "Result" })).getByRole("button", {
+        name: "Lost",
+      }),
+    );
+    fireEvent.change(view.querySelector("input[type=number]")!, { target: { value: "11" } });
+    fireEvent.click(within(view).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(dialog.textContent).toContain("Saved the changes to that game."));
+    const [[url, init]] = patches();
+    expect(url).toBe(`/api/decks/${DECK}/games/41`);
+    expect(JSON.parse(init.body as string)).toEqual({ result: "loss", endTurn: 11 });
+    await waitFor(() => expect(gets()).toHaveLength(2));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(dialog).getAllByRole("button", { name: "Edit" })[0],
+      ),
+    );
+  });
+
+  it("clearing a detail sends null; removing every opponent clears them", async () => {
+    getAnswer = reply(200, list({ total: 1, games: [FULL], names: NAMES }));
+    const { dialog } = renderDialog();
+    const { view } = await openEdit(dialog);
+    fireEvent.change(view.querySelector("textarea")!, { target: { value: "  " } });
+    fireEvent.click(
+      within(within(view).getByRole("group", { name: "Bracket" })).getByRole("button", {
+        name: "Not set",
+      }),
+    );
+    for (const name of [ATRAXA.name, KRAUM.name, TYMNA.name]) {
+      fireEvent.click(within(view).getByRole("button", { name: `Remove ${name}` }));
+    }
+    fireEvent.click(within(view).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    expect(JSON.parse(patches()[0][1].body as string)).toEqual({
+      tableLevel: null,
+      opponents: null,
+      notes: null,
+    });
+  });
+
+  it("a smaller table drops the seat past it and the opponents past pod − 1", async () => {
+    getAnswer = reply(200, list({ total: 1, games: [{ ...FULL, seat: 3 }], names: NAMES }));
+    const { dialog } = renderDialog();
+    const { view } = await openEdit(dialog);
+    fireEvent.click(
+      within(within(view).getByRole("group", { name: "Players" })).getByRole("button", {
+        name: "2",
+      }),
+    );
+    expect(chips(view)).toEqual([ATRAXA.name]);
+    fireEvent.click(within(view).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    expect(JSON.parse(patches()[0][1].body as string)).toEqual({
+      podSize: 2,
+      seat: null,
+      opponents: [[ATRAXA.externalKey]],
+    });
+  });
+
+  it("a refused edit stays open with the route's words", async () => {
+    getAnswer = reply(200, list({ total: 1, games: [FULL], names: NAMES }));
+    patchAnswer = reply(400, { error: "Seat must be 1–4" });
+    const { dialog } = renderDialog();
+    const { view } = await openEdit(dialog);
+    fireEvent.change(view.querySelector("input[type=number]")!, { target: { value: "12" } });
+    fireEvent.click(within(view).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(view.textContent).toContain("Seat must be 1–4"));
+    expect(dialog.querySelector("[data-slot=game-edit]")).not.toBeNull();
+    expect(gets()).toHaveLength(1);
+  });
+
+  it("a turn outside 1–99 is said in the edit and sends nothing", async () => {
+    getAnswer = reply(200, list({ total: 1, games: [FULL], names: NAMES }));
+    const { dialog } = renderDialog();
+    const { view } = await openEdit(dialog);
+    fireEvent.change(view.querySelector("input[type=number]")!, { target: { value: "0" } });
+    fireEvent.click(within(view).getByRole("button", { name: "Save changes" }));
+    await waitFor(() =>
+      expect(view.textContent).toContain("The turn it ended is a whole number from 1 to 99."),
+    );
+    expect(patches()).toHaveLength(0);
+  });
+
+  it("Delete asks first; declined, nothing is sent; confirmed, the game goes and the list loads again", async () => {
+    getAnswer = reply(200, list({ total: 1, games: [FULL], names: NAMES }));
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { dialog } = renderDialog();
+    const { view } = await openEdit(dialog);
+    fireEvent.click(within(view).getByRole("button", { name: "Delete game" }));
+    expect(confirm).toHaveBeenCalledWith(
+      "Delete this game? It leaves the record, and this can't be undone.",
+    );
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
+    confirm.mockReturnValue(true);
+    getAnswer = reply(200, list());
+    fireEvent.click(within(view).getByRole("button", { name: "Delete game" }));
+    await waitFor(() => expect(dialog.textContent).toContain("Deleted that game."));
+    const del = fetchMock.mock.calls.find(([, init]) => init?.method === "DELETE")!;
+    expect(del[0]).toBe(`/api/decks/${DECK}/games/41`);
+    await waitFor(() => expect(dialog.textContent).toContain("No games logged yet."));
+    expect(document.activeElement?.id).toBe(`${DECK}-recent`);
+    confirm.mockRestore();
+  });
+
+  it("Cancel goes back without a request", async () => {
+    getAnswer = reply(200, list({ total: 1, games: [FULL], names: NAMES }));
+    const { dialog } = renderDialog();
+    const { view, edit } = await openEdit(dialog);
+    fireEvent.change(view.querySelector("textarea")!, { target: { value: "changed" } });
+    fireEvent.click(within(view).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(dialog.querySelector("[data-slot=game-edit]")).toBeNull());
+    expect(patches()).toHaveLength(0);
+    expect(gets()).toHaveLength(1);
+    await waitFor(() => expect(document.activeElement?.textContent).toBe(edit.textContent));
+  });
+
+  it("One Piece: no players in the edit; the seat is went first / went second", async () => {
+    getAnswer = reply(
+      200,
+      list({
+        total: 1,
+        games: [game({ podSize: 2, seat: 1, opponents: [["OP15-058"]] })],
+        names: { "OP15-058": "Enel" },
+      }),
+    );
+    const { dialog } = renderDialog({ adapter: optcg });
+    const { view } = await openEdit(dialog);
+    expect(within(view).queryByRole("group", { name: "Players" })).toBeNull();
+    expect(chips(view)).toEqual(["Enel (OP15-058)"]);
+    fireEvent.click(
+      within(within(view).getByRole("group", { name: "Seat" })).getByRole("button", {
+        name: "Went second",
+      }),
+    );
+    fireEvent.click(within(view).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    expect(JSON.parse(patches()[0][1].body as string)).toEqual({ seat: 2 });
+  });
+
+  it("a game logged with no list kept says the edit can't change that", async () => {
+    getAnswer = reply(200, list({ total: 1, games: [game({ version: null })] }));
+    const { dialog } = renderDialog();
+    const { view } = await openEdit(dialog);
+    expect(view.textContent).toContain("Logged with no list kept — an edit never changes that.");
+  });
+
+  it("a 401 during an edit reads the sign-in sentence", async () => {
+    getAnswer = reply(200, list({ total: 1, games: [FULL], names: NAMES }));
+    patchAnswer = reply(401, { error: "Sign in to keep a game journal" });
+    const { dialog } = renderDialog();
+    const { view } = await openEdit(dialog);
+    fireEvent.change(view.querySelector("textarea")!, { target: { value: "x" } });
+    fireEvent.click(within(view).getByRole("button", { name: "Save changes" }));
+    await within(dialog).findByRole("link", { name: "Sign in to keep a game journal" });
   });
 });

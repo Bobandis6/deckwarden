@@ -18,7 +18,13 @@
  *     boxes ask) land as external keys — Magic's oracle ids with a pair as
  *     one entry of two (a Background from the `cards` scope, which the
  *     `leaders` scope never offers), One Piece's printed id; past pod − 1 400;
- *   - deleting the deck takes its games (the cascade).
+ *   - deleting the deck takes its games (the cascade);
+ *   - Y10's results: the POST's `first` on the deck's first game only; the
+ *     GET's record (every game counted by version, table size and result),
+ *     the lists played with `diffSummary` since the one before, the
+ *     opponents' names; the versions GET's per-version record and the
+ *     newest version's hash (equal to the screen's after a tag or printing
+ *     change); an edit (PATCH) moving the record.
  *
  *   pnpm smoke:games                                  # http://localhost:3000
  *   BASE_URL=http://localhost:3111 pnpm smoke:games   # another port
@@ -181,7 +187,15 @@ async function main() {
       "GET → 200, no games, the allowance disclosed",
       empty.status === 200 &&
         JSON.stringify(j(empty.json)) ===
-          JSON.stringify({ games: [], total: 0, playedSnapshots: 0, playedAllowance: 100 }),
+          JSON.stringify({
+            games: [],
+            total: 0,
+            playedSnapshots: 0,
+            playedAllowance: 100,
+            record: [],
+            lists: [],
+            names: {},
+          }),
       empty.json,
     );
 
@@ -213,6 +227,10 @@ async function main() {
         j(first.json).capped === false,
       first.json,
     );
+    check(
+      "…and it is the deck's first game (Y10: the Warden's line)",
+      j(first.json).first === true,
+    );
     const [restamped] =
       await sql`select list_hash from deck_versions where deck_id = ${deck.id} and version = 1`;
     check("…and hashed the unhashed v1 in the same transaction", restamped.list_hash === hashA);
@@ -230,6 +248,7 @@ async function main() {
       second.status === 201 && j(second.json).minted === true && playedV === 2,
       second.json,
     );
+    check("…and it is not the first game", j(second.json).first === false);
     const [v2] =
       await sql`select kind, note, list_hash from deck_versions where deck_id = ${deck.id} and version = 2`;
     check(
@@ -267,13 +286,55 @@ async function main() {
       await sql`select count(*)::int as played from deck_versions where deck_id = ${deck.id} and kind = 'played'`;
     check("exactly one played snapshot so far", Number(played) === 1, played);
 
+    // ---- Y10: the record ---------------------------------------------------------
+    type Cell = { version: number | null; podSize: number; result: string; games: number };
+    const sortCells = (cells: Cell[]) =>
+      cells
+        .map((c) => `${c.version}:${c.podSize}:${c.result}:${c.games}`)
+        .sort()
+        .join(" ");
+    const recordRead = j<{ record: Cell[]; lists: unknown[]; names: object }>(
+      (await api("GET", games, { cookie: alice.cookie })).json,
+    );
+    check(
+      "GET → the record counts every game by version, table size and result",
+      sortCells(recordRead.record) === "1:4:win:1 2:4:draw:1 2:4:loss:1 2:4:win:1",
+      recordRead.record,
+    );
+    check(
+      "…the lists played, newest first, v2 since v1 in diffSummary's words (Plains 3 → 4)",
+      JSON.stringify(recordRead.lists) ===
+        JSON.stringify([
+          { version: 2, since: 1, change: "1 qty" },
+          { version: 1, since: null, change: null },
+        ]),
+      recordRead.lists,
+    );
+    check("…no opponents yet, no names", JSON.stringify(recordRead.names) === "{}");
+
     // ---- History: a version a game uses stays; the cap counts saved only ------
     const versions = await api("GET", `/api/decks/${deck.id}/versions`, { cookie: alice.cookie });
     const vs = j<{
-      versions: { version: number; kind: string }[];
+      versions: { version: number; kind: string; record: object | null }[];
       cap: number;
       playedAllowance: number;
+      latestListHash: string | null;
     }>(versions.json);
+    check(
+      "GET versions: each version's record (v2 played 3 · 1–1–1, v1 played 1 · 1–0)",
+      JSON.stringify(vs.versions.map((v) => v.record)) ===
+        JSON.stringify([
+          { games: 3, win: 1, loss: 1, draw: 1 },
+          { games: 1, win: 1, loss: 0, draw: 0 },
+        ]),
+      vs.versions,
+    );
+    check(
+      "…and the newest version's hash equals the screen's — a tag and a printing changed, no card did",
+      vs.latestListHash === playableListHash(RETAGGED) &&
+        vs.latestListHash === playableListHash(LIST_B),
+      vs.latestListHash,
+    );
     check(
       "GET versions lists kinds; cap 50, playedAllowance 100",
       vs.cap === 50 &&
@@ -357,6 +418,19 @@ async function main() {
       body: { seat: 3 },
     });
     check("PATCH seat 3 at a 2-player table → 400", strand.status === 400, strand.json);
+    const relabeled = await api("PATCH", `${games}/${thirdGame}`, {
+      cookie: alice.cookie,
+      body: { result: "loss" },
+    });
+    check("PATCH the result (Y10's edit) → 200", relabeled.status === 200, relabeled.json);
+    const afterEdit = j<{ record: Cell[] }>(
+      (await api("GET", games, { cookie: alice.cookie })).json,
+    );
+    check(
+      "…the record follows the edit: v2's game at 2 players is a loss now",
+      sortCells(afterEdit.record) === "2:2:loss:1 2:4:draw:1",
+      afterEdit.record,
+    );
 
     // ---- the played allowance: Save and Restore never blocked ----------------
     const [{ cv }] = await sql`select current_version as cv from decks where id = ${deck.id}`;
@@ -490,6 +564,16 @@ async function main() {
             .every((k) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(k)),
         stored?.opponents,
       );
+      const named = j<{ names: Record<string, string> }>(
+        (await api("GET", games, { cookie: alice.cookie })).json,
+      ).names;
+      check(
+        "…and the GET names them (Y10, LATER row 199) — the pair's Background too",
+        named[atraxaRow.externalKey] === "Atraxa, Praetors' Voice" &&
+          named[karlachRow.externalKey] === "Karlach, Fury of Avernus" &&
+          named[giantsRow.externalKey] === "Raised by Giants",
+        named,
+      );
       const tooMany = await api("POST", games, {
         cookie: alice.cookie,
         body: { result: "win", podSize: 3, opponents: [...opponents, [atraxaRow.externalKey]] },
@@ -511,6 +595,14 @@ async function main() {
         JSON.stringify(opStored?.opponents) === JSON.stringify([[enelRow.externalKey]]) &&
           /^[A-Z]+\d*-\d+$/.test(enelRow.externalKey),
         opStored?.opponents,
+      );
+      const opNamed = j<{ names: Record<string, string> }>(
+        (await api("GET", opGames, { cookie: alice.cookie })).json,
+      ).names;
+      check(
+        "…and its GET names the leader by its printed id",
+        opNamed[enelRow.externalKey] === enelRow.name,
+        opNamed,
       );
     }
 

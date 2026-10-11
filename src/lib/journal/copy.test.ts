@@ -1,7 +1,9 @@
 /**
  * Y9a — D0's copy guard over the journal's words: none says "approve"
  * (the Warden's word stays legality-only), every builder is read, and the
- * lines the dialog and the toast print are pinned.
+ * lines the dialog and the toast print are pinned. Y10 adds the record's
+ * words, History's "Played 3 · 2–1", "No card changes since vN" and the
+ * edit's.
  */
 import { describe, expect, it } from "vitest";
 
@@ -21,6 +23,25 @@ const OPPONENT_WORDS: Record<string, (noun: string) => string[]> = {
   searchLeader: (noun) => [JOURNAL_COPY.searchLeader(noun)],
   removeLeader: () => [JOURNAL_COPY.removeLeader("Atraxa, Praetors' Voice")],
   opponentUnpicked: (noun) => [JOURNAL_COPY.opponentUnpicked(noun)],
+};
+
+/** Y10's builders over tallies, lists and names, called the ways the dialog and History call them. */
+const T = (win: number, loss: number, draw: number) => ({
+  games: win + loss + draw,
+  win,
+  loss,
+  draw,
+});
+const RECORD_WORDS: Record<string, () => string[]> = {
+  score: () => [JOURNAL_COPY.score(T(5, 6, 1)), JOURNAL_COPY.score(T(2, 1, 0))],
+  scoreWords: () => [JOURNAL_COPY.scoreWords(T(5, 6, 1)), JOURNAL_COPY.scoreWords(T(1, 1, 0))],
+  wonOf: () => [JOURNAL_COPY.wonOf(3, 7, null), JOURNAL_COPY.wonOf(6, 12, 50)],
+  listLabel: () => [JOURNAL_COPY.listLabel(8, 7, "+2 · -2"), JOURNAL_COPY.listLabel(3, null, null)],
+  playedRow: () => [JOURNAL_COPY.playedRow(T(2, 1, 0)), JOURNAL_COPY.playedRow(T(2, 1, 1))],
+  playedRowWords: () => [JOURNAL_COPY.playedRowWords(T(2, 1, 0))],
+  vsLine: () => [JOURNAL_COPY.vsLine([["Atraxa, Praetors' Voice"], ["Kraum", "Tymna"]])],
+  editGame: () => [JOURNAL_COPY.editGame("2026-10-09")],
+  playedWith: () => [JOURNAL_COPY.playedWith(7), JOURNAL_COPY.playedWith(null)],
 };
 
 /** Every string the table can print — each plain string and each builder, called. */
@@ -45,6 +66,7 @@ function everyString(): string[] {
       for (const r of ["win", "loss", "draw"] as const)
         out.push((value as (r: string) => string)(r));
     } else if (key === "playedNote") out.push(JOURNAL_COPY.playedNote("2026-10-10"));
+    else if (key in RECORD_WORDS) out.push(...RECORD_WORDS[key]());
     else if (key in OPPONENT_WORDS) {
       // Y9b's opponents' words, in both adapters' nouns.
       for (const noun of ["Commander", "Leader"]) out.push(...OPPONENT_WORDS[key](noun));
@@ -122,6 +144,52 @@ describe("JOURNAL_COPY", () => {
     expect(JOURNAL_COPY.searchLeader(leader)).toBe("Search a leader…");
     expect(JOURNAL_COPY.opponentUnpicked(commander)).toBe(
       "Pick the commander from the list, or clear the box.",
+    );
+  });
+
+  it("Y10 — the record: 'N games · W–L–D' (draws only when there are some), counts before judgments", () => {
+    expect(JOURNAL_COPY.gamesCount(1)).toBe("1 game");
+    expect(JOURNAL_COPY.gamesCount(12)).toBe("12 games");
+    expect(JOURNAL_COPY.score(T(5, 6, 1))).toBe("5–6–1");
+    expect(JOURNAL_COPY.score(T(2, 1, 0))).toBe("2–1");
+    expect(JOURNAL_COPY.scoreWords(T(5, 6, 1))).toBe("5 wins, 6 losses, 1 draw");
+    expect(JOURNAL_COPY.scoreWords(T(1, 1, 0))).toBe("1 win, 1 loss");
+    expect(JOURNAL_COPY.wonPercent(42)).toBe("won 42%");
+    expect(JOURNAL_COPY.wonOf(3, 7, null)).toBe("won 3 of 7");
+    expect(JOURNAL_COPY.wonOf(6, 12, 50)).toBe("won 6 of 12 · 50%");
+    expect(JOURNAL_COPY.podLabel(4)).toBe("4 players");
+    expect(JOURNAL_COPY.baseline(4)).toBe("an even table wins 1 in 4");
+    expect(JOURNAL_COPY.baselineSentence(2)).toBe("An even table wins 1 in 2.");
+    expect(JOURNAL_COPY.tooFew).toBe("Too few games to compare");
+    expect(JOURNAL_COPY.noListKept).toBe("No list kept");
+    expect(JOURNAL_COPY.moreLists(1)).toBe("and 1 earlier list");
+    expect(JOURNAL_COPY.moreLists(3)).toBe("and 3 earlier lists");
+  });
+
+  it("Y10 — a list row is diffSummary's own line since the list played before; the first is its number", () => {
+    expect(JOURNAL_COPY.listLabel(8, 7, "+2 · -2")).toBe("v8, since v7: +2 · -2");
+    expect(JOURNAL_COPY.listLabel(3, null, null)).toBe("v3");
+    // A since without its summary (a snapshot that wouldn't read) is just the number.
+    expect(JOURNAL_COPY.listLabel(5, 3, null)).toBe("v5");
+  });
+
+  it("Y10 — History's 'Played 3 · 2–1' and Save version's 'No card changes since vN'", () => {
+    expect(JOURNAL_COPY.playedRow(T(2, 1, 0))).toBe("Played 3 · 2–1");
+    expect(JOURNAL_COPY.playedRow(T(2, 1, 1))).toBe("Played 4 · 2–1–1");
+    expect(JOURNAL_COPY.playedRowWords(T(2, 1, 0))).toBe("Played 3: 2 wins, 1 loss");
+    expect(JOURNAL_COPY.noCardChangesSince(8)).toBe(
+      "No card changes since v8 (tags and printings aren't compared).",
+    );
+  });
+
+  it("Y10 — a recent game names its opponents, '; ' between them (names hold commas), '+' in a pair", () => {
+    expect(JOURNAL_COPY.vsLine([["Atraxa, Praetors' Voice"], ["Kraum", "Tymna"]])).toBe(
+      "vs Atraxa, Praetors' Voice; Kraum + Tymna",
+    );
+    expect(JOURNAL_COPY.editGame("2026-10-09")).toBe("Edit the game of Oct 9");
+    expect(JOURNAL_COPY.playedWith(7)).toBe("Played with v7 — an edit never changes the list.");
+    expect(JOURNAL_COPY.playedWith(null)).toBe(
+      "Logged with no list kept — an edit never changes that.",
     );
   });
 });

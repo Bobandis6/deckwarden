@@ -15,6 +15,13 @@
  *   - Upstream (forks only): the credit line plus "their changes since you
  *     forked" (baseline v1 -> upstream's current list) and "your changes
  *     since forking" (baseline v1 -> live list).
+ *   - Y10 (WAVE4 D10): each version a game was played with says so —
+ *     "Played 3 · 2–1" — which is how History groups the games under their
+ *     lists (the games themselves live in the Games dialog). Save version
+ *     says "No card changes since vN" when the screen's list hashes like
+ *     the newest version's (`playableListHash` is isomorphic; the GET sends
+ *     the newest hash). Saving stays open: a note, a tag or a printing is
+ *     still worth a version, and the hash doesn't see them.
  *
  * All requests carry the editor's ownership proof (claim token header when
  * this browser holds one, else the session cookie).
@@ -28,8 +35,11 @@ import { Modal } from "@/components/ui/modal";
 import { diffDeckLists, type DeckDiff, type FrozenCard } from "@/lib/decks/diff";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
+import { playableListHash } from "@/lib/decks/list-hash";
 import { getDeckToken } from "@/lib/decks/token-store";
 import type { FormatDef } from "@/lib/games/types";
+import { JOURNAL_COPY } from "@/lib/journal/copy";
+import type { Tally } from "@/lib/journal/record";
 
 interface VersionSummary {
   version: number;
@@ -38,12 +48,16 @@ interface VersionSummary {
   kind: "saved" | "played";
   createdAt: string;
   cardCount: number;
+  /** Y10: the games played with this list; null when none. */
+  record: Tally | null;
 }
 
 interface VersionsResponse {
   versions: VersionSummary[];
   currentVersion: number;
   cap: number;
+  /** Y10: the newest version's playable-list hash (null with no versions). */
+  latestListHash: string | null;
 }
 
 interface VersionDetail extends VersionSummary {
@@ -251,12 +265,16 @@ export function HistoryDialog({
       ];
       if (outcome.printingsReset > 0) {
         notes.push(
-          `${outcome.printingsReset} chosen printing${outcome.printingsReset === 1 ? "" : "s"} no longer exist and fell back to the default printing.`,
+          outcome.printingsReset === 1
+            ? "1 chosen printing no longer exists and fell back to the default printing."
+            : `${outcome.printingsReset} chosen printings no longer exist and fell back to the default printing.`,
         );
       }
       if (outcome.cardsDropped > 0) {
         notes.push(
-          `${outcome.cardsDropped} card${outcome.cardsDropped === 1 ? "" : "s"} no longer exist in the card database and could not be restored.`,
+          outcome.cardsDropped === 1
+            ? "1 card no longer exists in the card database and could not be restored."
+            : `${outcome.cardsDropped} cards no longer exist in the card database and could not be restored.`,
         );
       }
       setStatus(notes.join(" "));
@@ -286,6 +304,12 @@ export function HistoryDialog({
   const savedCount = list?.versions.filter((v) => v.kind !== "played").length ?? 0;
   const atCap = list !== null && savedCount >= list.cap;
   const live = toFrozen(entries);
+  // The screen's list against the newest version's: the same cards, said before a save.
+  const newest = list?.versions[0];
+  const unchangedSince =
+    newest && list.latestListHash !== null && list.latestListHash === playableListHash(entries)
+      ? newest.version
+      : null;
 
   return (
     <Modal label="Deck history" onClose={onClose} wide>
@@ -314,6 +338,11 @@ export function HistoryDialog({
           </span>
         )}
       </form>
+      {unchangedSince !== null && (
+        <p className="text-muted-foreground text-xs" data-slot="history-unchanged">
+          {JOURNAL_COPY.noCardChangesSince(unchangedSince)}
+        </p>
+      )}
       {atCap && (
         <p className="text-destructive text-xs">
           This deck has reached the {list?.cap}-version limit. Delete an old version to save or
@@ -352,6 +381,15 @@ export function HistoryDialog({
                   <span className="text-muted-foreground block text-xs">
                     v{v.version} · {dateLabel(v.createdAt)} ·{" "}
                     <span className="tabular-nums">{v.cardCount}</span> cards
+                    {v.record && (
+                      <>
+                        {" · "}
+                        <span data-slot="history-played" aria-hidden className="tabular-nums">
+                          {JOURNAL_COPY.playedRow(v.record)}
+                        </span>
+                        <span className="sr-only">{JOURNAL_COPY.playedRowWords(v.record)}</span>
+                      </>
+                    )}
                   </span>
                 </span>
                 <span className="flex shrink-0 gap-1">

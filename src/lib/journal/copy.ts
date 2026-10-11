@@ -18,6 +18,20 @@ export function playedDateLabel(playedOn: string, withYear = true): string {
   });
 }
 
+/** Wins–losses, with the draws only when there are some: "5–6", "5–6–1". */
+function score(t: { win: number; loss: number; draw: number }): string {
+  return t.draw > 0 ? `${t.win}–${t.loss}–${t.draw}` : `${t.win}–${t.loss}`;
+}
+
+/** The score in words: "5 wins, 6 losses, 1 draw". */
+function scoreWords(t: { win: number; loss: number; draw: number }): string {
+  return [
+    `${t.win} ${t.win === 1 ? "win" : "wins"}`,
+    `${t.loss} ${t.loss === 1 ? "loss" : "losses"}`,
+    ...(t.draw > 0 ? [`${t.draw} ${t.draw === 1 ? "draw" : "draws"}`] : []),
+  ].join(", ");
+}
+
 export const JOURNAL_COPY = {
   title: "Games",
   logHeading: "Log a game",
@@ -75,6 +89,65 @@ export const JOURNAL_COPY = {
   playedNote: (playedOn: string) => `Played ${playedDateLabel(playedOn)}`,
   /** History's version delete, refused while a game uses the list. */
   versionInUse: "A logged game was played with this list, so it stays while the game does.",
+  /**
+   * Y10 — the record. "5–6", or "5–6–1" when any game was a draw (wins,
+   * losses, draws — D10's "N games · W–L–D", the draws only when there are
+   * some, as History's "Played 3 · 2–1").
+   */
+  score,
+  /** The score in words, for screen readers. */
+  scoreWords,
+  recordHeading: "Record",
+  gamesCount: (n: number) => (n === 1 ? "1 game" : `${n} games`),
+  /** "won 42%" — only ever built from 10 games or more (record.ts `shownPercent`). */
+  wonPercent: (percent: number) => `won ${percent}%`,
+  byPlayers: "By players",
+  byList: "By list",
+  podLabel: (podSize: number) => `${podSize} players`,
+  /** "won 3 of 7", "won 6 of 12 · 50%". */
+  wonOf: (win: number, games: number, percent: number | null) =>
+    `won ${win} of ${games}${percent !== null ? ` · ${percent}%` : ""}`,
+  /** The table's own odds — the honest yardstick for a pod's record. */
+  baseline: (podSize: number) => `an even table wins 1 in ${podSize}`,
+  baselineSentence: (podSize: number) => `An even table wins 1 in ${podSize}.`,
+  /** A list row: "v8, since v7: +2 · -2" (`diffSummary`'s own line), or "v3" for the first. */
+  listLabel: (version: number, since: number | null, change: string | null) =>
+    since !== null && change !== null ? `v${version}, since v${since}: ${change}` : `v${version}`,
+  /** Games logged at the played allowance (LATER row 196). */
+  noListKept: "No list kept",
+  tooFew: "Too few games to compare",
+  moreLists: (n: number) => (n === 1 ? "and 1 earlier list" : `and ${n} earlier lists`),
+  /** History's row: "Played 3 · 2–1". */
+  playedRow: (t: { games: number; win: number; loss: number; draw: number }) =>
+    `Played ${t.games} · ${score(t)}`,
+  /** The same row, for screen readers: "Played 3: 2 wins, 1 loss". */
+  playedRowWords: (t: { games: number; win: number; loss: number; draw: number }) =>
+    `Played ${t.games}: ${scoreWords(t)}`,
+  /** Save version, when the screen's list hashes like the newest version's. */
+  noCardChangesSince: (version: number) =>
+    `No card changes since v${version} (tags and printings aren't compared).`,
+  /** A recent game's opponents (row 199): "vs Atraxa, Praetors' Voice; Kraum + Tymna" — "; " because names hold commas. */
+  vsLine: (opponents: readonly (readonly string[])[]) =>
+    `vs ${opponents.map((o) => o.join(" + ")).join("; ")}`,
+  /** Y10 — a recent game, edited. */
+  edit: "Edit",
+  editGame: (playedOn: string) => `Edit the game of ${playedDateLabel(playedOn, false)}`,
+  result: "Result",
+  saveEdit: "Save changes",
+  cancelEdit: "Cancel",
+  deleteGame: "Delete game",
+  confirmDelete: "Delete this game? It leaves the record, and this can't be undone.",
+  /** The list never moves in an edit (PATCH changes the details only). */
+  playedWith: (version: number | null) =>
+    version !== null
+      ? `Played with v${version} — an edit never changes the list.`
+      : "Logged with no list kept — an edit never changes that.",
+  editFailed: (status: number) => `Couldn't save the changes (${status}). Try again.`,
+  deleteFailed: (status: number) => `Couldn't delete the game (${status}). Try again.`,
+  editOffline: "Couldn't reach Deckwarden — check your connection and try again.",
+  /** Said under "Recent games" when an edit lands. */
+  edited: "Saved the changes to that game.",
+  deleted: "Deleted that game.",
   /** One recent game: "Oct 10 · Won · 4 players · v12". */
   gameLine: (game: {
     playedOn: string;

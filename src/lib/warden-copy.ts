@@ -1,6 +1,7 @@
 /**
  * The Warden's lines (R5b, F8 — REDESIGN.md §4 "Warden pages"): the one
- * table of Warden-voiced copy for the 404 and error pages, so the voice
+ * table of Warden-voiced copy for the 404 and error pages (and, since Y10,
+ * the journal's first game), so the voice
  * stays in one place and the rule stays checkable — approval language
  * ("approves") is reserved for the true zero-issue validation line (F1,
  * `ValidationPanel`), and every page carries ONE line of voice beside its
@@ -19,5 +20,13 @@ export const WARDEN_COPY = {
     title: "Something went wrong",
     /** The Warden's line; the reassurance is P1.8's promise, kept true by the editor's retry. */
     hint: "The Warden has reported this one. Your decks are safe — saves that failed will retry from the editor.",
+  },
+  /**
+   * Y10 (WAVE4 D10): the first logged game earns one restrained line — the
+   * toast's description on a deck's first game, once. The journal's own
+   * words stay in JOURNAL_COPY.
+   */
+  journal: {
+    firstGame: "The Warden keeps this deck's record from here.",
   },
 } as const;

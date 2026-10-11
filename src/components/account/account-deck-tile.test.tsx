@@ -25,6 +25,11 @@ import { Toaster } from "@/components/ui/toast";
 import { deckTileData } from "@/lib/decks/tiles";
 import { AccountDeckTile } from "./account-deck-tile";
 
+// The owner row / tile menu preloads the Games dialog's chunk (Y9b); load it
+// here first so that preload resolves from the module cache — under a full
+// run a cold import could outlive this file's environment (Y10).
+await import("@/components/editor/log-game-dialog");
+
 const DECK_ID = "11111111-1111-4111-8111-111111111111";
 
 const tile = deckTileData({
@@ -255,7 +260,15 @@ describe("AccountDeckTile", () => {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ games: [], total: 0, playedSnapshots: 0, playedAllowance: 100 }),
+          json: async () => ({
+            games: [],
+            total: 0,
+            playedSnapshots: 0,
+            playedAllowance: 100,
+            record: [],
+            lists: [],
+            names: {},
+          }),
         };
       }
       if (url === GAMES && method === "POST") {
@@ -315,7 +328,15 @@ describe("AccountDeckTile", () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ games: [], total: 0, playedSnapshots: 0, playedAllowance: 100 }),
+      json: async () => ({
+        games: [],
+        total: 0,
+        playedSnapshots: 0,
+        playedAllowance: 100,
+        record: [],
+        lists: [],
+        names: {},
+      }),
     });
     const { container } = renderTile();
     const more = screen.getByRole("button", { name: "Deck actions for Krenko — Mob Rule" });

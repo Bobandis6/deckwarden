@@ -13,14 +13,19 @@
  *     snapshot goes with its last game. A saved version a game reused is
  *     the owner's and is never touched.
  *   updateGame — the details only; the version and the list never move.
+ *   listGames — the recent games, plus (Y10) the record: every game
+ *     counted by version, table size and result in one grouped statement,
+ *     the newest lists played with what changed between them, and the
+ *     opponents' names (LATER row 199) — record.ts turns them into words.
  *
  * Callers (the games routes) have already proved the session, the owner
  * and the adapter's journal declaration.
  */
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
-import { getDb, schema } from "@/db";
+import { getDb, schema, type DbExecutor } from "@/db";
 import type { GameResult } from "@/db/schema";
+import { diffDeckLists, diffSummary } from "@/lib/decks/diff";
 import { LIST_HASH_PREFIX, playableListHash } from "@/lib/decks/list-hash";
 import {
   insertVersion,
@@ -32,10 +37,11 @@ import {
 } from "@/lib/decks/versions";
 import { JOURNAL_COPY } from "@/lib/journal/copy";
 import type { GameFields } from "@/lib/journal/check";
+import { RECORD_LISTS, type PlayedList, type RecordCell } from "@/lib/journal/record";
 
-const { decks, deckGames, deckVersions } = schema;
+const { decks, deckGames, deckVersions, cardIdentities } = schema;
 
-/** The most recent games GET returns (Y9a's dialog shows a few; Y10 reads its numbers its own way). */
+/** The most recent games GET returns (the dialog shows ten; the record counts every game). */
 export const RECENT_GAMES_LIMIT = 50;
 
 /** One game on the wire (owner-only). The list hash stays server-side. */
@@ -80,11 +86,85 @@ export interface GamesList {
   /** Played snapshots the deck keeps now — the allowance's numerator. */
   playedSnapshots: number;
   playedAllowance: number;
+  /** Y10: every game counted — by version, table size and result. */
+  record: RecordCell[];
+  /** Y10: the newest lists played (≤ RECORD_LISTS), each with what changed since the one before. */
+  lists: PlayedList[];
+  /** Y10 (LATER row 199): the returned games' opponents, external key → card name. */
+  names: Record<string, string>;
 }
 
-export async function listGames(deckId: string): Promise<GamesList> {
+/**
+ * Every game the deck has, counted by (version, pod size, result) — one
+ * grouped statement over the deck's index. A NULL version (a game logged at
+ * the played allowance) is a group of its own. History reads it too.
+ */
+export function loadRecordCells(executor: DbExecutor, deckId: string) {
+  // The builder itself, not an async wrapper: callers await it beside their other reads.
+  return executor
+    .select({
+      version: deckGames.version,
+      podSize: deckGames.podSize,
+      result: deckGames.result,
+      games: sql<number>`count(*)::int`,
+    })
+    .from(deckGames)
+    .where(eq(deckGames.deckId, deckId))
+    .groupBy(deckGames.version, deckGames.podSize, deckGames.result);
+}
+
+/**
+ * The newest RECORD_LISTS versions games were played with, each with
+ * `diffSummary` since the list played before it (the next older version
+ * with games) — one read of at most RECORD_LISTS + 1 snapshots; only the
+ * one-line summaries leave the server.
+ */
+async function loadPlayedLists(
+  executor: DbExecutor,
+  deckId: string,
+  cells: readonly RecordCell[],
+): Promise<PlayedList[]> {
+  const played = [...new Set(cells.flatMap((c) => (c.version === null ? [] : [c.version])))].sort(
+    (a, b) => b - a,
+  );
+  const wanted = played.slice(0, RECORD_LISTS + 1);
+  if (wanted.length === 0) return [];
+  const rows = await executor
+    .select({ version: deckVersions.version, cards: deckVersions.cards })
+    .from(deckVersions)
+    .where(and(eq(deckVersions.deckId, deckId), inArray(deckVersions.version, wanted)));
+  const cards = new Map(rows.map((r) => [r.version, parseFrozenCards(r.cards)]));
+  return wanted.slice(0, RECORD_LISTS).map((version, i) => {
+    const since = wanted[i + 1] ?? null;
+    const before = since !== null ? cards.get(since) : undefined;
+    const after = cards.get(version);
+    return {
+      version,
+      since,
+      change: before && after ? diffSummary(diffDeckLists(before, after)) : null,
+    };
+  });
+}
+
+/** The opponents' names for the games returned — one statement over their keys, in the deck's game. */
+async function loadOpponentNames(
+  executor: DbExecutor,
+  gameId: number,
+  games: readonly GameRow[],
+): Promise<Record<string, string>> {
+  const keys = [...new Set(games.flatMap((g) => g.opponents?.flat() ?? []))];
+  if (keys.length === 0) return {};
+  const rows = await executor
+    .select({ key: cardIdentities.externalKey, name: cardIdentities.name })
+    .from(cardIdentities)
+    .where(and(eq(cardIdentities.gameId, gameId), inArray(cardIdentities.externalKey, keys)));
+  return Object.fromEntries(rows.map((r) => [r.key, r.name]));
+}
+
+export async function listGames(deck: { id: string; gameId: number }): Promise<GamesList> {
   const db = getDb();
-  const [games, [counts]] = await Promise.all([
+  const deckId = deck.id;
+  const [games, [counts], record] = await Promise.all([
     db
       .select(GAME_COLUMNS)
       .from(deckGames)
@@ -101,12 +181,20 @@ export async function listGames(deckId: string): Promise<GamesList> {
       })
       .from(decks)
       .where(eq(decks.id, deckId)),
+    loadRecordCells(db, deckId),
+  ]);
+  const [lists, names] = await Promise.all([
+    loadPlayedLists(db, deckId, record),
+    loadOpponentNames(db, deck.gameId, games),
   ]);
   return {
     games: games.map(toWire),
     total: counts?.total ?? 0,
     playedSnapshots: counts?.played ?? 0,
     playedAllowance: MAX_PLAYED_SNAPSHOTS_PER_DECK,
+    record,
+    lists,
+    names,
   };
 }
 
@@ -118,6 +206,8 @@ export interface LogResult {
   minted: boolean;
   /** The allowance was full: the game logged without a version of its own. */
   capped: boolean;
+  /** Y10: the deck's first logged game — the toast carries the Warden's one line. */
+  first: boolean;
 }
 
 export async function logGame(deckId: string, game: GameFields): Promise<LogResult> {
@@ -182,11 +272,17 @@ export async function logGame(deckId: string, game: GameFields): Promise<LogResu
       }
     }
 
+    // Is this the deck's first game? Read under the lock, so two logs can't both be first.
+    const prior = await tx
+      .select({ id: deckGames.id })
+      .from(deckGames)
+      .where(eq(deckGames.deckId, deckId))
+      .limit(1);
     const [row] = await tx
       .insert(deckGames)
       .values({ deckId, version, listHash: hash, ...game })
       .returning(GAME_COLUMNS);
-    return { game: toWire(row), version, minted, capped };
+    return { game: toWire(row), version, minted, capped, first: prior.length === 0 };
   });
 }
 

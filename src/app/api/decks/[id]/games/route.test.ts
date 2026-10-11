@@ -16,7 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
-import type { FrozenCard } from "@/lib/decks/diff";
+import { diffDeckLists, diffSummary, type FrozenCard } from "@/lib/decks/diff";
 import { playableListHash } from "@/lib/decks/list-hash";
 import type { DeckRow } from "@/lib/decks/serialize";
 
@@ -259,12 +259,13 @@ describe("the gate, in the contract's order", () => {
       expect((await POST(req("POST", body), ctx)).status, JSON.stringify(body)).toBe(400);
     }
     statements = [];
-    // deck · lock · live · versions (one, same list) · game insert
+    // deck · lock · live · versions (one, same list) · first? · game insert
     answers = [
       [deckRow(op)],
       [[DECK]],
       liveRows(LIVE),
       [[2, HASH, null]],
+      [[40]], // an earlier game: not the first
       [gameRow({ version: 2, podSize: 2, seat: 2 })],
     ];
     const res = await POST(req("POST", { result: "loss", podSize: 2, seat: 2 }), ctx);
@@ -278,7 +279,7 @@ describe("the gate, in the contract's order", () => {
 
 describe("POST — the list the game was played with (one transaction)", () => {
   it("an unchanged list reuses the newest version with its hash — no snapshot minted", async () => {
-    // deck · lock · live · versions newest first (v7 and v5 share the hash) · game
+    // deck · lock · live · versions newest first (v7 and v5 share the hash) · first? · game
     answers = [
       [deckRow()],
       [[DECK]],
@@ -288,13 +289,14 @@ describe("POST — the list the game was played with (one transaction)", () => {
         [6, playableListHash(OTHER), null],
         [5, HASH, null],
       ],
+      [[40]], // an earlier game: not the first
       [gameRow({ version: 7 })],
     ];
     const res = await POST(req("POST", { result: "win", podSize: 4, playedOn: "2026-10-10" }), ctx);
     expect(res.status).toBe(201);
     expect(res.headers.get("cache-control")).toBe("no-store");
     const json = await res.json();
-    expect(json).toMatchObject({ version: 7, minted: false, capped: false });
+    expect(json).toMatchObject({ version: 7, minted: false, capped: false, first: false });
     expect(json.game).toMatchObject({ id: 41, version: 7, result: "win", playedOn: "2026-10-10" });
     expect(json.game.listHash).toBeUndefined();
 
@@ -309,7 +311,7 @@ describe("POST — the list the game was played with (one transaction)", () => {
   });
 
   it("a changed list mints a played snapshot noted 'Played {date}', stamped with the hash", async () => {
-    // … versions (none match) · played count · bump · version insert · game
+    // … versions (none match) · played count · bump · version insert · first? · game
     answers = [
       [deckRow()],
       [[DECK]],
@@ -318,6 +320,7 @@ describe("POST — the list the game was played with (one transaction)", () => {
       [[3]],
       [[8]],
       [],
+      [[40]], // an earlier game: not the first
       [gameRow({ version: 8 })],
     ];
     const res = await POST(req("POST", { result: "win", podSize: 4, playedOn: "2026-10-10" }), ctx);
@@ -334,7 +337,7 @@ describe("POST — the list the game was played with (one transaction)", () => {
 
   it("a tag or printing change keeps the hash — the same snapshot is reused", async () => {
     const retagged = LIVE.map((c) => ({ ...c, tags: ["Changed"], printingId: U(99) }));
-    answers = [[deckRow()], [[DECK]], liveRows(retagged), [[8, HASH, null]], [gameRow()]];
+    answers = [[deckRow()], [[DECK]], liveRows(retagged), [[8, HASH, null]], [[40]], [gameRow()]];
     const res = await POST(req("POST", { result: "draw", podSize: 4 }), ctx);
     expect(await res.json()).toMatchObject({ version: 8, minted: false });
     expect(inserts("deck_versions")).toEqual([]);
@@ -350,6 +353,7 @@ describe("POST — the list the game was played with (one transaction)", () => {
         [3, null, LIVE],
       ],
       [],
+      [[40]], // an earlier game: not the first
       [gameRow({ version: 3 })],
     ];
     const res = await POST(req("POST", { result: "win", podSize: 4 }), ctx);
@@ -374,6 +378,7 @@ describe("POST — the list the game was played with (one transaction)", () => {
       liveRows(LIVE),
       [[6, playableListHash(OTHER), null]],
       [[100]],
+      [[40]], // an earlier game: not the first
       [gameRow({ version: null })],
     ];
     const res = await POST(req("POST", { result: "loss", podSize: 4 }), ctx);
@@ -385,8 +390,21 @@ describe("POST — the list the game was played with (one transaction)", () => {
     expect(inserted(game, "list_hash")).toBe(HASH);
   });
 
+  it("the deck's first game says so (Y10) — read under the lock, just before the insert", async () => {
+    answers = [[deckRow()], [[DECK]], liveRows(LIVE), [[7, HASH, null]], [], [gameRow()]];
+    const res = await POST(req("POST", { result: "win", podSize: 4 }), ctx);
+    expect(await res.json()).toMatchObject({ version: 7, first: true });
+    const insertAt = statements.findIndex((s) => s.sql.startsWith('insert into "deck_games"'));
+    const prior = statements[insertAt - 1];
+    expect(prior.sql).toMatch(
+      /^select "id" from "deck_games" where "deck_games"\."deck_id" = \$1 limit \$2$/,
+    );
+    expect(prior.params).toEqual([DECK, 1]);
+    expect(statements[1].sql).toMatch(/for update$/);
+  });
+
   it("the date defaults to the server's UTC today; the details ride along", async () => {
-    answers = [[deckRow()], [[DECK]], liveRows(LIVE), [[7, HASH, null]], [gameRow()]];
+    answers = [[deckRow()], [[DECK]], liveRows(LIVE), [[7, HASH, null]], [[40]], [gameRow()]];
     const before = new Date().toISOString().slice(0, 10);
     await POST(
       req("POST", {
@@ -413,7 +431,8 @@ describe("POST — the list the game was played with (one transaction)", () => {
 
 describe("GET — the recent games and the allowance's numerator", () => {
   it("newest first, 50 at most, with the total and the played count in one statement", async () => {
-    answers = [[deckRow()], [gameRow(), gameRow({ id: 40, result: "loss" })], [[12, 3]]];
+    // deck · games ∥ counts ∥ the record's cells (none: no lists read, no names read)
+    answers = [[deckRow()], [gameRow(), gameRow({ id: 40, result: "loss" })], [[12, 3]], []];
     const res = await GET(req("GET"), ctx);
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
@@ -427,12 +446,96 @@ describe("GET — the recent games and the allowance's numerator", () => {
       /order by "deck_games"\."played_on" desc, "deck_games"\."id" desc limit \$\d+$/,
     );
     expect(list.params).toContain(50);
-    expect(statements).toHaveLength(3);
+    expect(statements).toHaveLength(4);
+    expect(json).toMatchObject({ record: [], lists: [], names: {} });
     // The deck id is bound in both subqueries — an unqualified "id" there would be the inner table's.
     const counts = statements[2];
     expect(counts.sql).toMatch(
       /^select \(select count\(\*\)::int from "deck_games" where "deck_id" = \$1\), \(select count\(\*\)::int from "deck_versions" where "deck_id" = \$2 and "kind" = 'played'\) from "decks"/,
     );
     expect(counts.params.slice(0, 2)).toEqual([DECK, DECK]);
+  });
+
+  it("Y10 — the record: every game counted in ONE grouped statement, the newest lists' diffs from one read, opponents' names from one lookup", async () => {
+    const ATRAXA = "d0d33d52-3d28-4635-b985-51e126289259";
+    const KRAUM = "0d7b2b7d-2f2c-4d1c-9c8f-4b2a8f9f2e11";
+    const UNKNOWN = "1111aaaa-2222-4333-8444-555566667777";
+    answers = [
+      [deckRow()],
+      [
+        gameRow({ version: 8, opponents: [[ATRAXA], [KRAUM, UNKNOWN]] }),
+        gameRow({ id: 40, version: 5, result: "loss", opponents: [[ATRAXA]] }),
+      ],
+      [[14, 2]],
+      // version · pod · result · games
+      [
+        [8, 4, "win", 3],
+        [8, 3, "loss", 1],
+        [5, 4, "loss", 8],
+        [null, 4, "win", 2],
+      ],
+      // the lists' snapshots (v8, v5)
+      [
+        [8, LIVE],
+        [5, OTHER],
+      ],
+      // the names found (UNKNOWN names no card)
+      [
+        [ATRAXA, "Atraxa, Praetors' Voice"],
+        [KRAUM, "Kraum, Ludevic's Opus"],
+      ],
+    ];
+    const json = await (await GET(req("GET"), ctx)).json();
+    expect(json.record).toEqual([
+      { version: 8, podSize: 4, result: "win", games: 3 },
+      { version: 8, podSize: 3, result: "loss", games: 1 },
+      { version: 5, podSize: 4, result: "loss", games: 8 },
+      { version: null, podSize: 4, result: "win", games: 2 },
+    ]);
+    expect(json.lists).toEqual([
+      { version: 8, since: 5, change: diffSummary(diffDeckLists(OTHER, LIVE)) },
+      { version: 5, since: null, change: null },
+    ]);
+    expect(json.lists[0].change).toBe("+1 · 1 qty");
+    expect(json.names).toEqual({
+      [ATRAXA]: "Atraxa, Praetors' Voice",
+      [KRAUM]: "Kraum, Ludevic's Opus",
+    });
+
+    expect(statements).toHaveLength(6);
+    const cells = statements[3];
+    expect(cells.sql).toBe(
+      'select "version", "pod_size", "result", count(*)::int from "deck_games" where "deck_games"."deck_id" = $1 group by "deck_games"."version", "deck_games"."pod_size", "deck_games"."result"',
+    );
+    expect(cells.params).toEqual([DECK]);
+    const lists = statements[4];
+    expect(lists.sql).toMatch(
+      /^select "version", "cards" from "deck_versions" where \("deck_versions"\."deck_id" = \$1 and "deck_versions"\."version" in \(\$2, \$3\)\)$/,
+    );
+    expect(lists.params).toEqual([DECK, 8, 5]);
+    const names = statements[5];
+    expect(names.sql).toMatch(
+      /^select "external_key", "name" from "card_identities" where \("card_identities"\."game_id" = \$1 and "card_identities"\."external_key" in \(\$2, \$3, \$4\)\)$/,
+    );
+    // The deck's own game, each key once.
+    expect(names.params).toEqual([GAME_ID.mtg, ATRAXA, KRAUM, UNKNOWN]);
+  });
+
+  it("Y10 — past 10 lists: 11 snapshots read, the newest 10 described, the 10th since the 11th", async () => {
+    const versions = Array.from({ length: 12 }, (_, i) => 20 - i); // 20 … 9
+    answers = [
+      [deckRow()],
+      [gameRow()],
+      [[12, 12]],
+      versions.map((v) => [v, 4, "win", 1]),
+      versions.slice(0, 11).map((v) => [v, LIVE]),
+    ];
+    const json = await (await GET(req("GET"), ctx)).json();
+    expect(statements[4].params).toEqual([DECK, ...versions.slice(0, 11)]);
+    expect(json.lists).toHaveLength(10);
+    expect(json.lists[0]).toEqual({ version: 20, since: 19, change: "No card changes" });
+    expect(json.lists[9]).toEqual({ version: 11, since: 10, change: "No card changes" });
+    // No opponents among the games returned: no names read.
+    expect(statements).toHaveLength(5);
   });
 });

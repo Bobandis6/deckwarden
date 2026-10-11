@@ -2,12 +2,16 @@
  * /api/decks/[id]/games (Y9a, WAVE4 D10) — the deck's game journal.
  *
  * GET  — the recent games, newest first, with the total and the played
- *        allowance's numerator (the dialog discloses it).
+ *        allowance's numerator (the dialog discloses it); since Y10 also
+ *        the record (every game counted by version, table size and
+ *        result), the newest lists played with their diffs, and the
+ *        returned games' opponents' names.
  * POST — log a game: one transaction freezes the list it was played with
  *        (src/lib/journal/games.ts logGame) — the newest version with the
  *        same playable-list hash, or a new `played` snapshot — and answers
- *        201 `{game, version, minted, capped}`. At the played allowance the
- *        game still logs, `version` null and `capped` true.
+ *        201 `{game, version, minted, capped, first}`. At the played
+ *        allowance the game still logs, `version` null and `capped` true;
+ *        `first` (Y10) marks the deck's first game.
  *
  * The gate, in order (requireJournalDeck): session 401 → the per-user
  * bucket (writes 30/min + 200/day, reads 60/min) → 404 / owner 403 → a
@@ -36,7 +40,7 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   const { id } = await ctx.params;
   const access = await requireJournalDeck(request.headers, id, RATE_LIMITS.gamesRead);
   if (access instanceof NextResponse) return access;
-  return NextResponse.json(await listGames(access.deck.id), { headers: NO_STORE });
+  return NextResponse.json(await listGames(access.deck), { headers: NO_STORE });
 }
 
 export async function POST(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/games">) {

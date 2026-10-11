@@ -4180,7 +4180,15 @@ describe("DeckEditor — Games… (Y9a, WAVE4 D10)", () => {
       });
     }
     if (url === "/api/decks/deck-1/games" && method === "GET") {
-      return ok({ games: [], total: 0, playedSnapshots: 0, playedAllowance: 100 });
+      return ok({
+        games: [],
+        total: 0,
+        playedSnapshots: 0,
+        playedAllowance: 100,
+        record: [],
+        lists: [],
+        names: {},
+      });
     }
     if (url === "/api/decks/deck-1/games" && method === "POST") {
       return { ok: true, status: 201, json: async () => logAnswer };

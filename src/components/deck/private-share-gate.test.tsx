@@ -18,6 +18,11 @@ import { PrivateShareGate } from "./private-share-gate";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
+// The owner row / tile menu preloads the Games dialog's chunk (Y9b); load it
+// here first so that preload resolves from the module cache — under a full
+// run a cold import could outlive this file's environment (Y10).
+await import("@/components/editor/log-game-dialog");
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
