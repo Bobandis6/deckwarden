@@ -9,6 +9,20 @@ import { getAdapter } from "@/lib/games/registry";
 
 import { JOURNAL_COPY, playedDateLabel } from "./copy";
 
+/** Y9b's builders over the adapter's leader noun, called the ways the field calls them. */
+const OPPONENT_WORDS: Record<string, (noun: string) => string[]> = {
+  opponentsLabel: (noun) => [1, 3].map((max) => JOURNAL_COPY.opponentsLabel(noun, max)),
+  opponentBox: (noun) => [
+    JOURNAL_COPY.opponentBox(noun, 1, 1),
+    JOURNAL_COPY.opponentBox(noun, 2, 3),
+  ],
+  secondBox: (noun) => [JOURNAL_COPY.secondBox(noun, 1)],
+  addSecond: (noun) => [JOURNAL_COPY.addSecond(noun)],
+  searchLeader: (noun) => [JOURNAL_COPY.searchLeader(noun)],
+  removeLeader: () => [JOURNAL_COPY.removeLeader("Atraxa, Praetors' Voice")],
+  opponentUnpicked: (noun) => [JOURNAL_COPY.opponentUnpicked(noun)],
+};
+
 /** Every string the table can print — each plain string and each builder, called. */
 function everyString(): string[] {
   const out: string[] = [];
@@ -31,7 +45,10 @@ function everyString(): string[] {
       for (const r of ["win", "loss", "draw"] as const)
         out.push((value as (r: string) => string)(r));
     } else if (key === "playedNote") out.push(JOURNAL_COPY.playedNote("2026-10-10"));
-    else out.push((value as (n: number) => string)(100));
+    else if (key in OPPONENT_WORDS) {
+      // Y9b's opponents' words, in both adapters' nouns.
+      for (const noun of ["Commander", "Leader"]) out.push(...OPPONENT_WORDS[key](noun));
+    } else out.push((value as (n: number) => string)(100));
   }
   // The adapters' journal words ride along.
   for (const id of ["mtg", "optcg"] as const) {
@@ -89,5 +106,22 @@ describe("JOURNAL_COPY", () => {
 
   it("the sign-in sentence the guest dialog and the routes share", () => {
     expect(JOURNAL_COPY.signIn).toBe("Sign in to keep a game journal");
+  });
+
+  it("Y9b's doors and the opponents' words, in the adapter's noun", () => {
+    expect(JOURNAL_COPY.logHeading).toBe("Log a game");
+    expect(JOURNAL_COPY.logGameMenu).toBe("Log a game…");
+    const commander = getAdapter("mtg").display.leaderNoun;
+    const leader = getAdapter("optcg").display.leaderNoun;
+    expect(JOURNAL_COPY.opponentsLabel(commander, 3)).toBe("Opponents' commanders");
+    expect(JOURNAL_COPY.opponentsLabel(leader, 1)).toBe("Opponent's leader");
+    expect(JOURNAL_COPY.opponentBox(commander, 2, 3)).toBe("Opponent 2's commander");
+    expect(JOURNAL_COPY.opponentBox(leader, 1, 1)).toBe("Opponent's leader");
+    expect(JOURNAL_COPY.secondBox(commander, 1)).toBe("Opponent 1's second commander");
+    expect(JOURNAL_COPY.addSecond(commander)).toBe("Add a second commander");
+    expect(JOURNAL_COPY.searchLeader(leader)).toBe("Search a leader…");
+    expect(JOURNAL_COPY.opponentUnpicked(commander)).toBe(
+      "Pick the commander from the list, or clear the box.",
+    );
   });
 });

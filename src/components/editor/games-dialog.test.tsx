@@ -5,12 +5,18 @@
  * the details folded; One Piece's 1v1 with went first / second and no
  * table level; the played allowance disclosed; a guest deck — and a
  * signed-out owner — read "Sign in to keep a game journal" with ?next=.
+ *
+ * Y9b: the opponents' leaders through X2's suggest box (picked rows become
+ * chips and log as external keys; at most pod − 1; partners as one entry
+ * of two, the second box over every card; One Piece's one leader), typed
+ * text never picked stopping the log, and `returnPath` for the sign-in.
  */
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getAdapter } from "@/lib/games/registry";
 import type { GameWire, GamesList, LogResult } from "@/lib/journal/games";
+import type { SuggestRow } from "@/lib/search/suggest";
 
 import { fitsSegmented, GamesDialog } from "./games-dialog";
 
@@ -47,6 +53,38 @@ const logged = (over: Partial<LogResult> = {}): LogResult => ({
   ...over,
 });
 
+/** A suggest row — the fields the box reads; `externalKey` is what a game stores. */
+const suggestRow = (name: string, externalKey: string, over: Partial<SuggestRow> = {}) => ({
+  id: `id-${externalKey}`,
+  name,
+  slug: externalKey,
+  isLeader: true,
+  typeLine: "Legendary Creature",
+  colorsMask: 0,
+  ciMask: 0,
+  externalKey,
+  image: null,
+  ...over,
+});
+const ATRAXA = suggestRow("Atraxa, Praetors' Voice", "d0d33d52-3d28-4635-b985-51e126289259");
+const KARLACH = suggestRow("Karlach, Fury of Avernus", "5b7c7a5e-8f3b-4b1e-9c1f-2f8a1c3d4e5f");
+const GIANTS = suggestRow("Raised by Giants", "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", {
+  isLeader: false,
+  slug: null,
+});
+const ENEL = suggestRow("Enel", "OP15-058");
+/** The suggest stub's answers: by scope, filtered by the typed text. */
+const SUGGEST: Record<string, SuggestRow[]> = {
+  "mtg:leaders": [ATRAXA, KARLACH],
+  "mtg:cards": [ATRAXA, KARLACH, GIANTS],
+  "optcg:leaders": [ENEL],
+};
+const suggestCalls = () =>
+  fetchMock.mock.calls
+    .map(([url]) => String(url))
+    .filter((url) => url.startsWith("/api/cards/suggest"))
+    .map((url) => Object.fromEntries(new URL(url, "http://x").searchParams));
+
 const fetchMock = vi.fn();
 const reply = (status: number, body: unknown) => ({
   ok: status >= 200 && status < 300,
@@ -76,21 +114,29 @@ function renderDialog({
   accountDeck = true,
   phone = false,
   flushOk = true,
+  returnPath,
 }: {
   adapter?: typeof mtg;
   accountDeck?: boolean;
   phone?: boolean;
   flushOk?: boolean;
+  returnPath?: string;
 } = {}) {
   const order: string[] = [];
   const onBeforeLog = vi.fn(async () => {
     order.push("flush");
     return flushOk;
   });
-  fetchMock.mockImplementation(async (_url: string, init?: RequestInit) => {
+  fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
     if (init?.method === "POST") {
       order.push("post");
       return reply(201, logged());
+    }
+    if (url.startsWith("/api/cards/suggest")) {
+      const params = new URL(url, "http://x").searchParams;
+      const q = params.get("q") ?? "";
+      const rows = SUGGEST[`${params.get("game")}:${params.get("scope")}`] ?? [];
+      return reply(200, { q, results: rows.filter((r) => r.name.toLowerCase().includes(q)) });
     }
     return getAnswer;
   });
@@ -101,6 +147,7 @@ function renderDialog({
       adapter={adapter}
       accountDeck={accountDeck}
       phone={phone}
+      returnPath={returnPath}
       onBeforeLog={onBeforeLog}
       onLogged={onLogged}
       onClose={() => {}}
@@ -336,6 +383,15 @@ describe("GamesDialog — the journal around the log", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("returnPath sends the sign-in back to the door's page (Y9b: the share page)", () => {
+    const { dialog } = renderDialog({ accountDeck: false, returnPath: "/d/krenko123abc" });
+    expect(
+      within(dialog)
+        .getByRole("link", { name: "Sign in to keep a game journal" })
+        .getAttribute("href"),
+    ).toBe(`/account?next=${encodeURIComponent("/d/krenko123abc")}`);
+  });
+
   it("a signed-out owner (a 401) reads the same sentence", async () => {
     getAnswer = reply(401, { error: "Sign in to keep a game journal" });
     const { dialog } = renderDialog();
@@ -346,5 +402,171 @@ describe("GamesDialog — the journal around the log", () => {
     const { dialog, onLogged } = renderDialog({ phone: true });
     fireEvent.click(button(dialog, "Won"));
     await waitFor(() => expect(onLogged).toHaveBeenCalled());
+  });
+});
+
+/** Type into a suggest box (a real input event — Base UI ignores a change without inputType). */
+function typeInto(input: HTMLElement, value: string) {
+  fireEvent.input(input, { target: { value }, inputType: "insertText" });
+}
+/** Type, wait out the debounce and the answer, and pick the named row. */
+async function pick(dialog: HTMLElement, box: string, text: string, row: string) {
+  typeInto(within(dialog).getByRole("combobox", { name: box }), text);
+  fireEvent.click(await screen.findByRole("option", { name: new RegExp(row) }));
+}
+async function openDetails(dialog: HTMLElement) {
+  fireEvent.click(within(dialog).getByText("More details"));
+  return within(dialog).findByRole("group", { name: /^Opponent/ });
+}
+const chips = (dialog: HTMLElement) =>
+  [...dialog.querySelectorAll("[data-slot=opponent-chip]")].map((c) => c.textContent);
+
+describe("GamesDialog — opponents (Y9b)", () => {
+  it("a picked commander is a chip and logs as its oracle id; the next box asks for the next opponent, empty", async () => {
+    const { dialog } = renderDialog();
+    const field = await openDetails(dialog);
+    expect(field.tagName).toBe("FIELDSET");
+    expect(within(field).getByText("Opponents' commanders")).toBeTruthy();
+    await pick(dialog, "Opponent 1's commander", "atr", "Atraxa");
+    expect(suggestCalls().at(-1)).toEqual({ game: "mtg", scope: "leaders", q: "atr" });
+    expect(chips(dialog)).toEqual(["Atraxa, Praetors' Voice"]);
+    // Base UI fills the picked name in after the pick: it must not land in the next box.
+    const next = within(dialog).getByRole("combobox", { name: "Opponent 2's commander" });
+    expect((next as HTMLInputElement).value).toBe("");
+    fireEvent.click(button(dialog, "Lost"));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(postBody().opponents).toEqual([[ATRAXA.externalKey]]);
+  });
+
+  it("partners are one entry of two — the second box asks every card, so a Background is there", async () => {
+    const { dialog } = renderDialog();
+    await openDetails(dialog);
+    await pick(dialog, "Opponent 1's commander", "karl", "Karlach");
+    fireEvent.click(button(dialog, "Add a second commander"));
+    const second = within(dialog).getByRole("combobox", { name: "Opponent 1's second commander" });
+    expect(document.activeElement).toBe(second);
+    await pick(dialog, "Opponent 1's second commander", "raised", "Raised by Giants");
+    expect(suggestCalls().at(-1)).toEqual({ game: "mtg", scope: "cards", q: "raised" });
+    expect(chips(dialog)).toEqual(["Karlach, Fury of Avernus", "Raised by Giants"]);
+    // Two leaders: no third, and the second box closed with its pick.
+    expect(within(dialog).queryByRole("button", { name: "Add a second commander" })).toBeNull();
+    expect(
+      within(dialog).queryByRole("combobox", { name: "Opponent 1's second commander" }),
+    ).toBeNull();
+    await pick(dialog, "Opponent 2's commander", "atr", "Atraxa");
+    fireEvent.click(button(dialog, "Won"));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(postBody().opponents).toEqual([
+      [KARLACH.externalKey, GIANTS.externalKey],
+      [ATRAXA.externalKey],
+    ]);
+  });
+
+  it("at most pod − 1: a 3-player table takes two opponents and no box after; a smaller table drops the last", async () => {
+    window.localStorage.setItem("deckwarden:journal-pod:mtg", "3");
+    const { dialog } = renderDialog();
+    await openDetails(dialog);
+    await pick(dialog, "Opponent 1's commander", "atr", "Atraxa");
+    await pick(dialog, "Opponent 2's commander", "karl", "Karlach");
+    expect(within(dialog).queryByRole("combobox", { name: /^Opponent 3/ })).toBeNull();
+    fireEvent.click(
+      within(within(dialog).getByRole("group", { name: "Players" })).getByRole("button", {
+        name: "2",
+      }),
+    );
+    expect(chips(dialog)).toEqual(["Atraxa, Praetors' Voice"]);
+    expect(within(dialog).getByText("Opponent's commander")).toBeTruthy();
+    fireEvent.click(button(dialog, "Draw"));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(postBody()).toMatchObject({ podSize: 2, opponents: [[ATRAXA.externalKey]] });
+  });
+
+  it("removing a leader takes it off; removing the last takes the opponent, and nothing is sent", async () => {
+    const { dialog } = renderDialog();
+    await openDetails(dialog);
+    await pick(dialog, "Opponent 1's commander", "atr", "Atraxa");
+    fireEvent.click(button(dialog, "Remove Atraxa, Praetors' Voice"));
+    expect(chips(dialog)).toEqual([]);
+    expect(within(dialog).getByRole("combobox", { name: "Opponent 1's commander" })).toBeTruthy();
+    fireEvent.click(button(dialog, "Won"));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(postBody()).not.toHaveProperty("opponents");
+  });
+
+  it("the same card picked again as the pair is not a second leader", async () => {
+    const { dialog } = renderDialog();
+    await openDetails(dialog);
+    await pick(dialog, "Opponent 1's commander", "atr", "Atraxa");
+    fireEvent.click(button(dialog, "Add a second commander"));
+    await pick(dialog, "Opponent 1's second commander", "atr", "Atraxa");
+    expect(chips(dialog)).toEqual(["Atraxa, Praetors' Voice"]);
+    fireEvent.click(button(dialog, "Won"));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(postBody().opponents).toEqual([[ATRAXA.externalKey]]);
+  });
+
+  it("an open second box follows its opponent up when an earlier one is removed", async () => {
+    const { dialog } = renderDialog();
+    await openDetails(dialog);
+    await pick(dialog, "Opponent 1's commander", "atr", "Atraxa");
+    await pick(dialog, "Opponent 2's commander", "karl", "Karlach");
+    const adds = within(dialog).getAllByRole("button", { name: "Add a second commander" });
+    fireEvent.click(adds[1]);
+    typeInto(
+      within(dialog).getByRole("combobox", { name: "Opponent 2's second commander" }),
+      "rai",
+    );
+    fireEvent.click(button(dialog, "Remove Atraxa, Praetors' Voice"));
+    const moved = within(dialog).getByRole("combobox", { name: "Opponent 1's second commander" });
+    expect((moved as HTMLInputElement).value).toBe("rai");
+    expect(chips(dialog)).toEqual(["Karlach, Fury of Avernus"]);
+  });
+
+  it("One Piece: one opponent, one leader, stored as the printed id — no second box", async () => {
+    const { dialog } = renderDialog({ adapter: optcg as typeof mtg });
+    await openDetails(dialog);
+    expect(within(dialog).getByText("Opponent's leader")).toBeTruthy();
+    await pick(dialog, "Opponent's leader", "ene", "Enel");
+    expect(suggestCalls().at(-1)).toEqual({ game: "optcg", scope: "leaders", q: "ene" });
+    // One Piece tells its 17 printed Enels apart by the id: the chip says which.
+    expect(chips(dialog)).toEqual(["Enel (OP15-058)"]);
+    expect(button(dialog, "Remove Enel (OP15-058)")).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: /Add a second/ })).toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: /Opponent/ })).toBeNull();
+    fireEvent.click(button(dialog, "Lost"));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(postBody().opponents).toEqual([["OP15-058"]]);
+  });
+
+  it("a name typed but never picked stops the log, reopening the details to show it; a cleared box logs", async () => {
+    const { dialog, onLogged } = renderDialog();
+    await openDetails(dialog);
+    typeInto(within(dialog).getByRole("combobox", { name: "Opponent 1's commander" }), "atr");
+    // Fold the details: the text is kept, and the refusal unfolds them again.
+    fireEvent.click(within(dialog).getByText("More details"));
+    await waitFor(() =>
+      expect(within(dialog).queryByRole("group", { name: /^Opponent/ })).toBeNull(),
+    );
+    fireEvent.click(button(dialog, "Won"));
+    await waitFor(() =>
+      expect(dialog.textContent).toContain("Pick the commander from the list, or clear the box."),
+    );
+    const box = await within(dialog).findByRole("combobox", { name: "Opponent 1's commander" });
+    expect((box as HTMLInputElement).value).toBe("atr");
+    expect(posts()).toHaveLength(0);
+    typeInto(box, "");
+    fireEvent.click(button(dialog, "Won"));
+    await waitFor(() => expect(onLogged).toHaveBeenCalled());
+    expect(postBody()).not.toHaveProperty("opponents");
+  });
+
+  it("on a phone the box works inside the bottom Drawer", async () => {
+    const { dialog, onLogged } = renderDialog({ phone: true });
+    await openDetails(dialog);
+    await pick(dialog, "Opponent 1's commander", "atr", "Atraxa");
+    expect(screen.getByRole("dialog", { name: "Games" })).toBe(dialog);
+    fireEvent.click(button(dialog, "Won"));
+    await waitFor(() => expect(onLogged).toHaveBeenCalled());
+    expect(postBody().opponents).toEqual([[ATRAXA.externalKey]]);
   });
 });

@@ -9,7 +9,7 @@
  * card name that still navigates on click. X1: the signed-out Like,
  * Bookmark and Fork prompts carry the way back to this deck.
  */
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { factsIds, factsPath } from "@/lib/brackets/facts";
@@ -134,7 +134,8 @@ describe("DeckShareView — the artwork header", () => {
         "a[data-slot=button], button[data-slot=button], button[data-slot=dropdown-menu-trigger]",
       ),
     ].map((el) => el.textContent);
-    expect(actions).toEqual(["Open in editor", "Copy", "Share…", "Buy this deck"]);
+    // Y9b: Log a game leads the row (phone first).
+    expect(actions).toEqual(["Log a game", "Open in editor", "Copy", "Share…", "Buy this deck"]);
     expect(header.querySelector(`a[href="/decks/${deck.id}/edit"]`)?.textContent).toBe(
       "Open in editor",
     );
@@ -571,6 +572,7 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
     setDeckToken(deck.id, "a-claim-token");
     render(<DeckShareView deck={deck} cards={gcCards} bracketFacts={SERVER} />);
     expect(visitorRow(screen.getByRole("banner"))).toEqual([
+      "Log a game",
       "Open in editor",
       "Copy",
       "Share…",
@@ -843,5 +845,147 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
     expect(document.body.textContent).not.toMatch(/bracket/i);
     expect(fetchMock).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
+  });
+});
+
+describe("DeckShareView — Log a game (Y9b, WAVE4 D10)", () => {
+  const GAMES = `/api/decks/${deck.id}/games`;
+  const logged = {
+    game: {
+      id: 42,
+      version: 3,
+      playedOn: "2026-10-11",
+      podSize: 4,
+      result: "win",
+      endTurn: null,
+      tableLevel: null,
+      seat: null,
+      opponents: null,
+      notes: null,
+      createdAt: "2026-10-11T20:00:00.000Z",
+    },
+    version: 3,
+    minted: true,
+    capped: false,
+  };
+  const fetchMock = vi.fn();
+  const traffic = () =>
+    fetchMock.mock.calls.map(
+      ([url, init]) => `${(init as RequestInit | undefined)?.method ?? "GET"} ${String(url)}`,
+    );
+  /** The phone tier: neither md nor wide matches. */
+  function stubPhone() {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+  }
+  beforeEach(() => {
+    window.localStorage.clear();
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url === GAMES && method === "GET") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ games: [], total: 0, playedSnapshots: 0, playedAllowance: 100 }),
+        };
+      }
+      if (url === GAMES && method === "POST") {
+        return { ok: true, status: 201, json: async () => logged };
+      }
+      if (url === `${GAMES}/42` && method === "DELETE") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ deleted: true, snapshotRemoved: true }),
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("an account owner: Log a game → Won logs the saved list at once — the toast's Undo deletes it", async () => {
+    render(<DeckShareView deck={{ ...deck, isOwner: true }} cards={cards} author={author} />);
+    fireEvent.click(screen.getByRole("button", { name: "Log a game" }));
+    const dialog = await screen.findByRole("dialog", { name: "Games" });
+    // The players remembered (a first visit: the adapter's 4).
+    const players = within(dialog).getByRole("group", { name: "Players" });
+    expect(
+      within(players)
+        .getAllByRole("button")
+        .find((b) => b.getAttribute("aria-pressed") === "true")?.textContent,
+    ).toBe("4");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Won" }));
+    const toastEl = (await screen.findByText("Logged a win")).closest(
+      "[data-slot=toast]",
+    ) as HTMLElement;
+    // No editor here: nothing is saved first — the saved list is the screen.
+    expect(traffic().filter((t) => !t.startsWith("GET "))).toEqual([`POST ${GAMES}`]);
+    expect(JSON.parse(fetchMock.mock.calls.find(([, i]) => i?.method === "POST")![1].body)).toEqual(
+      { result: "win", podSize: 4, playedOn: expect.any(String) },
+    );
+    expect(screen.queryByRole("dialog", { name: "Games" })).toBeNull();
+    // The page's Toaster carries the game, so Undo rings in its accent.
+    expect(toastEl.closest("[data-slot=toast-viewport]")?.getAttribute("data-game")).toBe("mtg");
+    // Focus is back on the door.
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Log a game" }));
+    fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+    await act(async () => {});
+    expect(traffic()).toContain(`DELETE ${GAMES}/42`);
+    // Undo takes the toast with it.
+    await waitFor(() => expect(screen.queryByText("Logged a win")).toBeNull());
+  });
+
+  it("the private gate's guest owner (the server says isOwner — the gate sent the token): still the sentence", async () => {
+    setDeckToken(deck.id, "a-claim-token");
+    render(<DeckShareView deck={{ ...deck, isOwner: true }} cards={cards} author={author} />);
+    fireEvent.click(screen.getByRole("button", { name: "Log a game" }));
+    const dialog = await screen.findByRole("dialog", { name: "Games" });
+    expect(
+      within(dialog).getByRole("link", { name: "Sign in to keep a game journal" }),
+    ).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("a guest owner (this browser's claim token): the sentence, back to this share page — and no request", async () => {
+    setDeckToken(deck.id, "a-claim-token");
+    render(<DeckShareView deck={deck} cards={cards} author={author} />);
+    fireEvent.click(screen.getByRole("button", { name: "Log a game" }));
+    const dialog = await screen.findByRole("dialog", { name: "Games" });
+    expect(
+      within(dialog)
+        .getByRole("link", { name: "Sign in to keep a game journal" })
+        .getAttribute("href"),
+    ).toBe(`/account?next=${encodeURIComponent(`/d/${deck.publicId}`)}`);
+    expect(within(dialog).queryByRole("button", { name: "Won" })).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("on a phone it is the bottom Drawer: Log a game → Won → the toast", async () => {
+    stubPhone();
+    render(<DeckShareView deck={{ ...deck, isOwner: true }} cards={cards} author={author} />);
+    fireEvent.click(screen.getByRole("button", { name: "Log a game" }));
+    const dialog = await screen.findByRole("dialog", { name: "Games" });
+    expect(dialog.closest("[data-slot=drawer-popup]")).not.toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Won" }));
+    await screen.findByText("Logged a win");
+    expect(traffic().filter((t) => t.startsWith("POST "))).toEqual([`POST ${GAMES}`]);
+  });
+
+  it("a visitor's row offers no log, and nothing about the journal is in the page", () => {
+    render(<DeckShareView deck={deck} cards={cards} author={author} />);
+    expect(screen.queryByRole("button", { name: "Log a game" })).toBeNull();
+    expect(document.body.textContent).not.toMatch(/game journal|Log a game/);
   });
 });

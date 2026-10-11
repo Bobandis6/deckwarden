@@ -14,6 +14,10 @@
  *     uses it, and leaves it when one does;
  *   - PATCH: the details change, the adapter's checks hold;
  *   - One Piece: 1v1, went first / second, no table level;
+ *   - Y9b's opponents: rows from the suggest box (the route the dialog's
+ *     boxes ask) land as external keys — Magic's oracle ids with a pair as
+ *     one entry of two (a Background from the `cards` scope, which the
+ *     `leaders` scope never offers), One Piece's printed id; past pod − 1 400;
  *   - deleting the deck takes its games (the cascade).
  *
  *   pnpm smoke:games                                  # http://localhost:3000
@@ -427,6 +431,87 @@ async function main() {
     ]) {
       const res = await api("POST", opGames, { cookie: alice.cookie, body });
       check(`One Piece ${JSON.stringify(body)} → 400`, res.status === 400, res.json);
+    }
+
+    // ---- opponents through the suggest box (Y9b) --------------------------------
+    type Row = { name: string; externalKey: string };
+    const suggest = async (game: string, scope: string, q: string): Promise<Row[]> =>
+      j<{ results?: Row[] }>(
+        (await api("GET", `/api/cards/suggest?${new URLSearchParams({ game, scope, q })}`)).json,
+      ).results ?? [];
+    const atraxaRow = (await suggest("mtg", "leaders", "atraxa")).find(
+      (r) => r.name === "Atraxa, Praetors' Voice",
+    );
+    const karlachRow = (await suggest("mtg", "leaders", "karlach")).find(
+      (r) => r.name === "Karlach, Fury of Avernus",
+    );
+    const giantsRow = (await suggest("mtg", "cards", "raised by giants")).find(
+      (r) => r.name === "Raised by Giants",
+    );
+    check(
+      "the suggest box offers Atraxa and Karlach as leaders, Raised by Giants among every card",
+      !!atraxaRow && !!karlachRow && !!giantsRow,
+      { atraxaRow, karlachRow, giantsRow },
+    );
+    check(
+      "…and never offers a Background in the leaders scope (why the second box asks every card)",
+      (await suggest("mtg", "leaders", "raised by giants")).every(
+        (r) => r.name !== "Raised by Giants",
+      ),
+    );
+    if (atraxaRow && karlachRow && giantsRow) {
+      const opponents = [[atraxaRow.externalKey], [karlachRow.externalKey, giantsRow.externalKey]];
+      const withOpponents = await api("POST", games, {
+        cookie: alice.cookie,
+        body: { result: "loss", podSize: 3, opponents },
+      });
+      check(
+        "a game with two opponents, one of them a pair → 201",
+        withOpponents.status === 201,
+        withOpponents.json,
+      );
+      const gameId = j<{ game?: { id?: number } }>(withOpponents.json).game?.id ?? 0;
+      const [stored] = await sql`
+        select opponents from deck_games where id = ${gameId}`;
+      const oracle = await sql`
+        select name, external_key from card_identities
+        where game_id = 1 and not is_removed
+          and name in ('Atraxa, Praetors'' Voice', 'Karlach, Fury of Avernus', 'Raised by Giants')`;
+      const key = (name: string) => oracle.find((r) => r.name === name)?.external_key as string;
+      check(
+        "…stored as the Scryfall oracle ids, the pair as one entry of two",
+        JSON.stringify(stored?.opponents) ===
+          JSON.stringify([
+            [key("Atraxa, Praetors' Voice")],
+            [key("Karlach, Fury of Avernus"), key("Raised by Giants")],
+          ]) &&
+          (stored?.opponents as string[][])
+            .flat()
+            .every((k) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(k)),
+        stored?.opponents,
+      );
+      const tooMany = await api("POST", games, {
+        cookie: alice.cookie,
+        body: { result: "win", podSize: 3, opponents: [...opponents, [atraxaRow.externalKey]] },
+      });
+      check("three opponents at a 3-player table → 400", tooMany.status === 400, tooMany.json);
+    }
+    const enelRow = (await suggest("optcg", "leaders", "enel"))[0];
+    check("the One Piece suggest box offers an Enel leader", !!enelRow, enelRow);
+    if (enelRow) {
+      const opOpp = await api("POST", opGames, {
+        cookie: alice.cookie,
+        body: { result: "win", podSize: 2, opponents: [[enelRow.externalKey]] },
+      });
+      check("One Piece logs its one opponent → 201", opOpp.status === 201, opOpp.json);
+      const [opStored] = await sql`
+        select opponents from deck_games where id = ${j<{ game?: { id?: number } }>(opOpp.json).game?.id ?? 0}`;
+      check(
+        "…stored as the printed id",
+        JSON.stringify(opStored?.opponents) === JSON.stringify([[enelRow.externalKey]]) &&
+          /^[A-Z]+\d*-\d+$/.test(enelRow.externalKey),
+        opStored?.opponents,
+      );
     }
 
     // ---- the cascade -----------------------------------------------------------

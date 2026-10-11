@@ -67,6 +67,7 @@ import { collectionSummary } from "@/lib/collection/owned";
 import { formatLabel, updatedLabel } from "@/lib/decks/display";
 import { readGoals } from "@/lib/decks/goals";
 import { tileFromDeck } from "@/lib/decks/tiles";
+import { getAdapter } from "@/lib/games/registry";
 import { loadDefaultPrintings, type DefaultPrinting } from "@/lib/hub/queries";
 import { parseAvatarChoice } from "@/lib/profile/avatar";
 
@@ -99,19 +100,26 @@ function DeckItem({
   printing: DefaultPrinting | null;
   folders: FolderOption[];
 }) {
+  // Y5: the declared target's chip off the full row's goals.
+  const tile = tileFromDeck(
+    { ...deck, targetLevel: readGoals(deck.goals)?.targetLevel },
+    printing,
+    {
+      href: `/decks/${deck.id}/edit`,
+      showVisibility: true,
+    },
+  );
   return (
     <AccountDeckTile
-      // Y5: the declared target's chip off the full row's goals.
-      tile={tileFromDeck({ ...deck, targetLevel: readGoals(deck.goals)?.targetLevel }, printing, {
-        href: `/decks/${deck.id}/edit`,
-        showVisibility: true,
-      })}
+      tile={tile}
       deck={{
         id: deck.id,
         publicId: deck.publicId,
         name: deck.name,
         visibility: deck.visibility,
         folderId: deck.folderId,
+        // Y9b: the ⋯ menu's "Log a game…" — decided here, so the island needs no adapter.
+        journalGame: tile.game && getAdapter(tile.game).journal ? tile.game : null,
       }}
       folders={folders}
     />

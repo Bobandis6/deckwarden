@@ -23,8 +23,7 @@
  * editor closes the sheet on success and says where focus goes; an error
  * stays here as a line.
  */
-import { XIcon } from "lucide-react";
-import { useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from "react";
+import { useMemo, useRef, useState, type Ref } from "react";
 
 import {
   AlternativesContent,
@@ -32,73 +31,16 @@ import {
   type SwapEditing,
 } from "@/components/editor/alternatives-section";
 import { sourceMeta } from "@/components/editor/recommendations-panel";
+import { SheetShell, type SheetFinalFocus } from "@/components/editor/sheet-shell";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
-import { Modal } from "@/components/ui/modal";
 import type { BracketFactsState } from "@/lib/brackets/facts";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import type { CompleteCombo, FormatDef, GameAdapter } from "@/lib/games/types";
 import { completeCombosByCard, type CutEntryInput } from "@/lib/recommend/cuts";
 import { cutCombosFromFacts, planSwapIn, type SwapInOption } from "@/lib/recommend/swap-in";
 
-type FinalFocus = ComponentProps<typeof Modal>["finalFocus"];
-type InitialFocus = ComponentProps<typeof Modal>["initialFocus"];
-
-/** The editor's sheet split (Y7b): a bottom Drawer on phones, a Modal from md. Y9a's Games dialog shares it. */
-export function SheetShell({
-  title,
-  phone,
-  initialFocus,
-  finalFocus,
-  onClose,
-  children,
-}: {
-  title: string;
-  phone: boolean;
-  initialFocus?: InitialFocus;
-  finalFocus?: FinalFocus;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  if (phone) {
-    return (
-      <Drawer
-        open
-        onOpenChange={(open) => {
-          if (!open) onClose();
-        }}
-        showSwipeHandle
-      >
-        <DrawerContent aria-label={title} initialFocus={initialFocus} finalFocus={finalFocus}>
-          <div className="flex shrink-0 items-center justify-between gap-2 pr-2 pl-4">
-            <DrawerTitle className="truncate text-sm font-semibold">{title}</DrawerTitle>
-            <DrawerClose
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Close"
-                  className="pointer-coarse:size-11"
-                />
-              }
-            >
-              <XIcon />
-            </DrawerClose>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-            {children}
-          </div>
-        </DrawerContent>
-      </Drawer>
-    );
-  }
-  return (
-    <Modal label={title} onClose={onClose} initialFocus={initialFocus} finalFocus={finalFocus}>
-      {children}
-    </Modal>
-  );
-}
+type FinalFocus = SheetFinalFocus;
 
 /** "Swap X" — a card's alternatives, asked once per open, under the deck's goals. */
 export function SwapSheet({

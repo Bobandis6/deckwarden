@@ -109,6 +109,7 @@ import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
 import { CutCoachPanel } from "@/components/editor/cut-coach-panel";
 import { FitSheet, type FitApply } from "@/components/editor/fit-sheet";
 import { GamesDialog } from "@/components/editor/games-dialog";
+import { showLoggedToast } from "@/components/editor/logged-toast";
 import { DeckListPane } from "@/components/editor/deck-list-pane";
 import { DetailsDialog, type DeckDetails } from "@/components/editor/details-dialog";
 import { EditorAttribution } from "@/components/editor/editor-attribution";
@@ -170,9 +171,7 @@ import {
   withTotal,
   type DeckGoals,
 } from "@/lib/decks/goals";
-import { JOURNAL_COPY } from "@/lib/journal/copy";
 import type { LogResult } from "@/lib/journal/games";
-import { MAX_PLAYED_SNAPSHOTS_PER_DECK } from "@/lib/journal/limits";
 import type { ImportOutcome } from "@/lib/decks/import";
 import { clearPickIntent, pickIntentFor, writePickIntent } from "@/lib/decks/leader-pick-intent";
 import { hasLeader, snapshotBody } from "@/lib/decks/panel-view";
@@ -1700,35 +1699,12 @@ export function DeckEditor({
   }, [flush, isDirty]);
   // A game logged: the dialog closes so the toast's Undo is reachable (a
   // modal blocks it), and that Undo is the games route's DELETE — the game
-  // and, when no other game was played with it, the snapshot it minted.
+  // and, when no other game was played with it, the snapshot it minted
+  // (the shared toast, logged-toast.ts — Y9b's doors raise the same one).
   const handleLogged = useCallback((logged: LogResult) => {
     setDialog(null);
     const deckId = deckIdRef.current;
-    if (!deckId) return;
-    const undo = async () => {
-      try {
-        const res = await fetch(`/api/decks/${deckId}/games/${logged.game.id}`, {
-          method: "DELETE",
-          headers: writeHeaders(deckId),
-        });
-        if (!res.ok) throw new Error(`Undo failed (${res.status})`);
-      } catch {
-        toast.add({ title: JOURNAL_COPY.undoFailed, type: "error", timeout: TOAST_MS });
-      }
-    };
-    const id = toast.add({
-      title: JOURNAL_COPY.logged(logged.game.result),
-      ...(logged.capped ? { description: JOURNAL_COPY.capped(MAX_PLAYED_SNAPSHOTS_PER_DECK) } : {}),
-      type: "success",
-      timeout: TOAST_MS,
-      actionProps: {
-        children: "Undo",
-        onClick: () => {
-          toast.close(id);
-          void undo();
-        },
-      },
-    });
+    if (deckId) showLoggedToast(deckId, logged);
   }, []);
 
   const inDeckQty = useMemo(() => {

@@ -26,6 +26,15 @@
  * stop right after the tile link; `order-last ms-auto` paints it on the
  * right) and announces as "Deck actions for {name}". The context menu is
  * desktop-only by design — iOS long-press on an anchor opens the preview.
+ *
+ * Log a game… (Y9b, WAVE4 D10): opens the Games dialog right here — loaded
+ * on demand (log-game-door.tsx; either menu opening starts the chunk), so
+ * the page carries no adapter until a log is asked for. It renders beside
+ * the delete guard, outside the ContextMenu: React events bubble through
+ * portals, and a right-click inside the dialog must not open the tile's
+ * menu. The toast is the page's (one Toaster on /account); focus returns to
+ * the ⋯ button. `deck.journalGame` is decided on the server (null = the
+ * game keeps no journal: no item).
  */
 import { MoreHorizontalIcon } from "lucide-react";
 import Link from "next/link";
@@ -38,6 +47,7 @@ import {
   type FolderOption,
 } from "@/components/account/deck-action-items";
 import { DeckTile } from "@/components/deck/deck-tile";
+import { LazyLogGameDialog, preloadLogGameDialog } from "@/components/editor/log-game-door";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,11 +68,14 @@ import {
 import { toast } from "@/components/ui/toast";
 import type { DeckVisibility } from "@/db/schema";
 import type { DeckTileData } from "@/lib/decks/tiles";
+import type { GameId } from "@/lib/games/types";
 import { cn } from "@/lib/utils";
 
 export interface AccountDeckMeta extends DeckActionDeck {
   visibility: DeckVisibility;
   folderId: string | null;
+  /** The deck's game when it keeps a journal (Y9b's "Log a game…"); null or absent = no item. */
+  journalGame?: GameId | null;
 }
 
 /** The API's error body, or a generic sentence with the status. */
@@ -102,6 +115,13 @@ export function AccountDeckTile({
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
+  const moreRef = useRef<HTMLButtonElement | null>(null);
+  const journalGame = deck.journalGame ?? null;
+  /** Either menu opening starts the dialog's chunk, so Log a game… opens at once. */
+  const onMenuOpen = (open: boolean) => {
+    if (open && journalGame) preloadLogGameDialog();
+  };
   // One in-flight PATCH at a time (the old select's `busy` guard) — a ref,
   // read only inside handlers, so an ignored click never re-renders.
   const patchBusy = useRef(false);
@@ -205,12 +225,13 @@ export function AccountDeckTile({
         setDeleteError(null);
         setDeleteOpen(true);
       }}
+      onLogGame={journalGame ? () => setLogOpen(true) : undefined}
     />
   );
 
   return (
     <>
-      <ContextMenu>
+      <ContextMenu onOpenChange={onMenuOpen}>
         <ContextMenuTrigger
           render={
             <DeckTile
@@ -218,8 +239,9 @@ export function AccountDeckTile({
               linkTitle={`Edit ${deck.name}`}
               actions={
                 <>
-                  <DropdownMenu>
+                  <DropdownMenu onOpenChange={onMenuOpen}>
                     <DropdownMenuTrigger
+                      ref={moreRef}
                       aria-label={`Deck actions for ${deck.name}`}
                       className={cn(
                         buttonVariants({ variant: "ghost", size: "icon-xs" }),
@@ -245,6 +267,18 @@ export function AccountDeckTile({
         />
         <ContextMenuContent className="min-w-56">{actionItems}</ContextMenuContent>
       </ContextMenu>
+
+      {logOpen && journalGame && (
+        <LazyLogGameDialog
+          deckId={deck.id}
+          game={journalGame}
+          // Every deck on /account is owned through the session.
+          accountDeck
+          returnPath="/account"
+          finalFocus={moreRef}
+          onClose={() => setLogOpen(false)}
+        />
+      )}
 
       <AlertDialog
         open={deleteOpen}

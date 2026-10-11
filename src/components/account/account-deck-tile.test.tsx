@@ -6,8 +6,13 @@
  * through the AlertDialog guard (Cancel focused first) to DELETE and a
  * refresh. /account only renders these signed-in, so the contract is
  * pinned here — the browser pane has no session on prod.
+ *
+ * Y9b: "Log a game…" follows Copy share link where the deck's game keeps a
+ * journal, and opens the Games dialog right on /account (loaded on demand):
+ * Lost with an opponent's commander picked logs its oracle id, the page's
+ * toast carries Undo, and focus returns to the ⋯ button.
  */
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
@@ -40,6 +45,7 @@ const deck = {
   name: "Krenko — Mob Rule",
   visibility: "public",
   folderId: null,
+  journalGame: "mtg",
 } as const;
 
 const folders = [{ id: "22222222-2222-4222-8222-222222222222", name: "Goblins" }];
@@ -54,11 +60,11 @@ function press(el: HTMLElement) {
   fireEvent.click(el, { button: 0 });
 }
 
-function renderTile() {
+function renderTile(meta: { journalGame: "mtg" | null } = deck) {
   return render(
     <Toaster>
       <DeckTileGrid>
-        <AccountDeckTile tile={tile} deck={deck} folders={folders} />
+        <AccountDeckTile tile={tile} deck={{ ...deck, ...meta }} folders={folders} />
       </DeckTileGrid>
     </Toaster>,
   );
@@ -99,6 +105,7 @@ describe("AccountDeckTile", () => {
       ["Open in new tab", `/decks/${DECK_ID}/edit`, "_blank"],
       ["View share page", "/d/krenko123abc", null],
       ["Copy share link", null, null],
+      ["Log a game…", null, null],
       ["Move to folder", null, null],
       ["Delete deck…", null, null],
     ]);
@@ -208,6 +215,117 @@ describe("AccountDeckTile", () => {
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(await screen.findByText("Deck deleted")).toBeTruthy();
     await waitFor(() => expect(router.refresh).toHaveBeenCalledTimes(1));
+  });
+
+  it("a game that keeps no journal has no Log a game… (journalGame null)", async () => {
+    renderTile({ journalGame: null });
+    const menu = await openActionsMenu();
+    expect(within(menu).queryByRole("menuitem", { name: "Log a game…" })).toBeNull();
+    expect(within(menu).getByRole("menuitem", { name: "Copy share link" })).toBeTruthy();
+  });
+
+  it("Log a game… opens the Games dialog here; Lost with an opponent picked logs its oracle id; Undo; focus back on ⋯", async () => {
+    const GAMES = `/api/decks/${DECK_ID}/games`;
+    const ATRAXA_ORACLE = "d0d33d52-3d28-4635-b985-51e126289259";
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url.startsWith("/api/cards/suggest")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            q: "atr",
+            results: [
+              {
+                id: "id-atraxa",
+                name: "Atraxa, Praetors' Voice",
+                slug: "atraxa-praetors-voice",
+                isLeader: true,
+                typeLine: "Legendary Creature",
+                colorsMask: 0,
+                ciMask: 27,
+                externalKey: ATRAXA_ORACLE,
+                image: null,
+              },
+            ],
+          }),
+        };
+      }
+      if (url === GAMES && method === "GET") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ games: [], total: 0, playedSnapshots: 0, playedAllowance: 100 }),
+        };
+      }
+      if (url === GAMES && method === "POST") {
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            game: { id: 7, result: "loss", playedOn: "2026-10-11", podSize: 4 },
+            version: 2,
+            minted: true,
+            capped: false,
+          }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ deleted: true, snapshotRemoved: true }),
+      };
+    });
+    renderTile();
+    const more = screen.getByRole("button", { name: "Deck actions for Krenko — Mob Rule" });
+    const menu = await openActionsMenu();
+    press(within(menu).getByRole("menuitem", { name: "Log a game…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Games" });
+    fireEvent.click(within(dialog).getByText("More details"));
+    const box = await within(dialog).findByRole("combobox", { name: "Opponent 1's commander" });
+    fireEvent.input(box, { target: { value: "atr" }, inputType: "insertText" });
+    fireEvent.click(await screen.findByRole("option", { name: /Atraxa/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lost" }));
+
+    const toastEl = (await screen.findByText("Logged a loss")).closest(
+      "[data-slot=toast]",
+    ) as HTMLElement;
+    const post = fetchMock.mock.calls.find(([, i]) => (i as RequestInit)?.method === "POST")!;
+    expect(post[0]).toBe(GAMES);
+    expect(JSON.parse(String((post[1] as RequestInit).body))).toEqual({
+      result: "loss",
+      podSize: 4,
+      playedOn: expect.any(String),
+      opponents: [[ATRAXA_ORACLE]],
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Games" })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(more));
+    // Logging never reorders the grid: no refresh.
+    expect(router.refresh).not.toHaveBeenCalled();
+    fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+    await act(async () => {});
+    expect(
+      fetchMock.mock.calls.some(
+        ([u, i]) => u === `${GAMES}/7` && (i as RequestInit)?.method === "DELETE",
+      ),
+    ).toBe(true);
+  });
+
+  it("from the right-click menu too, closing the dialog puts focus on ⋯ (the tile itself takes none)", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ games: [], total: 0, playedSnapshots: 0, playedAllowance: 100 }),
+    });
+    const { container } = renderTile();
+    const more = screen.getByRole("button", { name: "Deck actions for Krenko — Mob Rule" });
+    fireEvent.contextMenu(container.querySelector("li[data-slot=deck-tile]") as HTMLElement);
+    const menu = await screen.findByRole("menu");
+    press(within(menu).getByRole("menuitem", { name: "Log a game…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Games" });
+    fireEvent.keyDown(within(dialog).getByRole("button", { name: "Won" }), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Games" })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(more));
   });
 
   it("Cancel closes the guard without any request", async () => {

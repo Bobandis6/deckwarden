@@ -15,8 +15,20 @@
  * Copy writes the canonical share origin (D2 pins deckwarden.gg; absUrl
  * follows NEXT_PUBLIC_SITE_URL where set) and reports through the
  * module-level toast manager — the host surface mounts the Toaster.
+ *
+ * "Log a game…" (Y9b, WAVE4 D10) follows the copy, in a group of its own:
+ * like Delete it only *requests* — the host opens the Games dialog outside
+ * the unmounting menu. Present only when the host passes `onLogGame` (the
+ * deck's game declares a journal).
  */
-import { FolderIcon, GlobeIcon, Link2Icon, LockIcon, Trash2Icon } from "lucide-react";
+import {
+  FolderIcon,
+  GlobeIcon,
+  Link2Icon,
+  LockIcon,
+  NotebookPenIcon,
+  Trash2Icon,
+} from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -33,6 +45,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toast";
 import type { DeckVisibility } from "@/db/schema";
+import { JOURNAL_COPY } from "@/lib/journal/copy";
 import { absUrl } from "@/lib/seo/site";
 
 /** A folder the submenu can file into (the old DeckFolderSelect's option shape). */
@@ -62,6 +75,7 @@ export function DeckActionItems({
   folders,
   onFolderChange,
   onDeleteRequest,
+  onLogGame,
 }: {
   deck: DeckActionDeck;
   visibility: DeckVisibility;
@@ -70,6 +84,8 @@ export function DeckActionItems({
   folders: FolderOption[];
   onFolderChange: (next: string | null) => void;
   onDeleteRequest: () => void;
+  /** Opens the Games dialog (Y9b); absent = the game keeps no journal (no item). */
+  onLogGame?: () => void;
 }) {
   const editHref = `/decks/${deck.id}/edit`;
   const shareUrl = absUrl(`/d/${deck.publicId}`);
@@ -105,6 +121,15 @@ export function DeckActionItems({
           ? "Copy share link (private — only you can open it)"
           : "Copy share link"}
       </DropdownMenuItem>
+      {onLogGame && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onLogGame}>
+            <NotebookPenIcon aria-hidden />
+            {JOURNAL_COPY.logGameMenu}
+          </DropdownMenuItem>
+        </>
+      )}
       <DropdownMenuSeparator />
       <DropdownMenuGroup>
         <DropdownMenuLabel>Visibility</DropdownMenuLabel>

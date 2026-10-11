@@ -29,6 +29,25 @@ export const JOURNAL_COPY = {
   seat: "Seat",
   notes: "Notes",
   notSet: "Not set",
+  /** `/account`'s tile ⋯ (Y9b) — the share page's button is `logHeading`, no ellipsis on a button. */
+  logGameMenu: "Log a game…",
+  /**
+   * The opponents' leaders (Y9b) in the adapter's noun ("Commander" /
+   * "Leader"): the field's legend, each box's name, the second box's door.
+   */
+  opponentsLabel: (noun: string, maxOpponents: number) =>
+    maxOpponents === 1 ? `Opponent's ${noun.toLowerCase()}` : `Opponents' ${noun.toLowerCase()}s`,
+  opponentBox: (noun: string, n: number, maxOpponents: number) =>
+    maxOpponents === 1
+      ? `Opponent's ${noun.toLowerCase()}`
+      : `Opponent ${n}'s ${noun.toLowerCase()}`,
+  secondBox: (noun: string, n: number) => `Opponent ${n}'s second ${noun.toLowerCase()}`,
+  addSecond: (noun: string) => `Add a second ${noun.toLowerCase()}`,
+  searchLeader: (noun: string) => `Search a ${noun.toLowerCase()}…`,
+  removeLeader: (name: string) => `Remove ${name}`,
+  /** Typed but never picked: said here, and nothing is sent (a typed name isn't a key). */
+  opponentUnpicked: (noun: string) =>
+    `Pick the ${noun.toLowerCase()} from the list, or clear the box.`,
   recentHeading: "Recent games",
   noGames: "No games logged yet.",
   loading: "Loading…",

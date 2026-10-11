@@ -50,6 +50,16 @@
  * The facts come in `bracketFacts`: loaded by the page with its batch, or
  * asked for here (the private gate; a page whose load failed). Absent, no
  * line (One Piece, older callers).
+ *
+ * Y9b (WAVE4 D10): the owner's row leads with "Log a game" where the game
+ * declares a journal — the Games dialog on demand, the toast on this page's
+ * Toaster (its viewport carries `data-game`, as the editor's does, so the
+ * toast's Undo rings in the game's accent). The journal is account-only:
+ * inside the owner's row, a browser holding no claim token means the
+ * session owns the deck (the editor's rule) — not `isOwner` alone, which
+ * the private gate's fetch reports true for a claim-token holder too. A
+ * guest owner's dialog reads the sign-in sentence with `?next=` back here.
+ * The visitor row is untouched.
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -492,6 +502,10 @@ export function DeckShareView({
               deckName={deck.name}
               decklist={decklist}
               tableText={copyForTable}
+              // No claim token here = the session owns it (ownerView): account-only.
+              journal={
+                adapter.journal ? { game: adapter.id, accountDeck: editToken === null } : null
+              }
               buy={
                 adapter.capabilities.buy && (
                   <BuyDeckMenu
@@ -629,9 +643,10 @@ export function DeckShareView({
           </div>
         </section>
       )}
-      {/* The buy menu's copy-list path toasts (W7); the host mounts the Toaster
-          (a portal — contributes nothing in-flow). */}
-      <Toaster />
+      {/* The buy menu's copy-list path toasts (W7) and the journal's "Logged a
+          win · Undo" (Y9b); the host mounts the Toaster (a portal —
+          contributes nothing in-flow). */}
+      <Toaster viewportProps={{ "data-game": adapter.id }} />
       {/* The Why sheet (Y5): the line's "Why?" — read-only, the owner's answers shown. */}
       {whyOpen && table && brackets && (
         <BracketSheet
