@@ -1,0 +1,110 @@
+# U2 session prompt — Motion tokens + own keyframes + the press (four `linear()` curves, `dw-in` / `dw-out` in place of tw-animate's `enter` / `exit`, the scale press with the hover color held, drawer and toast at 400 ms, popups at 250, the reduced-motion exception, the save slot's cross-fade, toasts capped at two)
+
+> **Status: not run yet.** Written 2026-10-12 at the end of U1 (code `27d3631`, step 0 `53be3ab`), every anchor below re-grepped against `27d3631`. Add a dated ship note at the top of this file when U2 ships, the way `U1-session-prompt.md` has one.
+
+Pull latest, then run U2, the second Wave-5 package. **`WAVE5.md` is the contract.** Read, in this order: Context's answers table (F7 and F10 are U2's; F19 forbids a motion library); section A's rows on the four curves, the press and the reduced-motion exception; **D0** (the motion rule: CSS or Base UI only, `motion-safe:` or zeroed by the backstop, inside 120 / 250 / 400, on one of the four curves) and **D2** in full; E's U2 section and the U2 row of the **pin matrix**; then U1's ship note (top of `U1-session-prompt.md`) and REDESIGN.md's "U1 decisions and deviations", because U2 builds on that recipe.
+
+U2 is M-sized and has a **named split**: if the ten `ui/` primitives' `animate-in` swap doesn't fit, they become **U2b** (its own session) and U8 waits one session. **No migration, no new route, no new dependency** (F19: no Motion, no GSAP). It touches `globals.css`, `button.tsx`, the drawer, the toast, the seventeen `animate-in` files and their pins.
+
+Pre-flight, in order.
+1. **Main is green.** `pnpm check` = **2,170 tests / 204 files / the same 6 `no-unused-vars` warnings / 0 errors** on `27d3631`. A test red for a date reason is fixed first, as its own commit (WAVE5 Context: a wall-clock fixture is written relative to `Date.now()`).
+2. **Nightlies green** (`gh run list --workflow=nightly-ingest.yml --limit 3`). A red run is P4.7 branch F and preempts everything. (At U1's end the 2026-10-12 scheduled run had not fired by 19:5x Z; scheduled runs have landed between 14:52 and 19:22 Z, so check that it came, and if none ran on 2026-10-12, say so.)
+3. **A warm beta signal outranks a package.** Ask the owner whether anything was posted; a warm signal gets the `P2.9-session-prompt.md` (Magic) or `P4.7-session-prompt.md` (One Piece) round as its own session first.
+4. **Ask for read-only database access once, at the start**, in plain words: `pnpm db:size` (286.5 MB at U1, alert 350) and the census (210 decks = 29 user (16 account + 13 guest) + 181 precons; 1 user at U1), one `read only` transaction, nothing written. U2 writes nothing; its dev pass opens state-only precon drafts (zero POSTs).
+5. **Working tree clean** at or after U1's ship-note commit. Another session may share this working copy: stage explicit paths only, never `git add -A`; re-read `LATER.md`, `REDESIGN.md`, `WAVE5.md` and `MEMORY.md` immediately before editing them.
+6. **State your baseline**: `pnpm check` as above, `pnpm db:size`, and save `pnpm build`'s route table (stop the dev server first: they share `.next`); the diff at the end must be **empty**.
+7. **The lab is a record.** The four curves are verbatim in `WAVE5.md` D2 (sampled from Apple's springs in `.claude/design-lab/lenses/apple.md` §2). Do not start the lab server. Read lab files by absolute path; a `cd` into `.claude/worktrees/design-lab` made the harness treat the lab worktree as the session's working directory in U1.
+
+## What U2 is NOT (scope fence)
+
+- NOT the type ladder, the Warden line's 13 px, the skip link, `aria-current` or the eased theme change (all U8).
+- NOT the phone sheet: snap points, the controlled snap, `modal` at full, the 40 % scrim and the **release easing split by `data-swiping`** are U4b's. U2 gives `drawer.tsx` its 400 ms durations and the curves; it doesn't build the swipe-vs-tap split (if `flick-400` cannot be wired without that split, use `settle-400` for every drawer release and leave the split to U4b, disclosed).
+- NOT any pane, page, layout, copy string or color. U1's colors stay byte-identical; U2 changes timing, curves, keyframes and the press only.
+- NOT a new dependency, and NOT `shadcn add` (F18).
+- NOT the hub's view transition (F13, LATER row 210).
+- Anything else → `LATER.md` with a trigger (the last row at U1's end is **216**).
+
+## Facts you inherit (verified 2026-10-12 against `27d3631` — re-grep lines, trust the shapes)
+
+**`src/app/globals.css`**: `@import "tw-animate-css";` at line 2. `@theme inline` runs 7–82: `--animate-ring-glow: ring-glow 400ms ease-out 1 both;` at 70 and `@keyframes ring-glow` at 71–81, which animates `filter: drop-shadow(…)` (the non-composited item the lab's trace found). The hex token blocks `:root` ~97 and `.dark` ~128; the accents ~158–175; **U1's edge pair ~177–194** (a third `:root` / `.dark`, the comment above it); `@layer base` from ~196; the reduced-motion backstop `@media (prefers-reduced-motion: reduce)` at **~229**, with one rule (`*, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }`). Tailwind emits **used** theme variables to `:root` (the built CSS at U1 carried `--ease-out`, `--ease-in-out` and `--animate-ring-glow`), so check whether `@theme inline` still emits `--ease-settle-*` as runtime variables before any hand-written CSS (the exception block, an arbitrary value) relies on `var(--ease-settle-*)`.
+
+**`src/lib/theme/tokens.test.ts`**: the backstop pin is at **96–101** (`/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n  \}/` — it captures up to the first line that is exactly two spaces and a brace, i.e. the `@media`'s own close; a second rule inside it closes at four spaces, so the capture still spans both). U1 added the edge-pair case before "the accents are exposed as Tailwind colors".
+
+**`src/components/ui/button.tsx` (U1)**: the base carries `transition-[color,background-color,border-color,box-shadow,transform,translate,scale] duration-[120ms] ease-out` and the press `active:not-aria-[haspopup]:translate-y-px`. The hover classes U2 holds on `:active`: default `hover:bg-[color-mix(in_oklch,var(--primary),var(--foreground)_12%)]` (and `hover:border-gold/90`); outline `hover:bg-muted dark:hover:bg-muted/60`; secondary `hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)]`; ghost `hover:bg-muted hover:text-foreground dark:hover:bg-muted/50`; destructive `hover:bg-destructive/15 dark:hover:bg-destructive/20` (the measured F16 step — the held press must use the same tints, never `/20` light or `/30` dark); link `hover:underline`. `button.test.tsx` pins (keep): the hairline (52–77), the 44 px rules (13–42), and U1's recipe cases — the transition-list token **including `translate,scale`** and `duration-[120ms]` (so U2 changes no list), `tabular-nums`, the aria states, the outline edge, the ghost rest, the destructive step (`hover:bg-destructive/15`, `dark:hover:bg-destructive/20`, not `/20` / `/30`), `aria-expanded` parity, `rounded-md` on the small and icon sizes, and the disabled-with-reason API. Nothing pins `translate-y-px` or `ease-out`.
+
+**`src/components/deck/segmented.tsx` (U1)**: the thumb `motion-safe:transition-transform motion-safe:duration-[120ms] motion-safe:ease-out` (~line 104); the items `py-1 text-[0.8125rem] leading-4.5` (28 px; pinned in `segmented.test.tsx`).
+
+**`src/components/ui/tabs.tsx:79`**: the indicator `motion-safe:transition-[left,width] motion-safe:duration-150 motion-safe:ease-out` → `settle-120`.
+
+**`src/components/ui/drawer.tsx`**: the overlay at **71** and the popup at **119** carry `duration-450 ease-[cubic-bezier(…)]` (the overlay also a `duration-[calc…]` and `duration-0` while swiping); the content's cross-fade at **150** `duration-300 ease-[cubic-bezier(…)]`; the handle at **85** `transition-opacity duration-200`. `data-slot="drawer-popup"` at **114**.
+
+**`src/components/ui/toast.tsx`**: `data-slot="toast"` at **43**; the transition at **47** is `[transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]`; **50** already styles `data-limited:opacity-0`; `ToastProvider` at **19** (and its use at ~207). Base UI 1.7.0's `Toast.Provider` takes `limit` (default **3**; the oldest are marked `data-limited`, not removed) — U2 sets **2**.
+
+**The seventeen `animate-in` / `animate-out` files** (non-test): `src/app/(site)/cards/[id]/printings-gallery.tsx`, `src/components/copy-status.tsx`, `deck/ambient-art.tsx`, `deck/deck-text-view.tsx`, `deck/sample-hand.tsx`, `deck/validation-panel.tsx`, `editor/editor-header.tsx`, and **ten** `ui/` primitives: `alert-dialog`, `autocomplete`, `context-menu`, `dialog`, `dropdown-menu`, `hover-card`, `navigation-menu`, `popover`, `select`, `tooltip` (WAVE5 B's "nine" was a slip; D2's list of ten is right). `duration-100` per file: alert-dialog 2, autocomplete 1, context-menu 1, dialog 2, dropdown-menu 2, hover-card 1, popover 1, select 1; navigation-menu carries `duration-150`, `duration-300` and `duration-[0…`.
+
+**Test pins on the motion classes** (move with the classes, same commit): `deck-text-view.test.tsx:147-148` (the qty pop, `motion-safe:animate-in`); `validation-panel.test.tsx:39, 53`; `ambient-art.test.tsx:93` (`motion-safe:animate-in motion-safe:fade-in-0`) and `:127` (`motion-safe:animate-out motion-safe:fade-out-0`); `deck-share-view.test.tsx:251-252` (`motion-safe:animate-in`, `motion-safe:zoom-in-50`); **and one WAVE5's matrix missed: `completion-ring.test.tsx:29, 37`** pins `motion-safe:animate-ring-glow` on the meter (the class name can stay while the ring glow is redrawn). `card-image.test.tsx` pins the load fade by `opacity-0` → `opacity-100` (17–29), not by an animation class; if U2 retimes that transition, the pin holds as long as the two opacity classes do.
+
+**The save slot** (`src/components/editor/editor-header.tsx:240-268`): `<span data-slot="save-slot" data-status={status} data-draft title aria-live className="inline-flex h-7 w-36 …">`, inside it a keyed `<span key={resting ? "draft" : status}>` with `motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200` and the check icon's `motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200`. **Its slot name is `save-slot`, not D2's `save-status`** — the reduced-motion exception must name `[data-slot="save-slot"]` (record the correction in the ship note). The other three exception slots exist as D2 names them: `dialog-content` (`ui/dialog.tsx:51`; `ui/modal.tsx` wraps it, so every editor dialog is covered), `drawer-popup`, `toast`. **`alert-dialog-content` is not among D2's four** (AlertDialog is used by `auth/delete-account.tsx` and `account/account-deck-tile.tsx`, both signed-in): decide whether it joins the exception (a dialog is a dialog — the default) and disclose.
+
+**Other motion**: `src/components/editor/use-count-up.ts:53` eases in JS with `1 - (1 - t) ** 3` over `durationMs = 400` (D2's table puts the count-up on `settle-400` as a 13-point lookup of the same curve). `deck/sample-hand.tsx`: the per-slot deal delay (the last of seven starts at 180 ms, ~41), the entrance `motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-backwards motion-safe:duration-200` (~47), a chevron `motion-safe:transition-transform motion-safe:duration-150` (~102). `completion-ring.tsx:44` applies `motion-safe:animate-ring-glow` when full.
+
+**The acceptance grep's baseline** at `27d3631`: `grep -rn -E "cubic-bezier|ease-out|ease-in-out|animate-in|animate-out|duration-(100|150|300|450|500)" src` over non-test files = **49 lines in 29 files**: `printings-gallery.tsx`, `globals.css`, `copy-status.tsx`, `deck/{ambient-art,analytics-blocks,bracket-sheet,deck-text-view,sample-hand,segmented,validation-panel}.tsx`, `editor/{alternatives-section,card-detail-pane,editor-header}.tsx`, `site-header.tsx`, and `ui/{alert-dialog,autocomplete,button,context-menu,dialog,drawer,dropdown-menu,hover-card,navigation-menu,popover,select,sheet,tabs,toast,tooltip}.tsx`. D2's acceptance: only the `@theme` block and the `tw-animate-css` leftovers the ship note lists.
+
+## Verify-first list (never from memory)
+
+1. **Tailwind v4 and the curves**: `--ease-settle-120` (etc.) in `@theme` / `@theme inline` produces `ease-settle-120` utilities; `ease-(--ease-settle-120)` reads the runtime variable — confirm which form the built CSS emits and whether the variables exist at `:root` before any hand-written rule references them. `linear()` with these point lists parses in Brave (computed `transition-timing-function`).
+2. **Base UI's exit timing**: Base UI waits on `element.getAnimations()` / `transitionend` to unmount popups (why the backstop collapses durations to 0.01 ms rather than `none`); `dw-out` must be a real animation on the closing state or menus unmount instantly. Read the installed `node_modules/@base-ui/react` sources for the popup's `data-starting-style` / `data-ending-style` handling before swapping a primitive.
+3. **The press**: `motion-safe:active:scale-[0.98]` (0.96 on `xs` and `icon-xs`) with the hover color held on `:active` per variant; the `not-aria-[haspopup]` exclusion dropped; `translate-y-px` gone. Measure the computed `scale` on `:active` is not possible by script — pin the classes in `button.test.tsx` and watch it once in Brave (DevTools' `hover` + a real click is a press of ~0 ms; the class pin is the proof).
+4. **The reduced-motion exception**: inside the existing `@media` block, after the `*` rule; `[data-slot="…"]` (0,1,0) beats `*` inside the same `!important` origin, and `@layer base`'s `!important` beats `utilities`' `!important` (important declarations win in the EARLIER layer). The DevTools MCP's `emulate` has **no reduced-motion switch** (its options at U1: viewport, colorScheme, cpuThrottlingRate, networkConditions, userAgent, geolocation, extraHttpHeaders) — pin the block by parsing `globals.css` in `tokens.test.ts`, and prove the computed values another way (e.g. a temporary copy of the block outside the `@media` in a throwaway page, removed before the build), saying which in the ship note.
+5. **The editor trace**: a Performance trace at 390 (4× CPU) on the Giada draft (`/decks/new?game=mtg&from=calling_all_angels_fdc`) shows no non-composited animation (today: the tw-animate `enter`'s `filter`, and the ring glow's `drop-shadow`).
+6. **The drawer and the toast settle inside 400 ms** (measured from the computed durations and one recorded open/close).
+7. **`pnpm build`'s route table diff is empty.**
+8. **Deploy verification** through `gh api repos/Bobandis6/deckwarden/commits/<full sha>/statuses` → context "Vercel" (it reads `pending` for the first few minutes; CI is separate). Then the prod pass in "Deployable outcome".
+
+## Design decisions to make explicitly (disclose + pin each)
+
+- **`@theme` vs `@theme inline`** for the four curves and the two keyframes' `--animate-dw-*` (D2 says "in `@theme inline` beside `--animate-ring-glow`"; the default is to follow it unless verify-first 1 shows the runtime variables are needed and not emitted).
+- **The exception's members**: D2's four (`dialog-content`, `drawer-popup`, `toast`, `save-slot` — the real name) plus `alert-dialog-content` (the default) or exactly four.
+- **The drawer's release easing**: `flick-400` on a swipe release needs U4b's `data-swiping` split; the default for U2 is `settle-400` both ways on the drawer and `flick-400` reserved for U4b, disclosed.
+- **Who takes the press beyond Button**: D2 says "the Segmented items and the filter chips take the same press". The Segmented items are `ToggleGroupItem`s (they inherit `toggleVariants`' `transition-all`, not Button's list); the filter chips are hand-rolled (`chipClass`, `color-chip.tsx`). The default: the Segmented items in U2 (a class on the item, `motion-safe:` and pinned), the chips in U10b with the Chip component — or both now if it stays small.
+- **The save slot's "Saving…" rule**: a flag set only once a save has run 300 ms (state, not a timer on the label), the two-layer cross-fade on opacity at 250 ms; `h-7 w-36` unchanged; every `data-status` pin green.
+- **Toasts `limit={2}`** on the provider (the default) — the third and later are marked `data-limited` and already fade (`toast.tsx:50`).
+
+## Deployable outcome
+
+**U2 is one commit of code** (no step 0; U1 landed the contract). Then the docs commit.
+
+Verified **on prod, signed out, zero creates**:
+- The served CSS carries the four `--ease-*` curves, the `dw-in` / `dw-out` keyframes, the reduced-motion exception, and no `ring-glow` `drop-shadow` keyframe.
+- A share page's visitor-row buttons carry `motion-safe:active:scale-[0.98]` and no `translate-y-px`; a precon draft (`/decks/new?game=mtg&from=calling_all_angels_fdc`, state-only) has the `dw-*` classes on its save slot and validation line.
+- The route table diff is empty; `/c/[slug]`, `/l/[slug]` and `/cards/[id]` stay `●`; `/sets` and `/precons` stay `○`.
+
+Verified **on dev**: D2's grep acceptance (the list of leftovers in the ship note); no non-composited animation in the 390 editor trace; the drawer and the toast inside 400 ms; menus and popovers at 250 on `settle-250`; the press in Brave in both themes; the reduced-motion exception by the method chosen in verify-first 4; U1's measured edges and labels unchanged (re-run the U1 helper on the editor and a share page — a held press color is the hover color, so no new pair).
+
+**Handed to the owner**: nothing signed-in is needed. One look on their phone at a press (a Button, a Segmented item) and a toast is welcome.
+
+Tests: `button.test.tsx` (the scale classes and the held hover per variant, no `translate-y-px`, the transition list and 120 ms unchanged); the five re-pinned files plus `completion-ring.test.tsx`; `tokens.test.ts` (+ the four `--ease-*` tokens, the two keyframes, the exception block; the backstop pin holds); `segmented.test.tsx` if the items take the press; the editor-header save-slot tests if the slot's markup changes.
+
+Docs in the same package: the `WAVE5.md` tracker ticked with the sha and any deviation beside it; a dated ship note at the top of this file; REDESIGN.md "U2 decisions and deviations" under the Wave-5 addendum; `LATER.md` rows from **217** for anything deferred; memory updated; **`U8-session-prompt.md` written** the way this one was. `pnpm db:size` stated. Nothing posted, seeded or simulated.
+
+## Session notes (environment)
+
+- PATH per command: `export PATH="$HOME/.local/node22/bin:$HOME/.local/bin:$PATH"` (node, pnpm, gh). `psql` and `aws` are absent. Ad-hoc SQL runs through `pnpm exec tsx` on a file in `scripts/.tmp/` (gitignored but linted — delete yours when done; `census-u1.ts` is U1's) inside one `read only` transaction.
+- `.env.local`'s `DATABASE_URL` is prod's pooler; dev shares prod's database. `source .env.local` fails in zsh.
+- Dev server: `preview_start {name: "dev-log"}` after `lsof -nP -iTCP:3000 -sTCP:LISTEN`. Stop it before `pnpm build`. `next dev` re-adds the AGENTS.md block; commit it with your work if it appears.
+- **Measuring browser**: the chrome-devtools MCP (Brave) worked end to end in U1 and beats the hidden pane for motion: `emulate` with `viewport: "390x844x3,mobile,touch"` gives `(pointer: coarse)`, `1440x900x1` the desktop; `navigate_page` with `initScript: "localStorage.setItem('theme','light')"` (or `removeItem` for the dark default) sets the theme per load; `hover` gives a real `:hover`; snapshot uids change on every snapshot; `take_snapshot` / `take_screenshot` with a `filePath` outside the workspace roots is refused (leave it off). Performance traces: `performance_start_trace` / `performance_stop_trace` / `performance_analyze_insight`.
+- A throwaway `src/app/(site)/qa-<pkg>/page.tsx` ("use client") measured every variant, the size strip and the Share dialog without a deck row in U1; delete it before `pnpm build` (the route table) and never commit it.
+- The browser pane, if used, is hidden: it pauses rAF and stalls Base UI transitions — never judge motion there.
+- `react-hooks/refs` and `react-hooks/set-state-in-effect` are lint errors in this tree.
+- Four source files hold a literal NUL byte (one is `autofill-sheet.tsx`'s `pickKey` template); an exact-string edit anchored on such a line misses silently. Assert anchors; count NULs with `perl -ne 'print "$.\n" if /\x00/'` (a shell `$'\x00'` pattern is empty and matches every line). Prettier reflows scripted-edit anchors after `pnpm format`; `*.md` is prettier-ignored.
+- `grep` here is ugrep: put `-e` before a pattern that starts with `--`, and quote `--include='*.tsx'` globs.
+- Prod: curls need `--compressed`; ISR pages lag a deploy by up to an hour; U2 creates no prod decks.
+
+## Context, not tasks
+
+- Sequence after U2: U8 type ladder → U3a deck pane bones → U3b materials → U4a phone Deck tab → U4b phone sheet + Tools strip (**owner review: the editor**) → U7a → U5 → U6 (**owner review: the public surfaces**) → U7b → U9 → U10a → U10b.
+- The owner's 22 answers of 2026-10-12 stand (`WAVE5.md`, Context). The defaults in `WAVE5.md` section F are open until the owner says otherwise.
+- P2.9's and P4.7's standing triggers still exist beside the U-series and get their own round. The r/EDH post is still unposted; P2.9 round 3 is armed for it.
+- The site is unannounced. The cold-start rule holds. Premium never gates card data.
+- The Wave-4 sheets (Swap, Fit, Games) inherit U1's recipe and U2's tokens; they get no package of their own unless a dependency surfaces.
+- The lab branch `design-lab` (worktree `.claude/worktrees/design-lab`, `395179d`) is a record: read it by absolute path, never commit to it, rebase it, push it or delete it.

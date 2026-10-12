@@ -608,7 +608,7 @@ Tick a package with its date and sha when it ships; record deviations from this 
 
 - [x] The red test fixed (2026-10-12, `e1bea8e`: `src/app/api/combos/complete/route.test.ts`'s run timestamps relative to the clock; `pnpm check` 2,154 / 203 green, 6 warnings).
 - [x] Owner's answers recorded (six rounds, 2026-10-12); contract landed in the repo with `U1-session-prompt.md`, the lab's prompt and this session's prompt (2026-10-12).
-- [ ] U1 — Controls recipe + edge token (step 0: build plan §6f, the CLAUDE.md line, the REDESIGN addendum, LATER rows from 205)
+- [x] U1 — Controls recipe + edge token (step 0: build plan §6f, the CLAUDE.md line, the REDESIGN addendum, LATER rows from 205) — **2026-10-12, step 0 `53be3ab`, code `27d3631`**; `pnpm check` 2,170 / 204, route table unchanged. Edges 3.50 / 3.48 dark, 3.36 / 3.44 light (page / card; 3.34 light on prod). Deviations and decisions (REDESIGN.md "U1 decisions"): the destructive's dark **rest** stepped `/20` → `/15` with the hover at `/20` (light `/10` → `/15`), measured 4.63 / 4.97 and 5.05 / 4.53; the Segmented's items set `leading-4.5` (D1's classes alone left the height to the inherited line-height); one disabled-with-reason call site existed (the autofill sheet's 429 Retry — the owned toggle is a native checkbox that already says why, and the Fit sheet has no disabled Retry); Toggle's outline flavour on the token now; LATER rows 205–216. **Correction for U2**: the save slot's `data-slot` is `save-slot`, not D2's `save-status`.
 - [ ] U2 — Motion tokens + own keyframes + the press
 - [ ] U8 — Type ladder + shell a11y
 - [ ] U3a — Desktop deck pane: the bones
