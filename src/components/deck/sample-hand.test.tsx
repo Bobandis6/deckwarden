@@ -45,7 +45,7 @@ describe("SampleHand — the deal (F4)", () => {
       400,
     );
     for (const token of DEAL_CARD_MOTION_CLASS.split(" ")) expect(token).toMatch(/^motion-safe:/);
-    expect(DEAL_CARD_MOTION_CLASS).toContain("motion-safe:fill-mode-backwards");
+    expect(DEAL_CARD_MOTION_CLASS).toContain("motion-safe:animate-dw-in"); // fills both ways (globals.css)
   });
 
   it("deals seven with a climbing animation-delay per slot and replays on a new deal", () => {

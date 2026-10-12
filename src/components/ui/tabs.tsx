@@ -76,7 +76,7 @@ function TabsIndicator({ className, ...props }: TabsPrimitive.Indicator.Props) {
     <TabsPrimitive.Indicator
       data-slot="tabs-indicator"
       className={cn(
-        "bg-accent-game pointer-events-none absolute bottom-0 left-(--active-tab-left) z-0 h-0.5 w-(--active-tab-width) rounded-full motion-safe:transition-[left,width] motion-safe:duration-150 motion-safe:ease-out",
+        "bg-accent-game pointer-events-none absolute bottom-0 left-(--active-tab-left) z-0 h-0.5 w-(--active-tab-width) rounded-full motion-safe:transition-[left,width] motion-safe:duration-[120ms] motion-safe:ease-settle-120",
         className,
       )}
       {...props}

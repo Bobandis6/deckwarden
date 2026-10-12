@@ -77,6 +77,21 @@ describe("Segmented", () => {
     expect(group).not.toContain("border-input");
   });
 
+  it("U2: the items take the Button's press (scale, motion-safe, the hover ink held) and the thumb slides on settle-120", () => {
+    const { container } = render(
+      <Segmented label="View" options={VIEW_OPTIONS} value="text" onChange={() => {}} />,
+    );
+    for (const item of screen.getAllByRole("button")) {
+      const cls = item.className.split(/\s+/);
+      expect(cls).toContain("motion-safe:active:scale-[0.98]");
+      expect(cls).toContain("active:text-foreground");
+    }
+    const thumb = container.querySelector('[data-slot="segmented-thumb"]')!.className.split(/\s+/);
+    expect(thumb).toContain("motion-safe:ease-settle-120");
+    expect(thumb).toContain("motion-safe:duration-[120ms]");
+    expect(thumb).not.toContain("motion-safe:ease-out");
+  });
+
   it("Y4b: a null value presses nothing and shows no thumb; the first pick changes it", () => {
     const onChange = vi.fn();
     const answers = [

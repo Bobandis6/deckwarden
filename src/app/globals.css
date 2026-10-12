@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
@@ -64,21 +63,175 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-  /* Completion ring glow (R3, F2): one soft pulse in the game accent when the
-     count reaches the maximum — animate-ring-glow, motion-safe only at the
-     call site; the reduced-motion backstop below zeroes it anyway. */
-  --animate-ring-glow: ring-glow 400ms ease-out 1 both;
+  /* Completion ring glow (R3, F2; U2): one soft pulse in the game accent when
+     the count reaches the maximum — a halo ring of its own whose opacity and
+     scale animate (composited; the R3 keyframe animated filter: drop-shadow,
+     the editor trace's non-composited item). motion-safe only at the call
+     site; the reduced-motion backstop zeroes it anyway. */
+  --animate-ring-glow: ring-glow 400ms var(--ease-settle-400) 1 both;
   @keyframes ring-glow {
     0% {
-      filter: drop-shadow(0 0 0 transparent);
+      opacity: 0;
+      transform: scale(1);
     }
     40% {
-      filter: drop-shadow(0 0 6px var(--accent-game));
+      opacity: 0.45;
     }
     100% {
-      filter: drop-shadow(0 0 0 transparent);
+      opacity: 0;
+      transform: scale(1.25);
     }
   }
+  /* Own keyframes (U2, WAVE5.md D2): dw-in / dw-out replace tw-animate's
+     enter / exit, which animate filter even at blur(0). Opacity and
+     transform only, parameterised per site by --dw-opacity (0 = a fade),
+     --dw-scale and --dw-x / --dw-y (registered below, not inherited):
+     `data-open:animate-dw-in [--dw-scale:0.95]`, `[--dw-y:-0.5rem]`. The
+     shorthand reads the duration / ease utilities (`duration-400
+     ease-settle-400`) and defaults to the 250 ms cross-fade slot. dw-in has
+     no `to` and dw-out no `from`, so each runs from / to the element's own
+     style; `both` holds the start through a delay and the end after it. */
+  --animate-dw-in: dw-in var(--tw-duration, 250ms) var(--tw-ease, var(--ease-settle-250)) both;
+  --animate-dw-out: dw-out var(--tw-duration, 250ms) var(--tw-ease, var(--ease-settle-250)) both;
+  @keyframes dw-in {
+    from {
+      opacity: var(--dw-opacity);
+      transform: translate3d(var(--dw-x), var(--dw-y), 0) scale(var(--dw-scale));
+    }
+  }
+  @keyframes dw-out {
+    to {
+      opacity: var(--dw-opacity);
+      transform: translate3d(var(--dw-x), var(--dw-y), 0) scale(var(--dw-scale));
+    }
+  }
+}
+
+/* Motion tokens (U2, WAVE5.md D2): the four curves, Apple's springs sampled
+   as linear() (settle = damping 1.0; flick = damping 0.8, a 1.5 % overshoot),
+   verbatim from the design lab. settle-120 = controls (the press, the tab
+   indicator, the Segmented thumb, chevrons, hover lifts); settle-250 =
+   cross-fades (menus and popovers, dialogs, the save slot, the qty pop);
+   settle-400 = one-off moments (the Warden shield, the ring glow, the
+   count-up, the dealt hand, the bars, a drawer or toast opening); flick-400 =
+   only what was thrown (U4b's drawer release after a swipe). The reset drops
+   Tailwind's ease-in / ease-out / ease-in-out so no other curve can be
+   written, and the default transition (transition-colors and friends with
+   no duration of their own) is the control slot. Plain @theme, not inline:
+   the utilities read var(--ease-*), so the variables exist at :root for the
+   keyframe shorthands above and for hand-written rules. */
+@theme {
+  --ease-*: initial;
+  --ease-settle-120: linear(
+    0,
+    0.132,
+    0.358,
+    0.563,
+    0.717,
+    0.823,
+    0.892,
+    0.936,
+    0.963,
+    0.98,
+    0.99,
+    0.996,
+    1
+  );
+  --ease-settle-250: linear(
+    0,
+    0.045,
+    0.144,
+    0.264,
+    0.385,
+    0.497,
+    0.596,
+    0.682,
+    0.753,
+    0.811,
+    0.859,
+    0.897,
+    0.928,
+    0.952,
+    0.972,
+    0.987,
+    1
+  );
+  --ease-settle-400: linear(
+    0,
+    0.041,
+    0.133,
+    0.245,
+    0.36,
+    0.469,
+    0.566,
+    0.65,
+    0.721,
+    0.78,
+    0.828,
+    0.867,
+    0.898,
+    0.923,
+    0.943,
+    0.959,
+    0.971,
+    0.981,
+    0.989,
+    0.995,
+    1
+  );
+  --ease-flick-400: linear(
+    0,
+    0.029,
+    0.103,
+    0.2,
+    0.309,
+    0.419,
+    0.523,
+    0.618,
+    0.701,
+    0.772,
+    0.831,
+    0.879,
+    0.917,
+    0.946,
+    0.968,
+    0.983,
+    0.994,
+    1.001,
+    1.005,
+    1.006,
+    1.006,
+    1.006,
+    1.004,
+    1.002,
+    1
+  );
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: var(--ease-settle-120);
+}
+
+/* dw-in / dw-out parameters: registered and NOT inherited, so a popup's
+   [--dw-scale:0.95] never reaches an animated child (the save slot's check,
+   the Warden line under its shield). */
+@property --dw-opacity {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --dw-scale {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+@property --dw-x {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --dw-y {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
 }
 
 /* Theme tokens — "Warden Studio, re-keyed" (W1, WAVE2.md D0; structure from
@@ -221,8 +374,8 @@
      DECORATIVE animation or transition is authored with the `motion-safe:`
      variant (Tailwind 4 has it), so it never exists for a reader who asked
      for reduced motion. This block is the backstop for everything else —
-     the tw-animate-css enter/exit classes the shadcn primitives use, the
-     Button's transition-all, third-party motion — collapsing durations to
+     the primitives' dw-in / dw-out keyframes, every transition without a
+     `motion-safe:` of its own, third-party motion — collapsing durations to
      effectively zero rather than `none` so `animationend`/`transitionend`
      listeners (Base UI waits on them to unmount popups) still fire.
      Everything stays understandable without motion. */
@@ -234,6 +387,46 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
+    }
+    /* The exception (U2, F7; Apple's reduced motion is a gentler cross-fade,
+       not a pop): the five surfaces whose appearance would otherwise blink
+       in — a dialog, an alert dialog, the drawer, a toast and the editor's
+       save slot (its two layers and the saved check) — fade on opacity for
+       150 ms, linear. Movement stays off: only opacity transitions (a
+       transform or translate change lands at once), and the dw-in / dw-out
+       parameters are pinned to a plain fade. Position is NOT zeroed — the
+       dialogs centre by translate, the drawer follows the finger by
+       transform and the toasts stack by transform. A [data-slot] selector
+       outranks the * rule above inside the same !important layer. */
+    [data-slot="dialog-content"],
+    [data-slot="alert-dialog-content"],
+    [data-slot="drawer-popup"],
+    [data-slot="toast"],
+    [data-slot="save-slot"] *,
+    [data-slot="save-slot"] *::before {
+      transition-property: opacity !important;
+      transition-duration: 150ms !important;
+      transition-timing-function: linear !important;
+      animation-duration: 150ms !important;
+      animation-timing-function: linear !important;
+      --dw-scale: 1 !important;
+      --dw-x: 0px !important;
+      --dw-y: 0px !important;
+    }
+    /* The drawer and a toast are placed by transform, which reduced motion
+       never animates: they fade in where they land, and on the way out the
+       move to the closed position waits (a 0 s transform transition delayed
+       150 ms) until the fade has finished, so they fade where they stood. */
+    [data-slot="drawer-popup"][data-starting-style],
+    [data-slot="toast"][data-starting-style] {
+      opacity: 0 !important;
+    }
+    [data-slot="drawer-popup"][data-ending-style],
+    [data-slot="toast"][data-ending-style] {
+      opacity: 0 !important;
+      transition-property: opacity, transform !important;
+      transition-duration: 150ms, 0s !important;
+      transition-delay: 0s, 150ms !important;
     }
   }
 }

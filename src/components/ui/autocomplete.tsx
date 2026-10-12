@@ -79,7 +79,7 @@ function AutocompleteContent({
         <AutocompletePrimitive.Popup
           data-slot="autocomplete-content"
           className={cn(
-            "bg-popover text-popover-foreground ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 z-50 max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-72 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg p-1 shadow-md ring-1 duration-100 outline-none data-closed:overflow-hidden data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
+            "bg-popover text-popover-foreground ring-foreground/10 data-open:animate-dw-in [--dw-scale:0.95] data-closed:animate-dw-out z-50 max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-72 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg p-1 shadow-md ring-1 outline-none data-closed:overflow-hidden data-[side=bottom]:[--dw-y:-0.5rem] data-[side=top]:[--dw-y:0.5rem]",
             className,
           )}
           {...props}

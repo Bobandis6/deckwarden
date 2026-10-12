@@ -363,8 +363,7 @@ export function PrintingsHero() {
           priority
           className={cn(
             "relative w-72 rounded-2xl shadow-lg",
-            !displayed.initial &&
-              "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-[250ms]",
+            !displayed.initial && "motion-safe:animate-dw-in",
           )}
           fallback={hasDefault ? "Card image coming soon" : "No image"}
         />

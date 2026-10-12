@@ -162,8 +162,7 @@ export function DeckTextView({
                         data-slot="qty"
                         className={cn(
                           "w-6 text-center text-xs tabular-nums",
-                          popping &&
-                            "motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200",
+                          popping && "motion-safe:animate-dw-in [--dw-opacity:1] [--dw-scale:0.5]",
                         )}
                       >
                         {entry.qty}

@@ -3,10 +3,11 @@
 /**
  * Completion ring (R3, F2): a Base UI Meter around the deck count, drawn as
  * an SVG arc in the game accent. Closes with a one-shot glow at exactly the
- * maximum (`motion-safe:` — the keyframe lives in globals.css), turns
- * destructive over it beside the deck pane's "Over by N — rank cuts" action,
- * and renders nothing when the format has no maximum (no format has today;
- * the branch stays). Meter.Root carries `role="meter"`, `aria-valuenow`
+ * maximum (`motion-safe:` — the keyframe lives in globals.css; since U2 a
+ * halo ring of its own whose opacity and scale animate, never a filter),
+ * turns destructive over it beside the deck pane's "Over by N — rank cuts"
+ * action, and renders nothing when the format has no maximum (no format has
+ * today; the branch stays). Meter.Root carries `role="meter"`, `aria-valuenow`
  * (clamped to the range) and the "N of M cards" value text.
  */
 import { Meter as MeterPrimitive } from "@base-ui/react/meter";
@@ -39,12 +40,15 @@ export function CompletionRing({
       data-slot="completion-ring"
       data-full={full || undefined}
       data-over={over || undefined}
-      className={cn(
-        "relative inline-flex size-8 shrink-0",
-        full && "motion-safe:animate-ring-glow",
-        className,
-      )}
+      className={cn("relative inline-flex size-8 shrink-0", className)}
     >
+      {full && (
+        <span
+          aria-hidden
+          data-slot="completion-ring-glow"
+          className="border-accent-game pointer-events-none absolute inset-0 rounded-full border-[3px] opacity-0 motion-safe:animate-ring-glow"
+        />
+      )}
       <svg viewBox="0 0 32 32" aria-hidden className="size-8 -rotate-90">
         <circle cx="16" cy="16" r={RADIUS} fill="none" strokeWidth="3" className="stroke-muted" />
         <circle

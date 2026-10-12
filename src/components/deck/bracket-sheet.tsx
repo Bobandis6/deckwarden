@@ -507,7 +507,7 @@ function HowItPlays({
           )}
           <ChevronDownIcon
             aria-hidden
-            className="size-3.5 motion-safe:transition-transform motion-safe:duration-150 group-data-panel-open/trigger:rotate-180"
+            className="size-3.5 motion-safe:transition-transform motion-safe:duration-[120ms] group-data-panel-open/trigger:rotate-180"
           />
         </CollapsibleTrigger>
       </h3>

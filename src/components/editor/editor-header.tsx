@@ -35,7 +35,7 @@
  */
 import { CheckIcon, EllipsisIcon, PanelRightIcon } from "lucide-react";
 import Link from "next/link";
-import type { Ref } from "react";
+import { type Ref, useEffect, useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { ForkCreditLine } from "@/components/deck/fork-button";
@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
 import type { FormatDef, GameAdapter } from "@/lib/games/types";
+import { cn } from "@/lib/utils";
 
 /**
  * The editor's dialogs, each opened from the header (or `?` for the sheet;
@@ -120,7 +121,7 @@ export function EditorHeader({
         aria-label="Deckwarden"
         className="group/mark focus-visible:ring-ring/50 flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
       >
-        <BrandMark className="size-8 motion-safe:transition-transform motion-safe:duration-150 motion-safe:group-hover/mark:-rotate-3" />
+        <BrandMark className="size-8 motion-safe:transition-transform motion-safe:duration-[120ms] motion-safe:group-hover/mark:-rotate-3" />
       </Link>
       <Badge variant="outline" className="text-muted-foreground shrink-0 font-normal">
         {adapter.name} · {format.label}
@@ -211,13 +212,23 @@ export function EditorHeader({
   );
 }
 
+/** A save shows "Saving…" only once it has run this long (U2): a fast one goes "Unsaved…" → "Saved". */
+export const SAVING_LABEL_AFTER_MS = 300;
+
 /**
  * The save slot (F9): a fixed-width, right-aligned box so "Saved" →
  * "Saving…" → "Unsaved…" → "Save failed + Retry" never move the header.
- * Each state's label fades in (`motion-safe:`); the check zooms in on
- * "Saved". The live region announces the change as before. A draft (Y2a)
- * at rest reads "Draft" with no check — its first edit turns the slot to
- * "Unsaved…" like any other, and the minted row ends the draft.
+ * A change of label is a two-layer cross-fade (U2, WAVE5.md D2): the new
+ * label fades in on the settle-250 curve while the old one fades out on top
+ * of it — a `::before` that reads `data-was`, so the slot's text stays the
+ * one live label and the outgoing words are never announced. The first
+ * paint doesn't fade, the check zooms in on "Saved", and reduced motion
+ * keeps the cross-fade at 150 ms on opacity (globals.css). "Saving…" waits
+ * for SAVING_LABEL_AFTER_MS (a flag the save sets, not a delay on the
+ * label), so a quick save never flashes it; `data-status` is always the
+ * real state. The live region announces the change as before. A draft
+ * (Y2a) at rest reads "Draft" with no check — its first edit turns the
+ * slot to "Unsaved…" like any other, and the minted row ends the draft.
  */
 function SaveIndicator({
   status,
@@ -228,14 +239,35 @@ function SaveIndicator({
   onRetry: () => void;
   draft: boolean;
 }) {
+  const [slowSave, setSlowSave] = useState(false);
+  useEffect(() => {
+    if (status !== "saving") return;
+    const timer = setTimeout(() => setSlowSave(true), SAVING_LABEL_AFTER_MS);
+    return () => {
+      clearTimeout(timer);
+      setSlowSave(false);
+    };
+  }, [status]);
   const resting = draft && status === "saved";
   const label = resting
     ? "Draft"
     : status === "saving"
-      ? "Saving…"
+      ? slowSave
+        ? "Saving…"
+        : "Unsaved…"
       : status === "dirty"
         ? "Unsaved…"
-        : "Saved";
+        : status === "error"
+          ? "Save failed"
+          : "Saved";
+  // The outgoing label, kept from the previous render (React's "adjust state
+  // when a value changes" pattern); null until the first change.
+  const [faces, setFaces] = useState<{ now: string; was: string | null }>({
+    now: label,
+    was: null,
+  });
+  if (faces.now !== label) setFaces({ now: label, was: faces.now });
+  const fading = faces.was !== null;
   return (
     <span
       data-slot="save-slot"
@@ -254,13 +286,18 @@ function SaveIndicator({
         </>
       ) : (
         <span
-          key={resting ? "draft" : status}
-          className="text-muted-foreground inline-flex items-center gap-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+          key={label}
+          data-was={fading ? faces.was : undefined}
+          className={cn(
+            "text-muted-foreground relative inline-flex items-center gap-1",
+            fading &&
+              "animate-dw-in before:absolute before:top-0 before:right-0 before:whitespace-nowrap before:animate-dw-out before:content-[attr(data-was)_/_'']",
+          )}
         >
-          {status === "saved" && !resting && (
+          {label === "Saved" && (
             <CheckIcon
               aria-hidden
-              className="size-3.5 motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-200"
+              className={cn("size-3.5", fading && "animate-dw-in [--dw-scale:0.5]")}
             />
           )}
           {label}

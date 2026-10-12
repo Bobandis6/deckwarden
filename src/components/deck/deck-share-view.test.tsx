@@ -248,8 +248,8 @@ describe("DeckShareView — F12", () => {
     expect(writeText.mock.calls[0][0]).toContain("Sol Ring");
     expect(status.textContent).toBe("Copied");
     const check = status.firstElementChild!;
-    expect(check.className).toContain("motion-safe:animate-in");
-    expect(check.className).toContain("motion-safe:zoom-in-50");
+    expect(check.className).toContain("motion-safe:animate-dw-in");
+    expect(check.className).toContain("[--dw-scale:0.5]");
     expect(check.querySelector("svg")).toBeTruthy();
     // The button keeps its name throughout.
     expect(screen.getByRole("button", { name: "Copy decklist" })).toBeTruthy();

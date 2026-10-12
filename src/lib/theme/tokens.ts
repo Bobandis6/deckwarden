@@ -101,6 +101,26 @@ export const radius = "0.75rem";
 export const borderControl = { light: 55, dark: 40 } as const;
 
 /**
+ * The settle-400 curve (U2, WAVE5.md D2) as numbers, for the motion that
+ * runs in JavaScript (the deck total's count-up): the same points as
+ * globals.css's `--ease-settle-400: linear(…)`, evenly spaced in time;
+ * tokens.test.ts pins the two equal.
+ */
+export const settle400 = [
+  0, 0.041, 0.133, 0.245, 0.36, 0.469, 0.566, 0.65, 0.721, 0.78, 0.828, 0.867, 0.898, 0.923, 0.943,
+  0.959, 0.971, 0.981, 0.989, 0.995, 1,
+] as const;
+
+/** A `linear()` curve's value at t ∈ [0, 1]: straight lines between evenly spaced points. */
+export function sampleLinear(points: readonly number[], t: number): number {
+  if (t <= 0) return points[0];
+  if (t >= 1) return points[points.length - 1];
+  const at = t * (points.length - 1);
+  const i = Math.floor(at);
+  return points[i] + (points[i + 1] - points[i]) * (at - i);
+}
+
+/**
  * OG unfurls always paint the dark theme — Discord/Twitter cards sit on the
  * viewer's chrome, not ours, so there is no light variant to honor.
  */

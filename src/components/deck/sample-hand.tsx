@@ -15,9 +15,9 @@
  *
  * R6 (F4, REDESIGN.md §4 "Dealt hands"): the hand is DEALT — each card
  * enters with a stagger (`animation-delay` climbing per slot, the whole
- * deal under 400 ms, `fill-mode-backwards` so a card is invisible until its
- * turn, every class `motion-safe:`; under reduced motion no delay is
- * written and the cards simply appear) — and the controls read as a game
+ * deal under 400 ms, U2's `animate-dw-in` filling both ways so a card is
+ * invisible until its turn, every class `motion-safe:`; under reduced motion
+ * no delay is written and the cards simply appear) — and the controls read as a game
  * prompt: "Keep this hand?" with **Keep** and **Mulligan**. The state
  * machine is `none → dealt → kept`: Keep freezes the hand and says so in
  * the live region (no game state beyond that — no draw-next, LATER's
@@ -42,9 +42,9 @@ import { prefersReducedMotion } from "@/lib/theme/motion";
 export const DEAL_STAGGER_MS = 30;
 /** Each card's own entrance; the whole seven-card deal ends at 380 ms (≤ 400, §1). */
 export const DEAL_CARD_MS = 200;
-/** The dealt card's entrance classes — motion-safe only, backwards-filled so it waits for its delay. */
+/** The dealt card's entrance classes — motion-safe only, on the settle-400 curve; dw-in fills both ways, so a card waits hidden through its delay. */
 export const DEAL_CARD_MOTION_CLASS =
-  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-backwards motion-safe:duration-200";
+  "motion-safe:animate-dw-in motion-safe:[--dw-y:0.5rem] motion-safe:duration-200 motion-safe:ease-settle-400";
 
 type Phase = "none" | "dealt" | "kept";
 
@@ -99,7 +99,7 @@ export function SampleHand({
           Sample hand
           <ChevronDownIcon
             aria-hidden
-            className="size-3.5 motion-safe:transition-transform motion-safe:duration-150 group-data-panel-open/trigger:rotate-180"
+            className="size-3.5 motion-safe:transition-transform motion-safe:duration-[120ms] group-data-panel-open/trigger:rotate-180"
           />
         </CollapsibleTrigger>
       </h2>

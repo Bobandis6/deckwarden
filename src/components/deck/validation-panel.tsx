@@ -102,15 +102,12 @@ export function ValidationPanel({
           className={cn(
             "size-4 shrink-0",
             settle &&
-              "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-300",
+              "motion-safe:animate-dw-in [--dw-scale:0.5] motion-safe:duration-400 motion-safe:ease-settle-400",
           )}
         />
         <span
           key={`line-${settleKey}`}
-          className={cn(
-            "font-display",
-            settle && "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300",
-          )}
+          className={cn("font-display", settle && "motion-safe:animate-dw-in")}
         >
           The Warden approves this deck <span aria-hidden>✓</span>
         </span>

@@ -101,7 +101,7 @@ export function Segmented<T extends string>({
           <span
             aria-hidden
             data-slot="segmented-thumb"
-            className="bg-accent pointer-events-none absolute inset-y-0 left-0 -z-10 w-[calc(100%/var(--seg-count))] translate-x-[calc(var(--seg-index)*100%)] motion-safe:transition-transform motion-safe:duration-[120ms] motion-safe:ease-out"
+            className="bg-accent pointer-events-none absolute inset-y-0 left-0 -z-10 w-[calc(100%/var(--seg-count))] translate-x-[calc(var(--seg-index)*100%)] motion-safe:transition-transform motion-safe:duration-[120ms] motion-safe:ease-settle-120"
           />
         )}
         {options.map((option) => (
@@ -110,7 +110,7 @@ export function Segmented<T extends string>({
             value={option.value}
             size="sm"
             className={cn(
-              "text-muted-foreground hover:text-foreground h-auto min-w-0 rounded-none px-2 py-1 text-[0.8125rem] leading-4.5 font-normal hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-accent-foreground data-[state=on]:bg-transparent",
+              "text-muted-foreground hover:text-foreground active:text-foreground motion-safe:active:scale-[0.98] h-auto min-w-0 rounded-none px-2 py-1 text-[0.8125rem] leading-4.5 font-normal hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-accent-foreground data-[state=on]:bg-transparent",
               touch && "pointer-coarse:min-h-11 pointer-coarse:min-w-11",
               touch && (options.length > 4 ? "pointer-coarse:px-2" : "pointer-coarse:px-3"),
             )}

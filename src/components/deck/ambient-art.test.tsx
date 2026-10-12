@@ -90,7 +90,7 @@ describe("AmbientArt", () => {
     fireEvent.load(img);
     expect(img.dataset.loaded).toBe("true");
     expect(img.className).toContain("opacity-[0.04] dark:opacity-[0.08]");
-    expect(img.className).toContain("motion-safe:animate-in motion-safe:fade-in-0");
+    expect(img.className).toContain("motion-safe:animate-dw-in");
     expect(img.className).toContain("object-cover");
     expect(chip()?.textContent).toBe("Art: Anna Podedworna · ™ & © Wizards of the Coast");
     expect(chip()?.closest("[tabindex]")).toBeNull();
@@ -124,7 +124,7 @@ describe("AmbientArt", () => {
     const shown = crops();
     expect(shown).toHaveLength(2);
     expect(shown[0].dataset.leaving).toBe("true");
-    expect(shown[0].className).toContain("motion-safe:animate-out motion-safe:fade-out-0");
+    expect(shown[0].className).toContain("motion-safe:animate-dw-out");
     expect(shown[0].className).toContain("motion-reduce:opacity-0");
     expect(shown[1].getAttribute("src")).toBe("https://cards.scryfall.io/b.jpg");
     expect(chip()).toBeNull(); // the replacement is not on screen yet

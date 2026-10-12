@@ -26,7 +26,9 @@ describe("CompletionRing", () => {
     render(<CompletionRing value={100} max={100} />);
     const meter = screen.getByRole("meter");
     expect(meter.hasAttribute("data-full")).toBe(true);
-    expect(meter.className).toContain("motion-safe:animate-ring-glow");
+    const glow = meter.querySelector('[data-slot="completion-ring-glow"]')!;
+    expect(glow.className).toContain("motion-safe:animate-ring-glow");
+    expect(glow.className).toContain("opacity-0"); // invisible at rest and under reduced motion
     expect(arc().getAttribute("class")).toContain("stroke-accent-game");
   });
 
@@ -34,7 +36,7 @@ describe("CompletionRing", () => {
     render(<CompletionRing value={104} max={100} />);
     const meter = screen.getByRole("meter");
     expect(meter.hasAttribute("data-over")).toBe(true);
-    expect(meter.className).not.toContain("animate-ring-glow");
+    expect(meter.innerHTML).not.toContain("animate-ring-glow");
     expect(meter.getAttribute("aria-valuetext")).toBe("104 of 100 cards");
     expect(arc().getAttribute("class")).toContain("stroke-destructive");
   });

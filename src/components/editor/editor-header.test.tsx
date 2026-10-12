@@ -6,13 +6,13 @@
  * with a live deck) opening the right dialog, and exactly one appearance control
  * — the same assertion the site header test makes for the (site) pages.
  */
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SaveStatus } from "@/components/editor/use-autosave";
 import { COMMANDER } from "@/lib/games/mtg/formats";
 import { getAdapter } from "@/lib/games/registry";
-import { EditorHeader } from "./editor-header";
+import { EditorHeader, SAVING_LABEL_AFTER_MS } from "./editor-header";
 
 const mtg = getAdapter("mtg");
 
@@ -83,11 +83,13 @@ describe("EditorHeader", () => {
   });
 
   it("the save slot keeps one fixed width across all four states; Retry sits in it, not the menu", () => {
+    vi.useFakeTimers();
     const onRetry = vi.fn();
     const { rerender } = render(header({ onRetry }));
     const widths = new Set<string>();
     for (const status of ["saved", "dirty", "saving", "error"] as SaveStatus[]) {
       rerender(header({ saveStatus: status, onRetry }));
+      act(() => vi.advanceTimersByTime(SAVING_LABEL_AFTER_MS)); // a slow save says so
       const slot = document.querySelector('[data-slot="save-slot"]') as HTMLElement;
       expect(slot.getAttribute("aria-live")).toBe("polite");
       widths.add(
@@ -100,12 +102,57 @@ describe("EditorHeader", () => {
         { saved: "Saved", dirty: "Unsaved…", saving: "Saving…", error: "Save failed" }[status],
       );
     }
+    vi.useRealTimers();
     expect(widths.size).toBe(1);
     expect([...widths][0]).toBe("w-36");
     const retry = screen.getByRole("button", { name: "Retry" });
     fireEvent.click(retry);
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("a quick save never says Saving…; one past 300 ms does, and data-status is always the real state (U2)", () => {
+    vi.useFakeTimers();
+    try {
+      const slot = () => document.querySelector('[data-slot="save-slot"]') as HTMLElement;
+      const { rerender } = render(header({ saveStatus: "dirty" }));
+      rerender(header({ saveStatus: "saving" }));
+      expect(slot().dataset.status).toBe("saving");
+      expect(slot().textContent).toBe("Unsaved…");
+      act(() => vi.advanceTimersByTime(SAVING_LABEL_AFTER_MS - 1));
+      rerender(header({ saveStatus: "saved" }));
+      expect(slot().textContent).toBe("Saved");
+      // The next save starts its own clock.
+      rerender(header({ saveStatus: "dirty" }));
+      rerender(header({ saveStatus: "saving" }));
+      act(() => vi.advanceTimersByTime(SAVING_LABEL_AFTER_MS - 1));
+      expect(slot().textContent).toBe("Unsaved…");
+      act(() => vi.advanceTimersByTime(1));
+      expect(slot().textContent).toBe("Saving…");
+      rerender(header({ saveStatus: "saved" }));
+      expect(slot().textContent).toBe("Saved");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a change of label is a two-layer cross-fade: the old words on a ::before (data-was), never in the text; the first paint doesn't fade (U2)", () => {
+    const face = () => document.querySelector('[data-slot="save-slot"] > span') as HTMLElement;
+    const { rerender } = render(header({ saveStatus: "saved" }));
+    expect(face().hasAttribute("data-was")).toBe(false);
+    expect(face().className).not.toContain("animate-dw-in");
+    rerender(header({ saveStatus: "dirty" }));
+    expect(face().dataset.was).toBe("Saved");
+    expect(face().textContent).toBe("Unsaved…");
+    expect(face().className).toContain("animate-dw-in");
+    expect(face().className).toContain("before:animate-dw-out");
+    expect(face().className).toContain("before:content-[attr(data-was)_/_'']");
+    expect(face().className).toContain("relative"); // the ::before's box
+    const slot = document.querySelector('[data-slot="save-slot"]') as HTMLElement;
+    expect(slot.className).toContain("h-7 w-36");
+    rerender(header({ saveStatus: "saved" }));
+    expect(face().dataset.was).toBe("Unsaved…");
+    expect(face().querySelector("svg")!.getAttribute("class")).toContain("[--dw-scale:0.5]");
   });
 
   it("a draft at rest says Draft (titled, no check, data-draft) in the same w-36 slot; data-status keeps the autosave state (Y2a)", () => {

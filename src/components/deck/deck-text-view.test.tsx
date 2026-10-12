@@ -144,8 +144,8 @@ describe("DeckTextView", () => {
       />,
     );
     const [solQty, forestQty] = document.querySelectorAll('[data-slot="qty"]');
-    expect(solQty.className).toContain("motion-safe:animate-in");
-    expect(forestQty.className).not.toContain("animate-in");
+    expect(solQty.className).toContain("motion-safe:animate-dw-in");
+    expect(forestQty.className).not.toContain("animate-dw-in");
   });
 });
 

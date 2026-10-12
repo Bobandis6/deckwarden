@@ -32,7 +32,7 @@ function barColor(colorVar?: string): string {
 
 /** The bar's grow-in (G6): from `scale-y-0` at first style to full height, ≤ 400 ms, motion-safe only. */
 export const HISTOGRAM_BAR_MOTION_CLASS =
-  "origin-bottom scale-y-100 motion-safe:transition-transform motion-safe:duration-400 motion-safe:ease-out motion-safe:starting:scale-y-0";
+  "origin-bottom scale-y-100 motion-safe:transition-transform motion-safe:duration-400 motion-safe:ease-settle-400 motion-safe:starting:scale-y-0";
 
 /** The dashed outline that draws a target bucket and the legend's swatch (G9). */
 const TARGET_OUTLINE_CLASS =
@@ -225,7 +225,7 @@ export function AnalyticsPanel({ blocks }: { blocks: AnalyticsBlock[] }) {
         Analytics
         <ChevronDownIcon
           aria-hidden
-          className="size-3.5 motion-safe:transition-transform motion-safe:duration-150 group-data-panel-open/trigger:rotate-180"
+          className="size-3.5 motion-safe:transition-transform motion-safe:duration-[120ms] group-data-panel-open/trigger:rotate-180"
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-2">

@@ -11,7 +11,17 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { GAME_ID } from "@/db/seed-data";
-import { borderControl, dark, light, og, ogAccent, radius, rgba } from "./tokens";
+import {
+  borderControl,
+  dark,
+  light,
+  og,
+  ogAccent,
+  radius,
+  rgba,
+  sampleLinear,
+  settle400,
+} from "./tokens";
 
 const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
@@ -91,6 +101,104 @@ describe("theme tokens ↔ globals.css", () => {
     expect(rule).toContain("color: var(--background);");
     expect(rule).toContain("font-variant-numeric: tabular-nums;");
     expect(rule).not.toContain("9999px");
+  });
+
+  // U2 (WAVE5.md D2): the four curves verbatim from the design lab.
+  const CURVES = {
+    "settle-120":
+      "linear(0, 0.132, 0.358, 0.563, 0.717, 0.823, 0.892, 0.936, 0.963, 0.98, 0.99, 0.996, 1)",
+    "settle-250":
+      "linear(0, 0.045, 0.144, 0.264, 0.385, 0.497, 0.596, 0.682, 0.753, 0.811, 0.859, 0.897, 0.928, 0.952, 0.972, 0.987, 1)",
+    "settle-400":
+      "linear(0, 0.041, 0.133, 0.245, 0.36, 0.469, 0.566, 0.65, 0.721, 0.78, 0.828, 0.867, 0.898, 0.923, 0.943, 0.959, 0.971, 0.981, 0.989, 0.995, 1)",
+    "flick-400":
+      "linear(0, 0.029, 0.103, 0.2, 0.309, 0.419, 0.523, 0.618, 0.701, 0.772, 0.831, 0.879, 0.917, 0.946, 0.968, 0.983, 0.994, 1.001, 1.005, 1.006, 1.006, 1.006, 1.004, 1.002, 1)",
+  };
+
+  /** The stylesheet without its comments (they name the curves U2 retired). */
+  const code = css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("the four motion curves are the lab's, and the only ones (U2)", () => {
+    // Prettier spreads a long linear() over lines; compare the words.
+    const theme = (css.match(/\n@theme \{([\s\S]*?)\n\}/)?.[1] ?? "")
+      .replace(/\s+/g, " ")
+      .replace(/\( /g, "(")
+      .replace(/ \)/g, ")");
+    expect(theme).toContain("--ease-*: initial;");
+    for (const [name, curve] of Object.entries(CURVES)) {
+      expect(theme).toContain(`--ease-${name}: ${curve};`);
+    }
+    expect(theme.match(/--ease-[a-z0-9-]+:/g)).toHaveLength(4);
+    expect(theme).toContain("--default-transition-duration: 120ms;");
+    expect(theme).toContain("--default-transition-timing-function: var(--ease-settle-120);");
+    // No other curve is written anywhere in the stylesheet.
+    expect(code).not.toMatch(/cubic-bezier|\bease-out\b|\bease-in-out\b/);
+  });
+
+  it("the count-up's settle-400 points are the stylesheet's, and sample as straight lines (U2)", () => {
+    expect(`linear(${settle400.join(", ")})`).toBe(CURVES["settle-400"]);
+    expect(sampleLinear(settle400, 0)).toBe(0);
+    expect(sampleLinear(settle400, 1)).toBe(1);
+    expect(sampleLinear(settle400, 0.05)).toBeCloseTo(0.041); // the 2nd of 21 points
+    expect(sampleLinear(settle400, 0.075)).toBeCloseTo((0.041 + 0.133) / 2);
+  });
+
+  it("dw-in / dw-out animate opacity and transform only, on the cross-fade slot by default (U2)", () => {
+    for (const name of ["dw-in", "dw-out"]) {
+      const frames = css.match(new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n  \\}`))?.[1];
+      expect(frames, name).toBeDefined();
+      const props = [...frames!.matchAll(/^\s*([a-z-]+):/gm)].map((m) => m[1]);
+      expect(new Set(props), name).toEqual(new Set(["opacity", "transform"]));
+      expect(css).toContain(
+        `--animate-${name}: ${name} var(--tw-duration, 250ms) var(--tw-ease, var(--ease-settle-250)) both;`,
+      );
+    }
+    // The parameters are registered and never inherited.
+    for (const param of ["--dw-opacity", "--dw-scale", "--dw-x", "--dw-y"]) {
+      const reg = css.match(new RegExp(`@property ${param} \\{([^}]*)\\}`))?.[1] ?? "";
+      expect(reg, param).toContain("inherits: false;");
+    }
+  });
+
+  it("the ring glow animates opacity and scale, never a filter (U2)", () => {
+    const frames = css.match(/@keyframes ring-glow \{([\s\S]*?)\n  \}/)?.[1] ?? "";
+    expect(frames).toContain("opacity:");
+    expect(frames).toContain("transform: scale(");
+    expect(frames).not.toContain("filter");
+    expect(code).not.toContain("drop-shadow");
+    expect(css).toContain("--animate-ring-glow: ring-glow 400ms var(--ease-settle-400) 1 both;");
+  });
+
+  it("the reduced-motion exception: five surfaces fade 150 ms on opacity, nothing moves, nothing is un-positioned (U2, F7)", () => {
+    const media =
+      css.match(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n  \}/)?.[1] ?? "";
+    // After the * rule, inside the same block.
+    expect(media.indexOf("[data-slot=")).toBeGreaterThan(
+      media.indexOf("transition-duration: 0.01ms"),
+    );
+    for (const slot of [
+      '[data-slot="dialog-content"]',
+      '[data-slot="alert-dialog-content"]',
+      '[data-slot="drawer-popup"]',
+      '[data-slot="toast"]',
+      '[data-slot="save-slot"] *',
+      '[data-slot="save-slot"] *::before',
+    ]) {
+      expect(media, slot).toContain(slot);
+    }
+    for (const decl of [
+      "transition-property: opacity !important;",
+      "transition-duration: 150ms !important;",
+      "animation-duration: 150ms !important;",
+      "--dw-scale: 1 !important;",
+      "--dw-x: 0px !important;",
+      "--dw-y: 0px !important;",
+      "transition-delay: 0s, 150ms !important;",
+    ]) {
+      expect(media, decl).toContain(decl);
+    }
+    // Dialogs centre by translate; the drawer and toasts sit by transform.
+    expect(media).not.toMatch(/(?:^|[\s;{])(?:transform|translate|scale): none/);
   });
 
   it("reduced motion collapses every animation and transition (motion policy)", () => {

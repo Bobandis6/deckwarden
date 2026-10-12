@@ -2,7 +2,8 @@
 
 /**
  * Count-up for the deck total (R3, F10): after an import the number rolls
- * to its new value over ~400 ms; a ±1 edit — anything within `threshold` —
+ * to its new value over ~400 ms on the settle-400 curve (U2: the CSS
+ * `linear()` points, sampled here); a ±1 edit — anything within `threshold` —
  * jumps, and so does everything when the reader asked for reduced motion.
  * The displayed number always lands on the exact value.
  *
@@ -12,6 +13,8 @@
  * requestAnimationFrame) keeps it testable under fake timers.
  */
 import { useEffect, useState } from "react";
+
+import { sampleLinear, settle400 } from "@/lib/theme/tokens";
 
 export interface CountUpOptions {
   /** Deltas at or under this jump instantly. */
@@ -50,7 +53,7 @@ export function useCountUp(
     const start = Date.now();
     const id = setInterval(() => {
       const t = Math.min((Date.now() - start) / durationMs, 1);
-      const eased = 1 - (1 - t) ** 3;
+      const eased = sampleLinear(settle400, t);
       setShown(t >= 1 ? run.to : Math.round(run.from + (run.to - run.from) * eased));
       if (t >= 1) clearInterval(id);
     }, 16);

@@ -84,7 +84,7 @@ export function CopyStatus({
       {copy.state === "copied" && (
         <span
           key={copy.nonce}
-          className="inline-flex items-center gap-1 text-emerald-700 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-200 dark:text-emerald-400"
+          className="inline-flex items-center gap-1 text-emerald-700 motion-safe:animate-dw-in [--dw-scale:0.5] dark:text-emerald-400"
         >
           <CheckIcon aria-hidden className="size-3.5" />
           {copied}

@@ -193,6 +193,85 @@ describe("Button recipe (U1)", () => {
 });
 
 /**
+ * U2 (WAVE5.md D2, F10): the press is a scale on the settle-120 curve —
+ * 0.98, 0.96 on the 24 px sizes — authored `motion-safe:`, with each
+ * variant's hover look held on `:active` (the press's only channel under
+ * reduced motion and on touch). The 1 px nudge and its menu-trigger
+ * exclusion are gone; U1's transition list and 120 ms are unchanged.
+ */
+describe("Button press (U2)", () => {
+  it("scales 0.98 on the settle curve, motion-safe only; no translate nudge, no haspopup exclusion", () => {
+    const cls = tokensOf(cn(buttonVariants()));
+    expect(cls).toContain("motion-safe:active:scale-[0.98]");
+    expect(cls).toContain("ease-settle-120");
+    expect(cls).not.toContain("ease-out");
+    expect(cls).toContain("duration-[120ms]");
+    expect(cls).toContain(
+      "transition-[color,background-color,border-color,box-shadow,transform,translate,scale]",
+    );
+    expect(cls.some((c) => c.includes("translate-y-px"))).toBe(false);
+    expect(cls.some((c) => c.includes("haspopup"))).toBe(false);
+    expect(cls.some((c) => /(^|:)active:scale-/.test(c) && !c.startsWith("motion-safe:"))).toBe(
+      false,
+    );
+  });
+
+  it("the 24 px sizes press to 0.96 and cn() keeps only that one; every other size 0.98", () => {
+    for (const size of ["xs", "icon-xs"] as const) {
+      const cls = tokensOf(cn(buttonVariants({ size })));
+      expect(cls, size).toContain("motion-safe:active:scale-[0.96]");
+      expect(cls, size).not.toContain("motion-safe:active:scale-[0.98]");
+    }
+    for (const size of ["default", "sm", "lg", "icon", "icon-sm", "icon-lg"] as const) {
+      const cls = tokensOf(cn(buttonVariants({ size })));
+      expect(cls, size).toContain("motion-safe:active:scale-[0.98]");
+      expect(cls, size).not.toContain("motion-safe:active:scale-[0.96]");
+    }
+  });
+
+  it("a press holds each variant's hover look, with the measured destructive tints (F16)", () => {
+    const cases: [Parameters<typeof buttonVariants>[0], string[]][] = [
+      [
+        { variant: "default" },
+        [
+          "active:bg-[color-mix(in_oklch,var(--primary),var(--foreground)_12%)]",
+          "active:border-gold/90",
+        ],
+      ],
+      [{ variant: "outline" }, ["active:bg-muted", "dark:active:bg-muted/60"]],
+      [
+        { variant: "secondary" },
+        ["active:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)]"],
+      ],
+      [
+        { variant: "ghost" },
+        ["active:bg-muted", "active:text-foreground", "dark:active:bg-muted/50"],
+      ],
+      [{ variant: "destructive" }, ["active:bg-destructive/15", "dark:active:bg-destructive/20"]],
+      [{ variant: "link" }, ["active:underline"]],
+    ];
+    for (const [variant, held] of cases) {
+      const cls = tokensOf(cn(buttonVariants(variant)));
+      for (const c of held) {
+        expect(cls, String(variant?.variant)).toContain(c);
+        // Held = the hover look, token for token.
+        expect(cls, String(variant?.variant)).toContain(c.replace("active:", "hover:"));
+      }
+    }
+    const destructive = tokensOf(buttonVariants({ variant: "destructive" }));
+    expect(destructive).not.toContain("active:bg-destructive/20");
+    expect(destructive).not.toContain("dark:active:bg-destructive/30");
+  });
+
+  it("the rendered button carries the press", () => {
+    render(<Button size="icon-xs" aria-label="Add one" />);
+    expect(screen.getByRole("button", { name: "Add one" }).className).toContain(
+      "motion-safe:active:scale-[0.96]",
+    );
+  });
+});
+
+/**
  * Disabled with a reason (U1, WAVE5.md D1; WAVE2.md D0 "Disabled = visible,
  * with the reason in title/hint"): `disabled` + `title` is the whole API — no
  * new prop. Such a Button keeps hover and focus (Base UI's

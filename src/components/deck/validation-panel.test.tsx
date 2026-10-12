@@ -36,7 +36,7 @@ describe("ValidationPanel — the Warden line", () => {
     expect(status.textContent).toBe("The Warden approves this deck ✓");
     expect(status.getAttribute("title")).toBe("Legal Commander deck");
     expect(status.hasAttribute("data-settled")).toBe(false);
-    expect(status.innerHTML).not.toContain("animate-in");
+    expect(status.innerHTML).not.toContain("animate-dw-in");
   });
 
   it("an empty deck shows the DECK_SIZE problem, never the line", () => {
@@ -50,8 +50,8 @@ describe("ValidationPanel — the Warden line", () => {
     rerender(panel([]));
     const status = screen.getByRole("status");
     expect(status.hasAttribute("data-settled")).toBe(true);
-    expect(status.innerHTML).toContain("motion-safe:animate-in");
-    expect(status.innerHTML).toContain("motion-safe:duration-300");
+    expect(status.innerHTML).toContain("motion-safe:animate-dw-in");
+    expect(status.innerHTML).toContain("motion-safe:duration-400 motion-safe:ease-settle-400"); // the shield settles on the 400 slot
     const mark = status.querySelector("svg");
     // An unrelated re-render (a name edit, a theme switch) keeps the same
     // nodes — nothing remounts, so nothing replays.

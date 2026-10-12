@@ -17,8 +17,9 @@
  * image failed, or Background art Off — so turning art Off keeps the
  * gradient (§3 lists the preference under fallbacks).
  *
- * Crossfade: the previous crop lingers for 250 ms (`animate-out fade-out`,
- * `fill-mode-forwards`) while the replacement plays `animate-in fade-in` —
+ * Crossfade: the previous crop lingers for 250 ms (`animate-dw-out`, which
+ * holds its end) while the replacement plays `animate-dw-in` (U2's own
+ * keyframes on the settle-250 cross-fade) —
  * a CSS animation rather than a transition so a cached image still fades
  * in when its class lands in the same frame as its mount. The builder
  * hands over crops that are already decoded (use-leader-art.ts); the share
@@ -137,7 +138,7 @@ export function AmbientArt({
             className={cn(
               IMAGE_CLASS,
               AMBIENT_OPACITY,
-              "motion-safe:animate-out motion-safe:fade-out-0 motion-safe:duration-250 motion-safe:fill-mode-forwards motion-reduce:opacity-0",
+              "motion-safe:animate-dw-out motion-reduce:opacity-0",
             )}
           />
         )}
@@ -161,9 +162,7 @@ export function AmbientArt({
             }}
             className={cn(
               IMAGE_CLASS,
-              artOnScreen
-                ? `${AMBIENT_OPACITY} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-250`
-                : "opacity-0",
+              artOnScreen ? `${AMBIENT_OPACITY} motion-safe:animate-dw-in` : "opacity-0",
             )}
           />
         )}
