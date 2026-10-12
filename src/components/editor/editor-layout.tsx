@@ -186,7 +186,11 @@ export function EditorLayout({
     >
       {header}
       {dialogs}
+      {/* The panes are the page's main landmark and the skip link's target
+          (U8: every page's <main id="main">; WAVE5's U3a listed the editor's
+          <main>, which the skip link needed first). */}
       <Tabs
+        render={<main id="main" />}
         value={activePane}
         onValueChange={(value) => onActivePaneChange(value as EditorPane)}
         data-pane={activePane}

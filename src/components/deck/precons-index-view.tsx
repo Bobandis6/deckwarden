@@ -204,9 +204,7 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
         groups.map((group) => (
           <section key={group.label ?? "flat"} className="mt-6">
             {group.label && (
-              <h2 className="font-display text-muted-foreground border-b pb-1 text-sm font-semibold">
-                {group.label}
-              </h2>
+              <h2 className="type-small text-muted-foreground border-b pb-1">{group.label}</h2>
             )}
             <DeckTileGrid className="mt-3 lg:grid-cols-2 xl:grid-cols-3">
               {group.rows.map((item) => (

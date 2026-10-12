@@ -178,7 +178,7 @@ export function AmbientArt({
           <p
             data-slot="art-credit"
             style={creditInset ? { bottom: creditInset } : undefined}
-            className="text-muted-foreground bg-background/80 absolute bottom-2 left-3 rounded-md px-1.5 py-0.5 text-[0.65rem] leading-4 whitespace-nowrap"
+            className="text-muted-foreground bg-background/80 absolute bottom-2 left-3 rounded-md px-1.5 py-0.5 type-micro whitespace-nowrap"
           >
             {current.credit}
           </p>

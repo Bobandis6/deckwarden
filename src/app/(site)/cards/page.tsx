@@ -55,8 +55,8 @@ export default async function CardsPage({ searchParams }: PageProps<"/cards">) {
   const setField = setFieldKey(getAdapter(game).searchFields);
 
   return (
-    <main className="max-w-wide mx-auto w-full flex-1 px-4 py-8" data-game={game}>
-      <h1 className="font-display text-3xl font-semibold tracking-tight">Card search</h1>
+    <main id="main" className="max-w-wide mx-auto w-full flex-1 px-4 py-8" data-game={game}>
+      <h1 className="type-title">Card search</h1>
 
       {/* The game pills, now the shared GameSwitch (R1b) with this page's own hrefs. */}
       <GameSwitch

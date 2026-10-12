@@ -121,7 +121,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
     : null;
 
   return (
-    <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game={gameCode}>
+    <main id="main" className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game={gameCode}>
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Cards", path: "/cards" },
@@ -150,9 +150,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
 
           <div className="min-w-0 flex-1 md:pt-4">
             <div className="flex flex-wrap items-baseline gap-3">
-              <h1 className="font-display text-3xl font-semibold tracking-tight">
-                {identity.name}
-              </h1>
+              <h1 className="type-title">{identity.name}</h1>
               <span
                 className="text-lg"
                 dangerouslySetInnerHTML={{ __html: adapter.display.costHtml(card) }}
@@ -187,7 +185,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
               </p>
             )}
 
-            <h2 className="font-display mt-8 text-lg font-semibold">Legality</h2>
+            <h2 className="type-section mt-8">Legality</h2>
             <ul className="mt-2 flex flex-wrap gap-2">
               {formatRows.map((f) => {
                 const status = statusByFormat.get(f.id) ?? f.defaultLegality;
@@ -206,7 +204,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
 
             {adapter.capabilities.combos && combosData.total > 0 && (
               <section aria-label="Combos" className="mt-8">
-                <h2 className="font-display text-lg font-semibold">Combos using this card</h2>
+                <h2 className="type-section">Combos using this card</h2>
                 <p className="text-muted-foreground mt-0.5 text-xs">
                   {combosData.total > COMBOS_SHOWN
                     ? `The ${combosData.combos.length} most popular of ${combosData.total} combos (by EDHREC decklist count)`

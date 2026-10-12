@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Literata } from "next/font/google";
 import "./globals.css";
 
+import { SkipLink } from "@/components/skip-link";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { siteOrigin } from "@/lib/seo/site";
 import { dark } from "@/lib/theme/tokens";
@@ -76,6 +77,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             public page, the headerless shells outside the group (the new-deck
             picker, the root 404, the error page) render it themselves, and
             the editor routes carry a compact attribution line instead. */}
+        {/* Skip to content (U8): the first focusable on every page, editor
+            routes included; it targets the page's <main id="main">. */}
+        <SkipLink />
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

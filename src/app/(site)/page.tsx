@@ -54,16 +54,17 @@ export default async function Home() {
   ]);
 
   return (
-    <main className="mx-auto flex w-full max-w-browse flex-1 flex-col items-center gap-12 px-4 py-16">
+    <main
+      id="main"
+      className="mx-auto flex w-full max-w-browse flex-1 flex-col items-center gap-12 px-4 py-16"
+    >
       <JsonLd data={websiteJsonLd()} />
 
       <section className="flex flex-col items-center gap-4 text-center">
         <p className="text-muted-foreground rounded-full border px-3 py-0.5 text-xs font-medium tracking-wide uppercase">
           Open beta
         </p>
-        <h1 className="font-display max-w-3xl text-5xl font-bold tracking-tight text-balance">
-          Your next great deck starts here.
-        </h1>
+        <h1 className="type-display max-w-3xl text-balance">Your next great deck starts here.</h1>
         <p className="text-muted-foreground max-w-xl text-lg text-balance">
           Keyboard-first deck building for Magic: The Gathering Commander and the One Piece Card
           Game — free, no account needed, and your deck exists the moment you start typing.

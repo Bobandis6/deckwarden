@@ -53,6 +53,8 @@ vi.mock("@/lib/auth-client", () => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: store.refresh, push: vi.fn() }),
+  // The site header's nav reads the open path (U8).
+  usePathname: () => "/account",
 }));
 
 import { SiteHeader } from "@/components/site-header";

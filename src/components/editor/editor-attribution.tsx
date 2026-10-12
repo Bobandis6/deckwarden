@@ -11,7 +11,7 @@
 import { OptcgPostureLine } from "@/components/optcg-posture-line";
 import type { GameAdapter } from "@/lib/games/types";
 
-const LINE_CLASS = "text-muted-foreground px-3 py-3 text-[0.65rem] leading-4";
+const LINE_CLASS = "type-micro text-muted-foreground px-3 py-3";
 
 export function EditorAttribution({ adapter }: { adapter: GameAdapter }) {
   if (adapter.id === "optcg") {

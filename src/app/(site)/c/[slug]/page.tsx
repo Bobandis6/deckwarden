@@ -36,7 +36,7 @@ import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
 import { HubBuildCta } from "@/components/hub/hub-build-cta";
 import { MetaLensTable } from "@/components/hub/meta-lens-table";
 import { StaplesTable } from "@/components/hub/staples-table";
-import { SurfaceHeader } from "@/components/surface-header";
+import { HERO_CARD_SHADOW, SurfaceHeader } from "@/components/surface-header";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
 import { resolveCardArt } from "@/lib/cards/art";
 import { printingImageUrl } from "@/lib/cards/images";
@@ -161,7 +161,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
   const curve = staplesCurveBlock(staples);
 
   return (
-    <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="mtg">
+    <main id="main" className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="mtg">
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Commanders", path: "/commanders" },
@@ -184,14 +184,14 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
             width={488}
             height={680}
             priority
-            className="w-72 rounded-2xl shadow-lg"
+            className={`w-72 rounded-2xl ${HERO_CARD_SHADOW}`}
             fallback="No image"
           />
         </div>
 
         <div className="min-w-0 flex-1 md:pt-4">
           <div className="flex flex-wrap items-baseline gap-3">
-            <h1 className="font-display text-3xl font-semibold tracking-tight">{leader.name}</h1>
+            <h1 className="type-title">{leader.name}</h1>
             <span dangerouslySetInnerHTML={{ __html: ciPipsHtml(leader.ciMask) }} />
           </div>
           <p className="text-muted-foreground mt-1">
@@ -232,7 +232,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
 
           {adapter.hub && (
             <section aria-label="Deck template" className="mt-8">
-              <h2 className="font-display text-lg font-semibold">{adapter.hub.templateTitle}</h2>
+              <h2 className="type-section">{adapter.hub.templateTitle}</h2>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 A starting template, not a rule — counts to fill in around the commander.
               </p>
@@ -255,7 +255,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       </div>
 
       <section aria-label="Staples" className="mt-10">
-        <h2 className="font-display text-lg font-semibold">Staples in these colors</h2>
+        <h2 className="type-section">Staples in these colors</h2>
         <p className="text-muted-foreground mt-0.5 text-xs">
           The {STAPLES_LIMIT} cards that fit this color identity in the most EDHREC decklists
           (EDHREC rank via Scryfall).
@@ -292,7 +292,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           past the disclosed floor — cold-start honest absence. */}
       {tournamentsMeta && metaLens && (
         <section aria-label="Most played with this commander" className="mt-10">
-          <h2 className="font-display text-lg font-semibold">Most played with {leader.name}</h2>
+          <h2 className="type-section">Most played with {leader.name}</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             The {metaLens.rows.length} most-played cards in {metaLens.totalLists} settled top-
             {TOP_PLACEMENT} lists running {leader.name}
@@ -316,7 +316,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       {/* Cold-start rule: both shelves render only with real rows — never padding. */}
       {adapter.capabilities.combos && combosData.total > 0 && (
         <section aria-label="Combos" className="mt-10">
-          <h2 className="font-display text-lg font-semibold">Combos with {leader.name}</h2>
+          <h2 className="type-section">Combos with {leader.name}</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             {combosData.total > COMBOS_SHOWN
               ? `The ${combosData.combos.length} most popular of ${combosData.total} combos (by EDHREC decklist count)`
@@ -342,7 +342,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
 
       {tournamentsMeta && topFinishes.total > 0 && (
         <section aria-label="Top finishes" className="mt-10 max-w-2xl">
-          <h2 className="font-display text-lg font-semibold">Top finishes</h2>
+          <h2 className="type-section">Top finishes</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             {topFinishes.total > TOP_FINISHES_SHOWN
               ? `The ${TOP_FINISHES_SHOWN} most recent of ${topFinishes.total} finishes`
@@ -435,7 +435,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           "Updated". */}
       {hubPrecons.length > 0 && (
         <section aria-label={`Precons led by ${leader.name}`} className="mt-10 max-w-2xl">
-          <h2 className="font-display text-lg font-semibold">Precons led by {leader.name}</h2>
+          <h2 className="type-section">Precons led by {leader.name}</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             Official preconstructed decks with {leader.name} at the helm.
           </p>
@@ -457,7 +457,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
 
       {hubDecks.length > 0 && (
         <section aria-label="Decks with this commander" className="mt-10 max-w-2xl">
-          <h2 className="font-display text-lg font-semibold">Decks with this commander</h2>
+          <h2 className="type-section">Decks with this commander</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
             Public Deckwarden decks running {leader.name}.
           </p>

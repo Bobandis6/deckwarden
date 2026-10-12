@@ -104,7 +104,7 @@ describe("DeckShareView — the artwork header", () => {
 
     const h1 = within(header).getByRole("heading", { level: 1 });
     expect(h1.textContent).toBe("Atraxa Superfriends");
-    expect(h1.className).toContain("text-3xl");
+    expect(h1.className).toContain("type-title");
     expect(h1.className).toContain("break-words");
 
     expect(header.querySelector("[data-slot=leader-line]")?.textContent).toBe(

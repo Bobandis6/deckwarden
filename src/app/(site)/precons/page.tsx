@@ -62,8 +62,8 @@ export default async function PreconsPage() {
   });
 
   return (
-    <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="mtg">
-      <h1 className="font-display text-3xl font-semibold tracking-tight">Precons</h1>
+    <main id="main" className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="mtg">
+      <h1 className="type-title">Precons</h1>
       <p className="text-muted-foreground mt-1 text-sm">
         Every Commander preconstructed deck, card for card. Start from one and make it yours.
       </p>

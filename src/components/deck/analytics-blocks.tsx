@@ -51,7 +51,7 @@ function Histogram({ block }: { block: Extract<AnalyticsBlock, { kind: "histogra
           const ghost = target?.values[i] ?? 0;
           return (
             <div key={bucket.label} className="min-w-0 flex-1 text-center">
-              <div className="text-muted-foreground text-[0.65rem] tabular-nums">
+              <div className="type-micro text-muted-foreground tabular-nums">
                 {bucket.value > 0 ? bucket.value : " "}
               </div>
               <div className="border-border relative flex h-16 items-end border-b">
@@ -73,7 +73,7 @@ function Histogram({ block }: { block: Extract<AnalyticsBlock, { kind: "histogra
                   }}
                 />
               </div>
-              <div className="text-muted-foreground mt-0.5 text-[0.65rem]">{bucket.label}</div>
+              <div className="type-micro text-muted-foreground mt-0.5">{bucket.label}</div>
             </div>
           );
         })}
@@ -81,7 +81,7 @@ function Histogram({ block }: { block: Extract<AnalyticsBlock, { kind: "histogra
       {target && (
         <p
           data-slot="histogram-legend"
-          className="text-muted-foreground mt-1 flex items-center gap-1.5 text-[0.65rem]"
+          className="type-micro text-muted-foreground mt-1 flex items-center gap-1.5"
         >
           <span aria-hidden className={`inline-block h-2.5 w-3 ${TARGET_OUTLINE_CLASS}`} />
           {target.label}
@@ -139,12 +139,12 @@ function Stat({ block }: { block: Extract<AnalyticsBlock, { kind: "stat" }> }) {
       >
         {block.value}
         {block.tone && (
-          <span data-slot="stat-tone" className="ml-1.5 text-[0.65rem] font-medium">
+          <span data-slot="stat-tone" className="type-micro ml-1.5">
             {STAT_TONE_WORD[block.tone]}
           </span>
         )}
       </p>
-      {block.hint && <p className="text-muted-foreground text-[0.65rem]">{block.hint}</p>}
+      {block.hint && <p className="type-micro text-muted-foreground">{block.hint}</p>}
     </div>
   );
 }
@@ -180,7 +180,7 @@ function DataTable({ block }: { block: Extract<AnalyticsBlock, { kind: "table" }
           </tbody>
         </table>
       </div>
-      {block.hint && <p className="text-muted-foreground mt-1 text-[0.65rem]">{block.hint}</p>}
+      {block.hint && <p className="type-micro text-muted-foreground mt-1">{block.hint}</p>}
     </div>
   );
 }

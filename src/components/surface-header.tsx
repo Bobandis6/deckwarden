@@ -57,6 +57,15 @@ export const SURFACE_BAND = {
   deck: "h-32 sm:h-40 md:h-48",
 } as const;
 
+/**
+ * The hero card's shadow (U8, WAVE5.md D3): the full card that overlaps a
+ * band's lower edge (the /c/ and /l/ hubs, and the card page's printing)
+ * lifts on a shadow tinted with the action green on ivory and a deep black
+ * on charcoal, where the stock gray at 10 % read as nothing. One string, so
+ * the three hero cards can't drift.
+ */
+export const HERO_CARD_SHADOW = "shadow-lg shadow-primary/25 dark:shadow-black/60";
+
 export function SurfaceHeader({
   art = null,
   className,
@@ -109,7 +118,7 @@ export function SurfaceHeader({
           />
           <p
             data-slot="art-credit"
-            className="text-foreground bg-background/85 absolute top-2 right-3 max-w-[calc(100%-1.5rem)] rounded-md px-1.5 py-0.5 text-right text-[0.65rem] leading-4"
+            className="text-foreground bg-background/85 absolute top-2 right-3 max-w-[calc(100%-1.5rem)] rounded-md px-1.5 py-0.5 text-right type-micro"
           >
             {art.credit}
           </p>

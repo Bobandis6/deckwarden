@@ -41,6 +41,7 @@ import {
 import { CardImage } from "@/components/cards/card-image";
 import { CardNamePreview } from "@/components/deck/card-name-preview";
 import { MD_QUERY } from "@/components/editor/use-tier";
+import { HERO_CARD_SHADOW } from "@/components/surface-header";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -362,7 +363,8 @@ export function PrintingsHero() {
           height={680}
           priority
           className={cn(
-            "relative w-72 rounded-2xl shadow-lg",
+            "relative w-72 rounded-2xl",
+            HERO_CARD_SHADOW,
             !displayed.initial && "motion-safe:animate-dw-in",
           )}
           fallback={hasDefault ? "Card image coming soon" : "No image"}
@@ -438,7 +440,7 @@ export function PrintingsTable() {
   return (
     <>
       <div className="mt-8 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-semibold">Printings · {total}</h2>
+        <h2 className="type-section">Printings · {total}</h2>
         {total > FILTER_MIN_PRINTINGS && (
           <label className="text-muted-foreground text-sm">
             <span className="sr-only">Filter sets</span>

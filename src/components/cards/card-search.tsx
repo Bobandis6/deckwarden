@@ -491,7 +491,7 @@ export function CardSearch({
 
       {showStrip && strip && (
         <section aria-labelledby="most-played-heading" data-slot="most-played" className="mt-6">
-          <h3 id="most-played-heading" className="font-display text-lg font-semibold">
+          <h3 id="most-played-heading" className="type-section">
             Most popular in {chosenSet?.name ?? setCode.toUpperCase()}
           </h3>
           <p className="text-muted-foreground mt-0.5 text-xs">

@@ -33,7 +33,7 @@ export default function GlobalError({
         <title>Something went wrong · Deckwarden</title>
         <BrandMark className="size-14" />
         <p className="text-muted-foreground font-mono text-sm">500</p>
-        <h1 className="text-3xl font-semibold tracking-tight">Something went wrong</h1>
+        <h1 className="type-title">Something went wrong</h1>
         <p className="text-muted-foreground max-w-md text-center">
           The error has been reported. Reload the page, or come back in a minute.
         </p>

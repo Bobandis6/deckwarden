@@ -14,13 +14,11 @@ export const metadata: Metadata = {
 
 export default function LegalPage() {
   return (
-    <main className="max-w-reading mx-auto w-full flex-1 px-4 py-12 text-sm">
-      <h1 className="font-display text-3xl font-semibold tracking-tight">
-        Legal &amp; attribution
-      </h1>
+    <main id="main" className="max-w-reading mx-auto w-full flex-1 px-4 py-12 text-sm">
+      <h1 className="type-title">Legal &amp; attribution</h1>
 
       <section className="mt-8 space-y-3">
-        <h2 className="font-display text-lg font-semibold">Unofficial fan content</h2>
+        <h2 className="type-section">Unofficial fan content</h2>
         <p>
           Deckwarden is unofficial Fan Content permitted under the{" "}
           <a
@@ -38,7 +36,7 @@ export default function LegalPage() {
       </section>
 
       <section className="mt-8 space-y-3">
-        <h2 className="font-display text-lg font-semibold">Card data &amp; images</h2>
+        <h2 className="type-section">Card data &amp; images</h2>
         <p>
           Card data, card images, and prices are provided courtesy of{" "}
           <a href="https://scryfall.com" className="underline" rel="noreferrer" target="_blank">
@@ -68,7 +66,7 @@ export default function LegalPage() {
       </section>
 
       <section className="mt-8 space-y-3">
-        <h2 className="font-display text-lg font-semibold">Buying cards</h2>
+        <h2 className="type-section">Buying cards</h2>
         <p>
           Deck pages and card pages link out to{" "}
           <a
@@ -97,7 +95,7 @@ export default function LegalPage() {
       </section>
 
       <section id="one-piece" className="mt-8 space-y-3">
-        <h2 className="font-display text-lg font-semibold">One Piece Card Game data</h2>
+        <h2 className="type-section">One Piece Card Game data</h2>
         <p>
           ©Eiichiro Oda/Shueisha, Toei Animation. ONE PIECE CARD GAME ©BANDAI. Deckwarden is
           unofficial fan content and is not affiliated with, approved by, or endorsed by Bandai,
@@ -123,7 +121,7 @@ export default function LegalPage() {
       </section>
 
       <section className="mt-8 space-y-3">
-        <h2 className="font-display text-lg font-semibold">Terms of use</h2>
+        <h2 className="type-section">Terms of use</h2>
         <p>
           Deckwarden is a free hobby project provided as-is, without warranty of any kind. Don’t
           abuse the service (automated spam, scraping at hostile volume, or attempts to access other
@@ -141,7 +139,7 @@ export default function LegalPage() {
       </section>
 
       <section className="mt-8 space-y-3">
-        <h2 className="font-display text-lg font-semibold">Contact</h2>
+        <h2 className="type-section">Contact</h2>
         <p>
           Questions and takedown requests:{" "}
           <a href="mailto:contact@deckwarden.gg" className="underline">

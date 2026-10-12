@@ -429,6 +429,150 @@
       transition-delay: 0s, 150ms !important;
     }
   }
+
+  /* The theme change eases (U8, WAVE5.md D3; the lab's Apple 14: dark to
+     light should not be an abrupt brightness jump). The page's canvas,
+     body's background, eases over 250 ms on settle-250 when the theme flips,
+     and only once ThemeProvider has set data-theme-ready after hydration, so
+     a first paint never animates. Body, not html: body paints the page (html
+     has no background of its own). The background only, not the text color
+     D3 also named: color is inherited, so easing it restyles every element
+     on every frame (measured on the editor at 4x CPU: 45-51 ms frames
+     against 12-13 ms for the background alone, the instant flip's cost), and
+     each element with its own color transition restarted it every frame
+     (2,274 transition starts in one switch). Everything else changes at
+     once: next-themes' disableTransitionOnChange injects an unlayered
+     `transition: none !important` for the flip, and an !important
+     declaration inside a cascade layer outranks an unlayered one, so this
+     is the only transition that runs. Reduced motion: the rule doesn't apply
+     (no-preference only, the motion-safe: query), so the theme changes at
+     once, as before U8. */
+  @media (prefers-reduced-motion: no-preference) {
+    [data-theme-ready] body {
+      transition-property: background-color !important;
+      transition-duration: 250ms !important;
+      transition-timing-function: var(--ease-settle-250) !important;
+    }
+  }
+
+  /* The skip link's target (U8): SkipLink focuses the page's <main id="main">
+     through a tabindex that leaves on blur. A page-sized focus ring says
+     nothing there, so the landing shows none; the next Tab is inside main. */
+  #main:focus {
+    outline: none;
+  }
+}
+
+/* The type ladder (U8, WAVE5.md D3; the lab's apple.md §3): one class per
+   step sets the face, size, leading, tracking and weight together, so a call
+   site can no longer pick `tracking-tight` on its own. This is the components
+   layer, so a utility beside a class still wins; converted sites therefore
+   carry no bare tracking, size, leading or weight next to theirs. Literata's
+   optical size stays `auto` (it already follows the CSS size); no
+   font-variation-settings anywhere. Leading is absolute (rem), the step's
+   own, not a ratio a child would rescale.
+   Literata: display = the home H1; title = page h1s; section = site-page h2s;
+   small = the precons and sets year headings; caption = the Warden line
+   (EmptyState titles stay 16). Geist: body = rows and descriptions; label =
+   hand-rolled control labels at 14 / 13 / 12 (Button's sizes carry their
+   own); meta = 12 px group labels, hints, badges, with a multi-line form at
+   18 (the bracket line); eyebrow = the uppercase list-group label (D0: list
+   groups only), meta's uppercase form at +0.025em and 500; micro = 10.4 px
+   credit chips and chart captions (Kbd stays mono and boxed). tokens.test.ts
+   pins every value. */
+@layer components {
+  .type-display {
+    font-family: var(--font-display);
+    font-size: 3rem;
+    line-height: 3.125rem;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+  }
+  .type-title {
+    font-family: var(--font-display);
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+  }
+  .type-section {
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    line-height: 1.625rem;
+    letter-spacing: 0;
+    font-weight: 600;
+  }
+  .type-small {
+    font-family: var(--font-display);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    letter-spacing: 0.005em;
+    font-weight: 600;
+  }
+  .type-caption {
+    font-family: var(--font-display);
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    letter-spacing: 0.01em;
+    font-weight: 500;
+  }
+  .type-body {
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    letter-spacing: 0;
+    font-weight: 400;
+  }
+  .type-label {
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    letter-spacing: 0;
+    font-weight: 500;
+  }
+  .type-label-sm {
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+    letter-spacing: 0.005em;
+    font-weight: 500;
+  }
+  .type-label-xs {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    letter-spacing: 0.01em;
+    font-weight: 500;
+  }
+  .type-meta {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    letter-spacing: 0.01em;
+    font-weight: 400;
+  }
+  .type-meta-multiline {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    letter-spacing: 0.01em;
+    font-weight: 400;
+  }
+  .type-eyebrow {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    letter-spacing: 0.025em;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+  .type-micro {
+    font-family: var(--font-sans);
+    font-size: 0.65rem;
+    line-height: 1rem;
+    letter-spacing: 0.02em;
+    font-weight: 500;
+  }
 }
 
 /* Mana colors — one source for cost pips and analytics blocks. Adapters emit

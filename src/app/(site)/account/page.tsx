@@ -82,7 +82,7 @@ export const metadata: Metadata = {
 
 type DeckRow = typeof schema.decks.$inferSelect;
 
-const SECTION_TITLE_CLASS = "font-display text-lg font-semibold";
+const SECTION_TITLE_CLASS = "type-section";
 const EYEBROW_CLASS = "text-muted-foreground text-xs font-medium tracking-wide uppercase";
 
 /**
@@ -136,8 +136,11 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
 
   if (!session) {
     return (
-      <main className="max-w-reading mx-auto flex w-full flex-1 flex-col items-center justify-center gap-6 px-4 py-12">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Sign in</h1>
+      <main
+        id="main"
+        className="max-w-reading mx-auto flex w-full flex-1 flex-col items-center justify-center gap-6 px-4 py-12"
+      >
+        <h1 className="type-title">Sign in</h1>
         <p className="text-muted-foreground max-w-md text-center text-sm">
           An account keeps your decks across browsers and devices. Decks you built on this browser
           come along automatically when you sign in.
@@ -150,7 +153,10 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
 
   if (next !== null) {
     return (
-      <main className="max-w-reading mx-auto flex w-full flex-1 flex-col items-center justify-center gap-6 px-4 py-12">
+      <main
+        id="main"
+        className="max-w-reading mx-auto flex w-full flex-1 flex-col items-center justify-center gap-6 px-4 py-12"
+      >
         <h1 className="sr-only">Signed in</h1>
         <ClaimDecks next={next} />
       </main>
@@ -237,7 +243,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
   const unfiled = decksByFolder.get(null) ?? [];
 
   return (
-    <main className="max-w-reading mx-auto w-full flex-1 px-4 py-12">
+    <main id="main" className="max-w-reading mx-auto w-full flex-1 px-4 py-12">
       <section className="flex items-center gap-4">
         <ChangePicture
           name={session.user.name}

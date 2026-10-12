@@ -1959,7 +1959,7 @@ export function DeckEditor({
 
   if (load.state !== "ready") {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+      <main id="main" className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
         {load.state === "loading" ? (
           <p className="text-muted-foreground">Loading deck…</p>
         ) : (

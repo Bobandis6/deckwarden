@@ -110,9 +110,7 @@ const SetYears = memo(function SetYears({
 }) {
   return years.map(({ year, sets }) => (
     <section key={year} hidden={!sets.some((set) => shown.has(set.code))} className="mt-6">
-      <h2 className="font-display text-muted-foreground border-b pb-1 text-sm font-semibold">
-        {year}
-      </h2>
+      <h2 className="type-small text-muted-foreground border-b pb-1">{year}</h2>
       <ul className="-mx-2 mt-1">
         {sets.map((set) => (
           <li key={set.code} hidden={!shown.has(set.code)}>

@@ -94,7 +94,7 @@ export function ValidationPanel({
         role="status"
         title={`Legal ${formatLabel} deck`}
         data-settled={settle || undefined}
-        className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400"
+        className="type-caption mt-2 flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400"
       >
         <BrandMark
           key={settleKey}
@@ -107,7 +107,7 @@ export function ValidationPanel({
         />
         <span
           key={`line-${settleKey}`}
-          className={cn("font-display", settle && "motion-safe:animate-dw-in")}
+          className={settle ? "motion-safe:animate-dw-in" : undefined}
         >
           The Warden approves this deck <span aria-hidden>✓</span>
         </span>

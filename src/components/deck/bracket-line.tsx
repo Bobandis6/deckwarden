@@ -51,7 +51,7 @@ export function BracketLine({
       data-status={read.status}
       data-facts={facts}
       tabIndex={-1}
-      className="text-muted-foreground focus-visible:ring-ring/50 mt-1.5 flex items-baseline gap-1.5 rounded-sm text-xs outline-none focus-visible:ring-2"
+      className="type-meta-multiline text-muted-foreground focus-visible:ring-ring/50 mt-1.5 flex items-baseline gap-1.5 rounded-sm outline-none focus-visible:ring-2"
     >
       {/* On the first line's baseline, whatever that line's height (a 44 px
           "Why?" on touch makes it tall); the Warden shield's size, so both

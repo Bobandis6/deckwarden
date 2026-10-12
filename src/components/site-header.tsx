@@ -17,12 +17,16 @@
  * Phones (< md): the nav links collapse into one Base UI Menu behind a
  * MenuIcon trigger (MobileNavMenu); the account slot and appearance menu
  * stay inline. The mark tilts 3° on hover (F13), motion-safe only.
+ *
+ * U8: Build, Browse and My decks are client islands so they can read the
+ * path (usePathname — not request data) and mark the open page with
+ * `aria-current="page"`. The wordmark keeps its own type (WAVE5.md D3).
  */
 import Link from "next/link";
 
 import { AccountSlot } from "@/components/auth/account-slot";
 import { BrandMark } from "@/components/brand-mark";
-import { BrowseMenu, MobileNavMenu, MyDecksLink } from "@/components/site-nav";
+import { BrowseMenu, BuildLink, MobileNavMenu, MyDecksLink } from "@/components/site-nav";
 import { navLinkClass } from "@/components/site-nav-link";
 import { AppearanceMenu } from "@/components/theme/appearance-menu";
 
@@ -40,9 +44,7 @@ export function SiteHeader() {
         </Link>
 
         <nav aria-label="Site" className="hidden items-center gap-1 md:flex">
-          <Link href="/decks/new" className={navLinkClass}>
-            Build
-          </Link>
+          <BuildLink className={navLinkClass} />
           <BrowseMenu />
           <MyDecksLink className={navLinkClass} />
         </nav>

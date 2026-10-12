@@ -201,6 +201,86 @@ describe("theme tokens ↔ globals.css", () => {
     expect(media).not.toMatch(/(?:^|[\s;{])(?:transform|translate|scale): none/);
   });
 
+  // U8 (WAVE5.md D3): the type ladder, D3's table in px — each step's face,
+  // size, leading, tracking and weight set together by one class.
+  const LADDER: Record<
+    string,
+    { face: "display" | "sans"; size: number; leading: number; tracking: string; weight: number }
+  > = {
+    "type-display": { face: "display", size: 48, leading: 50, tracking: "-0.02em", weight: 700 },
+    "type-title": { face: "display", size: 30, leading: 36, tracking: "-0.015em", weight: 600 },
+    "type-section": { face: "display", size: 18, leading: 26, tracking: "0", weight: 600 },
+    "type-small": { face: "display", size: 14, leading: 20, tracking: "0.005em", weight: 600 },
+    "type-caption": { face: "display", size: 13, leading: 20, tracking: "0.01em", weight: 500 },
+    "type-body": { face: "sans", size: 14, leading: 20, tracking: "0", weight: 400 },
+    "type-label": { face: "sans", size: 14, leading: 20, tracking: "0", weight: 500 },
+    "type-label-sm": { face: "sans", size: 13, leading: 18, tracking: "0.005em", weight: 500 },
+    "type-label-xs": { face: "sans", size: 12, leading: 16, tracking: "0.01em", weight: 500 },
+    "type-meta": { face: "sans", size: 12, leading: 16, tracking: "0.01em", weight: 400 },
+    "type-meta-multiline": { face: "sans", size: 12, leading: 18, tracking: "0.01em", weight: 400 },
+    "type-eyebrow": { face: "sans", size: 12, leading: 16, tracking: "0.025em", weight: 500 },
+    "type-micro": { face: "sans", size: 10.4, leading: 16, tracking: "0.02em", weight: 500 },
+  };
+  const rem = (px: number) => `${px / 16}rem`;
+
+  /** Declarations of `.name { … }` in the comment-stripped stylesheet. */
+  function rule(name: string): Record<string, string> {
+    const body = code.match(new RegExp(`\\.${name}\\s*\\{([^}]*)\\}`))?.[1];
+    if (body === undefined) throw new Error(`no .${name} rule in globals.css`);
+    return Object.fromEntries(
+      [...body.matchAll(/([a-z-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
+    );
+  }
+
+  it("the type ladder: every step sets face, size, leading, tracking and weight together (U8)", () => {
+    for (const [name, step] of Object.entries(LADDER)) {
+      expect(rule(name), name).toEqual({
+        "font-family": step.face === "display" ? "var(--font-display)" : "var(--font-sans)",
+        "font-size": rem(step.size),
+        "line-height": rem(step.leading),
+        "letter-spacing": step.tracking,
+        "font-weight": String(step.weight),
+        // The eyebrow is meta's uppercase form (D0: list groups only).
+        ...(name === "type-eyebrow" ? { "text-transform": "uppercase" } : {}),
+      });
+    }
+    // No other step exists, and the ladder lives in the components layer, so
+    // a utility at a call site still wins (the converted sites carry none).
+    const names = [...code.matchAll(/\.(type-[a-z-]+)\s*\{/g)].map((m) => m[1]);
+    expect(names).toEqual(Object.keys(LADDER));
+    const layer = [...code.matchAll(/@layer components \{([\s\S]*?)\n\}/g)].find((m) =>
+      m[1].includes(".type-display"),
+    )?.[1];
+    for (const name of Object.keys(LADDER)) expect(layer, name).toContain(`.${name} {`);
+    // Literata's optical size stays auto: nothing pins an axis.
+    expect(code).not.toMatch(/font-variation-settings|font-optical-sizing/);
+  });
+
+  it("the theme change eases body's background 250 ms on settle-250, motion-safe, only after hydration (U8)", () => {
+    const base = code.slice(code.indexOf("@layer base {"));
+    const baseBlock = base.slice(0, base.indexOf("\n}\n"));
+    const media =
+      baseBlock.match(
+        /@media \(prefers-reduced-motion: no-preference\)\s*\{([\s\S]*?)\n  \}/,
+      )?.[1] ?? "";
+    // Gated by the attribute ThemeProvider sets after hydration (first paint never animates).
+    expect(media).toMatch(/\[data-theme-ready\] body\s*\{/);
+    // Layered !important: outranks next-themes' unlayered `transition: none !important`.
+    // The background only: an eased color is inherited, so every element
+    // would restyle on every frame (measured, REDESIGN "U8 decisions").
+    expect(media).toContain("transition-property: background-color !important;");
+    expect(media).toContain("transition-duration: 250ms !important;");
+    expect(media).toContain("transition-timing-function: var(--ease-settle-250) !important;");
+    // Never in the reduced-motion block (its exception lists no html or body).
+    const reduce =
+      code.match(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n  \}/)?.[1] ?? "";
+    expect(reduce).not.toMatch(/data-theme-ready|\bbody\b|\bhtml\b/);
+  });
+
+  it("the skip link's landing on main draws no page-sized ring (U8)", () => {
+    expect(code).toMatch(/#main:focus\s*\{\s*outline: none;\s*\}/);
+  });
+
   it("reduced motion collapses every animation and transition (motion policy)", () => {
     const rule = css.match(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n  \}/)?.[1];
     expect(rule).toBeDefined();

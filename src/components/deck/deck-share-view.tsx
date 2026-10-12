@@ -345,7 +345,7 @@ export function DeckShareView({
 
   if (!adapter || !format || !snapshot) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+      <main id="main" className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
         <p className="max-w-md text-center">This deck has an unknown game or format.</p>
         <Button nativeButton={false} variant="outline" render={<Link href="/" />}>
           Back to Deckwarden
@@ -412,6 +412,7 @@ export function DeckShareView({
 
   return (
     <main
+      id="main"
       className="max-w-browse relative isolate mx-auto w-full flex-1 px-4 py-6"
       data-game={adapter.id}
     >
@@ -419,9 +420,7 @@ export function DeckShareView({
         {/* The artwork header (R5b, G3): the resolved crop as the banner with
             its visible credit, or the accent gradient. */}
         <SurfaceHeader art={art} className={SURFACE_BAND.deck} />
-        <h1 className="font-display mt-4 text-3xl font-semibold tracking-tight break-words">
-          {deck.name}
-        </h1>
+        <h1 className="type-title mt-4 break-words">{deck.name}</h1>
         {leaderZoneDef && leaders && (
           <p data-slot="leader-line" className="mt-1 text-sm break-words">
             <span className="text-muted-foreground">{leaderZoneDef.label}</span> {leaders}

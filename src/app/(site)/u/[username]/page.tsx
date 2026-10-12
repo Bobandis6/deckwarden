@@ -109,7 +109,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
   ]);
 
   return (
-    <main className="max-w-reading mx-auto w-full flex-1 px-4 py-12">
+    <main id="main" className="max-w-reading mx-auto w-full flex-1 px-4 py-12">
       <section className="flex items-center gap-4">
         <UserAvatar name={user.name} image={user.image} avatar={avatar} size={64} />
         <div className="min-w-0">

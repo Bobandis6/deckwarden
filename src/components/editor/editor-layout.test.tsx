@@ -191,6 +191,20 @@ describe("EditorLayout at md", () => {
   });
 });
 
+describe("EditorLayout's main landmark (U8)", () => {
+  it.each(["phone", "md", "wide"] as const)(
+    "at %s the panes are the page's <main id=main>, the skip link's target; the header stays outside",
+    (tier) => {
+      render(<Harness tier={tier} />);
+      const main = screen.getByRole("main");
+      expect(main.id).toBe("main");
+      expect(main.querySelectorAll("section[aria-label]")).toHaveLength(3);
+      expect(main.contains(screen.getByText("HEADER"))).toBe(false);
+      expect(main.getAttribute("data-pane")).toBe("deck");
+    },
+  );
+});
+
 describe("EditorLayout at wide", () => {
   it("renders the tools inline and neither drawer", () => {
     render(<Harness tier="wide" sheetOpen toolsOpen />);

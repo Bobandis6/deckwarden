@@ -25,7 +25,7 @@ export function NewDeckFallback() {
         <Skeleton className="h-5 w-40" />
         <Skeleton className="ml-auto h-7 w-36" />
       </header>
-      <main className="flex flex-1 flex-col gap-3 p-3">
+      <main id="main" className="flex flex-1 flex-col gap-3 p-3">
         <p className="sr-only" role="status">
           Loading the deck builder…
         </p>

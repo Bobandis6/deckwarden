@@ -14,6 +14,9 @@
  * name row, and "Public profile ↗" appears once the session carries a
  * username (REC-5). The negative smoke pins ride along: no header string may read "Staples",
  * "Budget", "Top finishes", "You own" or link a hub.
+ * U8: the entry naming the open page carries `aria-current="page"` (Build,
+ * My decks, and Browse on its six indexes, with the menu's own entry), and
+ * only that one; home, hubs, card, event and deck pages name none.
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,6 +27,7 @@ const session = vi.hoisted(() => ({
   },
   signOut: vi.fn(),
   refresh: vi.fn(),
+  pathname: "/",
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -33,12 +37,16 @@ vi.mock("@/lib/auth-client", () => ({
   },
 }));
 
-// The account menu's sign-out hook refreshes through the app router.
+// The account menu's sign-out hook refreshes through the app router; the
+// nav reads the open path (U8).
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: session.refresh, push: vi.fn() }),
+  usePathname: () => session.pathname,
 }));
 
 import { SiteHeader } from "./site-header";
+import { BROWSE_LINKS } from "./site-nav";
+import { navLinkClass } from "./site-nav-link";
 
 /** Base UI menu triggers open on the pointer sequence, not a bare click. */
 function open(trigger: HTMLElement) {
@@ -53,6 +61,7 @@ const stayOnPage = (event: Event) => event.preventDefault();
 describe("SiteHeader", () => {
   beforeEach(() => {
     session.current = null;
+    session.pathname = "/";
     session.signOut.mockReset();
     session.refresh.mockReset();
     document.addEventListener("click", stayOnPage);
@@ -277,5 +286,68 @@ describe("SiteHeader", () => {
     fireEvent.keyDown(document.activeElement ?? menu, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("menu", { name: "Menu" })).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  /** Everything in the header marked as the open page, by accessible text. */
+  const currentEntries = () =>
+    Array.from(screen.getByRole("banner").querySelectorAll("[aria-current]")).map((el) => [
+      el.textContent,
+      el.getAttribute("aria-current"),
+    ]);
+
+  it("U8: the open page's entry carries aria-current and the foreground ink; home names none", () => {
+    expect(navLinkClass).toContain("aria-[current=page]:text-foreground");
+    render(<SiteHeader />);
+    expect(currentEntries()).toEqual([]);
+  });
+
+  it.each([
+    ["/decks/new", "Build"],
+    ["/account", "My decks"],
+  ])("U8: %s marks %s, and nothing else", (pathname, label) => {
+    session.pathname = pathname;
+    render(<SiteHeader />);
+    expect(currentEntries()).toEqual([[label, "page"]]);
+    expect(screen.getByRole("link", { name: label }).className).toContain(
+      "aria-[current=page]:text-foreground",
+    );
+  });
+
+  it.each(BROWSE_LINKS.map((entry) => [entry.href, entry.label]))(
+    "U8: %s marks the Browse trigger, and its menu marks %s",
+    async (pathname, label) => {
+      session.pathname = pathname;
+      render(<SiteHeader />);
+      const browse = screen.getByRole("button", { name: "Browse" });
+      expect(currentEntries()).toEqual([["Browse", "page"]]);
+      open(browse);
+      const menu = await screen.findByRole("menu", { name: "Browse" });
+      const marked = within(menu)
+        .getAllByRole("menuitem")
+        .filter((item) => item.hasAttribute("aria-current"))
+        .map((item) => [item.textContent, item.getAttribute("aria-current")]);
+      expect(marked).toEqual([[label, "page"]]);
+    },
+  );
+
+  it.each(["/c/atraxa-praetors-voice", "/l/op01-001", "/cards/abc", "/tournaments/42", "/d/x1"])(
+    "U8: %s (a hub, card, event or deck page) names no entry",
+    (pathname) => {
+      session.pathname = pathname;
+      render(<SiteHeader />);
+      expect(currentEntries()).toEqual([]);
+    },
+  );
+
+  it("U8: the phone menu marks the open page's entry too", async () => {
+    session.pathname = "/sets";
+    render(<SiteHeader />);
+    open(screen.getByRole("button", { name: "Menu" }));
+    const menu = await screen.findByRole("menu", { name: "Menu" });
+    const marked = within(menu)
+      .getAllByRole("menuitem")
+      .filter((item) => item.hasAttribute("aria-current"))
+      .map((item) => [item.textContent, item.getAttribute("aria-current")]);
+    expect(marked).toEqual([["Sets", "page"]]);
   });
 });

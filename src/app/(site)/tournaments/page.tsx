@@ -82,8 +82,8 @@ export default async function TournamentsPage({ searchParams }: PageProps<"/tour
   const events = leader ? [] : await loadRecentTournaments(gameId);
 
   return (
-    <main className="max-w-wide mx-auto w-full flex-1 px-4 py-8" data-game={game}>
-      <h1 className="font-display text-3xl font-semibold tracking-tight">Tournaments</h1>
+    <main id="main" className="max-w-wide mx-auto w-full flex-1 px-4 py-8" data-game={game}>
+      <h1 className="type-title">Tournaments</h1>
       <p className="text-muted-foreground mt-1 text-sm">
         Top-16 results at 16+ player events
         {tournamentsMeta && (

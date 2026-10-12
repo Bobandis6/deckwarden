@@ -63,7 +63,7 @@ export function PrivateShareGate({ deckId }: { deckId: string }) {
   }
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+    <main id="main" className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
       {gate.state === "checking" ? (
         <p className="text-muted-foreground">Loading deck…</p>
       ) : (

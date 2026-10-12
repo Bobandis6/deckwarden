@@ -40,8 +40,8 @@ export default async function SetsPage() {
   const sets = await loadReleasedSets(GAME_ID.mtg);
 
   return (
-    <main className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="mtg">
-      <h1 className="font-display text-3xl font-semibold tracking-tight">Sets</h1>
+    <main id="main" className="max-w-browse mx-auto w-full flex-1 px-4 py-8" data-game="mtg">
+      <h1 className="type-title">Sets</h1>
       <p className="text-muted-foreground mt-1 text-sm">
         Every released Magic set, newest first. Pick one to see its cards.
       </p>

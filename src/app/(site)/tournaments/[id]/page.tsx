@@ -63,8 +63,8 @@ export default async function TournamentEventPage({ params }: PageProps<"/tourna
   const recordTitle = game === "mtg" ? "wins–losses–draws" : "wins–losses–ties";
 
   return (
-    <main className="max-w-wide mx-auto w-full flex-1 px-4 py-8" data-game={game}>
-      <h1 className="font-display text-3xl font-semibold tracking-tight">{event.name}</h1>
+    <main id="main" className="max-w-wide mx-auto w-full flex-1 px-4 py-8" data-game={game}>
+      <h1 className="type-title">{event.name}</h1>
       <p className="text-muted-foreground mt-1 text-sm">
         {eventDateLabel(event.startDate)} · {event.playerCount} players
         {event.topCut ? <> · top cut {event.topCut}</> : null}

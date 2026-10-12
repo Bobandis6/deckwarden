@@ -155,7 +155,7 @@ export function SampleHand({
                   title={card.name}
                   width={146}
                   height={204}
-                  className="w-full rounded-[4.75%/3.5%] text-[0.65rem] shadow-sm"
+                  className="type-micro w-full rounded-[4.75%/3.5%] shadow-sm"
                 />
               );
               return (
