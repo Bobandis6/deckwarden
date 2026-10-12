@@ -1,0 +1,624 @@
+# Deckwarden — Wave 5 plan (U-series): the editor reads as hierarchy, the public surfaces stop reading as a template
+
+**Status:** drafted from the owner's answers of 2026-10-12 (22 decisions in six rounds, recorded under Context) against the design lab's write-up (`DESIGN-LAB.md`, committed `e766299`). The defaults in section F stay open until the owner says otherwise. Wave 5 starts when this contract lands; U1 is first — the progress tracker is at the end of this file.
+**Saved:** 2026-10-12, from a planning-only session against `e766299`. Nothing was implemented, installed, migrated or deployed, with one exception the owner approved at the start of the session: a test-only commit (`e1bea8e`) that anchors a wall-clock-judged fixture so `pnpm check` is green on main again. The database was read once, read-only, for the baselines below. The lab (branch `design-lab`, worktree `.claude/worktrees/design-lab` at `395179d`) was read, not run, and stays a record: never pushed, merged or deleted.
+**Canonical copy:** `WAVE5.md` in the repo root (this file).
+**Working rules:** the CLAUDE.md session protocol applies unchanged — one package per session, deployed and `pnpm check`-green or not done, anything out of scope to `LATER.md` with a trigger. U1's step 0 adds build plan §6f, the CLAUDE.md line, the REDESIGN.md addendum and the LATER rows that make U-packages legal sessions.
+
+> Verified when written (2026-10-12): the repo is `/Users/danielson/Documents/Claude/deckwarden` (HEAD `e766299`, which is itself one commit ahead of origin — the lab's write-up was committed on 2026-10-11 and never pushed, so origin sat at `b141432`; `DESIGN-LAB-session-prompt.md` and `WAVE5-planning-session-prompt.md` untracked, committed with this contract). `git log b141432..HEAD -- src/` is empty, so every lab measurement stands and the lab's line numbers are current. `pnpm check` baseline = **2,154 tests in 203 files, the same 6 `no-unused-vars` warnings, 0 errors** — green only after the test-only fix (before it, 1 red: `src/app/api/combos/complete/route.test.ts:126`; section B). `pnpm db:size` **286.5 MB** (alert 350). Census, one read-only transaction: **210 decks = 29 user (16 account + 13 guest) + 181 precons; 1 user**. Nightly ingest green through 2026-10-11 16:24 Z (runs 38155336134, 38072279069, 38065644271); one closed issue, zero open. The owner confirmed nothing was posted. The package prefix `U` collides with none of P / R / W / X / Y.
+
+## Context
+
+### The owner's request (verbatim, 2026-10-09)
+
+```text
+create a prompt to help brainstorm and design more of the ui and ux design of my deckwarden website using all skills except impeccable. have it be very detailed into what steps to achive my goal if thats using the image first generation in Taste skill to show examples etc. or having sub angents work on other skills to compare button styles with shadcn skill and chrome dev tools running in brave. also read this guide for taste skill to add the prompt shape section to the top of the prompt if needed to learn how to be most effective
+https://www.tasteskill.dev/guide?view=full#setup
+```
+
+The design lab answered it on 2026-10-11 with four lenses, 78 captures, Lighthouse and traces, and coded comps on real production data; its write-up is `DESIGN-LAB.md` and its evidence lives under `.claude/design-lab/` (git-ignored: the captures carry Wizards and Bandai art). The owner's pain points at the lab's GATE A, verbatim: "editor allso feels generic and a lot of small text and lines that kinda jumble together a bit" and "Looks generic". The lab's own decisions (GATE A to D, verbatim in `DESIGN-LAB.md` Context): Preserve mode; the design read approved as written; controls = D quiet rows + A's states; the measured edge token; the deck pane = A's layout with C's materials; the phone editor's Deck tab and three-point card sheet as the editor direction. Home and the share page were comped in A and B and left open.
+
+**This wave is the implementation of what the lab decided, in packages.** It re-measures nothing the lab measured unless the code a number cites has changed.
+
+### The owner's answers (2026-10-12, six rounds; the option labels verbatim)
+
+| Round | Decision (the lab's F number) | Answer |
+|---|---|---|
+| 0 | Warm signal (P2.9 / P4.7 standing rule) | "Nothing posted, pre-flight cold (Recommended)" |
+| 0 | Read-only database access for the baselines | "Yes, read-only for the baselines (Recommended)" |
+| 0 | The red test on main | "Fix it today, its own test-only commit, before the docs (Recommended)" |
+| 1 | F1 the control radius truth | "Amend the docs to 12 / 9.6 / 16.8 (Recommended)" |
+| 1 | F2 disabled with a reason | "Adopt it in U1 (Recommended)" |
+| 1 | F11 a tertiary ink token | "Weight-only this wave (Recommended)" |
+| 1 | F16 the destructive hover tint | "Step the tint down to /15, measured (Recommended)" |
+| 2 | F3 the dash and middle-dot policy for existing copy | "Ban for copy, never data; <title> shapes stay OUT (Recommended)" |
+| 2 | F4 the eyebrow policy | "List groups only (Recommended)" |
+| 2 | F5 "Open beta" in the hero | "Retire it (Recommended)" |
+| 2 | F6 the hero's CTA, subtext and visual | "CTA + the 15-word sentence + a real visual (Recommended)" |
+| 3 | F7 the reduced-motion exception | "Take the exception (Recommended)" |
+| 3 | F8 the chrome material | "Take the material (Recommended)" |
+| 3 | F10 the press | "Scale + held hover color (Recommended)" |
+| 3 | F9 the phone sheet non-modal at the peek and half | "Non-modal at peek and half (Recommended)" |
+| 4 | F21 the home direction | "B, Gallery (Recommended)" |
+| 4 | The share page's direction (A or B; not in the lab's F list) | "Match the home pick (Recommended)" → B |
+| 4 | F14 image grids by default on `/commanders` and `/leaders` | "Flip the default to grid (Recommended)" |
+| 4 | F15 tile art | "96 px full cards (Recommended)" |
+| 5 | F12 the phone header's order and the sr-only pane heading | "Yes, as comped (Recommended)" |
+| 5 | F13 the hub-to-editor shared-element transition | "LATER with a trigger (Recommended)" |
+| 5 | F18 `shadcn add` or hand copies for the primitives | "Hand copies from the registry (Recommended)" |
+| 5 | F17 the hub's Build / Start split | "Leave both as they are (Recommended)" |
+
+Not asked, restated as constraints: **F19** no new dependency (Motion, Phosphor and a font are needed by no comp); **F20** One Piece decorative art stays off until Bandai answers. **F22** (the 33 Codex image briefs under `.claude/design-lab/refs/IMAGE-BRIEFS.md`, never generated) becomes a LATER row.
+
+### The red test, found at pre-flight
+
+`pnpm check` was red on main with no code change: `src/app/api/combos/complete/route.test.ts` pinned its two ingest-run timestamps as the absolute dates `2026-10-04T15:29:34.768Z` and `2026-10-04T15:31:00.000Z` and asserted every feed `state: "ok"`; `loadBracketFreshness(adapter, now = new Date())` (`src/lib/brackets/freshness.ts:52`) judges the adapter's `STALE_AFTER_DAYS = 7` (`src/lib/games/mtg/brackets.ts:167`) at request time, so the test went red by itself on 2026-10-11 at 15:29 Z — after Y10's green run (`694f67e`, 2026-10-11 03:38 Z). The fix, the owner's call, landed as its own test-only commit before this contract (`e1bea8e`): the two constants are now one day before the clock (the 90 s gap kept), with a comment naming the rule; `pnpm check` 2,154 / 203 green, the same 6 warnings. The lesson is a Wave-5 rule: **a fixture that a wall-clock rule judges is written relative to `Date.now()`, never as a date** (`brackets.test.ts` already injects `readAt`; the route test was the one exception).
+
+---
+
+## A. Recommended direction
+
+**Build four things, in this order:** the control system (U1 controls + edge token → U2 motion tokens → U8 type ladder + shell a11y) → the editor, desktop then phone (U3a → U3b → U4a → U4b) → the public surfaces (U7a → U5 → U6 → U7b) → copy and primitives (U9 → U10a → U10b). Fourteen sessions; no migration; the route table never changes.
+
+**Owner-review checkpoints:** after U4b (the editor on desktop and phone — the owner's complaint, answered) and after U6 (home and the share page in B). Neither is an announce point: the r/EDH post is the owner's, and P2.9 round 3 stays armed for it beside this wave.
+
+**The decisions that matter most**
+
+| Decision | Why |
+|---|---|
+| **One measured edge token** (`--border-control`: foreground at 40 % on charcoal, 55 % on ivory) instead of a new outline recipe | The lab measured the outline edge at 1.28 to 1.49:1 in every recipe, today's and the four candidates alike; the recipe cannot fix it, the token can (3.49 / 3.47 dark, 3.35 / 3.43 light on page / card, verified live). It is one pair, inputs and selects adopt it, and the Wave-4 sheets inherit it for free |
+| **D quiet rows with A's states** as the one Button recipe | F4's numbers say the editor's jumble is mixed weights (four control heights, three label sizes, three chip radii), not small type; D removes weights without touching the type scale or the shape, which Preserve mode asks for. A's states (named 120 ms transition, `aria-expanded` parity, `aria-busy`, `aria-disabled`, tabular numerals) are the no-regret floor |
+| **The docs say 12 / 9.6 / 16.8 px**, the code does not move (F1) | Every lab comp was measured at the shipped radii and passed; moving the control family is about 15 files of Preserve-mode churn. D's `rounded-md` on every icon size is what stops steppers reading as little cards |
+| **Scale 0.98 / 0.96 with the hover color held** replaces the 1 px nudge (F10) | Apple's own press is a scale; a nudge moves 24 px icon buttons 1 px against 28 px rows, 266 times in one pane (a jitter, not a press); the held color is the non-motion channel on touch, where hover never fires. Reduced motion = color only |
+| **Four `linear()` curves and two keyframes of our own** replace eight curves, six durations and tw-animate's `enter` (U2) | tw-animate's `enter` animates `filter` even at blur(0): the trace's non-composited item at every `animate-in` site. The drawer (450 ms) and toast (500 ms) breach REDESIGN's 400 cap. One cadence instead of stock effects is the cheapest answer to "generic" inside the editor |
+| **The reduced-motion exception** (150 ms opacity-only for dialog, drawer, toast and the save slot) inside the backstop (F7) | Apple 14: reduced motion means a gentler cross-fade, not a pop. Four named `data-slot`s, every transform still zeroed; `tokens.test.ts`'s backstop pin holds |
+| **`--chrome` as a material** (background at 88 %, blur, saturate) only where content scrolls under chrome, with solid fallbacks (F8) | The hairline under every stuck header is one of the 35 lines the owner sees jumble; a material separates only while something is under it. `prefers-reduced-transparency` and `prefers-contrast: more` return the solid strip and the hairline, so REDESIGN §3's "predictable reading" holds for everyone who asked for it |
+| **Fixed slots, not motion, fix the editor's CLS** (0.217 desktop → under 0.01) | The Apple lens proved the two shifts are slot problems (a `flex-wrap` header whose action cluster mounts after the seed; a bracket line that inserts after hydration), not animation. A reserved width, a reserved two-line height and a Skeleton before the seed, no new primitive |
+| **The phone sheet is non-modal at the peek and half** (F9) | The editor's one true gesture surface: a tap on another row re-targets the body in place instead of hitting a backdrop. Measured in the comp at 390 with touch (0 targets under 44 px, snap positions, easing split); the two things a static server cannot measure (re-grab mid-release, the modal flip under a real swipe) are U4b's first live checks on a real phone |
+| **Home and the share page go B** (F21, share) | The one image-led moment the site lacks: real cards, uncropped, so no credit chip is needed and no generated image ever ships. Both B comps passed every measured gate (0 contrast fails in both themes, zero eyebrows, Gate 5 at 1280×800, no overflow at 390). The H1 stays; the literal links and the heart stay |
+| **96 px full-card tiles, not art crops** (F15) | No query per tile, no credit chip to carry, One Piece unchanged; crops need a batched resolver measured against the query budget and go to LATER with that trigger |
+| **Weight and case, not a third ink** (F11) | A 70 % alpha fails ivory at 3.2:1; the comps passed every contrast gate using weight (400 vs 500) and uppercase for the third step. A measured hex pair waits in LATER for a surface that still reads flat after U3b |
+| **The dash ban covers copy, never data, and the `<title>` shapes stay out** (F3) | About 4,000 indexed hub titles carry "— Commander hub"; retitling is an SEO decision, not a copy one. Deck names and Scryfall type lines are data. Every pinned copy string moves with its test and smoke regex in the same commit (U9) |
+| **The uppercase eyebrow labels list groups only** (F4) | Home's four section eyebrows against a ceiling of two is the Taste lens's top "generic" tell; D0 already says site-page h2s are serif. Share and editor groups keep the 12 px label |
+| **U8 (the type ladder) runs third**, not last | A `.type-*` ladder that sets size, leading and tracking together is what U3 to U7 want to use for every heading they touch; shipping it first means no surface package re-touches a heading twice |
+| **U7a (indexes + tiles) runs before U5 (home)** | Home's B composition shows the 96 px tiles on a two-column rail; `DeckTile` is shared with hubs, `/account`, `/u` and `/f`, so the tile change belongs to the indexes package and home lands whole on top of it |
+| **Hand copies from the registry, not `shadcn add`** (F18) | The X2 precedent (`ui/autocomplete.tsx`): a header naming the source, tailwind-merge order and the 44 px rule applied on arrival, nothing rewritten by a CLI |
+| **No dependency, no migration, no route, no URL, no nav label, no pinned string by default** | The lab's constraints; the Neon budget; the portability rules. Every package's acceptance includes the empty `pnpm build` route-table diff |
+
+---
+
+## B. Current-state findings
+
+**Who it serves.** A Commander or One Piece player who already uses Moxfield, Archidekt or Scryfall and judges a builder by speed, card art and honest numbers; the owner, who builds for hours in the editor and reads it as "small text and lines that jumble"; a stranger from a link who meets a home page that reads as a boxed template.
+
+**Measured by the lab** (2026-10-11, production, signed out, DevTools in Brave; evidence paths under `.claude/design-lab/`; cited, not re-measured — `src/` is unchanged since `b141432`):
+
+| Surface | What the lab measured | Evidence |
+|---|---|---|
+| Controls | `src/components/ui/button.tsx` is Nova inlined: 12 px radius (the docs say 8), `transition-all` 150 ms, `translate-y-px` press, `disabled:pointer-events-none`. The outline edge 1.28:1 (light) to 1.49:1 (dark) on every surface, in every candidate recipe; the destructive label on hover 4.18:1 dark / 4.25:1 light in every recipe; 266 ghost icon buttons at 24 px for 69 rows; `sm` used 73 times, `xs` 29, `lg` 0. The passing edge: foreground at 40 % (dark) and 55 % (light), 3.49 / 3.47 and 3.35 / 3.43 on page / card, verified live | `DESIGN-LAB.md` B2, D1; `lenses/shadcn.md`; `lenses/button-candidates.ts`; `boards/controls/contrast__1440__{dark,light}.json`; `GATES.md` |
+| Editor | Four control heights (22 / 24 / 28 / 32) and three label sizes (12 / 12.8 / 14) in one pane; 242 `text-xs` against 97 `text-sm`; 35 hairlines; 21 hand-rolled chip recipes; pips at 8.64 px (137 nodes); the count stated three times on one phone screen; the header wraps to three rows at 390 (about 350 of 844 px); CLS 0.217 desktop and 0.087 mobile from two fixed-slot problems; LCP 1,472 ms on a lazy, unprioritised, client-discovered commander image (984 ms load delay); 1,653 DOM nodes; 38 ms forced reflow; no `<main>` landmark; the drawer and toast at 450 and 500 ms against a 400 ms policy; tw-animate's `enter` keyframe animating `filter` (the trace's non-composited item) | B1, B4, D2, D3; `capture/metrics.md`, `capture/traces-summary.md`, `lenses/apple.md` §1, §5b, §5c |
+| Page-like surfaces | Home: a hero with no CTA and no visual, a 27-word subtext, an "Open beta" pill, 20 bordered boxes, 4 eyebrows against a ceiling of 2, five equal feature cards, the game h2s in Geist, the Magic card's four-button row wrapping at 1440. Share: ten 12 px uppercase labels, heading order h1 → h3 (Lighthouse 98), Notes at about 140 characters a line, three-dot meta chains, tracked bars. Indexes: the image grid exists but the list is the default (`/leaders` renders zero `<img>` at load). Lighthouse 100 / 100 / 100 on home and the hub. Copy census: 131 em dashes, 6 en dashes, 556 middle dots over 15 routes (most dots in product and tournament metas) | B1, B3, D4, D5; `lenses/taste.md` §1 to §7 |
+| Type | Literata 48/48 700 at −1.2 px on home, 30/36 600 at −0.75 px elsewhere; `font-optical-sizing: auto` everywhere (right); tracking set per utility, not per size (`tracking-tight` at both 48 and 30 px; nothing on the 12 px meta that makes up 113 of the editor's text nodes); the Warden line is the smallest serif on the site at 12 px (4.88:1 on ivory) | B4; `lenses/apple.md` §3 |
+| Phone pages | `/precons` 23,151 px tall at 390 (181 tiles in one column), `/sets` 18,066, the card page 8,495, `/leaders` 6,637 | B1 |
+| Comps that passed every measured gate | The controls matrix (381 buttons per theme); the desktop deck pane in A and C at 1440 and 1200; the phone Deck tab at 390 / 360 / 768 and the sheet at peek / half / full; home in A and B at 1440 / 768 / 390 and 1280×800; the share page in A and B. Each audit, with its numbers, is in `DESIGN-LAB.md` section D | `boards/{controls,editor,home,share}/` |
+
+**Two bugs the lab found in its own comps that the real code shares.** (1) Tailwind v4 animates `translate` and `scale` through their own CSS properties, so a transition list naming `transform` alone never animates a press: U1's named list says `transform, translate, scale`. (2) A flex header with a `shrink-0` meta and a `min-w-0` name collapses the name at 1200 px: U3b's header gives the name `min-w-[8rem]` and lets the meta truncate and hide below `wide:`.
+
+**Verified today against `e766299`** (the pins the prompt said might have moved; none did): the home H1 "Your next great deck starts here." (`scripts/seo-smoke.ts:517`); the literal `/leaders` and `/cards?game=optcg` links (`:503`); ♥ in the home HTML (`scripts/engagement-smoke.ts:248`, rendered by `src/components/deck/deck-tile.tsx:129`); "Deck · 34" on the phone tab (`src/components/editor/editor-layout.test.tsx:98`); the bracket-line regex `/^Your target: Bracket 2 · (nothing here goes past Core|the cards say at least 2)$/` (`scripts/autofill-smoke.ts:303`, a middle dot); the en-dash range "Bracket 1–2" pinned in `src/lib/brackets/table.test.ts:276-315` and emitted by `src/lib/games/mtg/brackets.ts:263`; `src/lib/brackets/copy.ts` carries em dashes in its strings; `src/lib/theme/tokens.test.ts` parses the **first** `:root` and `.dark` blocks of `globals.css` and demands lowercase `#rrggbb` for every token; `src/components/ui/button.test.tsx` pins `border-gold/70` on the default variant and the 44 px coarse-pointer rule, and nothing pins `translate-y-px`, `transition-all` or `rounded-lg`. Other strings: the `<title>` template `"%s · Deckwarden"` (`src/app/layout.tsx:53`) and the hub title `"{name} — Commander hub"` (`src/app/(site)/c/[slug]/page.tsx:103`); "Open beta" unpinned (`src/app/(site)/page.tsx:62`); "Start a deck" unpinned (`src/app/(site)/leaders/page.tsx:108`; `seo-smoke` pins `/leaders` by status, canonical, the fixture hub link and "©BANDAI" only); 17 `animate-in` sites in `src/` (`printings-gallery`, `copy-status`, nine `ui/` primitives, `editor-header`, `validation-panel`, `ambient-art`, `deck-text-view`, `sample-hand`) and five test files pinning `motion-safe:animate-in` classes (`deck-text-view.test.tsx:147`, `validation-panel.test.tsx:39, 53`, `ambient-art.test.tsx:93, 127`, `deck-share-view.test.tsx:251-252`, `card-image.test.tsx`); the drawer at `duration-450` (`src/components/ui/drawer.tsx:71, 119`), the toast at 500 ms (`toast.tsx:47`), menus, popovers and dialogs at `duration-100`; `leader-index-view` lives at `src/components/hub/` (server snapshot `"list"`; its test "a corrupt stored value renders the list"); home's eyebrow sites `page.tsx:61`, `src/components/home/leader-shelves.tsx:87`, `src/components/deck/recent-public-decks.tsx:24`, `your-decks.tsx:26`, `continue-building.tsx:25`; the B home comp's fan is `magicShelf.slice(0, 3)`.
+
+**Strengths to preserve (non-negotiable in every package)**
+
+- Everything in WAVE2.md's, WAVE3.md's and WAVE4.md's section B lists still holds: the keyboard script; "the first real edit creates exactly one deck"; ISR on `/c/`, `/l/`, `/cards/[id]` and static `/precons`, `/sets` with no request data read; evidence or nothing; adapter purity; the smoke-pinned strings; a GET parameter never edits a saved deck; seeds are state only; the Neon budget; the zero-POST pins for seeded drafts.
+- The crest, the wordmark lockup, the gold hairline (the band rule, the primary's edge, `::selection`), the ambient art and the art-crop banner with its visible credit, the Warden line and the Warden pages, honest real data and the cold-start rule, the deck tile's identity strip and one link per tile, lettered color chips, full-card thumbnails and Scryfall hotlinking, the One Piece posture line, the dark default with Light and System, `motion-safe:`, the SEO baseline (canonicals, JSON-LD, chunked sitemaps, the 100s), the containers and the 120 / 250 / 400 ms policy (the Taste lens's "keep" list, `taste.md` §7).
+- "Approves" belongs to the zero-issue legality line only; one line of Warden voice per surface, shield mark only; no confetti, sounds, streaks, parchment, glass on everything, outer glows, entry fades, AI purple on brand elements, three-equal feature cards, decorative dots, or generated images.
+- The states vocabulary (Skeleton, EmptyState, Retry in place, Toast with Undo, a status line otherwise, the 429 sentence); 44 px targets on coarse pointers; status never color-only; dates SSR'd by client components UTC-pinned.
+- The share page's visitor action row and the editor's More list change only with their pins; nothing per-viewer appears on an ISR page.
+
+**Assumptions and limits**
+
+- Signed-in surfaces are read from source and tests, not seen live: the browser pane is signed out on prod and on localhost. Each package that touches a signed-in surface ends with a short list of the owner's clicks, or uses the throwaway local harness (`src/app/(site)/qa-<pkg>/`, never committed).
+- Two behaviours of the phone sheet could not be measured by a static server (a re-grab during the release transition; the modal flip under a real swipe to the top). U4b measures them first, on a real phone, and files upstream if the re-grab jumps.
+- The lab's contrast numbers come from its Appendix B helper (alpha composited over the real ancestors); every package that changes a color pair re-measures with the same helper, live, before and after.
+- The lab's 1,440-wide editor histogram and node counts were taken on the Giada precon draft (`/decks/new?game=mtg&from=calling_all_angels_fdc`); the same route is the re-measure fixture.
+- "Chrome" and "material" below mean the editor's header, sticky search block, phone tab bar and stuck group headers only; drawers, the phone sheet, popovers and chips stay opaque.
+
+---
+
+## C. Prioritized idea map
+
+Effort: **S** under half a session · **M** about one · **L** more than one (split). Priority: **Now** = the control system and the editor (U1 to U4b) · **Next** = the public surfaces, copy and primitives (U7a to U10b) · **Later** = trigger-gated in `LATER.md`. Lab row ids are `DESIGN-LAB.md` section C's; the ★ rows are the lab's ten best by impact over cost.
+
+| Lab rows | Idea | Treatment | Package | Priority | Effort | Depends on |
+|---|---|---|---|---|---|---|
+| b1 ★, h1 ★, b8, i1, i3, i6, e5 | The quiet-rows controls recipe with A's states; the measured outline edge; disabled with a reason; one 28 px Segmented; the radius truth | **Include** | U1 | Now | S–M | — |
+| g1 ★, g2, g3, g4, g6, f6 (ease) | Four motion tokens and own keyframes; the press; drawer and toast at 400; the reduced-motion exception; the save-slot cross-fade; toasts capped at two | **Include** | U2 | Now | M | U1 |
+| h3, f5, a3, f6, taste T16 | The `.type-*` ladder; the Warden line at 13 / 500; skip link and `aria-current`; the eased theme change; the hub hero card's tinted shadow | **Include** | U8 | Now | S | — |
+| b5 ★, b6, b2 ★, b3, b4, h2, b7 (half) | Fixed slots and the Skeleton leader box; the leader image's priority and preload; lines to space with bold counts; qty and pips by size; one controls row; `<main>`; `content-visibility` on groups | **Include** | U3a | Now | M | U1, U8 |
+| g5 ★, taste T16, the leader zone | `--chrome` with fallbacks and the stuck-gated scroll edge; the raised leader card with its facts beside it | **Include** | U3b | Now | S | U3a |
+| c1 ★, c2, c4 | The phone header order; one count; the leader at 45 % | **Include** | U4a | Now | M | U3a |
+| c3 ★, c5 | The three-point card sheet; the Tools pane as one Tabs strip | **Include** | U4b | Now | M | U2, U4a |
+| d1 ★, a5, d4 | Image grids by default; "Build a deck" on `/leaders`; 96 px tiles | **Include** | U7a | Next | S–M | U1 |
+| a1 ★, a2, f1 ★, f2 ★, f3, f4 (`lg`), f7, g7 | The hero with a CTA, a sentence and real cards; "Open beta" retired; home unboxed; the capabilities as a list; serif h2s; `lg` on the hero; the one-clause honesty note; the 2 px lift | **Include** | U5 | Next | M | U1, U8, U7a |
+| e1, e2, e3, e4, c6, g7 | Two heading levels; two-line metas; the stacked type bar; the band with the overlapping card; Notes at reading width | **Include** | U6 | Next | S–M | U1, U8 |
+| d2, d3 | Hub openings; staples and printings folded; `/precons` and `/sets` year strips | **Include** | U7b | Next | M | U8 |
+| h5 | The dash and middle-dot pass over existing copy, pins included | **Include** | U9 | Next | M | the owner's F3 and F4 answers (in) |
+| i4 | Field + Input, Textarea, Checkbox, Table, Spinner | **Include** | U10a | Next | M | U1 |
+| i4, i5 | ButtonGroup for the stepper; the two-chip rule as one Chip | **Include** | U10b | Next | S–M | U10a |
+| a4 (F13) | The hub-to-editor view transition | **Defer** | LATER | Later | M | U7b live and the hub's Build CTA sees use |
+| d4 (crops), F15 | Tile art crops with credits | **Defer** | LATER | Later | L | a batched resolver measured under the query budget |
+| h4 (F11) | A measured tertiary ink | **Defer** | LATER | Later | S | a surface still reads flat after U3b |
+| b7 (half) | Steppers mounting only for the hovered or focused row | **Defer** | LATER | Later | M | a measured phone or low-end pane cost; controls must mount on `focus-within` |
+| d5, d6 | The hub crop veil at 85 %; the tournaments date column and winners' thumbnails | **Defer** | LATER | Later | S / M | the next hub or `/tournaments` package |
+| F22 | The Codex image briefs for the hub and the card page | **Defer** | LATER | Later | — | the owner generates frames |
+| — | The ⌘K palette (row 111), the card-stacks grid (row 61), Motion / GSAP / Phosphor / a new font, One Piece decorative art | **Not proposed** | — | — | — | — |
+
+**Before → after (what a player notices)**
+
+| Moment | Today | After Wave 5 |
+|---|---|---|
+| A secondary button on any page | A label floating in a faint box (edge 1.3:1) | A visible line at 3:1 or better in both themes, on the page and on a card |
+| Pressing any control | A 1 px drop, 150 ms, stock curve | A 2 % squeeze on a settle curve with the hover color held; reduced motion = the color alone |
+| The deck pane at 1440 | Four control heights, 35 hairlines, 8.6 px pips, a 780 px rule over nothing | Two heights, groups separated by space with bold counts, 11.2 px pips, the status block two fixed lines, nothing shifts after load |
+| The editor at 390 | Three header rows, the count three times, a 530 px commander, a modal sheet that closes when you tap another row | One header row, one count, the card at 45 % with its facts beside it, a sheet with three snap points that re-targets in place |
+| Home | A pill, a 27-word paragraph, no button, twenty boxes, five feature cards, four shouting labels | A split hero with one button and three real cards, open regions under serif headings, a row of six, image-led tiles, a plain list, one sentence |
+| A share page | Ten uppercase labels, three-dot lines, Notes at 140 characters, an h3 after the h1 | The card leading the band, two heading levels, two-line metas, Notes at reading width, Lighthouse 100 |
+| `/commanders`, `/leaders` | A text list; the grid behind a toggle | The grid, with rank and identity; the list behind the toggle |
+| A bracket line | "Bracket 1–2 · nothing here goes past Core" | "Bracket 1 to 2 · nothing here goes past Core" (the regex moves with it) |
+
+---
+
+## D. Design specification
+
+### D0. Shared rules
+
+**Retain** WAVE2.md D0 ("Warden Studio, re-keyed": the tokens, the gold hairline as the primary's structural edge, Literata titles and Geist controls and data, the states vocabulary, the icon set, the motion policy, the containers), WAVE3.md D0 and WAVE4.md D0 (adapter gating, plain words, attribution). Wave 5 adds no color token except the edge pair below, no font, and no layout change outside the surfaces named per package.
+
+**The wave's own rules, binding on every package:**
+
+- New copy carries zero em or en dashes and at most one middle dot a line; existing copy moves only in U9 under the F3 and F4 answers, never data (deck names, type lines, product and tournament metas, `<title>` shapes).
+- Every motion is CSS or Base UI, authored `motion-safe:` or zeroed by the backstop, inside 120 / 250 / 400 ms, on one of the four curves; no raw `cubic-bezier`, `ease-out` or `ease-in-out` outside `globals.css`'s `@theme`; no entry fades on page-like surfaces; every motion has its reduced-motion form stated in the package's ship note.
+- Images are hotlinked unoptimized through the project's helpers; the artist and © line is never cropped or covered; `art_crop` appears only inside `SurfaceHeader` with its credit chip; One Piece renders as full-card thumbnails only; no image is reused across two sections of one page (the rail's duplicate-commander decks excepted, as the live rail already shows them).
+- The third type step is weight (400 vs 500) and case (the uppercase list-group label), never alpha; the uppercase 12 px label names list groups (share cost groups, editor groups) and nothing else.
+- Chrome (the editor header, the sticky search block, the phone tab bar, stuck group headers) may be the `--chrome` material where content scrolls under it, with the solid fallback under `prefers-reduced-transparency: reduce` and `prefers-contrast: more`; panels, drawers, the phone sheet, popovers and chips stay opaque.
+- A fixture that a wall-clock rule judges is written relative to `Date.now()`.
+- No migration, no new route, no URL, nav label, form field or anchor id moves; the pinned strings stay (the H1, the literal `/leaders` and `/cards?game=optcg` links, ♥, "Deck · N", "cards", "Copy decklist", "Draw sample hand", "The Warden approves this deck ✓", "Build with this commander", "Start with a starter shell", "Build with this leader", "Surprise me", every nav label).
+- The Wave-4 sheets (Swap, Fit, Games) inherit U1's recipe and U2's tokens and get no package unless a dependency surfaces.
+
+**Reuse, don't add.** The D recipe runs through the same Base UI `Button` primitive; `--border-control` is one CSS variable read by Button, Input and Select; the ladder is CSS classes; the sheet is the existing `ui/drawer.tsx` with Base UI's own snap points; the grids, tiles, `SurfaceHeader`, `CardImage`, `ColorChipList`, `Segmented`, `EmptyState`, `Skeleton` and the toast are what they are today.
+
+### D1. Controls (U1)
+
+**The recipe** is direction D with A's states, as the lab's `button-candidates.ts` D (verified in the lab against `button.test.tsx`) plus the additions marked ⊕:
+
+- **Base:** `group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium tabular-nums whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform,translate,scale] duration-[120ms] ease-out outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-busy:cursor-progress aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4`. The press stays `translate-y-px` in U1 (U2 replaces it with the scale and the held color; the transition list already names `translate` and `scale` so U2 changes no list). `ease-out` becomes `ease-(--ease-settle-120)` in U2 when the curve exists.
+- **Variants:** `default` `bg-primary text-primary-foreground border-gold/70 hover:bg-[color-mix(in_oklch,var(--primary),var(--foreground)_12%)] aria-expanded:bg-[color-mix(in_oklch,var(--primary),var(--foreground)_12%)]` ⊕ `hover:border-gold/90 aria-expanded:border-gold/90` (A's hairline brightening); `outline` `border-(--border-control) bg-transparent text-foreground hover:bg-muted aria-expanded:bg-muted dark:hover:bg-muted/60 dark:aria-expanded:bg-muted/60`; `secondary` as today ⊕ `aria-expanded` holding the hover mix; `ghost` `text-muted-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50 dark:aria-expanded:bg-muted/50`; `destructive` as today's classes with the hover tint stepped down (F16): today the rest tint is `/10` light and `/20` dark and the hover `/20` light and `/30` dark, and the label over the hover tint measured 4.18:1 dark and 4.25:1 light; U1 steps the hover tint down one notch at a time (light `/20` → `/15`; dark `/30` → `/20`) until the label measures ≥ 4.5:1 on the page and on a card in both themes, and if a hover tint would fall below its theme's rest tint, the rest tint steps with it so hover stays the heavier state; `aria-expanded` holds the hover tint; the numbers and the steps taken go in the ship note; `link` `text-brand underline-offset-4 hover:underline aria-expanded:underline`.
+- **Sizes:** `default` `h-8 gap-1.5 px-3 …` (2 px more side padding than today); `xs` `h-6 gap-1 rounded-md px-2 text-xs …`; `sm` `h-7 gap-1 rounded-md px-2.5 text-[0.8125rem] …` (13 px, a real step between 12 and 14; today 12.8); `lg` `h-9 gap-2 px-3.5 …`; `icon` `size-8 rounded-md`; `icon-xs` `size-6 rounded-md`; `icon-sm` `size-7 rounded-md`; `icon-lg` `size-9 rounded-md`; every size keeps its `pointer-coarse:` rule and its `has-data-[icon=…]` paddings and svg sizes as in the lab file. The dead `in-data-[slot=button-group]:rounded-lg` classes leave with the per-size radius overrides (U10b's ButtonGroup brings its own).
+- **The size map call sites follow** (not enforced by the recipe): `xs` and `icon-xs` only inside a 28 px list row; `sm` and `icon-sm` for pane toolbars and sheet rows; `default` for pane heads, dialog footers and page actions; `lg` for the home hero (U5).
+
+**The edge token.** `--border-control` is `color-mix(in oklch, var(--foreground) 55%, transparent)` in the light theme and `color-mix(in oklch, var(--foreground) 40%, transparent)` in the dark one (the lab's `lab.css` stand-in, verified live at 3.49:1 on the dark page and 3.47 on a dark card, 3.35 on ivory and 3.43 on a light card; the lab's computed candidates: dark 35 % = 2.99, light 40 % = 2.28, so neither value can step down). **Where it lives:** a **third** `:root` / `.dark` pair in `src/app/globals.css`, placed after the `[data-game]` rules and before `@layer base`, with its own comment — not inside the two token blocks, because `tokens.test.ts` reads the first `:root` and `.dark` blocks and requires `#rrggbb` there, and the edge must be alpha to pass on both the page and a card. **Mirrored in `src/lib/theme/tokens.ts`** as `borderControl = { light: 55, dark: 40 }` (percent of the foreground), and `tokens.test.ts` gains one case asserting the stylesheet carries exactly `color-mix(in oklch, var(--foreground) 55%, transparent)` under a `:root` and the 40 % form under `.dark` (a regex like the accent-game pin). **Consumers:** `button.tsx`'s outline variant; `src/components/ui/input.tsx:11` (`border-input` → `border-(--border-control)`); `src/components/ui/select.tsx:43` (the trigger, same change); `deck/segmented.tsx:92`'s container border. The `--border` and `--input` tokens stay for panels, dividers and the dark `bg-input/30` fills.
+
+**Disabled with a reason (F2).** A `Button` given `title` and `disabled` renders Base UI's `focusableWhenDisabled` with `aria-disabled="true"` and no native `disabled`, so hover and focus still work and the `title` shows; the base's `aria-disabled:cursor-not-allowed aria-disabled:opacity-50` style it. A `Button` with `disabled` and no `title` keeps the native attribute and `disabled:pointer-events-none`. On coarse pointers the call site also renders the reason as text beside the control (the `FieldDescription` form once U10a exists; a muted 12 px line until then). U1 converts the call sites that already pass a reason (grep `disabled=` with `title=`; the Suggestions "only cards I own" toggle, the Fit sheet's disabled Retry and the autofill sheet's Retry are the known ones) and leaves the rest native.
+
+**Segmented** (`src/components/deck/segmented.tsx:107`): items `py-1 text-[0.8125rem]` so a Segmented is 28 px like the `sm` button beside it (today about 22 px with 12 px labels); the thumb's `motion-safe:duration-150` becomes 120 ms (U2 puts it on the settle curve); its touch rules (`segmented.test.tsx:46-61`) unchanged. The pane then shows two control heights (28 and 32) instead of four.
+
+**States and tests.** `button.test.tsx` keeps its pins (`border-gold/70` after the base and surviving `cn()`; the 44 px rules) and gains cases for `aria-busy:cursor-progress`, `aria-disabled:opacity-50`, the outline variant's `border-(--border-control)`, the ghost's `text-muted-foreground` at rest, and the disabled-with-reason render (`aria-disabled`, no `disabled`, `title` present). `segmented.test.tsx` gains the 13 px label. No smoke pin.
+
+**Measured acceptance (the Appendix B helper of `DESIGN-LAB-session-prompt.md`, live on dev, both themes):** every outline edge ≥ 3:1 on the page and on a card; every label at rest ≥ 4.5:1; the destructive label on hover ≥ 4.5:1; all 40 size-strip buttons ≥ 44 px at 390 with touch; the editor's control heights 28 and 32 only.
+
+### D2. Motion (U2)
+
+**The four curves**, Apple's springs sampled as `linear()` (`lenses/apple.md` §2; settle = damping 1.0, flick = damping 0.8 with a 1.5 % overshoot), in `@theme inline` beside `--animate-ring-glow`, verbatim:
+
+```css
+--ease-settle-120: linear(0, 0.132, 0.358, 0.563, 0.717, 0.823, 0.892, 0.936, 0.963, 0.98, 0.99, 0.996, 1);
+--ease-settle-250: linear(0, 0.045, 0.144, 0.264, 0.385, 0.497, 0.596, 0.682, 0.753, 0.811, 0.859, 0.897, 0.928, 0.952, 0.972, 0.987, 1);
+--ease-settle-400: linear(0, 0.041, 0.133, 0.245, 0.36, 0.469, 0.566, 0.65, 0.721, 0.78, 0.828, 0.867, 0.898, 0.923, 0.943, 0.959, 0.971, 0.981, 0.989, 0.995, 1);
+--ease-flick-400: linear(0, 0.029, 0.103, 0.2, 0.309, 0.419, 0.523, 0.618, 0.701, 0.772, 0.831, 0.879, 0.917, 0.946, 0.968, 0.983, 0.994, 1.001, 1.005, 1.006, 1.006, 1.006, 1.004, 1.002, 1);
+```
+
+| Token | Slot | Uses | Reduced motion |
+|---|---|---|---|
+| `settle-120` | 120 ms, controls | button press and release, the tab indicator (`tabs.tsx:79`), the Segmented thumb, toggles, chevron rotates, hover lifts | instant |
+| `settle-250` | 250 ms, cross-fades | menu and popover entry (replacing `duration-100`, which reads as a pop), the save slot cross-fade, the qty pop, the ambient crop cross-fade, the Warden line fade, the sheet body re-target | instant, or the 150 ms opacity exception |
+| `settle-400` | 400 ms, one-off moments | the Warden shield settle, the ring glow, the count-up (a 13-point lookup of the same curve in `use-count-up.ts`), the dealt hand's per-card entry (200 ms each, 380 total), analytics bar grow-in, drawer and sheet entry from a tap | instant |
+| `flick-400` | 400 ms scaled by `--drawer-swipe-strength` | drawer and sheet release after a swipe, toast release after a swipe; nothing that was not thrown | instant |
+
+Rules: no raw `cubic-bezier`, `ease-out` or `ease-in-out` outside these four; a reversible transition uses the same token both ways; a duration never exceeds its slot; anything the finger is touching runs at `duration-0` (Base UI already does); every token is applied `motion-safe:` or sits in a transition the backstop zeroes.
+
+**Own keyframes.** `dw-in` and `dw-out` in `@theme` animate `opacity` and `transform` only, parameterised by `--dw-scale` (default 1), `--dw-x` and `--dw-y` (default 0), so `data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95` becomes `data-open:animate-dw-in [--dw-scale:0.95]` and `slide-in-from-top-2` becomes `[--dw-y:-0.5rem]`. They replace tw-animate's `enter` / `exit` (which animate `filter` even at blur(0)) at every site: `src/app/(site)/cards/[id]/printings-gallery.tsx`, `src/components/copy-status.tsx`, `ui/{alert-dialog,hover-card,popover,tooltip,navigation-menu,dialog,dropdown-menu,select,context-menu,autocomplete}.tsx`, `editor/editor-header.tsx` (the save slot), `deck/validation-panel.tsx` (the shield and line), `deck/ambient-art.tsx`, `deck/deck-text-view.tsx` (the qty pop), `deck/sample-hand.tsx`. The five test files re-pin the new class names in the same commit. The `tw-animate-css` import stays only if a class outside this list still needs it (grep; if none, it leaves `globals.css`). The ring glow is redrawn as a second `<circle>` with a wider stroke at low opacity whose `opacity` and `transform: scale()` animate on `settle-400` — no `filter: drop-shadow`.
+
+**Durations.** The drawer's popup and overlay `duration-450` → 400 with `flick-400` on a swipe release and `settle-400` on a tap-open (`drawer.tsx:71, 119`; the split by `data-swiping` is D5's); the toast's `transform 500ms` → 400 on `flick-400` (`toast.tsx:47`); the drawer content's `duration-300` cross-fade → 250 on `settle-250`; menus, popovers, dialogs `duration-100` → 250 on `settle-250`.
+
+**The press (F10).** `motion-safe:active:scale-[0.98]` on every size 28 px and up, `motion-safe:active:scale-[0.96]` on `xs` and `icon-xs`, `settle-120` in and out; the hover color held on `:active` for every variant (`active:bg-muted` on ghost and outline, the color-mix on primary and secondary, `/15` on destructive); the `not-aria-[haspopup]` exclusion dropped; `translate-y-px` gone (nothing pins it). The Segmented items and the filter chips take the same press. Direction C's shadow drop is not adopted anywhere (the Apple lens's caution: never on the 266 row buttons).
+
+**The reduced-motion exception (F7).** Inside the existing `@media (prefers-reduced-motion: reduce)` block (`globals.css:210-219`), after the `*` rule: `[data-slot="dialog-content"], [data-slot="drawer-popup"], [data-slot="toast"], [data-slot="save-status"] { transition: opacity 150ms linear !important; animation-duration: 150ms !important; translate: none !important; scale: none !important; transform: none !important; }` — the four surfaces whose appearance would otherwise pop; specificity beats the `*` rule inside the same `!important` layer. `tokens.test.ts:76-81` keeps asserting the backstop's two lines. `src/lib/theme/motion.ts`'s `matchMedia` readers are unchanged.
+
+**The save slot and toasts.** The save slot becomes a two-layer cross-fade on opacity (250 ms, `settle-250`) with "Saving…" shown only once a save has run 300 ms (a flag, not a timer on the label); the slot keeps `h-7 w-36`. Toasts are capped at two visible with Base UI's `limit`.
+
+**Tests and acceptance.** `button.test.tsx` (the scale classes, no `translate-y-px`); the five `animate-in` test files; `tokens.test.ts` (the backstop pin holds; a new case for the four `--ease-*` tokens and the two keyframes). Acceptance: a grep for `cubic-bezier|ease-out|ease-in-out|animate-in|animate-out|duration-(100|150|300|450|500)` over `src/` returns only the `@theme` block and `tw-animate-css` leftovers the ship note lists; a dev trace of the editor at 390 shows no non-composited animation; the drawer and toast settle inside 400 ms; the reduced-motion dev pass shows the four surfaces cross-fading and everything else instant.
+
+### D3. The type ladder and the shell (U8)
+
+**The ladder** as CSS classes in `globals.css` (`@layer components`) that set size, line-height, letter-spacing and weight together, so a call site can no longer pick `tracking-tight` on its own (`lenses/apple.md` §3; `opsz` stays `auto`, no `font-variation-settings`):
+
+| Class | Face | Size / leading / tracking / weight | Where |
+|---|---|---|---|
+| `.type-display` | Literata | 48 / 50 / −0.02em / 700 | the home H1 (`page.tsx:64`; today 48/48 −0.025em) |
+| `.type-title` | Literata | 30 / 36 / −0.015em / 600 | the page h1s (10 sites with `text-3xl tracking-tight`) |
+| `.type-section` | Literata | 18 / 26 / 0 / 600 | site-page h2s (hub, card page, home after U5, share after U6); the wordmark keeps its own line |
+| `.type-small` | Literata | 14 / 20 / +0.005em / 600 | the precons and sets year h2s |
+| `.type-caption` | Literata | 13 / 20 / +0.01em / 500 | the Warden line (`validation-panel.tsx:97, 111`; today 12 / 400 — the smallest serif on the site; 500 at 13 lifts the light pair from 4.88:1 without a color change), EmptyState titles stay 16 |
+| `.type-body` | Geist | 14 / 20 / 0 / 400 | rows, card text, descriptions (unchanged; the class exists for completeness) |
+| `.type-label` | Geist | 14 / 500 / 0; 13 / 500 / +0.005em; 12 / 500 / +0.01em | control labels (Button's sizes already carry them; the class is for hand-rolled controls) |
+| `.type-meta` | Geist | 12 / 16 / +0.01em / 400 (multi-line: 12 / 18) | group labels, hints, badges, the bracket line's meta; uppercase list-group eyebrows keep `+0.025em` |
+| `.type-micro` | Geist | 10.4 / 16 / +0.02em / 500 | the credit chip (`ambient-art.tsx:182`), the share page's `text-[0.65rem]` captions; `Kbd` stays mono and boxed |
+
+The home game h2s (Geist 18 today, `game-card.tsx:48`) become `.type-section` serif in U5 per D0. `tabular-nums` on every number that can change width (two misses: the search rows' qty and the "Like · 1" count — U1's `tabular-nums` covers the button).
+
+**The shell.** A "Skip to content" link (`sr-only focus:not-sr-only`, the first focusable in `src/app/layout.tsx`, targeting the page `<main>`); `aria-current="page"` styling in `navLinkClass` (`src/components/site-nav-link.ts:8`: `aria-[current=page]:text-foreground`) for Build, My decks and Browse when a browse route is open — the labels unchanged; the theme change eases `background-color` and `color` over 250 ms on `html` under `motion-safe:`, gated by a `data-theme-ready` attribute set after hydration so first paint never animates; the hub hero card's untinted `shadow-lg` (`surface-header.tsx` / `c/[slug]/page.tsx:178-189`) becomes `shadow-primary/25` on ivory and `shadow-black/60` on charcoal.
+
+**Tests.** `site-header.test.tsx` (the skip link, `aria-current`); a `tokens.test.ts` case that every `.type-*` class sets all three of `font-size`, `line-height`, `letter-spacing`; the Warden line tests match text, not class (unchanged). No smoke pin. Acceptance: the home H1 and the ten h1 sites carry no bare `tracking-*` utility; the dev pass at 390 and 1440 shows no heading reflow beyond the ladder's own leading changes.
+
+### D4. The desktop deck pane (U3a the bones, U3b the materials)
+
+**Fixed slots (U3a; `lenses/apple.md` §5c).** The header: fixed heights per tier (`h-14` for the single row at `lg`; the phone rows are D5's) and no `flex-wrap`; one primary-action slot of fixed width (`w-[7.5rem]`, the wider of "Keep this deck" and "Share") that is always in the tree and `invisible` when empty, so the cluster never widens when the seed lands; Tools at `md` in its own fixed slot; the save slot keeps `h-7 w-36`. The deck pane's summary row: the right cluster `flex-nowrap` with `min-w-0` truncation. Before the seed arrives, the leader zone renders its aspect box as a `Skeleton`, so the seed fills a reserved slot. **The status slot:** whenever `adapter.brackets` exists, the block under the summary reserves two lines (`min-h-10`, `leading-5`) from first paint — the Warden line or the progress line in the first, the bracket line in the second; while there is no read, the second line is present and empty (never an invented sentence), so `BracketLine`'s `null` → line transition (`bracket-line.tsx:46, 54`) moves nothing. Both lines share one 16 px icon gutter; the bracket number reads foreground medium and the rest muted; "Why?" loses its underline and becomes a muted text button that comes forward on hover and focus (44 px on touch). Targets: desktop CLS 0.217 → under 0.01, mobile 0.087 → under 0.01, re-traced with the lab's recipe.
+
+**Lines to space (U3a).** `GROUP_HEADER_CLASS` (`deck-text-view.tsx:45-46`) drops `border-b` and gains `pt-5 pb-1.5`; the label stays uppercase 12 px muted (`.type-meta`, the list-group eyebrow) and the count beside it becomes 14 px semibold tabular in the foreground, so "LAND 38" is a label and a number; the leader zone's and sample hand's hairlines (`leader-zone.tsx:82`, `sample-hand.tsx:97`) go the same way. That removes nine of the pane's hairlines. The sticky backing stays `bg-background` in U3a and becomes `--chrome` in U3b.
+
+**Rows (U3a).** The qty cell `text-xs` → `text-sm font-medium tabular-nums` (`deck-text-view.tsx:164`; the same size as the name); `.pip { font-size: 0.8em }` (`globals.css:246`, today 0.72em) inside a `text-sm` pips column (`:197`; today `text-xs`), so pips are 11.2 px glyphs in 18.9 px circles; the column's `min-w-20` already fits. Steppers keep today's reveal (`:51-52`) and the coarse-pointer rules. `content-visibility: auto` with `contain-intrinsic-size` on each group `<section>` (`:94`), checked against the sticky headers. Search rows get `active:bg-accent` so a finger sees the hit before the toast.
+
+**The controls row (U3a).** `deck-list-pane.tsx:300-331`: the "View" label dropped (Text / Grid explains itself; the `aria-label="View"` stays), Group and Sort inline at `wide:` at the one 28 px height from U1; the row is one line at 1200 and 1440 (today two). The share page's copy of the row (`deck-share-view.tsx:598-602`) follows in U6.
+
+**Landmarks and LCP (U3a).** The deck section becomes `<main>` at every tier (today only the loading branch has one, `deck-editor.tsx:1962`). The leader zone's image gets `priority` (eager, `fetchpriority="high"`; `leader-zone.tsx:152-159` through `card-image.tsx:85-87`), and `/decks/[id]/edit` emits `<link rel="preload" as="image">` for the first leader's image from the loader that already runs server-side for the title (the route stays dynamic; caching intent unchanged); on `/decks/new?from=` the seed is client-side, so `priority` is the whole fix. Target: the editor's LCP under 1.0 s on the lab's throttle (390, 4× CPU, Fast 4G; today 1,472 ms with 984 ms of load delay).
+
+**The materials (U3b; F8).** `--chrome: color-mix(in oklch, var(--background) 88%, transparent)` in the same third `:root` / `.dark` pair as the edge token (the value is theme-neutral, so one declaration), used with `backdrop-blur-md saturate-150` by the editor header (`editor-header.tsx:117`), the sticky search block (`search-pane.tsx:211`), the phone tab bar (`editor-layout.tsx:214`) and stuck group headers (`STICKY_HEADER_CLASS`, `deck-text-view.tsx:48`); under `@media (prefers-reduced-transparency: reduce)` and `(prefers-contrast: more)` the variable is `var(--background)`, the blur is off and the hairline returns (one rule each in `globals.css`). The hairline under a stuck group header becomes a 12 px bottom gradient that exists only while rows pass under it: gated on "stuck" by an `IntersectionObserver` sentinel above each header (or `scroll-state(stuck)` where supported, with the sentinel as the fallback) — never always-on (the lab's static comp could not gate it; a package must). **The leader card** at about 180 px wide with its name, type line ("Legendary Creature, Angel · 2/2") and Remove beside it, raised with `shadow-primary/25` on ivory and `shadow-black/60` on charcoal and a 2 px `motion-safe:` hover lift; the header's name keeps `min-w-[8rem]` and the meta truncates and hides below `wide:` (the comp's 1200 px bug).
+
+**Tests and pins.** `deck-text-view.test.tsx` (the header and qty classes), `editor-layout.test.tsx` ("Deck · 34" stays), the `deck-list-pane` tests, `bracket-line.test.tsx` (the slot renders empty with no read; the line's words unchanged), the `validation-panel` tests (text unchanged), `leader-zone` tests (the `priority` prop), `editor-header.test.tsx` (the slot is in the tree while empty). "cards", "Deck · N", every `aria-label` and the More list stay. No smoke pin moves. Acceptance measured on dev: the CLS and LCP targets above (two Brave traces, `<nextjs-portal>` stripped); the pane's text histogram shows two control heights and the 11.2 px pips; a dev pass with `prefers-reduced-transparency` emulated shows the solid strip and the hairline back.
+
+### D5. The phone editor (U4a the Deck tab, U4b the card sheet and the Tools strip)
+
+**The header (U4a; F12).** Row 1 `h-14`: the mark, the name (truncating, `min-w-[8rem]`), More. Row 2 `h-10`, only while a draft: "Draft" (the save slot) and "Keep this deck". The format chip rides beside the name as 12 px meta; Appearance moves into the More menu on phones (`editor-header.test.tsx`'s draft More list is pinned exact and moves with it, in the same commit). Fixed heights, no `flex-wrap`: about 56 px of chrome before the deck where today there are about 350.
+
+**One count (U4a).** The pane's "Deck" h2 (`deck-list-pane.tsx:225`) is `sr-only` below `md` (the tab is the title); the completion ring and "100 / 100" with "cards" muted become one group with `gap-1.5`; "Add cards" (primary, `sm`) sits at the right of that row. "Deck · N" on the tab and "cards" stay pinned.
+
+**The leader zone (U4a).** The card at about 45 % of the pane width (about 160 px at 390) with name, type line and a Remove ghost in a row beside it (today pane-width, about 530 px tall); tapping it still opens the sheet.
+
+**The controls row (U4a).** One row below `md`: Text / Grid, then an outline "Group · Sort" trigger whose popover holds both Segmenteds; 44 px on touch (the 28 px height and the 44 px rule cannot both hold on a phone — touch wins). `aria-label`s stay.
+
+**The card sheet (U4b; F9).** The existing `Drawer` (`editor-layout.tsx:269`) with `snapPoints={["9rem", 0.55, 1]}`, `defaultSnapPoint={0.55}`, a controlled `snapPoint`, `modal={snap === 1}` and `disablePointerDismissal={snap !== 1}`; the overlay at 40 % only at the full point (today `bg-black/10` always, `drawer.tsx:71`); peek = name, cost line, Add / Remove / Swap; half = the card image; full = text, tags, printings. A tap on another deck row while the sheet is below full re-targets the body in place (keyed, 250 ms opacity on `settle-250`, `motion-safe:`); the frame never moves. The release easing splits by a capture-phase pointer-up reading Base UI's `data-swiping`: swipe → `flick-400` scaled by `--drawer-swipe-strength`; tap or Escape → `settle-400`; while swiping, `duration-0` (already `drawer.tsx:129`). `data-expanded` tightens the header at full. Measured in the comp at 390 with touch and carried as acceptance: 0 targets under 44 px; the peek shows 144 px with no scrim; the half 55 % with no scrim; the full 89 % (`calc(100dvh - 6rem)`) with a `oklab(0 0 0 / 0.4)` scrim and a 44 × 44 Close; no transition over 400 ms. **First live checks on a real phone, recorded in U4b's ship note:** a re-grab during the release starts from the on-screen transform (if it jumps: keep the release under 300 ms and file upstream); the modal flip under a real swipe to the top. Reduced motion: snap positions with no travel, instant swaps, color-only presses.
+
+**The Tools pane (U4b).** One Tabs strip, Card first: Card · Suggestions · Combos · Cuts · Analytics · Hand (One Piece: Card · Analytics · Hand); Analytics and the sample hand demoted from collapsibles (`deck-list-pane.tsx:441-444`) to tabs. "Suggestions" and "Cuts" are pinned tab names (`deck-editor.test.tsx:275, 387-408`); "Analytics" and "Hand" are new tab strings, grepped before naming; the pane heading rule (R3's single-panel heading) stays. If the strip does not fit U4b's session it is U4c, its own package.
+
+**Tests.** `editor-layout.test.tsx` (the tab bar and sheet cases), `use-editor-hotkeys.test.tsx`, `deck-editor.test.tsx` (the sheet's open / re-target / close cases through the DOM — a hidden pane stalls Base UI transitions, so jsdom pins them), `editor-header.test.tsx` (the More list with Appearance on phones), `deck-list-pane` tests (the sr-only heading). Acceptance on dev at 390 with touch emulated: the measured numbers above; one header row; one count on screen; Escape and a swipe down leave the sheet; `pnpm build`'s route table unchanged.
+
+### D6. Home (U5; direction B — F21, F4, F5, F6)
+
+**Section list** (seven sections, six layout families, never three in a row; `DESIGN-LAB.md` D4's B read; the comp `/lab/home/b`):
+
+1. **Hero (split).** On the `max-w-wide` container: left third the H1 "Your next great deck starts here." (pinned; `.type-display`, at most two lines at 1280), the sentence "Keyboard-first deck building for Commander and the One Piece Card Game. Free, no account needed." (15 words), one `lg` primary "Build a deck" → `/decks/new` and a ghost "Browse commanders" → `/commanders`; right two-thirds three real full cards fanned at −8 / 0 / +8°, overlapping a third, about 280 px tall (`--fan-h` 180 px below `md`, the comp's 390 overflow fix), a soft tinted shadow, no glow, every artist and © line uncovered (checked with `elementFromPoint` in the comp). The fan takes the Magic shelf's top three commanders; the shelf below never repeats a fan card (Gate 4's no-reuse rule — the comp sliced the same list for both; U5 shows the next six on the shelf and discloses it). The center card is the LCP: `fetchpriority="high"`, explicit width and height, never lazy. No "Open beta" (F5). Gate 5 at 1280×800: H1 ≤ 2 lines, 15 words, the CTA visible, `pt-16`, three text elements.
+2. **Magic (open shelf).** A serif h2 "Magic: The Gathering" (`.type-section`), the blurb "Commander. 100 cards, one legend, every legality rule checked as you build.", the button row (Build a deck · Browse commanders · Search cards · Surprise me — one default plus three ghosts, the links byte-identical to today's, "Surprise me" pinned), a serif h3 "Popular in Commander decklists" with the one-clause note "Ranked by EDHREC decklist count via Scryfall, not games played." (Y1's honesty kept in one clause), one row of six real small cards at about 150 px with captions (3×2 below `lg`).
+3. **One Piece (color field).** A teal-tinted field (`data-game="optcg"`, the accent at 8 %) with the title, blurb and buttons (Build a deck · Browse leaders → `/leaders` · Search cards → `/cards?game=optcg`, the two literal links pinned) on the left third and six full cards on the right two-thirds (side by side from `xl`); the posture line and the Limitless credit as today; "Recent Top finishes" as a serif h3 with its clause.
+4. **Continue building** (only with own decks) and 5. **Recent public decks (image-led tile grid).** Serif h2s; a two-column grid of the 96 px tiles from U7a with the 3 px identity strip, name, two meta lines ("Magic · Commander"; "Updated Oct 10 by Bobandis6") and ♥ where a like exists.
+6. **What Deckwarden does (offset list).** A serif h2, the five items as plain text in the right half with a gold rule above, plain titles: "Legality checks", "Combos", "Share pages", "Sample hands", "Tournament finishes" (today's titles are unpinned; the bodies are U9's for dashes).
+7. **Outro (mini).** The crest at 32 px, one serif sentence ("Decks built here follow you into an account whenever you sign in." with the sign-in link) and nothing else; "Coming from Moxfield…" becomes the Import door's job (LATER row 166's sentence) and "Follow the build on GitHub" moves to the footer.
+
+Rhythm: sections at 96 px with gold hairlines, not boxes; `game-card.tsx`'s bordered `bg-card` section becomes an open region; `capabilities-strip.tsx`'s five bordered cards become the list; the four eyebrows become serif h2s (zero uppercase section labels). Motion: the 2 px lift on shelf cards and tiles over 120 ms on `settle-120`; no entry animation. Both themes captured in the comp with 0 contrast failures.
+
+**Pins and tests.** `scripts/seo-smoke.ts:517` (the H1, unchanged), `:503` (the two literal links, present), `scripts/engagement-smoke.ts:248` (♥ in the home HTML), the description sentence (`seo-smoke` "home description names both games"), the Surprise me link shape (`seo-smoke`, `/decks/new?game=mtg&surprise=1`), every nav label; `game-card.test.tsx`, `capabilities-strip` tests, `leader-shelves` tests and the home page test move with the markup in the same commit. The route table unchanged (home stays what it is today). Acceptance on dev: the section list above at 1440 / 768 / 390 in both themes, Gate 5 at 1280×800, no horizontal overflow at 390, 0 contrast failures (the helper), LCP on the fan's center card under 1.0 s on the lab's throttle.
+
+### D7. The share page (U6; direction B)
+
+**Heading tree:** h1 (the deck name) → h2 Cards · Notes · Sample hand · Analytics (serif, `.type-section`) → h3 the cost groups (the uppercase 12 px list-group label with a bold tabular count, `pt-5 pb-1.5`, no hairline — `deck-text-view`'s header from U3a). The separate Leader block and its h3 (`leader-zone.tsx:82`) are dropped on the share page because the card leads in the header; fixes Lighthouse `heading-order` (98 → 100).
+
+**The header (B):** the `SurfaceHeader` band grows to 280 px (160 below `md`) with the art crop under the veil and the credit chip visible; the leader card (about 200 px wide, `CardImage normal`) overlaps the band's lower-left by 40 % with `shadow-black/60` (dark) or `shadow-primary/25` (light); the H1 (`.type-title`) and two meta lines sit to its right — line 1 "{leader} · {format}", line 2 "{N} cards · Updated {date} by {author}" (at most one middle dot a line; the dot before "Updated" on tiles is U9's); the Warden line (`.type-caption`) and the bracket line (13 px, one 16 px gutter) and the action row sit below the band's bottom edge; the description at reading width. One Piece share pages take the same shape with their full-card leader.
+
+**Blocks:** View / Group / Sort at one 28 px height; the grouped list (read-only rows: qty 14 px medium tabular, name 14 px, pips 11.2 px); Notes at `max-w-reading` (42 rem; today the 64 rem container, about 140 characters a line); Sample hand under its h2 with "Draw sample hand" as the dealer; Analytics with "Card types" as one stacked horizontal bar with a legend (no background tracks; the smallest segments in muted ink at 40 % with 1 px gaps), the curve as thin bars with value labels and no tracks. The visitor row's five outline `sm` buttons take U1's edge (3.49 / 3.35 measured in the comp).
+
+**Pins and tests.** "Copy decklist", "Draw sample hand" (`sample-hand.test.tsx`), "The Warden approves this deck ✓" (`deck-editor.test.tsx`, `deck-list-pane.test.tsx`), the visitor action row byte-identical (`deck-share-view.test.tsx:111-119`), the owner row and "At the table" (Y5's pins), the live-region note (`:106-110`), the OG image unchanged; `deck-share-view.test.tsx` gains the heading-tree case and loses the Leader-block case; no URL moves; `seo-smoke`'s share checks hold. Acceptance on dev: the heading tree by `getByRole("heading", { level })`, 0 contrast failures in both themes, no overflow at 390, Lighthouse a11y 100 on `/d/jhr5ax43ewx7` and a Magic share page.
+
+### D8. Browse indexes, tiles, hubs and long lists (U7a, U7b)
+
+**Image grids by default (U7a; F14).** `src/components/hub/leader-index-view.tsx`'s server snapshot becomes `"grid"` for both `/commanders` and `/leaders`; the toggle, the storage key `deckwarden:index-view`, the pick banner and the W4 `?q=` flow stay; a stored `"list"` still renders the list; the corrupt-value test flips to "renders the grid". `/leaders` then ships its 142 small WebPs at load (about 1.4 MB, P4.9's measurement), lazy below the fold; rank and identity chips stay visible in the grid.
+
+**"Build a deck" on `/leaders` (U7a).** `src/app/(site)/leaders/page.tsx:108`'s unpinned "Start a deck" becomes "Build a deck" (the home label, Taste 4.5); the hub CTAs stay as they are (F17).
+
+**Tiles (U7a; F15).** `DeckTile`'s art box grows from `w-14` (56 px) to a 96 px full card, and the tile grids that were three columns become two (home's rail, the hub deck shelf, `/account`, `/u`, `/f`; `deck-tile.tsx:143`'s `lg:grid-cols-3`); the identity strip, one link per tile, the name, the meta and ♥ unchanged; One Piece tiles keep their full-card thumbnail. No query changes; the tile's `TILE_IMAGE` size and `thumbnailUrl()` already serve the small rendition. Crops with credits are a LATER row.
+
+**Hubs (U7b).** Sections 3 to 10 of `/c/[slug]` open with the same "serif h2 + 12 px explainer + block" shape; the explainer renders once (under the first data section) and the other h2s stand alone; staples show 25 then "Show all 100" (a client island over the server-rendered 100, so the ISR HTML still carries every row for crawlers); the card page's printings show 24 then "Show all" (the gallery already folds at 100); the hub's `data-game` crop veil to 85 % so the full card leads (d5), if it fits the session. The hub CTAs, "budget picks, and combos" in the metadata, the Meta Lens wording and the `hubs-smoke` strings are byte-identical; `/c/` and `/cards/[id]` stay `●`.
+
+**Long lists on phones (U7b).** `/precons` and `/sets`: a year jump strip under the filters (anchors inside the page; the filter state still never touches the URL — the `precons-index-view` and `sets-index-view` tests), years older than two collapsed under a "Show {year}" row (the server HTML still carries every tile and link, `hidden` like `/sets`' other products), and a compact one-line list below `md`; `/precons`' game pills gain `role="group"` (row 136). Targets at 390: `/precons` under 6,000 px with the current two years open; `/sets` under 5,000.
+
+**Pins and tests.** `leader-index-view.test.tsx` (the default flips; the hrefs and chips unchanged), `hubs-smoke.ts` (strings stay), `seo-smoke.ts` (`/leaders` checks; `/c/` CTA), `account-deck-tile.test.tsx` and the tile tests (sizes), `precons-index-view.test.tsx` / `sets-index-view.test.tsx` (the URL never touched). The route table unchanged.
+
+### D9. The copy policy (U9; F3, F4)
+
+**Scope.** Existing user-visible copy in `src/` (components, pages, the adapters' sentences, `copy.ts` tables) — never data (deck names, Scryfall type lines, oracle text, product and tournament metas, the One Piece card fields) and never the `<title>` shapes (`"%s · Deckwarden"`, `"{name} — Commander hub"`, the `/l/` title shape). Code comments follow the copy where they quote it.
+
+**Forms.** An em dash inside a sentence becomes a period and a new sentence, a colon, or a comma (whichever reads plainly); an en-dash range becomes "to" ("Bracket 1 to 2") or "and" ("Brackets 1 and 2"); a line with three middle dots becomes two lines or a line with one dot (the tiles drop the dot before "Updated"; the share metas are U6's two lines). The pinned list, each with its pin moved in the same commit: `src/lib/brackets/copy.ts` (its em-dash strings; `copy.test.ts` and `bracket-sheet.test.tsx`); `src/lib/games/mtg/brackets.ts:263` and `:326` (the range; `table.test.ts:276-315`, `brackets.test.ts`, `scripts/autofill-smoke.ts:258-261, :303`); the shelf clause and `/commanders`' sentence (Y1's wording; `leader-shelves` tests, `seo-smoke`); the capability bodies (`capabilities-strip.tsx`); the One Piece posture line (`seo-smoke` pins "©BANDAI", not the dash; the legal wording is Bandai's and stays if the dash is theirs); the footer's Fan Content line (Wizards' policy wording; it stays if the dash is in their text, otherwise one plain sentence); the Share dialog's and import dialog's sentences (their RTL); the 429 sentences ("Too many … — try again in a minute" → "Too many …. Try again in a minute."; `rate-limit` tests). Acceptance: the lab's copy census re-run over the 15 routes at 1440 — em dashes in copy 0 (data and titles excluded), en dashes 0, at most one middle dot a line on every route.
+
+### D10. Primitives (U10a forms, U10b the stepper and chips; F18)
+
+**Arrival.** Hand copies from the v4 registry's `bases/base/ui` (the `ui/autocomplete.tsx` precedent: a header naming the source file and commit, tailwind-merge order fixed, the 44 px coarse-pointer rule and the edge token applied on arrival, `data-slot` kept). Never `shadcn add` against the tree.
+
+**U10a.** `Field` (+ `FieldLabel`, `FieldDescription`, `FieldError`) and `Input` at the 12 hand-rolled input recipes in 9 files (the lab's count; the package greps `className=".*border.*rounded` on `<input` and lists them in its ship note — the Games dialog, the Details dialog, the Share dialog, the import dialog, the account forms and the search boxes are the known sites); `Textarea` (the notes field); `Checkbox` (the keep boxes in the autofill and Fit sheets); `Table` for the hub staples and the Mana sources table; `Spinner` only inside a busy button (`aria-busy`, the Surprise me door). `FieldDescription` becomes the home of D1's on-touch disabled reason and the 429 sentence under a field.
+
+**U10b.** `ButtonGroup` for the row stepper (minus, the count as `ButtonGroupText`, plus) — revives the slot the dead `in-data-[slot=button-group]` classes waited for; the two-chip rule as one `Chip` component: filter chips `rounded-md` (`color-chip.tsx:123`, `game-switch.tsx:43`, the precons and sets filters, `card-search.tsx:460`), tag pills `rounded-full` (`card-detail-pane.tsx:396, 425, 437`), never a third shape; the 21 hand-rolled chip recipes in `src/components/{editor,deck}` fold into it.
+
+**Tests.** The form tests per site (`games-dialog.test.tsx`, `details-dialog`, `share-dialog.test.tsx`, the import dialog's), `deck-text-view.test.tsx` (the stepper's pins: `pointer-coarse:size-11`, the reveal class, the aria-labels), `color-chip` and `card-search` tests. No smoke pin moves; no string moves.
+
+---
+
+## E. Implementation roadmap
+
+Session protocol is unchanged (CLAUDE.md): one package per session, deployed and `pnpm check`-green or not done, out-of-scope items to `LATER.md` with a trigger, caching intent stated on every route touched (none is added). Line numbers drift — re-grep before editing, trust the shapes.
+
+```text
+After this contract:  U1 Controls + edge token ─► U2 Motion tokens ─► U8 Type ladder + shell
+                      ─► U3a Deck pane bones ─► U3b Deck pane materials ─► U4a Phone Deck tab ─► U4b Phone sheet + Tools strip
+                      ══ owner review: the editor ══
+                      ─► U7a Indexes + tiles ─► U5 Home B ─► U6 Share B
+                      ══ owner review: the public surfaces ══
+                      ─► U7b Hubs + long lists ─► U9 Copy policy ─► U10a Form primitives ─► U10b Stepper + Chip
+LATER                 view transition · tile art crops · a third ink · steppers on hover · hub veil · tournaments columns · Codex frames
+```
+
+Each package depends on the one before it unless its row says otherwise. A warm beta signal still outranks any package. The owner may reorder within a theme; U1 stays first and alone.
+
+| Package | Size | Depends on | Migration | Route table |
+|---|---|---|---|---|
+| U1 Controls recipe + edge token (+ step 0) | S–M | — | — | unchanged |
+| U2 Motion tokens + own keyframes + the press (named split U2b: the ten `ui/` primitives, if U2 overflows) | M | U1 | — | unchanged |
+| U8 Type ladder + shell a11y | S | — | — | unchanged |
+| U3a Desktop deck pane: the bones | M | U1, U8 | — | unchanged |
+| U3b Desktop deck pane: the materials | S | U3a | — | unchanged |
+| U4a Phone Deck tab | M | U3a | — | unchanged |
+| U4b Phone card sheet + Tools strip (named split U4c: the Tools strip) | M | U2, U4a | — | unchanged |
+| U7a Indexes + tiles | S–M | U1 | — | unchanged |
+| U5 Home B | M | U1, U8, U7a | — | unchanged |
+| U6 Share B | S–M | U1, U8 | — | unchanged |
+| U7b Hubs + long lists | M | U8 | — | unchanged |
+| U9 Copy policy | M | — | — | unchanged |
+| U10a Form primitives | M | U1 | — | unchanged |
+| U10b Stepper + Chip | S–M | U10a | — | unchanged |
+
+### U1 — Controls recipe + edge token (S–M) → detailed in section G
+
+### U2 — Motion tokens + own keyframes (M)
+
+- **Objective**: one cadence — four curves, two keyframes, the press, the policy's durations, the reduced-motion exception.
+- **Prereqs**: U1 (the transition list, `ease-out` to swap).
+- **Steps**: (1) the four `--ease-*` tokens and `dw-in` / `dw-out` in `@theme` (D2). (2) The press in `button.tsx` (scale, held colors, no `haspopup` exclusion, no `translate-y-px`); the Segmented thumb and the tab indicator on `settle-120`. (3) The 17 `animate-in` sites → `dw-*` with per-site vars; the five test files. (4) Drawer 450 → 400, toast 500 → 400, content 300 → 250, popups 100 → 250. (5) The ring glow without `filter`. (6) The reduced-motion exception block. (7) The save slot's two-layer cross-fade and the 300 ms "Saving…" rule; toasts `limit` 2. (8) The grep acceptance; the editor trace.
+- **Acceptance**: D2's grep returns only the `@theme` block; no non-composited animation in the editor trace; the drawer and toast settle inside 400 ms; the reduced-motion dev pass shows four cross-fading surfaces and everything else instant; `button.test.tsx`, the five re-pinned files and `tokens.test.ts` green.
+- **Checks**: `pnpm check`; dev pass at 390 and 1440 in both themes with reduced motion on and off (jsdom for the toggles the pane cannot flip).
+- **Risks**: the ten `ui/` primitives are copied registry files with long class strings — if the swap does not fit, they are U2b and U3a waits one session; `tw-animate-css`'s `data-open:` variants may be needed by a class outside the list (grep before removing the import).
+
+### U8 — Type ladder + shell a11y (S)
+
+- **Objective**: size, leading and tracking set together per step; the shell's two missing a11y basics; the eased theme change.
+- **Prereqs**: none (pulled early so U3 to U7 use the ladder).
+- **Steps**: (1) The `.type-*` classes (D3). (2) The home H1, the ten h1 sites, the site-page h2s, the year h2s, the Warden line, the meta and micro sites take their class and lose bare `tracking-*`. (3) The skip link; `aria-current` in `navLinkClass`. (4) The theme ease gated after hydration. (5) The hub hero card's tinted shadow.
+- **Acceptance**: no bare `tracking-*` on a heading; the Warden line at 13 px / 500 and its tests green (text-matched); the skip link is the first focusable; `aria-current` on the open nav item; first paint never animates the theme.
+- **Checks**: `pnpm check`; `site-header.test.tsx`; dev pass of home, a hub, a share page and the editor in both themes at 390 and 1440.
+- **Risks**: the H1's leading change at 390 (the lab measured descenders touching at 48/48; 48/50 fixes it); Literata's `opsz` is `auto` and stays so.
+
+### U3a — Desktop deck pane: the bones (M)
+
+- **Objective**: the pane reads as hierarchy and nothing shifts after load.
+- **Prereqs**: U1, U8.
+- **Steps**: (1) The header's fixed slots and heights; the summary row's `flex-nowrap`. (2) The Skeleton leader box before the seed. (3) The two-line status slot when `adapter.brackets` exists; the Warden and bracket lines on one gutter; "Why?" as a text button. (4) Group headers to space with bold counts; the leader zone's and sample hand's hairlines. (5) Qty 14 px, pips 0.8em in a `text-sm` column. (6) The controls row at one height, "View" label dropped. (7) `<main>`; `content-visibility`; search rows `active:bg-accent`. (8) The leader image `priority` and the `/decks/[id]/edit` preload. (9) Two traces at 390 and 1440 before and after.
+- **Acceptance**: CLS under 0.01 on both; LCP under 1.0 s on the lab's throttle; two control heights; pips 11.2 px; the status slot present and empty before a read; `editor-layout.test.tsx`'s "Deck · 34" and every `aria-label` unchanged.
+- **Checks**: `pnpm check`; the editor's RTL (`deck-editor.test.tsx` zero-POST pins green); dev pass in both themes at 1200 and 1440; the traces.
+- **Risks**: `content-visibility` against the sticky headers (verify, drop if it breaks them); the preload's URL must come from the same loader as the image's (a mismatch wastes a request).
+
+### U3b — Desktop deck pane: the materials (S)
+
+- **Objective**: chrome as a material over the ambient art; the raised leader card.
+- **Prereqs**: U3a; the owner's F8 (taken).
+- **Steps**: (1) `--chrome` and the two fallback media rules. (2) The four chrome sites. (3) The stuck gate (sentinel or `scroll-state()`), the gradient only while stuck. (4) The leader card at 180 px with facts beside it, the tinted shadow and lift; the header name floor.
+- **Acceptance**: the hairline under a stuck header is gone and the gradient appears only with rows under it; `prefers-reduced-transparency` and `prefers-contrast: more` return the solid strip and the hairline (jsdom pins the media rules by reading `globals.css`, like `tokens.test.ts`); the name never collapses at 1200.
+- **Checks**: `pnpm check`; dev pass in both themes with the transparency preference emulated through DevTools.
+- **Risks**: `backdrop-filter` cost on low-end phones (the material is `md`-and-up chrome plus the phone tab bar only; the tab bar falls back to solid if a trace shows jank).
+
+### U4a — Phone Deck tab (M)
+
+- **Objective**: the phone screen opens on the deck, not on chrome.
+- **Prereqs**: U3a; the owner's F12 (taken).
+- **Steps**: (1) The two header rows; the chip as meta; Appearance into More below `md` (the pinned More list moves). (2) The sr-only heading; the ring + count group; "Add cards" at the right. (3) The leader card at 45 % with facts beside it. (4) The one controls row with the "Group · Sort" popover. (5) 44 px everywhere on touch.
+- **Acceptance**: at 390 with touch: 56 px of chrome before the deck (about 100 with a draft row), one count on screen, 0 targets under 44 px; "Deck · N" and "cards" unchanged; `editor-header.test.tsx` and `deck-list-pane` tests green with their moved pins.
+- **Checks**: `pnpm check`; dev pass at 390 and 360 in both themes; the owner's phone look (signed-in editor flows are RTL).
+- **Risks**: the popover inside the Deck pane on a phone (focus return, Escape) — Base UI's Popover with `finalFocus` resolved in a post-commit effect (the Y7b lesson).
+
+### U4b — Phone card sheet + Tools strip (M)
+
+- **Objective**: the editor's one gesture surface feels like one object; the Tools pane is one navigation.
+- **Prereqs**: U2 (the curves), U4a; the owner's F9 (taken).
+- **Steps**: (1) Snap points, the controlled snap, modal only at full, the 40 % scrim. (2) The body re-target on a row tap below full. (3) The release easing split by `data-swiping`. (4) The Tools strip (or U4c). (5) The two live checks on a real phone, recorded.
+- **Acceptance**: D5's measured numbers on dev at 390 with touch; the re-grab and the modal flip recorded from a real phone; Escape and a swipe down leave; `deck-editor.test.tsx`'s sheet cases and the pinned tab names green.
+- **Checks**: `pnpm check`; dev pass; the owner's phone check (two taps: open a card from a row, tap another row).
+- **Risks**: Base UI's snap-point API surface (`DrawerRoot.d.ts:89-91` verified by the lab); a re-grab that jumps (the fallback: a release under 300 ms and an upstream issue).
+
+### U7a — Indexes + tiles (S–M)
+
+- **Objective**: the image-led product shows its images by default; tiles read as cards.
+- **Prereqs**: U1; the owner's F14 and F15 (taken).
+- **Steps**: (1) The server snapshot "grid"; the corrupt-value test flips. (2) `/leaders` "Build a deck". (3) `DeckTile` at 96 px; the grids to two columns at the five sites.
+- **Acceptance**: `/commanders` and `/leaders` render the grid in the server HTML with rank and identity chips; a stored "list" still renders the list; the tile's link count, strip and ♥ unchanged; `/leaders`' page weight recorded (about 1.4 MB of WebPs); the ISR routes untouched.
+- **Checks**: `pnpm check`; `smoke:hubs`, `smoke:seo` on dev; dev pass of the two indexes, home, `/account` and a hub in both themes at 390 and 1440.
+- **Risks**: scanning speed on `/commanders` (the grid keeps rank and identity visible; pagination unchanged).
+
+### U5 — Home B (M)
+
+- **Objective**: home stops reading as a boxed template and shows real cards first.
+- **Prereqs**: U1, U8, U7a; the owner's F4, F5, F6, F21 (taken).
+- **Steps**: (1) The wide container and the split hero with the fan; the LCP attributes. (2) The Magic region (serif h2, blurb, the button row, the one-clause note, six cards). (3) The One Piece field. (4) The rails on the 96 px tiles. (5) The capabilities list; the outro; the GitHub line to the footer. (6) Gate 5 and the no-reuse rule checked; both themes captured.
+- **Acceptance**: D6's section list; the pins (H1, the two literal links, ♥, the Surprise link, the description sentence) in the server HTML; zero uppercase section labels; 0 contrast failures; Gate 5 at 1280×800; no overflow at 390; LCP under 1.0 s on the fan's center card.
+- **Checks**: `pnpm check`; `smoke:seo` and `smoke:engagement` on dev; the home RTL; dev pass at 1440 / 768 / 390 in both themes.
+- **Risks**: the H1 as a two-line split hero at 1280 (the comp measured it); the fan's rotated card overflowing at 390 (the comp's `--fan-h` fix); the shelf query is unchanged (the fan and the shelf read the same rows).
+
+### U6 — Share B (S–M)
+
+- **Objective**: the share page reads as one header and two heading levels.
+- **Prereqs**: U1, U8; the owner's share pick (B).
+- **Steps**: (1) The heading tree; the Leader block dropped. (2) The band at 280 px with the overlapping card; the metas in two lines. (3) Notes at reading width; the stacked type bar; the controls row at one height. (4) The visitor-row and owner-row pins re-run.
+- **Acceptance**: the heading tree by role and level; Lighthouse a11y 100 on a Magic and a One Piece share page; the visitor row byte-identical; "Copy decklist", "Draw sample hand" and the Warden line present; the OG image unchanged.
+- **Checks**: `pnpm check`; `smoke:seo` on dev; dev pass at 390 and 1440 in both themes.
+- **Risks**: the private-share gate and the guest owner row swap after hydration (row 177) — the band's height is reserved so neither moves it.
+
+### U7b — Hubs + long lists (M)
+
+- **Objective**: hub openings stop repeating themselves; the long pages fold without losing a row.
+- **Prereqs**: U8.
+- **Steps**: (1) The hub's one explainer; staples 25 + Show all; the hub veil (d5) if it fits. (2) The card page's printings 24 + Show all. (3) `/precons` and `/sets` year strips, collapsed older years, the compact phone list; `role="group"` on the precons pills.
+- **Acceptance**: the ISR HTML still carries every staple, printing, tile and link; `hubs-smoke` and `seo-smoke` strings byte-identical; `/precons` under 6,000 px and `/sets` under 5,000 at 390 with two years open; the filter state never touches the URL.
+- **Checks**: `pnpm check`; `smoke:hubs`, `smoke:sets` on dev; dev pass.
+- **Risks**: the fold island must not hide rows from crawlers (server-rendered rows, client-hidden; the `/sets` precedent).
+
+### U9 — Copy policy (M)
+
+- **Objective**: existing copy follows the new-copy rule; every pin moves with its string.
+- **Prereqs**: the owner's F3 and F4 (taken); U6 (the share metas).
+- **Steps**: (1) The census grep (em, en, middle dots per route, data excluded). (2) The pinned list in D9, each string with its test and smoke regex in one commit. (3) The unpinned copy. (4) The census re-run.
+- **Acceptance**: D9's census targets; `scripts/autofill-smoke.ts`, `table.test.ts`, `copy.test.ts`, `bracket-sheet.test.tsx` and `seo-smoke` green on the new strings (run the regexes against them before the edit, the Y1 lesson); the `<title>` shapes and every data field byte-identical.
+- **Checks**: `pnpm check`; `smoke:autofill`, `smoke:seo`, `smoke:hubs` on dev.
+- **Risks**: legal lines (Fan Content, the posture line) — rewritten only if the dash is ours, not theirs.
+
+### U10a — Form primitives (M)
+
+- **Objective**: one Input and one Field instead of twelve recipes.
+- **Prereqs**: U1; the owner's F18 (hand copies).
+- **Steps**: (1) Copy Field, Input, Textarea, Checkbox, Table, Spinner with headers. (2) The 12 input sites; the notes textarea; the keep checkboxes; the two tables; the busy buttons. (3) D1's on-touch reason and the 429 sentence onto `FieldDescription`.
+- **Acceptance**: the grep for hand-rolled inputs returns none; every form's RTL green; the edge token on every field; no string moves.
+- **Checks**: `pnpm check`; dev pass of the Games, Details, Share and Import dialogs, `/account`'s forms and the search boxes in both themes.
+
+### U10b — Stepper + Chip (S–M)
+
+- **Objective**: one stepper and two chip shapes.
+- **Prereqs**: U10a.
+- **Steps**: (1) ButtonGroup for the row stepper. (2) `Chip` with the two shapes; the 21 recipes fold in.
+- **Acceptance**: `deck-text-view.test.tsx`'s stepper pins green; the chip grep shows two shapes only; no string moves.
+- **Checks**: `pnpm check`; dev pass of the editor rows, the card pane's tags, `/cards`' filters, `/precons` and `/sets`.
+
+### Appendix to E
+
+**Test and smoke pin matrix** (verified at `e766299`; re-grep the lines)
+
+| Package | Must update | Must stay green |
+|---|---|---|
+| U1 | `button.test.tsx` (+ `aria-busy`, `aria-disabled`, the outline edge, the ghost rest, disabled-with-reason); `segmented.test.tsx` (+ 13 px); `tokens.test.ts` (+ the edge pair) | `button.test.tsx:52-76` (the hairline), its 44 px cases; `tokens.test.ts:32-46` (the two hex blocks); every call-site class pin (`deck-text-view.test.tsx:171`, `search-pane.test.tsx:296`, `bracket-sheet.test.tsx:561`, `bracket-line.test.tsx:258`) |
+| U2 | `button.test.tsx` (the press); `deck-text-view.test.tsx:147-148`; `validation-panel.test.tsx:39, 53`; `ambient-art.test.tsx:93, 127`; `deck-share-view.test.tsx:251-252`; `card-image.test.tsx`; `tokens.test.ts` (+ the four tokens) | `tokens.test.ts:76-81` (the backstop) |
+| U8 | `site-header.test.tsx` (+ skip link, `aria-current`); `tokens.test.ts` (+ the ladder) | the Warden line text pins (`deck-editor.test.tsx:1975-2012`, `deck-list-pane.test.tsx:54`) |
+| U3a | `deck-text-view.test.tsx` (header, qty classes); `bracket-line.test.tsx` (the empty slot); `editor-header.test.tsx` (the slot in the tree); `leader-zone` tests (`priority`) | `editor-layout.test.tsx:98` ("Deck · 34"); `validation-panel` texts; `deck-editor.test.tsx` zero-POST pins; every `aria-label` |
+| U3b | `tokens.test.ts` (+ `--chrome` and the two media rules); `deck-text-view.test.tsx` (the sticky class) | all of U3a's |
+| U4a | `editor-header.test.tsx:120-151` (the More list gains Appearance on phones); `deck-list-pane` tests (the sr-only heading) | `editor-layout.test.tsx:98`; "cards" |
+| U4b | `editor-layout.test.tsx` (sheet cases); `deck-editor.test.tsx` (open / re-target / close); new tab names | `deck-editor.test.tsx:275, 387-408` ("Suggestions", "Cuts") |
+| U7a | `leader-index-view.test.tsx:42, 87` (the default); `account-deck-tile.test.tsx` and the tile tests (sizes) | `hubs-smoke.ts`; `seo-smoke.ts:333-341`; `engagement-smoke.ts:248` |
+| U5 | `game-card`, `capabilities-strip`, `leader-shelves` tests; the home page test | `seo-smoke.ts:503, 517`; the Surprise link check; the description check; `engagement-smoke.ts:248` |
+| U6 | `deck-share-view.test.tsx` (the heading tree; the Leader block) | `deck-share-view.test.tsx:111-119` (the visitor row); Y5's owner-row and "At the table" pins; `sample-hand.test.tsx:55, 71` |
+| U7b | `precons-index-view.test.tsx` / `sets-index-view.test.tsx` (the fold) | `hubs-smoke.ts`; `seo-smoke.ts`; the never-touches-the-URL tests |
+| U9 | `table.test.ts:276-315`; `copy.test.ts`; `bracket-sheet.test.tsx`; `scripts/autofill-smoke.ts:258-261, :303`; `leader-shelves` tests; the dialogs' RTL | `seo-smoke.ts:517` (the H1); the `<title>` shapes; `hubs-smoke` strings; `warden-copy.test.ts` |
+| U10a | the form tests per site | the search-pane wire pins |
+| U10b | `deck-text-view.test.tsx` (the stepper); chip tests | the stepper's `pointer-coarse` pins |
+
+**Rollback**: every package adds code and styles only → `git revert`. No migration, no route, no stored data changes anywhere in the wave.
+
+---
+
+## F. Deferred work and unresolved decisions
+
+**Deferred (each becomes a `LATER.md` row with its trigger in U1's step 0, appended from row 205)**
+
+| Item | Why deferred | Revisit when |
+|---|---|---|
+| The hub and card-page comps, and the 33 Codex image briefs (`.claude/design-lab/refs/IMAGE-BRIEFS.md`; F22) | The lab covered both surfaces with lens findings and packages only; no frames were generated | The owner generates frames, or U7b wants a comp before it ships |
+| White mana pips lose their circle on ivory (a `--mana-w` edge in light) | Found in the lab's live pip styling; `--mana-*` is the same in both themes on purpose | The next change to `.pip` after U3a, or a light-theme audit |
+| Steppers mount only for the hovered or focused row (b7's second half) | 266 buttons for 69 rows; an a11y rule (controls must mount on `focus-within` too) and a fine-pointer-only change | A measured phone or low-end pane cost after U3a's `content-visibility` |
+| The tournaments index's date column and winners' thumbnails (d6) | Not in any package | The next `/tournaments` change |
+| The hub crop veil at 85 % (d5) if U7b skips it | Owner taste; small | The next hub package |
+| The hub-to-editor shared-element transition (F13) | The one place `<ViewTransition>` applies; CSS-and-Base-UI motion only this wave | U7b is live and the hub's Build CTA sees use, or the owner asks |
+| Tile art crops with credits (F15) | A batched resolver per tile against the query budget; the credit chip on every crop | A resolver measured under the budget with `DB_LOG`, or the owner asks for crops |
+| A measured tertiary ink token (F11) | 70 % alpha fails ivory at 3.2:1; the comps passed with weight and case | A surface still reads flat after U3b, with a measured pair in hand |
+| The primary's edge on ivory (a measured green `primary/60` where gold is 2.4:1 decorative; Taste 7.15) | `border-gold/70` is pinned on the default variant; a theme-split edge is a D0 change | A light-theme audit flags the primary's boundary |
+| The `<title>` shapes' em dash (F3) | About 4,000 indexed titles; an SEO decision | An SEO pass that retitles anyway |
+| The always-on scroll-edge gradient | Only if U3b ships without the stuck gate | U3b's ship note says so |
+| `/precons` row weight and no-JS (rows 134, 135) | Already deferred | unchanged |
+
+**Rows this wave annotates rather than adds**: 61 (card stacks — the grid becomes the default on the indexes, not in the editor; the trigger stays grid-view usage), 72 (the `md` drawer width — U3b and U4a touch the panes; the trigger stays), 111 (⌘K — still not chosen), 60 (multi-step undo — unchanged), 162 (progress wording on share pages — U6 keeps the line's words), 165 ("Only cards I own" in drafts — unchanged), 136 (`/precons` pills' `role="group"` — U7b), 166 (home's import sentence — U5's outro hands it to the Import door).
+
+**Unresolved decisions (defaults chosen; tell me if you disagree)**
+
+| Decision | Default in this plan | What would change it |
+|---|---|---|
+| The Tools strip's new tab names | "Analytics" and "Hand" | If you want "Sample hand" as the tab (longer at 390) |
+| The share meta's two lines | "{leader} · {format}" then "{N} cards · Updated {date} by {author}" | If the author should lead |
+| The stuck gate | An `IntersectionObserver` sentinel, `scroll-state()` where supported | If a simpler always-on gradient is acceptable (then LATER's row fires) |
+| U2's split line | The ten `ui/` primitives become U2b only if U2 overflows | If you'd rather split up front |
+| The `.type-*` names | display · title · section · small · caption · body · label · meta · micro | If you prefer the Tailwind-ish `text-*` naming |
+| `/leaders`' CTA | "Build a deck" | If you'd rather keep "Start a deck" |
+| The fan and the shelf | The fan takes the top three; the shelf shows the next six | If you want the top six on the shelf and the fan drawn from them (an image reused on one page) |
+| The hero's second action | A ghost "Browse commanders" | If you'd rather have no second action, or "Browse leaders" |
+| The destructive fallback | The hover tint steps down one notch at a time (light `/20` → `/15`, dark `/30` → `/20`, then lower, the rest tint following so hover stays heavier) until 4.5:1 holds on page and card | If you'd rather lift the label after all |
+| The disabled hint on touch | A muted 12 px line beside the control (U1), `FieldDescription` from U10a | If a tooltip-on-tap is preferred (it is not: no hover on touch) |
+
+---
+
+## G. First implementation package — U1 "Controls recipe + edge token"
+
+**Why first**: `button.tsx` and `globals.css` are what every surface and every Wave-4 sheet inherits; the edge token is the one change that fixes a measured WCAG 1.4.11 failure on every page at once; and it lands the Wave-5 contract (step 0). It needs no migration, adds no route, touches two components and one stylesheet, and every number it must hit was measured in the lab.
+
+**Expected visible result**: every outline button, input and select has a visible edge in both themes (3:1 or better on the page and on a card); ghost buttons rest in muted ink and come forward on hover; steppers read as one family of squares; `sm` labels are 13 px; a Segmented is 28 px like the button beside it; a disabled control with a reason shows it (and says it beside the control on touch); a busy button shows a progress cursor; the destructive hover passes 4.5:1; counts in buttons are tabular.
+
+**Scope (in order)**
+
+0. **Contract**: build plan §6f (the U-series table mirroring §6e, one row per package — U1, U2, U8, U3a, U3b, U4a, U4b, U7a, U5, U6, U7b, U9, U10a, U10b — with "Deliverable" and "Done when", and a status line pointing at this file's tracker); one CLAUDE.md line under Session protocol — "Wave-5 packages (Un from `WAVE5.md`, build plan §6f) count as work packages under the same rules."; a REDESIGN.md "Addendum — Wave-5 supersessions" recording the owner's answers that amend earlier contracts: F1 (§1 "8 px controls" → the shipped 12 / 9.6 / 16.8 px, and Gate 6 states that one truth), F4 (§1 "eyebrow 12 uppercase tracking-wide (already the house style)" → list-group labels only), F7 (§1 Mechanics' motion policy gains the four-slot 150 ms opacity exception), F8 (§3 "opaque enough for predictable reading" → chrome may be a material where content scrolls under it, with solid fallbacks), F10 (§4 "buttons respond in about 120 ms" gains the press form: scale with the hover color held), and what U1 itself supersedes (the outline variant's `border-border bg-background`, the ghost's rest color, the `sm` label at 12.8 px, the per-size icon radii); section F as `LATER.md` rows appended from 205, plus the annotations listed in F. `*.md` is prettier-ignored. **Commit step 0 on its own.**
+1. **The edge pair** in `globals.css` (the third `:root` / `.dark` block), mirrored in `tokens.ts`, pinned in `tokens.test.ts`.
+2. **`button.tsx`** → the D recipe with A's states (D1), the destructive hover at `/15`.
+3. **`input.tsx` and `select.tsx`** take the edge token.
+4. **Segmented** at 28 px with 13 px labels.
+5. **Disabled with a reason** at the call sites that pass one; the on-touch hint.
+6. **RTL cases**; the measured pass (the helper, both themes, page and card, 390 with touch); the dev pass; deploy; the prod pass signed out.
+
+**Out of scope**: the press scale, the curves, the keyframes, the drawer and toast durations (U2); the type ladder (U8); any pane, page, copy or primitive beyond the three components named; a new ink; a radius move.
+
+**Completion checklist**
+
+- [ ] Step 0 committed on its own (build plan §6f, the CLAUDE.md line, the REDESIGN addendum, the LATER rows and annotations).
+- [ ] `pnpm check` green — `button.test.tsx`, `segmented.test.tsx`, `tokens.test.ts` updated; every call-site class pin untouched.
+- [ ] Measured on dev with the Appendix B helper, both themes: outline edges ≥ 3:1 on page and card; labels at rest ≥ 4.5:1; the destructive hover ≥ 4.5:1 (the number in the ship note, and the step taken if `/15` fell short); 40 size-strip buttons ≥ 44 px at 390 with touch.
+- [ ] Dev pass, signed out, both themes, 390 and 1440: the editor (a precon draft), a share page's visitor row, a hub's action row, home's game cards, `/cards`' filters, the Share dialog's buttons.
+- [ ] `pnpm build`: the route table unchanged; ISR routes still `●`.
+- [ ] Deployed; Vercel status success on the full sha. Prod pass, signed out, zero creates: a share page's outline buttons carry the `--border-control` edge in the served CSS; the editor's Segmented at 28 px.
+- [ ] Ship note, `LATER.md` rows (step 0), tracker tick, memory, and `U2-session-prompt.md` written.
+
+---
+
+## Verification (whole wave)
+
+- Every package: `pnpm check`; the matrix's pins; the listed smokes on **dev** only (never `smoke:seo` against prod — it mints fixtures; read the deck-create counters before any smoke; `pnpm counters:reset` clears local loopback counters; never retry into a 429); the empty `pnpm build` route-table diff (ISR routes stay `●`, `/sets` and `/precons` stay `○`); a dev pass at 390 / 768 / 1200 / 1440 in both themes with reduced motion and reduced transparency toggled (through DevTools emulation where the pane cannot flip them, jsdom pins otherwise); deploy; confirm through the GitHub commit status (context "Vercel", the full sha).
+- **Measured packages** (U1, U2, U3a, U3b, U4a, U4b, U5, U6): contrast with the lab's Appendix B helper (`DESIGN-LAB-session-prompt.md`), live, before and after — edges ≥ 3:1, text ≥ 4.5:1, both themes, page and card; CLS and LCP re-traced on U3a, U3b and U5 with the lab's capture recipe (two Brave pages through the chrome-devtools MCP, the second in an isolated context holding `localStorage.theme = light`, `<nextjs-portal>` removed by script before each shot, lazy images preloaded by a scripted scroll, phone pages through a tall viewport rather than `fullPage`); the editor's text histogram and control heights re-counted on the Giada precon draft.
+- Database reads need the owner's OK, asked once at the start of a session, inside one `read only` transaction. No package in this wave writes data. A deck made on dev is a real row: delete QA decks and re-prove the census.
+- Browser-pane caveats: a hidden pane pauses rAF, never fires `matchMedia` change events, stalls Base UI transitions and doesn't hydrate a tab until painted — verify menus, sheets and toasts through the DOM or in jsdom. The pane is signed out everywhere: signed-in flows are RTL plus a short list of the owner's clicks, or the throwaway local harness (`src/app/(site)/qa-<pkg>/`, never committed).
+- The lab stays a record: never start its server unless a package's specification needs a measurement the write-up lacks (then `PATH="$HOME/.local/node22/bin:$PATH" pnpm dev --port 3100` from the worktree, stopped before the session ends); never push, merge, PR or delete the `design-lab` branch; never `git add` an image.
+- Traceability: "small text and lines that jumble" → U1, U2, U3a, U3b, U4a, U4b · "Looks generic" → U5, U6, U7a, U7b, U8, U9, U10a, U10b · the lab's F list → the answers table in Context.
+
+---
+
+## Progress tracker
+
+Tick a package with its date and sha when it ships; record deviations from this contract beside the tick, not by rewriting the sections above.
+
+- [x] The red test fixed (2026-10-12, `e1bea8e`: `src/app/api/combos/complete/route.test.ts`'s run timestamps relative to the clock; `pnpm check` 2,154 / 203 green, 6 warnings).
+- [x] Owner's answers recorded (six rounds, 2026-10-12); contract landed in the repo with `U1-session-prompt.md`, the lab's prompt and this session's prompt (2026-10-12).
+- [ ] U1 — Controls recipe + edge token (step 0: build plan §6f, the CLAUDE.md line, the REDESIGN addendum, LATER rows from 205)
+- [ ] U2 — Motion tokens + own keyframes + the press
+- [ ] U8 — Type ladder + shell a11y
+- [ ] U3a — Desktop deck pane: the bones
+- [ ] U3b — Desktop deck pane: the materials
+- [ ] U4a — Phone Deck tab
+- [ ] U4b — Phone card sheet + Tools strip — **owner review: the editor**
+- [ ] U7a — Indexes + tiles
+- [ ] U5 — Home B
+- [ ] U6 — Share B — **owner review: the public surfaces**
+- [ ] U7b — Hubs + long lists
+- [ ] U9 — Copy policy
+- [ ] U10a — Form primitives
+- [ ] U10b — Stepper + Chip
