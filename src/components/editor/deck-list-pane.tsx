@@ -44,6 +44,16 @@
  * grid gets none — its top corners carry the badges and its bottom edge the
  * artist / © line, and a card's click already opens the Card tab's
  * Alternatives.
+ *
+ * U3a (WAVE5 D4, nothing shifts after load): from md the summary's right
+ * cluster never wraps (the ownership line truncates), and on a phone the
+ * row keeps "Add cards"' 44 px before it appears; the Warden or progress
+ * line and the bracket line sit in one status slot whose height doesn't
+ * move when a read lands; while a URL seed is on its way (`seeding`) the
+ * leader zone holds the card's box and the analytics and sample hand wait,
+ * so the seed lands in place. The leader image is the pane's LCP
+ * (`priority`), and View / Group / Sort fit one line at wide, "View" named
+ * rather than labelled.
  */
 import { PlusIcon } from "lucide-react";
 import Link from "next/link";
@@ -134,6 +144,8 @@ interface DeckListPaneProps {
   bracket?: ReactNode;
   /** Analytics and the sample hand below the list; false on phones (R4: the Tools tab hosts them). */
   extras?: boolean;
+  /** A URL seed is on its way (U3a): the leader zone holds the card's box, the extras wait. */
+  seeding?: boolean;
 }
 
 export function DeckListPane({
@@ -162,6 +174,7 @@ export function DeckListPane({
   onShare,
   bracket,
   extras = true,
+  seeding = false,
 }: DeckListPaneProps) {
   // Stored preference wins; absent fields fall back (group to the adapter's
   // default). Read once — this pane only mounts client-side, after deck load.
@@ -219,9 +232,12 @@ export function DeckListPane({
 
   return (
     <div className="p-3">
-      {/* Summary (R3): count · ring · ownership · the over-limit action. */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      {/* Summary (R3): count · ring · ownership · the over-limit action. U3a:
+          on a phone the row keeps "Add cards"' 44 px before it appears; from
+          md the right cluster never wraps — the ownership line truncates. */}
+      <div className="flex items-center justify-between gap-2 max-md:pointer-coarse:min-h-11">
+        {/* Stretched to the row, so "Add cards" arriving never moves its box. */}
+        <div className="flex shrink-0 items-center gap-2 self-stretch">
           <h2 className="text-sm font-semibold">Deck</h2>
           {/* The empty state carries its own (Y2a: a phone shows one). */}
           {onAddCards && listed && (
@@ -231,14 +247,14 @@ export function DeckListPane({
             </Button>
           )}
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 md:flex-nowrap">
           {/* The over-limit pain point (the DECK_SIZE error's always-visible
               face) links straight to the Cut Coach (P3.4). */}
           {onOpenCuts && max !== null && total > max && (
             <button
               type="button"
               onClick={onOpenCuts}
-              className="text-destructive cursor-pointer text-xs font-medium hover:underline"
+              className="text-destructive shrink-0 cursor-pointer text-xs font-medium whitespace-nowrap hover:underline"
             >
               Over by {total - max} — rank cuts
             </button>
@@ -247,40 +263,49 @@ export function DeckListPane({
               collection — never a fake "0/100" for someone who has none. */}
           {ownership && (
             <span
-              className="text-muted-foreground text-xs tabular-nums"
+              className="text-muted-foreground min-w-0 truncate text-xs tabular-nums"
               title={OWNERSHIP_METHOD}
               data-testid="ownership-line"
             >
               {ownershipLine(ownership)} ·
             </span>
           )}
-          <span className="text-muted-foreground text-sm tabular-nums" data-slot="deck-size">
+          <span
+            className="text-muted-foreground shrink-0 text-sm whitespace-nowrap tabular-nums"
+            data-slot="deck-size"
+          >
             {sizeLabel}
           </span>
           <CompletionRing value={total} max={max} />
         </div>
       </div>
 
-      <ValidationPanel
-        formatLabel={format.label}
-        issues={issues}
-        cards={cards}
-        onPreview={onPreview}
-        progress={progress}
-        approvalAction={
-          onShare ? (
-            <button
-              type="button"
-              onClick={onShare}
-              className="cursor-pointer font-medium underline underline-offset-4 hover:no-underline pointer-coarse:min-h-11"
-            >
-              Share this deck
-            </button>
-          ) : undefined
-        }
-      />
-      {/* The bracket line (Y4a): on the legality line, never inside it. */}
-      {bracket}
+      {/* The status slot (U3a): the Warden or progress line, then the bracket
+          line — present and empty before a read — so neither arriving moves
+          the leader zone. */}
+      <div data-slot="status-slot">
+        <ValidationPanel
+          formatLabel={format.label}
+          issues={issues}
+          cards={cards}
+          onPreview={onPreview}
+          progress={progress}
+          slot
+          approvalAction={
+            onShare ? (
+              <button
+                type="button"
+                onClick={onShare}
+                className="cursor-pointer font-medium underline underline-offset-4 hover:no-underline pointer-coarse:min-h-11"
+              >
+                Share this deck
+              </button>
+            ) : undefined
+          }
+        />
+        {/* The bracket line (Y4a): on the legality line, never inside it. */}
+        {bracket}
+      </div>
 
       {leaderZoneDef && (
         <LeaderZone
@@ -292,14 +317,17 @@ export function DeckListPane({
           onChooseLeader={onChooseLeader}
           onBrowseLeader={onBrowseLeader}
           adapter={adapter}
+          priority
+          pending={seeding}
         />
       )}
 
-      {/* A quiet first screen (Y2a): nothing to view, group or sort yet. */}
+      {/* A quiet first screen (Y2a): nothing to view, group or sort yet.
+          U3a: "View" is the group's name, not a label (Text / Grid says it). */}
       {listed && (
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
           <Segmented
-            label="View"
+            ariaLabel="View"
             touch
             options={VIEW_OPTIONS}
             value={view}
@@ -436,7 +464,8 @@ export function DeckListPane({
         />
       )}
 
-      {extras && (
+      {/* U3a: not while a seed is landing — the list arrives above them. */}
+      {extras && !seeding && (
         <>
           <AnalyticsPanel blocks={analytics} />
           {/* P2.7: same widget as the share page — pure client state, below the

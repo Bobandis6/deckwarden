@@ -589,7 +589,12 @@
 
 /* Cost pips — adapters' display.costHtml emits <span class="pip pip-w">W</span>
    etc. (symbol lowercased, '/' folded: {W/U} → pip-wu). Unmatched symbols
-   (hybrids, phyrexian, X) fall back to the generic chip; refinement is P1.8. */
+   (hybrids, phyrexian, X) fall back to the generic chip; refinement is P1.8.
+   U3a (WAVE5 D4): the size is `--pip-size` of the surrounding text, 0.72em
+   unless a list sets it — the editor's deck rows set 0.8em in their text-sm
+   column (11.2 px glyphs in 15.1 px circles). The pips on the card pane,
+   the search rows, the hubs, the card page and the share page keep 0.72em
+   until the packages that own those surfaces take the larger size. */
 @layer components {
   .pip {
     display: inline-flex;
@@ -599,7 +604,7 @@
     height: 1.35em;
     border-radius: 9999px;
     margin-right: 0.1em;
-    font-size: 0.72em;
+    font-size: var(--pip-size, 0.72em);
     font-weight: 700;
     line-height: 1;
     vertical-align: -0.1em;
@@ -627,7 +632,8 @@
      <span class="don-cost">4</span>. A rounded SQUARE in foreground-on-
      background so it reads in both themes and never resembles a mana pip
      (round, pastel): pips are card data, this is a number. Same font scale
-     and baseline offset as .pip so the two align in mixed lists. */
+     (`--pip-size`, U3a) and baseline offset as .pip so the two align in
+     mixed lists. */
   .don-cost {
     display: inline-flex;
     align-items: center;
@@ -637,7 +643,7 @@
     padding: 0 0.3em;
     border-radius: 0.3em;
     margin-right: 0.1em;
-    font-size: 0.72em;
+    font-size: var(--pip-size, 0.72em);
     font-weight: 700;
     line-height: 1;
     font-variant-numeric: tabular-nums;

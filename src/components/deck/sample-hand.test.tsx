@@ -129,3 +129,15 @@ describe("SampleHand — Keep / Mulligan (F4)", () => {
     expect(preview).toHaveBeenCalledWith(cards.get(island.id));
   });
 });
+
+describe("SampleHand — the heading (U3a)", () => {
+  it("the hairline becomes space in the editor; `ruled` keeps it on the share page until U6", () => {
+    const { unmount } = mount();
+    const heading = screen.getByRole("heading", { level: 2 });
+    expect(heading.className).toBe("pb-1.5");
+    unmount();
+    render(<SampleHand entries={entries} cards={cards} format={COMMANDER} ruled />);
+    expect(screen.getByRole("heading", { level: 2 }).className).toBe("border-b pb-1");
+    expect(screen.getByRole("button", { name: /Sample hand/ })).toBeTruthy();
+  });
+});

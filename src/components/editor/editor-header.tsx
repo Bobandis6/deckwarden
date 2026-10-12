@@ -32,6 +32,14 @@
  * `data-draft` marks the draft, so every `data-status` pin holds. A SEEDED
  * draft (a precon, a combo, Surprise me, a chosen leader) shows "Keep this
  * deck" where Share will be: the explicit acceptance that mints the row.
+ *
+ * U3a (WAVE5 D4, fixed slots): Keep this deck and Share share one primary
+ * slot of fixed width (7.5rem, the wider of the two) that is in the tree
+ * while empty, so the cluster never widens when a seed lands or a row is
+ * minted. The two never show together: Keep needs a draft, Share a server
+ * row. On phones the slot steps aside (`display: contents`) — a reserved
+ * 7.5rem overflows the phone header at 375 and 360 px for every saved deck,
+ * and the phone's header rows are U4a's.
  */
 import { CheckIcon, EllipsisIcon, PanelRightIcon } from "lucide-react";
 import Link from "next/link";
@@ -143,16 +151,20 @@ export function EditorHeader({
       )}
       <div className="ml-auto flex items-center gap-1.5 lg:ml-0">
         <SaveIndicator status={saveStatus} onRetry={onRetry} draft={draft} />
-        {onKeep && (
-          <Button size="sm" onClick={onKeep}>
-            Keep this deck
-          </Button>
-        )}
-        {canShare && (
-          <Button size="sm" onClick={() => onOpen("share")}>
-            Share
-          </Button>
-        )}
+        <span
+          data-slot="primary-slot"
+          className="max-md:contents md:inline-flex md:w-[7.5rem] md:shrink-0 md:justify-end"
+        >
+          {onKeep ? (
+            <Button size="sm" onClick={onKeep}>
+              Keep this deck
+            </Button>
+          ) : canShare ? (
+            <Button size="sm" onClick={() => onOpen("share")}>
+              Share
+            </Button>
+          ) : null}
+        </span>
         {onOpenTools && (
           <Button
             variant="outline"

@@ -799,6 +799,42 @@ describe("DeckEditor — Start from this precon (W8b)", () => {
     expect(saved.filter((e) => e.printingId !== undefined)).toHaveLength(2);
   });
 
+  it("while the precon is on its way the leader zone holds the card's box, the bracket slot is held and the extras wait; the seed fills them (U3a)", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/precons/breed_lethality_c16") await gate;
+      return preconRoute(input, init);
+    });
+    stubViewport(1440);
+    render(
+      <DeckEditor
+        deckId={null}
+        draftGame="mtg"
+        draftFormat="commander"
+        draftFromSlug="breed_lethality_c16"
+      />,
+    );
+    const deck = section("Deck list");
+    await pollFor(() => deck.querySelector<HTMLElement>("[data-slot=leader-pending]"));
+    expect(within(deck).queryByText("No commander yet")).toBeNull();
+    expect(within(deck).queryByText("Sample hand")).toBeNull();
+    expect(
+      deck
+        .querySelector("[data-slot=status-slot] [data-slot=bracket-line]")
+        ?.getAttribute("data-status"),
+    ).toBe("empty");
+
+    release();
+    await pollFor(() => within(deck).queryAllByText("Atraxa, Praetors' Voice")[0] ?? null);
+    expect(deck.querySelector("[data-slot=leader-pending]")).toBeNull();
+    expect(within(deck).getByText("Sample hand")).toBeTruthy();
+    await settle(1500);
+    expect(posts()).toBe(0);
+  });
+
   it("an unknown from= seeds nothing and SAYS so", async () => {
     fetchMock.mockImplementation(preconRoute);
     stubViewport(1440);
@@ -2257,7 +2293,7 @@ describe("DeckEditor — the bracket line and its Why sheet (Y4a)", () => {
     expect(factsGets()).toHaveLength(2);
   });
 
-  it("no commander yet: no line and no facts GET — the progress line already says what to do", async () => {
+  it("no commander yet: the line's slot is held empty (U3a) and no facts GET — the progress line already says what to do", async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === "/api/decks/deck-1" && (init?.method ?? "GET") === "GET") {
         return ok({
@@ -2273,7 +2309,13 @@ describe("DeckEditor — the bracket line and its Why sheet (Y4a)", () => {
     await pollFor(() => screen.queryByText("Choose a commander · 1 to go"));
     await settle(2000);
     await act(async () => {});
-    expect(line()).toBeNull();
+    // U3a: present and empty, never an invented sentence — hidden from
+    // assistive tech, nothing to press, nothing to focus.
+    expect(line()?.dataset.status).toBe("empty");
+    expect(line()?.getAttribute("aria-hidden")).toBe("true");
+    expect(line()?.textContent?.trim()).toBe("");
+    expect(line()?.querySelector("button")).toBeNull();
+    expect(line()?.hasAttribute("tabindex")).toBe(false);
     expect(factsGets()).toHaveLength(0);
   });
 });

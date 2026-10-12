@@ -8,7 +8,7 @@ import type { BracketFactor, BracketLineContext, BracketRead } from "@/lib/games
 
 import { BRACKET_COPY } from "./copy";
 import type { BracketFactsState } from "./facts";
-import { bracketLineView } from "./line-view";
+import { bracketLineLead, bracketLineView } from "./line-view";
 
 const brackets = { line: (r: BracketRead) => `adapter line (${r.status})` };
 const ctx = {
@@ -134,5 +134,33 @@ describe("bracketLineView", () => {
         });
       }
     }
+  });
+});
+
+describe("bracketLineLead (U3a): the bracket number the editor sets in the foreground", () => {
+  const lead = (text: string, action: "why" | "retry" | null = "why") =>
+    bracketLineLead({ text, action });
+
+  it("the words before the first separator — the adapter puts the number first", () => {
+    expect(lead("Bracket 1–2 · nothing here goes past Core")).toBe("Bracket 1–2");
+    expect(lead("Your target: Bracket 2 · the cards say at least 3")).toBe(
+      "Your target: Bracket 2",
+    );
+    expect(lead("Bracket 3 or 4 — one combo is your call")).toBe("Bracket 3 or 4");
+    expect(
+      lead("Bracket 4 (Optimized) — from the cards and your answers · one combo is your call"),
+    ).toBe("Bracket 4 (Optimized)");
+    expect(lead(`At least Bracket 3 (Upgraded) · ${BRACKET_COPY.rulesChanged}`)).toBe(
+      "At least Bracket 3 (Upgraded)",
+    );
+  });
+
+  it("a line with no separator is all lead", () => {
+    expect(lead("At least Bracket 3 (Upgraded)")).toBe("At least Bracket 3 (Upgraded)");
+  });
+
+  it("core's own lines carry no number", () => {
+    expect(lead(BRACKET_COPY.checking, null)).toBeNull();
+    expect(lead(BRACKET_COPY.failed, "retry")).toBeNull();
   });
 });

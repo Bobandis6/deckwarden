@@ -2,7 +2,8 @@
  * The editor header (R3): the mark → home (no "Back to home" text link), the
  * game / format chip, the name input's unchanged contract, the fixed-width
  * save slot across all four states with Retry outside the menu, Share only
- * once a server row exists, the More menu's items (History and Games… only
+ * once a server row exists (U3a: Keep this deck or Share in one fixed
+ * primary slot, in the tree while empty), the More menu's items (History and Games… only
  * with a live deck) opening the right dialog, and exactly one appearance control
  * — the same assertion the site header test makes for the (site) pages.
  */
@@ -194,6 +195,27 @@ describe("EditorHeader", () => {
     rerender(header({ onOpen, canShare: true }));
     fireEvent.click(screen.getByRole("button", { name: "Share" }));
     expect(onOpen).toHaveBeenCalledWith("share");
+  });
+
+  it("the primary slot is in the tree while empty, one fixed width from md, and holds Keep or Share (U3a)", () => {
+    const slot = () => document.querySelector<HTMLElement>("[data-slot=primary-slot]");
+    const { rerender } = render(header({ draft: true }));
+    // Empty: no button, but the slot (and its reserved width) is there.
+    expect(slot()).not.toBeNull();
+    expect(slot()!.children).toHaveLength(0);
+    expect(slot()!.className).toContain("md:w-[7.5rem]");
+    expect(slot()!.className).toContain("md:shrink-0");
+    // Phones keep their header (U4a's): the slot steps aside.
+    expect(slot()!.className).toContain("max-md:contents");
+    // The save slot sits first; the primary slot right after it.
+    expect(slot()!.previousElementSibling?.getAttribute("data-slot")).toBe("save-slot");
+
+    rerender(header({ draft: true, onKeep: () => {} }));
+    expect(within(slot()!).getByRole("button", { name: "Keep this deck" })).toBeTruthy();
+
+    rerender(header({ canShare: true }));
+    expect(within(slot()!).getByRole("button", { name: "Share" })).toBeTruthy();
+    expect(within(slot()!).queryByRole("button", { name: "Keep this deck" })).toBeNull();
   });
 
   it("More lists Details, Import, Autofill…, Fit my budget…, Export, Buy (+ History and Games… with a live deck) and the shortcut sheet", async () => {

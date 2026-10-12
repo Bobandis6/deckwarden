@@ -31,6 +31,13 @@
  * "Share this deck" — renders UNDER the Warden line, never in it: the line
  * stays legality-only. Without it (the share page) the approved markup is
  * the same single line as before.
+ *
+ * U3a (WAVE5 D4, the status slot): the editor passes `slot`, and the first
+ * line holds the Warden line's 20 px whichever line it is — the progress
+ * line and the problem toggle take `leading-5` (the toggle stays 44 px on
+ * touch) — with each dot centered in the 16 px icon gutter, so every line's
+ * text starts where the Warden's and the bracket line's do. The share page
+ * passes no `slot` and keeps its markup until U6.
  */
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -60,6 +67,17 @@ interface ValidationPanelProps {
   progress?: string | null;
   /** Under the Warden line while the deck is approved (Y2b: the editor's "Share this deck"). */
   approvalAction?: ReactNode;
+  /** The editor's status slot (U3a): a 20 px first line in every state, dots in the icon gutter. */
+  slot?: boolean;
+}
+
+/** A status dot centered in the 16 px icon gutter (U3a), where the Warden's shield sits. */
+function GutterDot({ className }: { className: string }) {
+  return (
+    <span aria-hidden className="flex size-4 shrink-0 items-center justify-center">
+      <span className={cn("size-1.5 rounded-full", className)} />
+    </span>
+  );
 }
 
 export function ValidationPanel({
@@ -70,6 +88,7 @@ export function ValidationPanel({
   preview = false,
   progress = null,
   approvalAction,
+  slot = false,
 }: ValidationPanelProps) {
   const [open, setOpen] = useState(false);
   const zero = issues.length === 0;
@@ -137,9 +156,16 @@ export function ValidationPanel({
       {progress !== null && (
         <p
           data-slot="progress-line"
-          className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium"
+          className={cn(
+            "text-muted-foreground flex items-center gap-1.5 text-xs font-medium",
+            slot && "leading-5",
+          )}
         >
-          <span aria-hidden className="bg-muted-foreground/60 size-1.5 rounded-full" />
+          {slot ? (
+            <GutterDot className="bg-muted-foreground/60" />
+          ) : (
+            <span aria-hidden className="bg-muted-foreground/60 size-1.5 rounded-full" />
+          )}
           {progress}
         </p>
       )}
@@ -149,14 +175,20 @@ export function ValidationPanel({
             type="button"
             aria-expanded={open}
             onClick={() => setOpen((o) => !o)}
-            className={`flex items-center gap-1.5 rounded text-xs font-medium hover:underline pointer-coarse:min-h-11 ${
-              errors > 0 ? "text-destructive" : "text-amber-700 dark:text-amber-400"
-            }`}
+            className={cn(
+              "flex items-center gap-1.5 rounded text-xs font-medium hover:underline pointer-coarse:min-h-11",
+              errors > 0 ? "text-destructive" : "text-amber-700 dark:text-amber-400",
+              slot && "leading-5",
+            )}
           >
-            <span
-              aria-hidden
-              className={`size-1.5 rounded-full ${errors > 0 ? "bg-destructive" : "bg-amber-500"}`}
-            />
+            {slot ? (
+              <GutterDot className={errors > 0 ? "bg-destructive" : "bg-amber-500"} />
+            ) : (
+              <span
+                aria-hidden
+                className={`size-1.5 rounded-full ${errors > 0 ? "bg-destructive" : "bg-amber-500"}`}
+              />
+            )}
             {summary}
             {open ? (
               <ChevronUpIcon aria-hidden className="size-3.5" />

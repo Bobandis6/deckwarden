@@ -589,6 +589,7 @@ export function DeckShareView({
           severity={severity}
           onPreview={onPreview}
           adapter={adapter}
+          ruled
         />
       )}
 
@@ -608,6 +609,7 @@ export function DeckShareView({
           onPreview={onPreview}
           owned={owned}
           preview
+          ruled
         />
       ) : (
         <DeckGridView
@@ -616,6 +618,7 @@ export function DeckShareView({
           onPreview={onPreview}
           owned={owned}
           adapter={adapter}
+          ruled
         />
       )}
 
@@ -630,7 +633,7 @@ export function DeckShareView({
         </section>
       )}
 
-      <SampleHand entries={entries} cards={cardMap} format={format} onPreview={onPreview} />
+      <SampleHand entries={entries} cards={cardMap} format={format} onPreview={onPreview} ruled />
 
       {analytics.length > 0 && (
         <section className="mt-6">

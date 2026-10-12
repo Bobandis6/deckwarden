@@ -267,7 +267,10 @@ export function SearchPane({
               aria-selected={i === sel}
               className={cn(
                 "group/row flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm pointer-coarse:min-h-11",
-                i === sel ? "bg-accent text-accent-foreground" : "hover:bg-muted/60",
+                // U3a: a press shows the hit (the selection's look) before the add's toast.
+                i === sel
+                  ? "bg-accent text-accent-foreground"
+                  : "hover:bg-muted/60 active:bg-accent active:text-accent-foreground",
               )}
               onClick={() => {
                 dispatch({ type: "select", index: i });

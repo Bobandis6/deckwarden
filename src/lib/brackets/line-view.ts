@@ -69,3 +69,23 @@ export function bracketLineView(
   if (facts === "checking") return { text: BRACKET_COPY.checking, action: null };
   return withStale(read, ctx, { text: brackets.line(read, ctx), action: "why" });
 }
+
+/** Where a line's lead ends: the copy's own separators. */
+const LEAD_SEPARATORS = [" · ", " — "] as const;
+
+/**
+ * The line's lead (U3a, WAVE5 D4): the adapter's words before their first
+ * separator — the bracket number, which the adapter's lines put first
+ * ("Bracket 1–2", "At least Bracket 3 (Upgraded)", "Your target: Bracket
+ * 2") — for the editor to set in the foreground; the whole line when it has
+ * no separator. Null for core's own lines ("Checking combos…", "Couldn't
+ * check combos"), which carry no number. Pure presentation: the words and
+ * the line's text are unchanged.
+ */
+export function bracketLineLead(view: BracketLineView): string | null {
+  if (view.text === BRACKET_COPY.checking || view.text === BRACKET_COPY.failed) return null;
+  const cuts = LEAD_SEPARATORS.map((separator) => view.text.indexOf(separator)).filter(
+    (at) => at > 0,
+  );
+  return cuts.length > 0 ? view.text.slice(0, Math.min(...cuts)) : view.text;
+}

@@ -16,11 +16,14 @@
  * severity as text — an sr-only "Has a problem" / "Warning" (the text
  * view's words) wired through `aria-describedby`, so the button's name
  * stays "Show {name}" and the ring's hue is no longer the only channel.
+ *
+ * U3a (WAVE5 D4): the text view's `GroupHeading` — label and count on
+ * space — with `ruled` keeping the share page's hairline headings until U6.
  */
 import { useId } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
-import { GROUP_HEADER_CLASS, STICKY_HEADER_CLASS } from "@/components/deck/deck-text-view";
+import { GroupHeading } from "@/components/deck/deck-text-view";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import type { DeckGroup } from "@/lib/decks/view-model";
 import type { GameAdapter } from "@/lib/games/types";
@@ -37,6 +40,8 @@ interface DeckGridViewProps {
   adapter?: GameAdapter;
   /** Editor: group headers stick to the top of the scrolling pane (C12). */
   stickyHeaders?: boolean;
+  /** The share page's hairline headings until U6 (U3a). */
+  ruled?: boolean;
 }
 
 const BADGE_CLASS =
@@ -49,16 +54,14 @@ export function DeckGridView({
   owned,
   adapter,
   stickyHeaders = false,
+  ruled = false,
 }: DeckGridViewProps) {
   const idPrefix = useId();
   return (
     <>
       {groups.map((group) => (
-        <section key={group.key} className="mt-4">
-          <h3 className={cn(GROUP_HEADER_CLASS, stickyHeaders && STICKY_HEADER_CLASS)}>
-            {group.label}
-            <span className="ml-1.5 tabular-nums">{group.qty}</span>
-          </h3>
+        <section key={group.key} className={ruled ? "mt-4" : undefined}>
+          <GroupHeading label={group.label} qty={group.qty} sticky={stickyHeaders} ruled={ruled} />
           <ul className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2">
             {group.items.map(({ entry, card }) => {
               const badge = adapter?.display.idBadge?.(card);

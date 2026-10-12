@@ -200,3 +200,55 @@ describe("ValidationPanel — F5 previews (share pages)", () => {
     expect(onPreview).toHaveBeenCalledWith(sol);
   });
 });
+
+describe("ValidationPanel — the editor's status slot (U3a, WAVE5 D4)", () => {
+  const SHORT: ValidationIssue = { ...DECK_SIZE, progress: true };
+  const BANNED: ValidationIssue = {
+    code: "BANNED",
+    severity: "error",
+    message: "Mana Crypt is banned in Commander.",
+  };
+  const slotted = (issues: ValidationIssue[], progress: string | null, slot: boolean) => (
+    <ValidationPanel
+      formatLabel="Commander"
+      issues={issues}
+      cards={new Map()}
+      onPreview={() => {}}
+      progress={progress}
+      slot={slot}
+    />
+  );
+
+  it("the progress line and the problem toggle hold the Warden line's 20 px, each dot centered in the 16 px icon gutter", () => {
+    render(slotted([SHORT, BANNED], "2 to go", true));
+    const line = document.querySelector<HTMLElement>('[data-slot="progress-line"]')!;
+    expect(line.className).toContain("leading-5");
+    expect(line.firstElementChild?.className).toContain(
+      "flex size-4 shrink-0 items-center justify-center",
+    );
+    expect(line.textContent).toBe("2 to go");
+    const problems = screen.getByRole("button", { name: /^1 problem/ });
+    expect(problems.className).toContain("leading-5");
+    expect(problems.className).toContain("pointer-coarse:min-h-11");
+    expect(problems.className).toContain("text-destructive");
+    expect(problems.firstElementChild?.className).toContain("size-4");
+  });
+
+  it("the Warden line is the same with or without the slot (U8's .type-caption, the text pin)", () => {
+    const { unmount } = render(slotted([], null, true));
+    const slottedLine = screen.getByRole("status");
+    expect(slottedLine.textContent).toBe("The Warden approves this deck ✓");
+    const slottedClass = slottedLine.className;
+    unmount();
+    render(slotted([], null, false));
+    expect(screen.getByRole("status").className).toBe(slottedClass);
+  });
+
+  it("without the slot (the share page until U6) the lines keep their markup", () => {
+    render(slotted([SHORT, BANNED], "2 to go", false));
+    const line = document.querySelector<HTMLElement>('[data-slot="progress-line"]')!;
+    expect(line.className).not.toContain("leading-5");
+    expect(line.firstElementChild?.className).toBe("bg-muted-foreground/60 size-1.5 rounded-full");
+    expect(screen.getByRole("button", { name: /^1 problem/ }).className).not.toContain("leading-5");
+  });
+});

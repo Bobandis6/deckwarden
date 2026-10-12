@@ -206,7 +206,10 @@ export function EditorLayout({
         {section(
           "tools",
           "Card detail and suggestions",
-          "hidden group-data-[pane=tools]/panes:block md:hidden wide:block wide:border-l",
+          // U3a: a column at `wide`, so the attribution that ends the content
+          // (mt-auto) rests on the pane's bottom edge, not mid-pane where a
+          // seeded preview would push it off screen.
+          "hidden group-data-[pane=tools]/panes:block md:hidden wide:flex wide:flex-col wide:border-l",
           // At `md` the tools live in the Drawer; an empty hidden section keeps the tree stable.
           tier === "md" ? null : tools,
         )}

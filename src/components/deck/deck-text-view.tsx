@@ -31,8 +31,16 @@
  * a main-list card the adapter offers alternatives for). A row it refuses (a
  * land) keeps a same-width spacer so the pip column stays aligned. The share
  * page passes neither, so no row there has one.
+ *
+ * U3a (WAVE5 D4, lines to space): a group heading is its label and its
+ * count (`GroupHeading`) on space instead of a hairline; the quantity is
+ * 14 px medium tabular, the name's size; the pips are 0.8em of a text-sm
+ * column (11.2 px). The editor's groups skip layout and paint while off
+ * screen (`content-visibility: auto`). `ruled` keeps the share page's look
+ * until U6 (WAVE5 D7): the hairline headings, the 12 px quantity and pips.
  */
 import { ArrowLeftRightIcon, XIcon } from "lucide-react";
+import type { CSSProperties } from "react";
 
 import { CardNamePreview } from "@/components/deck/card-name-preview";
 import { CostPips } from "@/components/deck/cost-pips";
@@ -42,10 +50,60 @@ import type { DeckGroup } from "@/lib/decks/view-model";
 import type { GameAdapter } from "@/lib/games/types";
 import { cn } from "@/lib/utils";
 
-export const GROUP_HEADER_CLASS =
+/** A list group's heading (U3a): the label beside its count, on space — no hairline, no section margin. */
+export const GROUP_HEADER_CLASS = "flex items-baseline gap-2 pt-5 pb-1.5";
+/** The share page's group heading until U6: the eyebrow with its count inside, a hairline under. */
+export const RULED_GROUP_HEADER_CLASS =
   "text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase";
 /** Sticks to the top of the nearest scroll container (the editor's deck section on lg). */
 export const STICKY_HEADER_CLASS = "bg-background sticky top-0 z-10";
+
+/**
+ * The editor's groups (U3a): skipped while off screen, each holding its
+ * height until first drawn — a 50 px heading (20 + 20 + 6, the list's 4)
+ * and its rows at 28 px (the 24 px steppers and the row's 4), 48 on touch —
+ * and its drawn height after (`auto`), so the scroll height stays honest.
+ * A stuck heading still sticks: it sticks inside its own section either way.
+ */
+const DEFERRED_GROUP_CLASS =
+  "[content-visibility:auto] [contain-intrinsic-size:auto_calc(3.125rem_+_var(--group-rows)_*_1.75rem)] pointer-coarse:[contain-intrinsic-size:auto_calc(3.125rem_+_var(--group-rows)_*_3rem)]";
+
+/**
+ * A list group's heading (U3a, WAVE5 D4): the uppercase 12 px label in muted
+ * ink and its count at 14 px semibold tabular in the foreground, so "LAND 38"
+ * reads as a label and a number. Shared by the text and grid views and the
+ * leader zone; `ruled` is the share page's heading until U6.
+ */
+export function GroupHeading({
+  label,
+  qty,
+  sticky = false,
+  ruled = false,
+}: {
+  label: string;
+  qty: number;
+  /** Sticks inside the editor's scrolling pane (C12). */
+  sticky?: boolean;
+  /** The share page's look until U6: the eyebrow, its count inside, the hairline. */
+  ruled?: boolean;
+}) {
+  if (ruled) {
+    return (
+      <h3 className={cn(RULED_GROUP_HEADER_CLASS, sticky && STICKY_HEADER_CLASS)}>
+        {label}
+        <span className="ml-1.5 tabular-nums">{qty}</span>
+      </h3>
+    );
+  }
+  return (
+    <h3 className={cn(GROUP_HEADER_CLASS, sticky && STICKY_HEADER_CLASS)}>
+      <span className="type-eyebrow text-muted-foreground">{label}</span>
+      <span data-slot="group-count" className="text-foreground text-sm font-semibold tabular-nums">
+        {qty}
+      </span>
+    </h3>
+  );
+}
 
 /** Reveal-on-hover/focus for the per-row controls; the quantity itself never hides. On coarse pointers: always shown, 44 px. */
 const REVEAL_CLASS =
@@ -72,6 +130,8 @@ interface DeckTextViewProps {
   pop?: { key: string; nonce: number } | null;
   /** Share pages: hover / focus card previews on the name buttons (F5). */
   preview?: boolean;
+  /** The share page's look until U6 (U3a): hairline headings, the 12 px quantity and pips. */
+  ruled?: boolean;
 }
 
 export function DeckTextView({
@@ -87,15 +147,19 @@ export function DeckTextView({
   stickyHeaders = false,
   pop = null,
   preview = false,
+  ruled = false,
 }: DeckTextViewProps) {
   return (
     <>
       {groups.map((group) => (
-        <section key={group.key} className="mt-4">
-          <h3 className={cn(GROUP_HEADER_CLASS, stickyHeaders && STICKY_HEADER_CLASS)}>
-            {group.label}
-            <span className="ml-1.5 tabular-nums">{group.qty}</span>
-          </h3>
+        <section
+          key={group.key}
+          className={cn(ruled && "mt-4", stickyHeaders && DEFERRED_GROUP_CLASS)}
+          style={
+            stickyHeaders ? ({ "--group-rows": group.items.length } as CSSProperties) : undefined
+          }
+        >
+          <GroupHeading label={group.label} qty={group.qty} sticky={stickyHeaders} ruled={ruled} />
           <ul className="mt-1">
             {group.items.map(({ entry, card }) => {
               const rowKey = `${entry.zone}:${entry.cardId}`;
@@ -161,7 +225,8 @@ export function DeckTextView({
                         key={popping ? pop.nonce : "qty"}
                         data-slot="qty"
                         className={cn(
-                          "w-6 text-center text-xs tabular-nums",
+                          "w-6 text-center tabular-nums",
+                          ruled ? "text-xs" : "text-sm font-medium",
                           popping && "motion-safe:animate-dw-in [--dw-opacity:1] [--dw-scale:0.5]",
                         )}
                       >
@@ -178,7 +243,13 @@ export function DeckTextView({
                       </Button>
                     </span>
                   ) : (
-                    <span data-slot="qty" className="w-6 shrink-0 text-center text-xs tabular-nums">
+                    <span
+                      data-slot="qty"
+                      className={cn(
+                        "w-6 shrink-0 text-center tabular-nums",
+                        ruled ? "text-xs" : "text-sm font-medium",
+                      )}
+                    >
                       {entry.qty}
                     </span>
                   )}
@@ -189,15 +260,16 @@ export function DeckTextView({
                   ) : (
                     nameButton
                   )}
-                  {/* Fixed pip column (C12): min-w-20 fits the fixtures' widest six-pip costs; a wider cost extends rather than wraps. */}
+                  {/* Fixed pip column (C12): min-w-20 fits four 11.2 px pips (U3a: 0.8em of the column's text-sm); a five- or six-pip cost extends to the left rather than wraps, right edges still aligned. */}
                   <span
                     data-slot="pips"
                     className={cn(
                       "inline-flex min-w-20 shrink-0 justify-end",
+                      ruled ? "text-xs" : "text-sm [--pip-size:0.8em]",
                       onSetQty && "pointer-coarse:min-w-12",
                     )}
                   >
-                    <CostPips html={adapter.display.costHtml(card)} className="text-xs" />
+                    <CostPips html={adapter.display.costHtml(card)} />
                   </span>
                   {onSwap &&
                     (canSwap?.(entry, card) ? (

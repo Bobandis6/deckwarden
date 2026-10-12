@@ -25,6 +25,9 @@
  * a kept hand) restarts at zero mulligans. Every deal bumps a nonce that
  * keys the list, so a new hand or a mulligan replays the deal. The draw
  * itself (`drawHand` / `buildLibrary`) is untouched.
+ *
+ * U3a (WAVE5 D4): the heading's hairline becomes space in the editor, like
+ * the list groups'; `ruled` keeps it on the share page until U6.
  */
 import { ChevronDownIcon } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -53,11 +56,14 @@ export function SampleHand({
   cards,
   format,
   onPreview,
+  ruled = false,
 }: {
   entries: EditorEntry[];
   cards: ReadonlyMap<string, EditorCard>;
   format: FormatDef;
   onPreview?: (card: EditorCard) => void;
+  /** The share page's hairline heading until U6 (U3a). */
+  ruled?: boolean;
 }) {
   const library = useMemo(() => buildLibrary(entries, format), [entries, format]);
   const [hand, setHand] = useState<string[] | null>(null);
@@ -94,7 +100,7 @@ export function SampleHand({
 
   return (
     <Collapsible defaultOpen className="mt-6" render={<section />}>
-      <h2 className="border-b pb-1">
+      <h2 className={ruled ? "border-b pb-1" : "pb-1.5"}>
         <CollapsibleTrigger className="group/trigger text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded text-xs font-medium tracking-wide uppercase hover:underline pointer-coarse:min-h-11">
           Sample hand
           <ChevronDownIcon

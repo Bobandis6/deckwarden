@@ -2381,10 +2381,13 @@ export function DeckEditor({
                 facts={bracketFacts.state}
                 onRetry={bracketFacts.retry}
                 onWhy={openBracket}
+                slot
               />
             )
           }
           extras={tier !== "phone"}
+          // U3a: the seed lands in a reserved leader box (the doors above wait the same way).
+          seeding={draftSeed !== null && !seedSettled}
           owned={hasCollection ? owned : undefined}
           ownership={ownership}
         />

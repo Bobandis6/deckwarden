@@ -99,6 +99,8 @@ describe("SearchPane", () => {
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(2);
     expect(options[0].getAttribute("aria-selected")).toBe("true");
+    // U3a: an unselected row shows a press in the selection's look (a finger sees the hit).
+    expect(options[1].className).toContain("active:bg-accent active:text-accent-foreground");
     expect(input.getAttribute("aria-activedescendant")).toBe("search-result-0");
     expect(document.querySelectorAll('[data-slot="thumb"]')).toHaveLength(2);
     const imgs = document.querySelectorAll("img");

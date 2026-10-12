@@ -24,14 +24,23 @@
  * after hydration, so a glow would fire on an empty frame. The caption
  * comes from the shared `leaderCaption` (the artwork header reads the
  * same helper).
+ *
+ * U3a (WAVE5 D4): the heading is the groups' `GroupHeading` (label and
+ * count on space; `ruled` keeps the share page's hairline until U6). The
+ * editor's image is `priority` — the pane's largest paint, so eager, high
+ * fetch priority and no fade — and while a URL seed is on its way
+ * (`pending`) the zone holds the card's box as a Skeleton, so the seed
+ * fills a reserved slot instead of replacing the empty state.
  */
 import { ArrowRightIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useId } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
+import { GroupHeading } from "@/components/deck/deck-text-view";
 import { EmptyState } from "@/components/empty-state";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMac } from "@/components/use-is-mac";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import { leaderCaption } from "@/lib/decks/leader-caption";
@@ -58,6 +67,12 @@ interface LeaderZoneProps {
   onBrowseLeader?: () => void;
   /** For the caption's id badge and stat line; absent = name only. */
   adapter?: GameAdapter;
+  /** The share page's hairline heading until U6 (U3a). */
+  ruled?: boolean;
+  /** The editor (U3a): the card image is the pane's LCP — eager, high fetch priority, no fade. */
+  priority?: boolean;
+  /** A URL seed is on its way (U3a): the card's box as a Skeleton instead of the empty state. */
+  pending?: boolean;
 }
 
 export function LeaderZone({
@@ -69,6 +84,9 @@ export function LeaderZone({
   onChooseLeader,
   onBrowseLeader,
   adapter,
+  ruled = false,
+  priority = false,
+  pending = false,
 }: LeaderZoneProps) {
   const noun = zone.label.toLowerCase();
   const readOnly = !onRemove;
@@ -78,12 +96,27 @@ export function LeaderZone({
   // described onto the card button — the name stays "Show {name}".
   const idPrefix = useId();
   return (
-    <section className="mt-4">
-      <h3 className="text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase">
-        {zone.label}
-        <span className="ml-1.5 tabular-nums">{items.reduce((n, i) => n + i.entry.qty, 0)}</span>
-      </h3>
-      {items.length === 0 ? (
+    <section className={ruled ? "mt-4" : undefined}>
+      <GroupHeading
+        label={zone.label}
+        qty={items.reduce((n, i) => n + i.entry.qty, 0)}
+        ruled={ruled}
+      />
+      {items.length === 0 && pending ? (
+        // The seeded card's box (U3a): the image's aspect, the name row at
+        // the Remove button's height, the caption's line — so the seed lands
+        // in place and the empty state never flashes before it.
+        <ul aria-hidden data-slot="leader-pending" className="mt-2 flex flex-wrap gap-3">
+          <li className="w-40 max-w-[45%]">
+            <Skeleton className="aspect-[488/680] w-full rounded-[4.75%/3.5%]" />
+            <span className="mt-1 flex items-center gap-1">
+              <Skeleton className="h-3 flex-1" />
+              <span className="size-6 shrink-0 pointer-coarse:size-11" />
+            </span>
+            <span className="block font-mono text-[0.65rem]">{" "}</span>
+          </li>
+        </ul>
+      ) : items.length === 0 ? (
         <EmptyState
           className="mt-2 py-3"
           title={`No ${noun} yet`}
@@ -155,6 +188,7 @@ export function LeaderZone({
                     width={488}
                     height={680}
                     frame
+                    priority={priority}
                     className="w-full text-xs shadow-md"
                   />
                 </button>

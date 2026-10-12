@@ -66,3 +66,22 @@ describe("DeckGridView — severity as text", () => {
     expect(document.querySelectorAll("[data-slot=severity]")).toHaveLength(2);
   });
 });
+
+describe("DeckGridView — the group heading (U3a)", () => {
+  it("the text view's heading — label and count on space, sticky when asked; `ruled` keeps the share page's hairline", () => {
+    const { container, unmount } = render(
+      <DeckGridView groups={groups} severity={new Map()} onPreview={() => {}} stickyHeaders />,
+    );
+    const heading = screen.getByRole("heading", { level: 3 });
+    expect(heading.className).toContain("pt-5 pb-1.5");
+    expect(heading.className).toContain("sticky top-0");
+    expect(heading.querySelector("[data-slot=group-count]")?.textContent).toBe("3");
+    expect(container.querySelector("section")?.className ?? "").not.toContain("mt-4");
+    unmount();
+    const share = render(
+      <DeckGridView groups={groups} severity={new Map()} onPreview={() => {}} ruled />,
+    );
+    expect(screen.getByRole("heading", { level: 3 }).className).toContain("border-b pb-1");
+    expect(share.container.querySelector("section")?.className).toBe("mt-4");
+  });
+});

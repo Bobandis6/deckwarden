@@ -212,6 +212,13 @@ describe("EditorLayout at wide", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.querySelector("[data-slot=drawer-popup]")).toBeNull();
   });
+
+  it("the tools pane is a column at wide, so the attribution (mt-auto) rests on its bottom edge (U3a)", () => {
+    render(<Harness tier="wide" />);
+    const tools = section("Card detail and suggestions");
+    expect(tools.className).toContain("wide:flex wide:flex-col");
+    expect(tools.className).not.toContain("wide:block");
+  });
 });
 
 describe("EditorLayout across a tier change", () => {

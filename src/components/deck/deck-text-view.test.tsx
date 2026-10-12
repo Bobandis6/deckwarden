@@ -275,3 +275,105 @@ describe("DeckTextView touch targets (R4)", () => {
     expect(document.querySelector("[data-slot=pips]")?.className).not.toContain("pointer-coarse");
   });
 });
+
+describe("DeckTextView — lines to space (U3a, WAVE5 D4)", () => {
+  it("a group heading is its label and its count on space: 12 px uppercase muted label, 14 px semibold tabular count, pt-5 pb-1.5, no hairline", () => {
+    const { container } = render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol, qty: 4 }, { card: forest }])}
+        severity={new Map()}
+        onSetQty={vi.fn()}
+        onRemove={vi.fn()}
+        onPreview={vi.fn()}
+        stickyHeaders
+      />,
+    );
+    const heading = screen.getByRole("heading", { level: 3 });
+    expect(heading.className).toContain("pt-5 pb-1.5");
+    expect(heading.className).not.toContain("border-b");
+    expect(heading.className).toContain("sticky top-0");
+    const [label, count] = [...heading.children] as HTMLElement[];
+    expect(label.textContent).toBe("Test");
+    expect(label.className).toContain("type-eyebrow");
+    expect(label.className).toContain("text-muted-foreground");
+    expect(count.textContent).toBe("5");
+    expect(count.dataset.slot).toBe("group-count");
+    expect(count.className).toContain("text-foreground text-sm font-semibold tabular-nums");
+    // The space is the heading's: the section carries no margin of its own.
+    expect(container.querySelector("section")?.className).not.toContain("mt-4");
+  });
+
+  it("the quantity is 14 px medium tabular, the name's size; the pips are 0.8em of a text-sm column", () => {
+    render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol, qty: 4 }])}
+        severity={new Map()}
+        onSetQty={vi.fn()}
+        onRemove={vi.fn()}
+        onPreview={vi.fn()}
+      />,
+    );
+    const qty = document.querySelector<HTMLElement>("[data-slot=qty]")!;
+    expect(qty.className).toContain("text-sm font-medium");
+    expect(qty.className).not.toContain("text-xs");
+    const pips = document.querySelector<HTMLElement>("[data-slot=pips]")!;
+    expect(pips.className).toContain("text-sm [--pip-size:0.8em]");
+    expect(pips.firstElementChild?.className).not.toContain("text-xs");
+    expect(pips.querySelector(".pip")).not.toBeNull();
+  });
+
+  it("the editor's groups skip layout while off screen, each holding its rows' height until drawn", () => {
+    const { container, unmount } = render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol }, { card: forest }])}
+        severity={new Map()}
+        onSetQty={vi.fn()}
+        onRemove={vi.fn()}
+        onPreview={vi.fn()}
+        stickyHeaders
+      />,
+    );
+    const section = container.querySelector<HTMLElement>("section")!;
+    expect(section.className).toContain("[content-visibility:auto]");
+    expect(section.className).toContain(
+      "[contain-intrinsic-size:auto_calc(3.125rem_+_var(--group-rows)_*_1.75rem)]",
+    );
+    expect(section.style.getPropertyValue("--group-rows")).toBe("2");
+    unmount();
+    // The share page scrolls the document and keeps every group drawn.
+    const share = render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol }])}
+        severity={new Map()}
+        onPreview={vi.fn()}
+      />,
+    );
+    expect(share.container.querySelector("section")?.className).not.toContain("content-visibility");
+  });
+
+  it("`ruled` keeps the share page's look until U6: the hairline heading, the 12 px quantity and pips", () => {
+    const { container } = render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol, qty: 2 }])}
+        severity={new Map()}
+        onPreview={vi.fn()}
+        ruled
+      />,
+    );
+    const heading = screen.getByRole("heading", { level: 3 });
+    expect(heading.className).toBe(
+      "text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase",
+    );
+    expect(heading.textContent).toBe("Test2");
+    expect(container.querySelector("section")?.className).toBe("mt-4");
+    expect(document.querySelector("[data-slot=qty]")?.className).toContain("text-xs");
+    const pips = document.querySelector<HTMLElement>("[data-slot=pips]")!;
+    expect(pips.className).toContain("text-xs");
+    expect(pips.className).not.toContain("--pip-size");
+  });
+});
