@@ -1,0 +1,93 @@
+# U8 session prompt — Type ladder + shell a11y (the `.type-*` classes that set size, leading, tracking and weight together; the Warden line at 13 / 500; the skip link; `aria-current` in the nav; the eased theme change gated after hydration; the hub hero card's tinted shadow)
+
+> **Status: not run yet.** Written 2026-10-12 at the end of U2 (code `95ea360`), every anchor below re-grepped against `95ea360`. Add a dated ship note at the top of this file when U8 ships, the way `U2-session-prompt.md` has one.
+
+Pull latest, then run U8, the third Wave-5 package. **`WAVE5.md` is the contract.** Read, in this order: D0 (the wave's rules — the third type step is weight and case, never alpha; the uppercase 12 px label names list groups only); **D3** in full (the ladder table, the shell, the tests); E's U8 section and the U8 row of the **pin matrix**; then U2's ship note (top of `U2-session-prompt.md`) and REDESIGN.md's "U2 decisions and deviations", because the eased theme change is a U2-token transition (250 ms, `settle-250`) and must obey U2's reduced-motion backstop.
+
+U8 is S-sized. **No migration, no new route, no new dependency, no font** (`opsz` stays `auto`; no `font-variation-settings`). It touches `globals.css`, the heading call sites, `validation-panel.tsx`, `site-nav-link.ts` and its consumers, `src/app/layout.tsx`, `theme-provider.tsx`, and `c/[slug]/page.tsx`'s hero card.
+
+Pre-flight, in order.
+1. **Main is green.** `pnpm check` = **2,182 tests / 204 files / the same 6 `no-unused-vars` warnings / 0 errors** on `95ea360`. A test red for a date reason is fixed first, as its own commit (a wall-clock fixture is written relative to `Date.now()`).
+2. **Nightlies green** (`gh run list --workflow=nightly-ingest.yml --limit 3`). A red run is P4.7 branch F and preempts everything. (The 2026-10-12 scheduled run landed at 19:59 Z.)
+3. **A warm beta signal outranks a package.** Ask the owner whether anything was posted; a warm signal gets the `P2.9-session-prompt.md` (Magic) or `P4.7-session-prompt.md` (One Piece) round as its own session first.
+4. **Ask for read-only database access once, at the start**, in plain words: `pnpm db:size` (287.0 MB at U2, alert 350) and the census (210 decks = 16 account + 13 guest + 181 precons; 1 user at U2), one `read only` transaction (`scripts/.tmp/census-u2.ts` is the shape), nothing written.
+5. **Working tree clean** at or after U2's ship-note commit. Another session may share this working copy: stage explicit paths only, never `git add -A`; re-read `LATER.md`, `REDESIGN.md`, `WAVE5.md` and `MEMORY.md` immediately before editing them.
+6. **State your baseline**: `pnpm check` as above, `pnpm db:size`, and save `pnpm build`'s route table (stop the dev server first: they share `.next`); the diff at the end must be **empty**.
+7. **The lab is a record.** The ladder's numbers are in `WAVE5.md` D3 (from `.claude/design-lab/lenses/apple.md` §3). Do not start the lab server; read lab files by absolute path.
+
+## What U8 is NOT (scope fence)
+
+- NOT the home's game h2s turning serif (`game-card.tsx:48`, U5), the share page's heading tree (U6), the hub openings (U7b), the deck pane's header (U3a). U8 gives them the classes to use; it converts only the sites D3 names.
+- NOT any color token, copy string, nav label, URL or layout. The Warden line's weight and size change; its words and colour do not.
+- NOT the dash and middle-dot policy (U9) — the `<title>` shapes stay out entirely.
+- NOT motion beyond the theme ease: U2's tokens are done; reuse `settle-250`.
+- Anything else → `LATER.md` with a trigger (the last row at U2's end is **219**).
+
+## Facts you inherit (verified 2026-10-12 against `95ea360` — re-grep lines, trust the shapes)
+
+**The h1 sites.** D3 says "ten sites with `text-3xl tracking-tight`"; the tree has **eighteen** `text-3xl` lines and **all eighteen** carry `tracking-tight`: `src/app/error.tsx:41`, `src/app/global-error.tsx:36`, `src/app/decks/new/new-deck-chooser.tsx:110`, `src/components/warden-not-found.tsx:24`, `src/components/deck/deck-share-view.tsx:422`, and under `src/app/(site)/`: `commanders/page.tsx:95`, `privacy/page.tsx:24`, `cards/page.tsx:59`, `cards/[id]/page.tsx:153`, `precons/page.tsx:66`, `leaders/page.tsx:106`, `sets/page.tsx:44`, `account/page.tsx:140`, `tournaments/page.tsx:86`, `tournaments/[id]/page.tsx:67`, `legal/page.tsx:18`, `c/[slug]/page.tsx:194`, `l/[slug]/page.tsx:175`. Decide which are `.type-title` (the page h1s — the default for all eighteen) and say so; `global-error.tsx` renders outside the app's CSS layers' usual tree, so check its stylesheet reaches it before converting (or leave it and disclose). The share page's h1 is U6's surface: converting its class here is fine (the class, not the tree).
+**The home H1** is `src/app/(site)/page.tsx:64`: `font-display max-w-3xl text-5xl font-bold tracking-tight text-balance` → `.type-display` (48 / 50 / −0.02em / 700). Its eyebrow at `:61` (`text-xs font-medium tracking-wide uppercase`, the "Open beta" pill) is U5's to retire (F5) — leave it.
+**Bare `tracking-*`** in non-test `.tsx` at `95ea360`: `tracking-tight` 25, `tracking-wide` 32, `tracking-widest` 1, `tracking-normal` 1. D3's acceptance is "no bare `tracking-*` on a heading" — the `tracking-wide uppercase` list-group labels are D0's eyebrow and keep `+0.025em` (`.type-meta`'s uppercase form), so do not chase all 32; count the headings.
+**The Warden line** (`src/components/deck/validation-panel.tsx`): the `<p role="status">` at **~97** is `mt-2 flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400`; the words span at **~110** is `font-display` (+ U2's `motion-safe:animate-dw-in` on a settle). D3: `.type-caption` (Literata 13 / 20 / +0.01em / 500). The approval action below it (`~121`, `pl-5.5 text-xs`) is indented to the line's text (the 16 px shield + the 6 px gap) — check that indent still lines up at 13 px. Text pins that must stay green: `deck-editor.test.tsx:1975` (`line.textContent` is exactly "The Warden approves this deck ✓"), `deck-list-pane.test.tsx:54`, and `validation-panel.test.tsx` (U2 re-pinned its motion classes: `motion-safe:animate-dw-in`, `motion-safe:duration-400 motion-safe:ease-settle-400` on the shield).
+**The year h2s**: `src/components/deck/precons-index-view.tsx:207` and `src/components/sets/sets-index-view.tsx:113`, both `font-display text-muted-foreground border-b pb-1 text-sm font-semibold` → `.type-small`.
+**The micro sites**: the ambient credit chip `src/components/deck/ambient-art.tsx:181` (`text-[0.65rem] leading-4`), `surface-header.tsx:112`'s credit chip, and the `text-[0.65rem]` captions — which live in `deck/analytics-blocks.tsx` (54, 76, 142, 147, 183), `deck/sample-hand.tsx:158` and `editor/editor-attribution.tsx:14`, **not** in `deck-share-view.tsx` (0 hits; D3's "the share page's captions" are these shared components rendered there). `kbd.tsx` stays mono and boxed.
+**The nav** (`src/components/site-nav-link.ts:8`): `navLinkClass` has no `aria-current` styling, and no nav link sets `aria-current` today (only `game-switch.tsx:42` and `color-chip.tsx:213` do, for their own controls). U8 needs both halves: the class (`aria-[current=page]:text-foreground`, D3) and the attribute on Build, My decks and Browse (Browse "when a browse route is open" — Browse is a menu trigger, so decide whether the trigger carries `aria-current` or only its menu's open item, and pin it). `site-header.tsx` is a server shell and `site-nav.tsx` the client island (`usePathname` lives there); `site-header.test.tsx` has nine cases (66–214) to extend.
+**The skip link**: there is **no `id` on any `<main>`** (≈ 22 page-level `<main>`s across `src/app`), and `src/app/(site)/layout.tsx` renders `<SiteHeader />{children}<SiteFooter />` with no wrapper. D3 says the link is "the first focusable in `src/app/layout.tsx`, targeting the page `<main>`" — choose the target mechanism (an `id="main"` on every page's `<main>`, or one wrapper in the layouts, or the editor's own) and disclose; the editor routes have no site header, so decide whether they get the link too (the default: yes, it is in the root layout).
+**The theme ease**: `src/components/theme/theme-provider.tsx` passes **`disableTransitionOnChange`** to next-themes, which injects a `* { transition: none !important }` style for the switch — it must go (or the ease never runs), and the replacement is `motion-safe:` `background-color` / `color` over 250 ms on `settle-250` on `html`, gated by a `data-theme-ready` attribute set after hydration so first paint never animates. Watch the cost: a transition on `html` alone does not cascade, but anything with its own `transition-colors` (the default is now 120 ms / settle-120 since U2) will animate on a theme switch too — measure one switch on the editor (a Performance trace) before and after. The reduced-motion backstop (`globals.css` `@layer base` `@media`) zeroes it; the exception does not list `html`.
+**The hub hero card**: `src/app/(site)/c/[slug]/page.tsx:187` `w-72 rounded-2xl shadow-lg` → tinted (`shadow-primary/25` light, `dark:shadow-black/60`). `surface-header.tsx` has no `shadow-lg` (D3's citation of it is stale); `l/[slug]` has none either.
+**`tokens.test.ts`** reads `globals.css` from disk; U2 added cases for the curves, the keyframes, the ring glow and the exception, and a comment-stripped `code` string. The new ladder case: every `.type-*` rule sets `font-size`, `line-height` and `letter-spacing` (and `font-weight` where D3 gives one). Prettier reflows long values in `globals.css` (U2's `linear()` lists went multi-line) — normalise whitespace in any new pin.
+
+## Verify-first list (never from memory)
+
+1. **Tailwind v4 and `@layer components` classes with variants**: a `.type-title` defined in `@layer components` is overridable by utilities at the call site (that's the point of the layer) — confirm a stray `tracking-tight` beside it would still win, which is why the acceptance removes them.
+2. **Literata at 13 / 500** renders (the font's loaded weights — `src/app/layout.tsx`'s `next/font` call; if 500 isn't loaded the browser synthesises or falls back; check the computed `font-weight` and the network's font files).
+3. **The Warden line's contrast at 13 / 500** in both themes (D3: "lifts the light pair from 4.88:1 without a color change" — re-measure with the Appendix B helper on dev).
+4. **The skip link** is the first focusable on a `(site)` page and the editor (Tab once from the address bar in Brave through the DevTools MCP: `press_key` Tab, then read `document.activeElement`), it becomes visible on focus, and its target receives focus (a `<main>` needs `tabIndex={-1}` to take it).
+5. **`aria-current="page"`** lands on the right nav item per route (`/` none; `/decks/new` Build; `/account` My decks; `/commanders`, `/leaders`, `/cards`, `/sets`, `/precons`, `/tournaments` Browse) — jsdom with a mocked `usePathname`, and once live.
+6. **First paint never animates the theme**: a hard reload in light and in dark shows no `background-color` transition on `html` (`document.documentElement.getAnimations()` empty at load), and a switch after hydration runs 250 ms on settle-250.
+7. **`pnpm build`'s route table diff is empty.**
+8. **Deploy verification** through `gh api repos/Bobandis6/deckwarden/commits/<full sha>/statuses` → context "Vercel" (it reads `pending` for the first minute or so; CI is separate).
+
+## Design decisions to make explicitly (disclose + pin each)
+
+- **The ladder's home**: `@layer components` in `globals.css` (D3), each class one rule; `.type-label` has three sizes — three classes (`.type-label`, `.type-label-sm`, `.type-label-xs`) or one class with size utilities beside it.
+- **Which of the eighteen h1s convert** (the default: all that share the page-h1 role; `global-error.tsx` only if the stylesheet reaches it).
+- **The skip link's target** (see Facts) and whether the editor gets it.
+- **Browse's `aria-current`**: on the trigger, the menu item, or both.
+- **The theme ease's reach**: `html` only (D3) — and whether `disableTransitionOnChange` goes entirely or is replaced by the hydration gate alone.
+
+## Deployable outcome
+
+**U8 is one commit of code**, then the docs commit.
+
+Verified **on prod, signed out, zero creates**: the served CSS carries the `.type-*` rules; the home H1 carries `.type-display` and no `tracking-tight`; a hub's h1 `.type-title`; the precon draft (`/decks/new?game=mtg&from=calling_all_angels_fdc`, state-only) shows the Warden line at 13 / 500; the skip link is in every page's HTML before the header; `/commanders` has `aria-current="page"` on Browse; the route table diff is empty; `/c/[slug]`, `/l/[slug]` and `/cards/[id]` stay `●`; `/sets` and `/precons` stay `○`.
+
+Verified **on dev**: D3's acceptance (no bare `tracking-*` on a heading — list the grep and what remains, with why); the Warden line's contrast both themes; the skip link by keyboard; the theme switch eased after hydration and not at first paint, and instant under reduced motion (the CSSOM-copy method from U2's ship note); the home H1 at 390 with descenders clear (48 / 50); no heading reflow beyond the ladder's own leading at 390 and 1440.
+
+**Handed to the owner**: nothing signed-in. One look at the home H1 and a hub on their phone is welcome.
+
+Tests: `site-header.test.tsx` (+ skip link, `aria-current` per route); `tokens.test.ts` (+ the ladder: every class sets size, leading and tracking); the Warden line tests stay text-matched (`deck-editor.test.tsx:1975`, `deck-list-pane.test.tsx:54`); any class pin on a converted heading moves with it in the same commit.
+
+Docs in the same package: the `WAVE5.md` tracker ticked with the sha and any deviation beside it; a dated ship note at the top of this file; REDESIGN.md "U8 decisions and deviations" under the Wave-5 addendum; `LATER.md` rows from **220** for anything deferred; memory updated; **`U3a-session-prompt.md` written** the way this one was. `pnpm db:size` stated. Nothing posted, seeded or simulated.
+
+## Session notes (environment)
+
+- PATH per command: `export PATH="$HOME/.local/node22/bin:$HOME/.local/bin:$PATH"` (node, pnpm, gh). `psql` and `aws` are absent. Ad-hoc SQL runs through `pnpm exec tsx` on a file in `scripts/.tmp/` (gitignored but linted — delete yours when done) inside one `read only` transaction.
+- `.env.local`'s `DATABASE_URL` is prod's pooler; dev shares prod's database. `source .env.local` fails in zsh.
+- Dev server: `preview_start {name: "dev-log"}` after `lsof -nP -iTCP:3000 -sTCP:LISTEN`. Stop it before `pnpm build`. `next dev` re-adds the AGENTS.md block; commit it with your work if it appears. **After deleting a throwaway `qa-<pkg>` page, delete `.next/dev` too** — U2's first build failed on a stale `.next/dev/types/validator.ts` that still imported it.
+- **Measuring browser**: the chrome-devtools MCP (Brave). If `list_pages` says "The browser is already running for …/chrome-devtools-mcp/chrome-profile", an earlier session's Brave holds the profile — ask the owner, then quit only that profile's main process (`ps ax -o pid=,command= | grep "user-data-dir=$HOME/.cache/chrome-devtools-mcp/chrome-profile" | grep -v Helper`); U2 did this with the owner's OK. `emulate` with `viewport: "390x844x3,mobile,touch"` gives `(pointer: coarse)`, `1440x900x1` the desktop, `cpuThrottlingRate: 4` for traces; reset both when done. `navigate_page` with `initScript: "localStorage.setItem('theme','light')"` sets the theme per load. **Reduced motion has no emulation switch**: copy the `@media (prefers-reduced-motion: reduce)` rule's `cssRules` out of the CSSOM into a `<style>` wrapped in `@layer base { … }` (U2's method).
+- A throwaway `src/app/(site)/qa-<pkg>/page.tsx` ("use client") measures components without a deck row; delete it (and `.next/dev`) before `pnpm build`, never commit it.
+- The browser pane, if used, is hidden: it pauses rAF and stalls Base UI transitions — never judge motion there.
+- `react-hooks/refs` and `react-hooks/set-state-in-effect` are lint errors in this tree (a `setState` inside an effect's timer callback or its cleanup passes; U2's save-slot flag does both).
+- Four source files hold a literal NUL byte (one is `autofill-sheet.tsx`'s `pickKey` template); an exact-string edit anchored on such a line misses silently. Assert anchors. Prettier reflows scripted-edit anchors after `pnpm format`; `*.md` is prettier-ignored.
+- **Tailwind v4 reads the Markdown docs for class names** (LATER row 217): a class quoted in this prompt or WAVE5.md is minted into the served CSS, so a grep of the built CSS can find a string no component uses — check `src/` before believing it.
+- `grep` here is ugrep: put `-e` before a pattern that starts with `--`, and quote `--include='*.tsx'` globs.
+- Prod: curls need `--compressed`; ISR pages lag a deploy by up to an hour; U8 creates no prod decks. The editor on `/decks/new` renders client-side — its HTML shell carries none of the editor, so prod checks of editor classes run in Brave's DOM.
+
+## Context, not tasks
+
+- Sequence after U8: U3a deck pane bones → U3b materials → U4a phone Deck tab → U4b phone sheet + Tools strip (**owner review: the editor**; U4b also takes the drawer's `flick-400` release split by `data-swiping`, which U2 left at settle-400 both ways) → U7a → U5 → U6 (**owner review: the public surfaces**) → U7b → U9 → U10a → U10b (the filter chips' press, LATER row 219).
+- The owner's 22 answers of 2026-10-12 stand (`WAVE5.md`, Context). The defaults in `WAVE5.md` section F are open until the owner says otherwise.
+- P2.9's and P4.7's standing triggers still exist beside the U-series and get their own round. The r/EDH post is still unposted; P2.9 round 3 is armed for it.
+- The site is unannounced. The cold-start rule holds. Premium never gates card data.
+- The lab branch `design-lab` (worktree `.claude/worktrees/design-lab`, `395179d`) is a record: read it by absolute path, never commit to it, rebase it, push it or delete it.
