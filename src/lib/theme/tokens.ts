@@ -91,6 +91,16 @@ export type TokenName = keyof typeof light;
 export const radius = "0.75rem";
 
 /**
+ * The control edge (U1, WAVE5.md D1): `--border-control` is the foreground
+ * at this percentage over transparent — 55 on ivory, 40 on charcoal — in
+ * globals.css's third `:root` / `.dark` pair (an alpha, so it cannot be a
+ * hex token above). Outline buttons, inputs, select triggers and the
+ * Segmented's container read it; ≥ 3:1 on the page and on a card in both
+ * themes. tokens.test.ts pins the two declarations to these numbers.
+ */
+export const borderControl = { light: 55, dark: 40 } as const;
+
+/**
  * OG unfurls always paint the dark theme — Discord/Twitter cards sit on the
  * viewer's chrome, not ours, so there is no light variant to honor.
  */

@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { GAME_ID } from "@/db/seed-data";
-import { dark, light, og, ogAccent, radius, rgba } from "./tokens";
+import { borderControl, dark, light, og, ogAccent, radius, rgba } from "./tokens";
 
 const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
@@ -51,6 +51,26 @@ describe("theme tokens ↔ globals.css", () => {
     expect(block("[data-game]")).toEqual({ ring: "var(--accent-game)" });
     // No game context → the brand carries the accent.
     expect(css).toMatch(/:root\s*\{\s*--accent-game: var\(--brand\);\s*\}/);
+  });
+
+  it("the control edge is the foreground at 55 % (light) / 40 % (dark) over transparent, in its own pair (U1)", () => {
+    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const decl = (pct: number) =>
+      esc(`--border-control: color-mix(in oklch, var(--foreground) ${pct}%, transparent);`);
+    const lightRule = css.match(
+      new RegExp(`\\n:root\\s*\\{\\s*${decl(borderControl.light)}\\s*\\}`),
+    );
+    const darkRule = css.match(
+      new RegExp(`\\n\\.dark\\s*\\{\\s*${decl(borderControl.dark)}\\s*\\}`),
+    );
+    expect(lightRule).not.toBeNull();
+    expect(darkRule).not.toBeNull();
+    // After the hex token blocks (block() reads the FIRST :root and .dark)
+    // and the accent rules; before the base layer.
+    expect(lightRule!.index!).toBeGreaterThan(css.indexOf("[data-game] {"));
+    expect(darkRule!.index!).toBeGreaterThan(lightRule!.index!);
+    expect(darkRule!.index!).toBeLessThan(css.indexOf("@layer base"));
+    expect(borderControl).toEqual({ light: 55, dark: 40 });
   });
 
   it("the accents are exposed as Tailwind colors", () => {

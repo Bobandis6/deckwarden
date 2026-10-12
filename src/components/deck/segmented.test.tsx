@@ -62,6 +62,21 @@ describe("Segmented", () => {
     }
   });
 
+  it("U1: 28 px like the sm Button — 13 px labels on a set 18 px line, inside the control edge", () => {
+    render(<Segmented label="View" options={VIEW_OPTIONS} value="text" onChange={() => {}} />);
+    for (const item of screen.getAllByRole("button")) {
+      const cls = item.className.split(/\s+/);
+      expect(cls).toContain("text-[0.8125rem]");
+      expect(cls).toContain("leading-4.5");
+      expect(cls).toContain("py-1");
+      expect(cls).not.toContain("text-xs");
+      expect(cls).not.toContain("text-[0.8rem]");
+    }
+    const group = screen.getByRole("group", { name: "View" }).className.split(/\s+/);
+    expect(group).toContain("border-(--border-control)");
+    expect(group).not.toContain("border-input");
+  });
+
   it("Y4b: a null value presses nothing and shows no thumb; the first pick changes it", () => {
     const onChange = vi.fn();
     const answers = [

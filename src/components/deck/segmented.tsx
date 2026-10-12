@@ -27,6 +27,12 @@
  * Y9a (the Games dialog's Players, 2–8): one-character labels made 24 px
  * segments on a phone, so a touch item is never narrower than 44 px — a
  * no-op wherever a label already made it wider (every other call site).
+ *
+ * U1 (WAVE5.md D1): 28 px on a fine pointer, like the `sm` Button beside it
+ * (was about 22) — 13 px labels on an 18 px line plus 4 px padding each
+ * side, inside the 1 px edge; the line-height is set, not inherited, so the
+ * height doesn't depend on the surrounding text size. The container's edge
+ * is `--border-control`, and the thumb slides in 120 ms.
  */
 import type { CSSProperties } from "react";
 
@@ -89,13 +95,13 @@ export function Segmented<T extends string>({
             "--seg-count": options.length,
           } as CSSProperties
         }
-        className="border-input relative isolate grid w-fit overflow-hidden rounded-md border"
+        className="relative isolate grid w-fit overflow-hidden rounded-md border border-(--border-control)"
       >
         {index >= 0 && (
           <span
             aria-hidden
             data-slot="segmented-thumb"
-            className="bg-accent pointer-events-none absolute inset-y-0 left-0 -z-10 w-[calc(100%/var(--seg-count))] translate-x-[calc(var(--seg-index)*100%)] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out"
+            className="bg-accent pointer-events-none absolute inset-y-0 left-0 -z-10 w-[calc(100%/var(--seg-count))] translate-x-[calc(var(--seg-index)*100%)] motion-safe:transition-transform motion-safe:duration-[120ms] motion-safe:ease-out"
           />
         )}
         {options.map((option) => (
@@ -104,7 +110,7 @@ export function Segmented<T extends string>({
             value={option.value}
             size="sm"
             className={cn(
-              "text-muted-foreground hover:text-foreground h-auto min-w-0 rounded-none px-2 py-0.5 text-xs font-normal hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-accent-foreground data-[state=on]:bg-transparent",
+              "text-muted-foreground hover:text-foreground h-auto min-w-0 rounded-none px-2 py-1 text-[0.8125rem] leading-4.5 font-normal hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-accent-foreground data-[state=on]:bg-transparent",
               touch && "pointer-coarse:min-h-11 pointer-coarse:min-w-11",
               touch && (options.length > 4 ? "pointer-coarse:px-2" : "pointer-coarse:px-3"),
             )}

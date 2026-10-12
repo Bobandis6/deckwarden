@@ -290,7 +290,13 @@ describe("AutofillSheet", () => {
       await screen.findByText("Too many autofill requests — try again in 7 seconds."),
     ).toBeTruthy();
     const retry = screen.getByRole("button", { name: "Retry" });
-    expect(retry).toHaveProperty("disabled", true);
+    // Disabled with a reason (U1): focusable and hoverable, so the title shows.
+    expect(retry.getAttribute("aria-disabled")).toBe("true");
+    expect(retry.hasAttribute("disabled")).toBe(false);
+    expect(retry.getAttribute("title")).toBe(
+      "Too many requests. Retry works again after the wait.",
+    );
+    fireEvent.click(retry);
     expect(bodies()).toHaveLength(1);
   });
 
