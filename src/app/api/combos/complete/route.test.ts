@@ -51,8 +51,13 @@ const SOL = "fe0aa3d8-7d4c-4b6f-a1c0-5a8f1e1f0b2a";
 const IDS = [KIKI, CONSCRIPTS, SOL].sort();
 
 const CACHE = "public, s-maxage=3600, stale-while-revalidate=86400";
-const SCRYFALL_AT = "2026-10-04T15:29:34.768Z";
-const SPELLBOOK_AT = "2026-10-04T15:31:00.000Z";
+// The runs' timestamps are relative to the clock, never absolute: the route
+// judges freshness at request time (loadBracketFreshness's `now`, the
+// adapter's STALE_AFTER_DAYS = 7), so a fixed date goes "stale" by itself a
+// week later — the 2026-10-04 dates this file first pinned turned the test
+// red on 2026-10-11 with no code change. One day ago keeps every feed "ok".
+const SCRYFALL_AT = new Date(Date.now() - 86_400_000).toISOString();
+const SPELLBOOK_AT = new Date(Date.now() - 86_400_000 + 90_000).toISOString();
 
 /** A loadCompleteCombos row in its column order. */
 const comboRow = [
