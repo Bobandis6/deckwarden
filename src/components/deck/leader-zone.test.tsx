@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { EditorCard } from "@/lib/decks/editor-state";
 import { COMMANDER } from "@/lib/games/mtg/formats";
+import { card } from "@/lib/games/mtg/test-fixtures";
 import { getAdapter } from "@/lib/games/registry";
 import { LeaderZone } from "./leader-zone";
 
@@ -293,5 +294,133 @@ describe("LeaderZone — the bones (U3a, WAVE5 D4)", () => {
     );
     expect(screen.getByRole("heading", { level: 3 }).className).toContain("border-b pb-1");
     expect(share.container.querySelector("section")?.className).toBe("mt-4");
+  });
+});
+
+describe("LeaderZone — the raised card (U3b, WAVE5 D4)", () => {
+  const RAISED_ROW = "w-40 max-w-[45%] md:flex md:w-full md:max-w-none md:items-start md:gap-4";
+  const giada: EditorCard = {
+    ...card({
+      name: "Giada, Font of Hope",
+      attrs: {
+        type_line: "Legendary Creature — Angel",
+        oracle_text: "",
+        power: "2",
+        toughness: "2",
+      },
+    }),
+    image: "https://cards.scryfall.io/normal/front/a/b/ab.jpg",
+  };
+  const giadaItem = {
+    entry: { cardId: giada.id, zone: "commander", qty: 1, tags: [] },
+    card: giada,
+  };
+
+  it("from md: the card at 180 px with its facts beside it, raised by the hero shadow on U2's 120 ms", () => {
+    render(
+      <LeaderZone
+        zone={commanderZone}
+        items={[giadaItem]}
+        severity={new Map()}
+        onRemove={() => {}}
+        onPreview={() => {}}
+        adapter={getAdapter("mtg")}
+        priority
+        raised
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Show Giada, Font of Hope" });
+    const row = button.closest("li")!;
+    expect(row.className).toBe(RAISED_ROW);
+    expect(button.className).toContain("md:w-45 md:shrink-0");
+    const img = screen.getByRole("img", { name: "Giada, Font of Hope" });
+    // HERO_CARD_SHADOW's values from md (phones keep shadow-md until U4a).
+    expect(img.className).toContain(
+      "shadow-md md:shadow-lg md:shadow-primary/25 md:dark:shadow-black/60",
+    );
+    // The frame's 2 px lift and ring on settle-120, in place of CardImage's untokened 150 ms.
+    expect(img.className).toContain("motion-safe:hover:-translate-y-0.5");
+    expect(img.className).toContain("transform_120ms_var(--ease-settle-120)");
+    expect(img.className).not.toContain("150ms");
+    // The facts: the type line and the caption as the adapter gives them (data, em dash kept).
+    const facts = row.querySelector<HTMLElement>("[data-slot=leader-facts]")!;
+    expect(facts.textContent).toBe("Legendary Creature — Angel · 2/2");
+    expect(facts.className).toBe("type-meta text-muted-foreground hidden md:block");
+    // Phones keep the mono caption under the card; from md the facts line carries it.
+    const caption = row.querySelector<HTMLElement>("[data-slot=leader-caption]")!;
+    expect(caption.textContent).toBe("2/2");
+    expect(caption.className).toContain("font-mono");
+    expect(caption.className).toContain("md:hidden");
+    expect(screen.getByText("Giada, Font of Hope").className).toContain(
+      "md:text-sm md:font-medium",
+    );
+    expect(screen.getByRole("button", { name: "Remove Giada, Font of Hope" })).toBeTruthy();
+  });
+
+  it("One Piece's facts: the category, then the printed id, Power and Life", () => {
+    render(
+      <LeaderZone
+        zone={leaderZone}
+        items={[{ entry: { cardId: enel.id, zone: "leader", qty: 1, tags: [] }, card: enel }]}
+        severity={new Map()}
+        onRemove={() => {}}
+        onPreview={() => {}}
+        adapter={optcg}
+        raised
+      />,
+    );
+    expect(document.querySelector("[data-slot=leader-facts]")?.textContent).toBe(
+      "Leader · OP15-058 · 5000 Power · 5 Life",
+    );
+  });
+
+  it("the Skeleton is the same row while a seed is on its way: the card's box, then the name row and a facts line", () => {
+    render(
+      <LeaderZone
+        zone={commanderZone}
+        items={[]}
+        severity={new Map()}
+        onRemove={() => {}}
+        onPreview={() => {}}
+        adapter={getAdapter("mtg")}
+        pending
+        raised
+      />,
+    );
+    const row = document.querySelector<HTMLElement>("[data-slot=leader-pending] li")!;
+    expect(row.className).toBe(RAISED_ROW);
+    const [box, facts] = [...row.children] as HTMLElement[];
+    expect(box.dataset.slot).toBe("skeleton");
+    expect(box.className).toContain("aspect-[488/680] w-full");
+    expect(box.className).toContain("md:w-45 md:shrink-0");
+    expect(facts.className).toBe("md:min-w-0 md:flex-1 md:pt-1");
+    const [nameRow, caption, meta] = [...facts.children] as HTMLElement[];
+    expect(nameRow.className).toContain("mt-1 flex items-center gap-1 md:mt-0");
+    expect(nameRow.querySelector(".size-6.pointer-coarse\\:size-11")).not.toBeNull();
+    expect(caption.className).toContain("md:hidden");
+    expect(meta.className).toBe("type-meta hidden md:block");
+    // Each line holds a no-break space, so it keeps its line box.
+    expect(caption.textContent).toBe(" ");
+    expect(meta.textContent).toBe(" ");
+  });
+
+  it("without `raised` (the share page) the card keeps its box above the name and no facts line", () => {
+    render(
+      <LeaderZone
+        zone={commanderZone}
+        items={[giadaItem]}
+        severity={new Map()}
+        onPreview={() => {}}
+        adapter={getAdapter("mtg")}
+        ruled
+      />,
+    );
+    const row = screen.getByRole("button", { name: "Show Giada, Font of Hope" }).closest("li")!;
+    expect(row.className).toBe("w-40 max-w-[45%]");
+    expect(row.querySelector("[data-slot=leader-facts]")).toBeNull();
+    expect(row.querySelector("[data-slot=leader-caption]")?.className).not.toContain("md:hidden");
+    expect(screen.getByRole("img", { name: "Giada, Font of Hope" }).className).toContain(
+      "transform_150ms",
+    );
   });
 });

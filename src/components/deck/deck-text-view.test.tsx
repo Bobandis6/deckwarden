@@ -6,7 +6,7 @@
  * controls; headers stick only when asked.
  */
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import { card } from "@/lib/games/mtg/test-fixtures";
@@ -375,5 +375,138 @@ describe("DeckTextView — lines to space (U3a, WAVE5 D4)", () => {
     const pips = document.querySelector<HTMLElement>("[data-slot=pips]")!;
     expect(pips.className).toContain("text-xs");
     expect(pips.className).not.toContain("--pip-size");
+  });
+});
+
+/**
+ * A stand-in IntersectionObserver (jsdom has none): each instance records
+ * its options and targets, and a test reports what the browser would.
+ */
+class FakeObserver {
+  static all: FakeObserver[] = [];
+  targets: Element[] = [];
+  disconnected = false;
+  constructor(
+    readonly callback: IntersectionObserverCallback,
+    readonly options: IntersectionObserverInit = {},
+  ) {
+    FakeObserver.all.push(this);
+  }
+  observe(target: Element) {
+    this.targets.push(target);
+  }
+  unobserve() {}
+  disconnect() {
+    this.disconnected = true;
+  }
+  takeRecords() {
+    return [];
+  }
+  report(isIntersecting: boolean, intersectionRatio: number) {
+    const entries = this.targets.map(
+      (target) => ({ target, isIntersecting, intersectionRatio }) as IntersectionObserverEntry,
+    );
+    act(() => this.callback(entries, this as unknown as IntersectionObserver));
+  }
+}
+
+describe("DeckTextView — the stuck heading (U3b, WAVE5 D4)", () => {
+  beforeEach(() => {
+    FakeObserver.all = [];
+    vi.stubGlobal("IntersectionObserver", FakeObserver);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const editor = () =>
+    render(
+      <div data-testid="pane" style={{ overflowY: "auto" }}>
+        <DeckTextView
+          adapter={mtg}
+          groups={group([{ card: sol, qty: 4 }, { card: forest }])}
+          severity={new Map()}
+          onSetQty={vi.fn()}
+          onRemove={vi.fn()}
+          onPreview={vi.fn()}
+          stickyHeaders
+        />
+      </div>,
+    );
+
+  it("at rest a sticky heading has no backing, and it watches its own section against a 1 px strip above the pane", () => {
+    const { getByTestId } = editor();
+    const heading = screen.getByRole("heading", { level: 3 });
+    expect(heading.className).toContain("sticky top-0");
+    expect(heading.className).not.toContain("bg-background");
+    expect(heading.className).not.toContain("bg-(--chrome)");
+    expect(heading.hasAttribute("data-stuck")).toBe(false);
+    expect(heading.querySelector("[data-slot=stuck-edge]")).toBeNull();
+    // One observer, on the section (always laid out, unlike a sentinel inside
+    // a skipped one), rooted at the scrolling pane.
+    expect(FakeObserver.all).toHaveLength(1);
+    const [observer] = FakeObserver.all;
+    expect(observer.targets).toEqual([heading.parentElement]);
+    expect(observer.targets[0].tagName).toBe("SECTION");
+    expect(observer.options.root).toBe(getByTestId("pane"));
+    expect(observer.options.rootMargin).toBe("1px 0px -100% 0px");
+    expect(observer.options.threshold).toEqual([0, 1e-6]);
+  });
+
+  it("stuck: the chrome material, the hairline the fallbacks bring back, and the 12 px gradient after the count", () => {
+    editor();
+    FakeObserver.all[0].report(true, 0.01);
+    const heading = screen.getByRole("heading", { level: 3 });
+    expect(heading.dataset.stuck).toBe("true");
+    for (const cls of [
+      "bg-(--chrome)",
+      "backdrop-filter-(--chrome-backdrop)",
+      "shadow-[inset_0_-1px_0_var(--chrome-edge)]",
+    ]) {
+      expect(heading.className, cls).toContain(cls);
+    }
+    // The label and the count still lead (U3a's pin); the gradient follows them.
+    const [label, count, edge] = [...heading.children] as HTMLElement[];
+    expect(label.textContent).toBe("Test");
+    expect(count.dataset.slot).toBe("group-count");
+    expect(edge.dataset.slot).toBe("stuck-edge");
+    expect(edge.getAttribute("aria-hidden")).toBe("true");
+    expect(edge.textContent).toBe("");
+    expect(edge.className).toContain("absolute inset-x-0 top-full h-3");
+    expect(edge.className).toContain("bg-linear-to-b from-(--chrome-fade) to-transparent");
+    expect(heading.textContent).toBe("Test5");
+  });
+
+  it("touching the strip (the heading at its own place) is not stuck; overlapping is; leaving it lets go", () => {
+    editor();
+    const heading = screen.getByRole("heading", { level: 3 });
+    const [observer] = FakeObserver.all;
+    observer.report(true, 0);
+    expect(heading.hasAttribute("data-stuck")).toBe(false);
+    observer.report(true, 0.5);
+    expect(heading.dataset.stuck).toBe("true");
+    observer.report(false, 0);
+    expect(heading.hasAttribute("data-stuck")).toBe(false);
+    expect(heading.className).not.toContain("bg-(--chrome)");
+    expect(heading.querySelector("[data-slot=stuck-edge]")).toBeNull();
+  });
+
+  it("the share page's headings never stick, so nothing is observed; unmounting lets go of the section", () => {
+    const share = render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol }])}
+        severity={new Map()}
+        onPreview={vi.fn()}
+        ruled
+      />,
+    );
+    expect(FakeObserver.all).toHaveLength(0);
+    share.unmount();
+    const { unmount } = editor();
+    const [observer] = FakeObserver.all;
+    expect(observer.disconnected).toBe(false);
+    unmount();
+    expect(observer.disconnected).toBe(true);
   });
 });

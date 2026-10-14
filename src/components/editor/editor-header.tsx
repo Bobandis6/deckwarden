@@ -40,12 +40,22 @@
  * row. On phones the slot steps aside (`display: contents`) — a reserved
  * 7.5rem overflows the phone header at 375 and 360 px for every saved deck,
  * and the phone's header rows are U4a's.
+ *
+ * U3b (WAVE5 D4, the materials): the header is the chrome material over
+ * the ambient art (CHROME_CLASS), keeping its hairline: the panes' rules
+ * meet it, and nothing scrolls under it, so there is no scroll edge for a
+ * fade to replace. The name never drops under 8rem: from `wide` the game ·
+ * format chip shrinks with it, its words truncating, and alone once the name
+ * is at its floor; from `md` to `wide` the chip hides (which also lets the
+ * md header's first row hold the cluster at 768 px). Phones keep the chip
+ * until U4a.
  */
 import { CheckIcon, EllipsisIcon, PanelRightIcon } from "lucide-react";
 import Link from "next/link";
 import { type Ref, useEffect, useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
+import { CHROME_CLASS } from "@/components/chrome-material";
 import { ForkCreditLine } from "@/components/deck/fork-button";
 import type { SaveStatus } from "@/components/editor/use-autosave";
 import { AppearanceMenu } from "@/components/theme/appearance-menu";
@@ -123,7 +133,12 @@ export function EditorHeader({
   onKeep?: () => void;
 }) {
   return (
-    <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2 lg:h-14 lg:flex-nowrap lg:py-0">
+    <header
+      className={cn(
+        "flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2 lg:h-14 lg:flex-nowrap lg:py-0",
+        CHROME_CLASS,
+      )}
+    >
       <Link
         href="/"
         aria-label="Deckwarden"
@@ -131,8 +146,15 @@ export function EditorHeader({
       >
         <BrandMark className="size-8 motion-safe:transition-transform motion-safe:duration-[120ms] motion-safe:group-hover/mark:-rotate-3" />
       </Link>
-      <Badge variant="outline" className="text-muted-foreground shrink-0 font-normal">
-        {adapter.name} · {format.label}
+      {/* U3b: the chip shrinks with the name (min-w-0, its words truncating),
+          alone once the name is at 8rem, and steps aside from md to wide. */}
+      <Badge
+        variant="outline"
+        className="text-muted-foreground min-w-0 shrink font-normal md:max-wide:hidden"
+      >
+        <span className="truncate">
+          {adapter.name} · {format.label}
+        </span>
       </Badge>
       <input
         value={deckName}
@@ -140,7 +162,7 @@ export function EditorHeader({
         aria-label="Deck name"
         placeholder="Untitled — click to name your deck"
         maxLength={120}
-        className="focus-visible:ring-ring/50 order-last min-w-0 basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 lg:order-none lg:flex-1 lg:basis-auto"
+        className="focus-visible:ring-ring/50 order-last min-w-[8rem] basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 lg:order-none lg:flex-1 lg:basis-auto"
       />
       {/* Fork credit (P3.6) rides the name row on mobile and sits inline on desktop. */}
       {forkedFrom && (

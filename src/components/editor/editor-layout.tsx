@@ -45,11 +45,16 @@
  * the drawer's store — it cannot wrap the editor) so the tag input scrolls
  * clear of the software keyboard. Neither drawer creates a deck or marks
  * anything dirty: they are layout, not edits.
+ *
+ * U3b (WAVE5 D4): the phone's tab bar is the chrome material, its top
+ * hairline kept, so the pane scrolling under it shows through, softened;
+ * the drawers stay opaque.
  */
 import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer";
 import { LayersIcon, SearchIcon, WrenchIcon, XIcon } from "lucide-react";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 
+import { CHROME_CLASS } from "@/components/chrome-material";
 import type { EditorTier } from "@/components/editor/use-tier";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
@@ -218,7 +223,10 @@ export function EditorLayout({
         <TabsList
           variant="indicator"
           aria-label="Editor panes"
-          className="bg-background fixed inset-x-0 bottom-0 z-40 w-full rounded-none border-t p-0 pb-[env(safe-area-inset-bottom)] group-data-horizontal/tabs:h-auto md:hidden"
+          className={cn(
+            CHROME_CLASS,
+            "fixed inset-x-0 bottom-0 z-40 w-full rounded-none border-t p-0 pb-[env(safe-area-inset-bottom)] group-data-horizontal/tabs:h-auto md:hidden",
+          )}
         >
           <TabsIndicator className="top-0 bottom-auto" />
           <TabsTrigger value="deck" className={TRIGGER_CLASS}>

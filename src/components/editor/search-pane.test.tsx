@@ -329,3 +329,13 @@ describe("SearchPane", () => {
     expect(screen.queryAllByRole("option")).toHaveLength(0);
   });
 });
+
+describe("SearchPane — the materials (U3b, WAVE5 D4)", () => {
+  it("the sticky block is the chrome material, so the results pass under it softened", () => {
+    const { input } = renderPane();
+    const block = input.parentElement!;
+    expect(block.className).toContain("bg-(--chrome) backdrop-filter-(--chrome-backdrop)");
+    expect(block.className).toContain("sticky top-0 z-10");
+    expect(block.className).not.toContain("bg-background");
+  });
+});

@@ -1,14 +1,15 @@
 /**
  * Leader captions (R5b): One Piece reads id + stat line, Magic its P/T (no
  * id badge), a stat-less card has no caption, and partners join with " & "
- * in the given order.
+ * in the given order; the raised card's facts (U3b) join the type line and
+ * the caption.
  */
 import { describe, expect, it } from "vitest";
 
 import type { CardData } from "@/lib/games/types";
 import { card } from "@/lib/games/mtg/test-fixtures";
 import { getAdapter } from "@/lib/games/registry";
-import { leaderCaption, leaderLine } from "./leader-caption";
+import { leaderCaption, leaderFacts, leaderLine } from "./leader-caption";
 
 const mtg = getAdapter("mtg");
 const optcg = getAdapter("optcg");
@@ -75,5 +76,16 @@ describe("leaderLine", () => {
     );
     expect(leaderLine(mtg, [stateless])).toBe("Nameless");
     expect(leaderLine(mtg, [])).toBe("");
+  });
+});
+
+describe("leaderFacts (U3b)", () => {
+  it("the type line and the caption as the adapter gives them, data not copy; nothing without an adapter", () => {
+    expect(leaderFacts(mtg, queza)).toBe("Legendary Creature — Cephalid Advisor · 2/5");
+    expect(leaderFacts(mtg, planeswalker)).toBe("Legendary Planeswalker — Szat · Loyalty 4");
+    // No stat line: the type line alone, never a dangling separator.
+    expect(leaderFacts(mtg, stateless)).toBe("Legendary Artifact");
+    expect(leaderFacts(optcg, enel)).toBe("Leader · OP15-058 · 5000 Power · 5 Life");
+    expect(leaderFacts(undefined, enel)).toBe("");
   });
 });

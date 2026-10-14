@@ -54,6 +54,10 @@
  * so the seed lands in place. The leader image is the pane's LCP
  * (`priority`), and View / Group / Sort fit one line at wide, "View" named
  * rather than labelled.
+ *
+ * U3b (WAVE5 D4, the materials): the leader card is `raised` (from md, a
+ * 180 px card with its facts beside it, its Skeleton the same row), and a
+ * group heading is the chrome material only while stuck.
  */
 import { PlusIcon } from "lucide-react";
 import Link from "next/link";
@@ -319,6 +323,7 @@ export function DeckListPane({
           adapter={adapter}
           priority
           pending={seeding}
+          raised
         />
       )}
 

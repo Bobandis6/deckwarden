@@ -38,6 +38,10 @@
  * leader's button keeps its add. Once the swap lands the editor clears the
  * box (`reset`) and the closing sheet hands it focus (`element`), like an add.
  *
+ * U3b (WAVE5 D4): the sticky block is the chrome material, so the results
+ * passing under it show through, softened, and the ambient art with them;
+ * solid for a reader who asked for less transparency or more contrast.
+ *
  * Game knowledge (zone ids/labels, leader noun, pips, subtitles) comes off the
  * adapter — this component never mentions a specific game.
  */
@@ -45,6 +49,7 @@ import { RotateCwIcon } from "lucide-react";
 import { useEffect, useImperativeHandle, useReducer, useRef, type Ref } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
+import { CHROME_CLASS } from "@/components/chrome-material";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
 import { useIsMac } from "@/components/use-is-mac";
@@ -208,7 +213,7 @@ export function SearchPane({
     <div className="flex h-full flex-col">
       {/* Sticky (C12): the box, the keycap hint and the live line stay put
           while the results scroll under them inside the search section. */}
-      <div className="bg-background sticky top-0 z-10 px-3 pt-3 pb-1">
+      <div className={cn(CHROME_CLASS, "sticky top-0 z-10 px-3 pt-3 pb-1")}>
         <input
           ref={inputRef}
           type="text"

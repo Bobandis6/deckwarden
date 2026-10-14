@@ -31,6 +31,14 @@
  * fetch priority and no fade — and while a URL seed is on its way
  * (`pending`) the zone holds the card's box as a Skeleton, so the seed
  * fills a reserved slot instead of replacing the empty state.
+ *
+ * U3b (WAVE5 D4, the raised card): from `md` the editor's card (`raised`)
+ * is a row, the card at 180 px with its facts beside it (the name and
+ * Remove, then the type line and the caption as the adapter gives them,
+ * `leaderFacts`), raised with U8's hero shadow (the primary at 25 % on
+ * ivory, black at 60 % on charcoal) and the frame's 2 px hover lift on
+ * U2's 120 ms. The Skeleton is the same row, box for box. Phones keep the
+ * card above its name until U4a; the share page passes no `raised`.
  */
 import { ArrowRightIcon, XIcon } from "lucide-react";
 import Link from "next/link";
@@ -43,10 +51,28 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMac } from "@/components/use-is-mac";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
-import { leaderCaption } from "@/lib/decks/leader-caption";
+import { leaderCaption, leaderFacts } from "@/lib/decks/leader-caption";
 import type { ViewItem } from "@/lib/decks/view-model";
 import type { GameAdapter, ZoneDef } from "@/lib/games/types";
 import { cn } from "@/lib/utils";
+
+/** A leader's box: 160 px (45 % at most) above its name, the phone's and the share page's. */
+const CARD_ROW_CLASS = "w-40 max-w-[45%]";
+/** The raised row (U3b): from md, the card and its facts side by side, one leader to a line. */
+const RAISED_ROW_CLASS = `${CARD_ROW_CLASS} md:flex md:w-full md:max-w-none md:items-start md:gap-4`;
+/** The raised card's width from md: 180 px (11.25rem), the 488 / 680 aspect below it. */
+const RAISED_CARD_CLASS = "md:w-45 md:shrink-0";
+/**
+ * The raised card's image: HERO_CARD_SHADOW's values (surface-header.tsx)
+ * from md, and the frame's lift and ring on U2's tokens — 120 ms on
+ * settle-120, the fade (a lazy image's) on the 250 ms cross-fade — in place
+ * of CardImage's untokened 150 ms (LATER row 230).
+ */
+const RAISED_IMAGE_CLASS =
+  "md:shadow-lg md:shadow-primary/25 md:dark:shadow-black/60 motion-safe:[transition:opacity_250ms_var(--ease-settle-250),transform_120ms_var(--ease-settle-120),box-shadow_120ms_var(--ease-settle-120)]";
+/** The raised card's facts column: beside the card from md, its first line 4 px below the card's top edge. */
+const RAISED_FACTS_CLASS = "md:min-w-0 md:flex-1 md:pt-1";
+const CAPTION_CLASS = "text-muted-foreground block truncate font-mono text-[0.65rem]";
 
 interface LeaderZoneProps {
   zone: ZoneDef;
@@ -73,6 +99,8 @@ interface LeaderZoneProps {
   priority?: boolean;
   /** A URL seed is on its way (U3a): the card's box as a Skeleton instead of the empty state. */
   pending?: boolean;
+  /** The editor (U3b): from md, the card raised at 180 px with its facts beside it. */
+  raised?: boolean;
 }
 
 export function LeaderZone({
@@ -87,6 +115,7 @@ export function LeaderZone({
   ruled = false,
   priority = false,
   pending = false,
+  raised = false,
 }: LeaderZoneProps) {
   const noun = zone.label.toLowerCase();
   const readOnly = !onRemove;
@@ -105,15 +134,34 @@ export function LeaderZone({
       {items.length === 0 && pending ? (
         // The seeded card's box (U3a): the image's aspect, the name row at
         // the Remove button's height, the caption's line — so the seed lands
-        // in place and the empty state never flashes before it.
+        // in place and the empty state never flashes before it. Raised (U3b):
+        // the same row as the card's, the facts column beside the box from md.
         <ul aria-hidden data-slot="leader-pending" className="mt-2 flex flex-wrap gap-3">
-          <li className="w-40 max-w-[45%]">
-            <Skeleton className="aspect-[488/680] w-full rounded-[4.75%/3.5%]" />
-            <span className="mt-1 flex items-center gap-1">
-              <Skeleton className="h-3 flex-1" />
-              <span className="size-6 shrink-0 pointer-coarse:size-11" />
-            </span>
-            <span className="block font-mono text-[0.65rem]">{" "}</span>
+          <li className={raised ? RAISED_ROW_CLASS : CARD_ROW_CLASS}>
+            <Skeleton
+              className={cn(
+                "aspect-[488/680] w-full rounded-[4.75%/3.5%]",
+                raised && RAISED_CARD_CLASS,
+              )}
+            />
+            {raised ? (
+              <div className={RAISED_FACTS_CLASS}>
+                <span className="mt-1 flex items-center gap-1 md:mt-0">
+                  <Skeleton className="h-3 flex-1 md:h-3.5 md:max-w-36" />
+                  <span className="size-6 shrink-0 pointer-coarse:size-11" />
+                </span>
+                <span className="block font-mono text-[0.65rem] md:hidden">{"\u00a0"}</span>
+                <span className="type-meta hidden md:block">{"\u00a0"}</span>
+              </div>
+            ) : (
+              <>
+                <span className="mt-1 flex items-center gap-1">
+                  <Skeleton className="h-3 flex-1" />
+                  <span className="size-6 shrink-0 pointer-coarse:size-11" />
+                </span>
+                <span className="block font-mono text-[0.65rem]">{"\u00a0"}</span>
+              </>
+            )}
           </li>
         </ul>
       ) : items.length === 0 ? (
@@ -166,8 +214,32 @@ export function LeaderZone({
             const caption = leaderCaption(adapter, card);
             const level = severity.get(card.id);
             const levelId = level ? `${idPrefix}-${entry.cardId}` : undefined;
+            const nameRow = (
+              <span className={cn("mt-1 flex items-center gap-1", raised && "md:mt-0")}>
+                <span
+                  className={cn(
+                    "min-w-0 flex-1 truncate text-xs",
+                    raised && "md:flex-initial md:text-sm md:font-medium",
+                  )}
+                >
+                  {card.name}
+                </span>
+                {onRemove && (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="pointer-coarse:size-11"
+                    aria-label={`Remove ${card.name}`}
+                    onClick={() => onRemove(entry.zone, entry.cardId)}
+                  >
+                    <XIcon />
+                  </Button>
+                )}
+              </span>
+            );
+            const facts = raised ? leaderFacts(adapter, card) : "";
             return (
-              <li key={entry.cardId} className="w-40 max-w-[45%]">
+              <li key={entry.cardId} className={raised ? RAISED_ROW_CLASS : CARD_ROW_CLASS}>
                 <button
                   type="button"
                   onClick={() => onPreview(card)}
@@ -175,6 +247,7 @@ export function LeaderZone({
                   aria-describedby={levelId}
                   className={cn(
                     "focus-visible:ring-ring/50 block w-full rounded-[4.75%/3.5%] outline-none focus-visible:ring-3",
+                    raised && RAISED_CARD_CLASS,
                     level === "error"
                       ? "ring-destructive ring-2"
                       : level === "warning"
@@ -189,7 +262,7 @@ export function LeaderZone({
                     height={680}
                     frame
                     priority={priority}
-                    className="w-full text-xs shadow-md"
+                    className={cn("w-full text-xs shadow-md", raised && RAISED_IMAGE_CLASS)}
                   />
                 </button>
                 {level && (
@@ -197,27 +270,34 @@ export function LeaderZone({
                     {level === "error" ? "Has a problem" : "Warning"}
                   </span>
                 )}
-                <span className="mt-1 flex items-center gap-1">
-                  <span className="min-w-0 flex-1 truncate text-xs">{card.name}</span>
-                  {onRemove && (
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      className="pointer-coarse:size-11"
-                      aria-label={`Remove ${card.name}`}
-                      onClick={() => onRemove(entry.zone, entry.cardId)}
-                    >
-                      <XIcon />
-                    </Button>
-                  )}
-                </span>
-                {caption && (
-                  <span
-                    data-slot="leader-caption"
-                    className="text-muted-foreground block truncate font-mono text-[0.65rem]"
-                  >
-                    {caption}
-                  </span>
+                {raised ? (
+                  // The facts column (U3b): beside the card from md, where the
+                  // type line joins the caption; under it on phones, as before.
+                  <div className={RAISED_FACTS_CLASS}>
+                    {nameRow}
+                    {caption && (
+                      <span data-slot="leader-caption" className={cn(CAPTION_CLASS, "md:hidden")}>
+                        {caption}
+                      </span>
+                    )}
+                    {facts && (
+                      <p
+                        data-slot="leader-facts"
+                        className="type-meta text-muted-foreground hidden md:block"
+                      >
+                        {facts}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {nameRow}
+                    {caption && (
+                      <span data-slot="leader-caption" className={CAPTION_CLASS}>
+                        {caption}
+                      </span>
+                    )}
+                  </>
                 )}
               </li>
             );

@@ -346,6 +346,53 @@
   --border-control: color-mix(in oklch, var(--foreground) 40%, transparent);
 }
 
+/* The chrome material (U3b, WAVE5.md D4; the owner's F8): the editor's
+   chrome (the header, the sticky search block, the phone tab bar and a stuck
+   group heading) is the background at 88 % with a backdrop blur, so what
+   passes under it shows through, softened; panels, drawers, the phone
+   sheet, popovers and chips stay opaque. Its own block, not the edge pair's
+   (tokens.test.ts pins that pair to one declaration each). Theme-neutral:
+   the theme class sits on <html>, the :root element itself, so
+   var(--background) resolves per theme where these are declared.
+   Mixed in oklab, like Tailwind's /alpha modifiers: an oklch mix of these
+   near-neutral backgrounds with transparent computes a `none` hue and
+   paints at hue 0 in Chromium (measured in U3b: charcoal 21,17,19 where
+   the page is 14,18,20; ivory 248,243,243 where it is 246,244,239), while
+   oklab keeps the color and only lowers its alpha.
+   --chrome-backdrop is Tailwind's backdrop-blur-md + backdrop-saturate-150;
+   --chrome-edge is the hairline under a stuck heading, transparent unless a
+   fallback below brings it back; --chrome-fade is the top of the stuck
+   heading's 12 px scroll-edge gradient. The worst case for the text on it
+   (U3b, computed: dense row text straight under a heading's label, no blur
+   at all) is the muted label at 6.23:1 on charcoal and 4.87:1 on ivory, the
+   count at 12.2:1 and 10.4:1. */
+:root {
+  --chrome: color-mix(in oklab, var(--background) 88%, transparent);
+  --chrome-backdrop: blur(12px) saturate(150%);
+  --chrome-edge: transparent;
+  --chrome-fade: color-mix(in oklab, var(--background) 60%, transparent);
+}
+
+/* The fallbacks (F8): a reader who asked for less transparency, or for more
+   contrast, gets the solid strip with no blur, and a stuck heading's hairline
+   back in place of its gradient. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --chrome: var(--background);
+    --chrome-backdrop: none;
+    --chrome-edge: var(--border);
+    --chrome-fade: transparent;
+  }
+}
+@media (prefers-contrast: more) {
+  :root {
+    --chrome: var(--background);
+    --chrome-backdrop: none;
+    --chrome-edge: var(--border);
+    --chrome-fade: transparent;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

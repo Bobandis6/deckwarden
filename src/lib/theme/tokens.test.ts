@@ -83,6 +83,56 @@ describe("theme tokens ↔ globals.css", () => {
     expect(borderControl).toEqual({ light: 55, dark: 40 });
   });
 
+  // U3b (WAVE5.md D4; F8): the chrome material and its two fallbacks.
+  const MATERIAL = {
+    chrome: "color-mix(in oklab, var(--background) 88%, transparent)",
+    "chrome-backdrop": "blur(12px) saturate(150%)",
+    "chrome-edge": "transparent",
+    "chrome-fade": "color-mix(in oklab, var(--background) 60%, transparent)",
+  };
+  const FALLBACK = {
+    chrome: "var(--background)",
+    "chrome-backdrop": "none",
+    "chrome-edge": "var(--border)",
+    "chrome-fade": "transparent",
+  };
+  /** Every `:root { … }` block's declarations, in order, from the comment-stripped stylesheet. */
+  function rootBlocks(source: string): { index: number; decls: Record<string, string> }[] {
+    return [...source.matchAll(/(?:^|\n)\s*:root\s*\{([^}]*)\}/g)].map((m) => ({
+      index: m.index!,
+      decls: Object.fromEntries(
+        [...m[1].matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)].map((d) => [d[1], d[2].trim()]),
+      ),
+    }));
+  }
+
+  it("the chrome material is the background at 88 % in oklab with a 12 px blur, one theme-neutral block of its own (U3b)", () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    const material = rootBlocks(code).filter((b) => "chrome" in b.decls);
+    // The base block and one :root inside each fallback rule.
+    expect(material).toHaveLength(3);
+    expect(material[0].decls).toEqual(MATERIAL);
+    // After the edge pair (its pin wants one declaration a block) and before the base layer.
+    expect(material[0].index).toBeGreaterThan(code.lastIndexOf("--border-control:"));
+    expect(material[0].index).toBeLessThan(code.indexOf("@layer base"));
+    // Theme-neutral: the theme class sits on <html>, so no .dark copy.
+    expect(code).not.toMatch(/\.dark\s*\{[^}]*--chrome/);
+    // oklab, not oklch: an oklch mix of a near-neutral with transparent paints at hue 0 in Chromium.
+    expect(code).not.toMatch(/--chrome[a-z-]*:\s*color-mix\(in oklch/);
+  });
+
+  it("less transparency or more contrast: the solid strip, no blur, the stuck heading's hairline back (U3b, F8)", () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    const base = code.indexOf("--chrome: color-mix(");
+    for (const query of ["(prefers-reduced-transparency: reduce)", "(prefers-contrast: more)"]) {
+      const at = code.indexOf(`@media ${query}`);
+      expect(at, query).toBeGreaterThan(base); // later, so it wins over the base block
+      const body = code.slice(at).match(/^@media [^{]+\{\s*(:root\s*\{[^}]*\})\s*\}/)?.[1];
+      expect(body, query).toBeDefined(); // exactly one rule inside: the :root override
+      expect(rootBlocks(body!)[0].decls, query).toEqual(FALLBACK);
+    }
+  });
+
   it("the accents are exposed as Tailwind colors", () => {
     for (const name of ["brand", "accent-mtg", "accent-optcg", "accent-game", "gold"]) {
       expect(css).toContain(`--color-${name}: var(--${name});`);

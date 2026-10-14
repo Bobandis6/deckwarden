@@ -38,10 +38,18 @@
  * column (11.2 px). The editor's groups skip layout and paint while off
  * screen (`content-visibility: auto`). `ruled` keeps the share page's look
  * until U6 (WAVE5 D7): the hairline headings, the 12 px quantity and pips.
+ *
+ * U3b (WAVE5 D4, the materials): a sticky heading has no backing of its own
+ * at rest (U3a's 46 px band over the ambient art is gone) and becomes the
+ * chrome material only while stuck, rows passing under it, with a 12 px
+ * scroll-edge gradient over the rows below; under the fallbacks the solid
+ * strip and the hairline instead. `useStuck` decides; it never runs on the
+ * share page, which passes no `stickyHeaders`.
  */
 import { ArrowLeftRightIcon, XIcon } from "lucide-react";
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 
+import { CHROME_CLASS } from "@/components/chrome-material";
 import { CardNamePreview } from "@/components/deck/card-name-preview";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
@@ -55,8 +63,68 @@ export const GROUP_HEADER_CLASS = "flex items-baseline gap-2 pt-5 pb-1.5";
 /** The share page's group heading until U6: the eyebrow with its count inside, a hairline under. */
 export const RULED_GROUP_HEADER_CLASS =
   "text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase";
-/** Sticks to the top of the nearest scroll container (the editor's deck section on lg). */
-export const STICKY_HEADER_CLASS = "bg-background sticky top-0 z-10";
+/** Sticks to the top of the nearest scroll container (the editor's deck section); no backing at rest (U3b). */
+export const STICKY_HEADER_CLASS = "sticky top-0 z-10";
+/**
+ * A stuck heading (U3b, WAVE5 D4): the chrome material over the rows passing
+ * under it, and the hairline the fallbacks bring back (`--chrome-edge`,
+ * transparent otherwise) as an inset shadow, so the heading's 46 px, and
+ * with it the group's placeholder height, never move.
+ */
+const STUCK_HEADER_CLASS = cn(CHROME_CLASS, "shadow-[inset_0_-1px_0_var(--chrome-edge)]");
+/** The stuck heading's 12 px scroll-edge gradient over the rows below it; clear under the fallbacks. */
+const STUCK_EDGE_CLASS =
+  "pointer-events-none absolute inset-x-0 top-full h-3 bg-linear-to-b from-(--chrome-fade) to-transparent";
+
+/**
+ * The stuck gate's geometry (U3b): a 1 px strip just above the scrolling
+ * pane's top edge (the root grown 1 px up and shrunk away from below). A
+ * group whose section overlaps it has its heading stuck. The second
+ * threshold tells an overlap (a positive ratio) from a section that only
+ * touches the strip, the heading exactly at its own place, whose
+ * intersection has no area.
+ */
+const STUCK_ROOT_MARGIN = "1px 0px -100% 0px";
+const STUCK_THRESHOLDS = [0, 1e-6];
+
+/** The nearest scrolling ancestor (the editor's deck section), or null for the viewport. */
+function scrollRoot(el: HTMLElement): HTMLElement | null {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if (overflowY === "auto" || overflowY === "scroll") return node;
+  }
+  return null;
+}
+
+/**
+ * Whether a sticky heading is stuck (U3b): its group's section straddles the
+ * top edge of the scrolling pane, so rows pass under it. An
+ * IntersectionObserver on the section, which is always laid out
+ * (content-visibility skips a section's contents, never its own box),
+ * against STUCK_ROOT_MARGIN's strip. Not a sentinel above the heading: one
+ * jump across a group taller than the pane (End, a scrollbar drag, find in
+ * page) carries a sentinel from one side of the pane to the other without
+ * its intersection changing, and after a jump back to the top it still
+ * reported its group stuck (measured in Brave). A section crosses the strip
+ * whenever its heading sticks or comes loose, however far the jump.
+ */
+function useStuck(ref: RefObject<HTMLElement | null>, enabled: boolean): boolean {
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    const section = ref.current?.parentElement;
+    if (!enabled || !section || typeof IntersectionObserver !== "function") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[entries.length - 1];
+        setStuck(entry.isIntersecting && entry.intersectionRatio > 0);
+      },
+      { root: scrollRoot(section), rootMargin: STUCK_ROOT_MARGIN, threshold: STUCK_THRESHOLDS },
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, [ref, enabled]);
+  return enabled && stuck;
+}
 
 /**
  * The editor's groups (U3a): skipped while off screen, each holding its
@@ -72,7 +140,8 @@ const DEFERRED_GROUP_CLASS =
  * A list group's heading (U3a, WAVE5 D4): the uppercase 12 px label in muted
  * ink and its count at 14 px semibold tabular in the foreground, so "LAND 38"
  * reads as a label and a number. Shared by the text and grid views and the
- * leader zone; `ruled` is the share page's heading until U6.
+ * leader zone; `ruled` is the share page's heading until U6. A sticky one is
+ * the chrome material only while stuck (U3b), its gradient after the count.
  */
 export function GroupHeading({
   label,
@@ -82,25 +151,42 @@ export function GroupHeading({
 }: {
   label: string;
   qty: number;
-  /** Sticks inside the editor's scrolling pane (C12). */
+  /** Sticks inside the editor's scrolling pane (C12); the material only while stuck (U3b). */
   sticky?: boolean;
   /** The share page's look until U6: the eyebrow, its count inside, the hairline. */
   ruled?: boolean;
 }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  const stuck = useStuck(ref, sticky);
+  const edge = stuck && <span aria-hidden data-slot="stuck-edge" className={STUCK_EDGE_CLASS} />;
   if (ruled) {
     return (
-      <h3 className={cn(RULED_GROUP_HEADER_CLASS, sticky && STICKY_HEADER_CLASS)}>
+      <h3
+        ref={ref}
+        data-stuck={stuck || undefined}
+        className={cn(
+          RULED_GROUP_HEADER_CLASS,
+          sticky && STICKY_HEADER_CLASS,
+          stuck && STUCK_HEADER_CLASS,
+        )}
+      >
         {label}
         <span className="ml-1.5 tabular-nums">{qty}</span>
+        {edge}
       </h3>
     );
   }
   return (
-    <h3 className={cn(GROUP_HEADER_CLASS, sticky && STICKY_HEADER_CLASS)}>
+    <h3
+      ref={ref}
+      data-stuck={stuck || undefined}
+      className={cn(GROUP_HEADER_CLASS, sticky && STICKY_HEADER_CLASS, stuck && STUCK_HEADER_CLASS)}
+    >
       <span className="type-eyebrow text-muted-foreground">{label}</span>
       <span data-slot="group-count" className="text-foreground text-sm font-semibold tabular-nums">
         {qty}
       </span>
+      {edge}
     </h3>
   );
 }

@@ -113,6 +113,10 @@ describe("EditorLayout on a phone", () => {
     // The layout's inset variable and the bar's safe-area padding.
     expect(document.querySelector("[data-tier]")?.className).toContain("--editor-bottom-inset");
     expect(bar.className).toContain("pb-[env(safe-area-inset-bottom)]");
+    // U3b: the bar is the chrome material (the list primitive's bg-transparent gives way) and keeps its top hairline.
+    expect(bar.className).toContain("bg-(--chrome) backdrop-filter-(--chrome-backdrop)");
+    expect(bar.className).not.toContain("bg-transparent");
+    expect(bar.className).toContain("border-t");
     expect(bar.className).toContain("md:hidden");
   });
 

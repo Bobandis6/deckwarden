@@ -5,7 +5,8 @@
  * once a server row exists (U3a: Keep this deck or Share in one fixed
  * primary slot, in the tree while empty), the More menu's items (History and Games… only
  * with a live deck) opening the right dialog, and exactly one appearance control
- * — the same assertion the site header test makes for the (site) pages.
+ * — the same assertion the site header test makes for the (site) pages. U3b:
+ * the header on the chrome material, the name's 8rem floor, the chip truncating.
  */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -333,5 +334,27 @@ describe("EditorHeader", () => {
     open(screen.getByRole("button", { name: "More" }));
     const opMenu = await screen.findByRole("menu", { name: "More" });
     expect(within(opMenu).queryByRole("menuitem", { name: "Fit my budget…" })).toBeNull();
+  });
+});
+
+describe("EditorHeader — the materials (U3b, WAVE5 D4)", () => {
+  it("the header is the chrome material and keeps its hairline (the panes' rules meet it)", () => {
+    render(header());
+    const bar = screen.getByRole("banner");
+    expect(bar.className).toContain("bg-(--chrome) backdrop-filter-(--chrome-backdrop)");
+    expect(bar.className).toContain("border-b");
+  });
+
+  it("the name never drops under 8rem; the game · format chip shrinks with it, its words truncating, and hides from md to wide", () => {
+    render(header());
+    const name = screen.getByRole("textbox", { name: "Deck name" });
+    expect(name.className).toContain("min-w-[8rem]");
+    expect(name.className).not.toContain("min-w-0");
+    const words = screen.getByText("Magic: The Gathering · Commander");
+    expect(words.className).toBe("truncate");
+    const chip = words.closest("[data-slot=badge]")!;
+    expect(chip.className).toContain("min-w-0 shrink");
+    expect(chip.className).not.toContain("shrink-0");
+    expect(chip.className).toContain("md:max-wide:hidden");
   });
 });
