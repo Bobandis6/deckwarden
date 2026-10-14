@@ -39,6 +39,12 @@
  * ivory, black at 60 % on charcoal) and the frame's 2 px hover lift on
  * U2's 120 ms. The Skeleton is the same row, box for box. Phones keep the
  * card above its name until U4a; the share page passes no `raised`.
+ *
+ * U4a (WAVE5 D5): the raised row runs on phones too, the card at 160 px
+ * (45 % of the pane at most, today's phone card) with the name, Remove and
+ * the facts line beside it, the hero shadow at every tier; the facts line
+ * carries the caption everywhere, so the mono caption is the share page's
+ * alone. The Skeleton keeps step: the same row on phones, box for box.
  */
 import { ArrowRightIcon, XIcon } from "lucide-react";
 import Link from "next/link";
@@ -56,22 +62,22 @@ import type { ViewItem } from "@/lib/decks/view-model";
 import type { GameAdapter, ZoneDef } from "@/lib/games/types";
 import { cn } from "@/lib/utils";
 
-/** A leader's box: 160 px (45 % at most) above its name, the phone's and the share page's. */
+/** A leader's box: 160 px (45 % at most) above its name, the share page's. */
 const CARD_ROW_CLASS = "w-40 max-w-[45%]";
-/** The raised row (U3b): from md, the card and its facts side by side, one leader to a line. */
-const RAISED_ROW_CLASS = `${CARD_ROW_CLASS} md:flex md:w-full md:max-w-none md:items-start md:gap-4`;
-/** The raised card's width from md: 180 px (11.25rem), the 488 / 680 aspect below it. */
-const RAISED_CARD_CLASS = "md:w-45 md:shrink-0";
+/** The raised row (U3b; U4a at every tier): the card and its facts side by side, one leader to a line. */
+const RAISED_ROW_CLASS = "flex w-full items-start gap-3 md:gap-4";
+/** The raised card: 160 px (45 % of the pane at most) on phones, 180 px (11.25rem) from md. */
+const RAISED_CARD_CLASS = `${CARD_ROW_CLASS} shrink-0 md:w-45 md:max-w-none`;
 /**
- * The raised card's image: HERO_CARD_SHADOW's values (surface-header.tsx)
- * from md, and the frame's lift and ring on U2's tokens — 120 ms on
- * settle-120, the fade (a lazy image's) on the 250 ms cross-fade — in place
- * of CardImage's untokened 150 ms (LATER row 230).
+ * The raised card's image: HERO_CARD_SHADOW's values (surface-header.tsx),
+ * and the frame's lift and ring on U2's tokens — 120 ms on settle-120, the
+ * fade (a lazy image's) on the 250 ms cross-fade — in place of CardImage's
+ * untokened 150 ms (LATER row 230).
  */
 const RAISED_IMAGE_CLASS =
-  "md:shadow-lg md:shadow-primary/25 md:dark:shadow-black/60 motion-safe:[transition:opacity_250ms_var(--ease-settle-250),transform_120ms_var(--ease-settle-120),box-shadow_120ms_var(--ease-settle-120)]";
-/** The raised card's facts column: beside the card from md, its first line 4 px below the card's top edge. */
-const RAISED_FACTS_CLASS = "md:min-w-0 md:flex-1 md:pt-1";
+  "shadow-lg shadow-primary/25 dark:shadow-black/60 motion-safe:[transition:opacity_250ms_var(--ease-settle-250),transform_120ms_var(--ease-settle-120),box-shadow_120ms_var(--ease-settle-120)]";
+/** The raised card's facts column: beside the card, its first line 4 px below the card's top edge. */
+const RAISED_FACTS_CLASS = "min-w-0 flex-1 pt-1";
 const CAPTION_CLASS = "text-muted-foreground block truncate font-mono text-[0.65rem]";
 
 interface LeaderZoneProps {
@@ -134,8 +140,9 @@ export function LeaderZone({
       {items.length === 0 && pending ? (
         // The seeded card's box (U3a): the image's aspect, the name row at
         // the Remove button's height, the caption's line — so the seed lands
-        // in place and the empty state never flashes before it. Raised (U3b):
-        // the same row as the card's, the facts column beside the box from md.
+        // in place and the empty state never flashes before it. Raised (U3b,
+        // U4a at every tier): the same row as the card's, the facts column
+        // beside the box.
         <ul aria-hidden data-slot="leader-pending" className="mt-2 flex flex-wrap gap-3">
           <li className={raised ? RAISED_ROW_CLASS : CARD_ROW_CLASS}>
             <Skeleton
@@ -146,12 +153,11 @@ export function LeaderZone({
             />
             {raised ? (
               <div className={RAISED_FACTS_CLASS}>
-                <span className="mt-1 flex items-center gap-1 md:mt-0">
-                  <Skeleton className="h-3 flex-1 md:h-3.5 md:max-w-36" />
+                <span className="flex items-center gap-1">
+                  <Skeleton className="h-3.5 max-w-36 flex-1" />
                   <span className="size-6 shrink-0 pointer-coarse:size-11" />
                 </span>
-                <span className="block font-mono text-[0.65rem] md:hidden">{"\u00a0"}</span>
-                <span className="type-meta hidden md:block">{"\u00a0"}</span>
+                <span className="type-meta block">{"\u00a0"}</span>
               </div>
             ) : (
               <>
@@ -215,11 +221,11 @@ export function LeaderZone({
             const level = severity.get(card.id);
             const levelId = level ? `${idPrefix}-${entry.cardId}` : undefined;
             const nameRow = (
-              <span className={cn("mt-1 flex items-center gap-1", raised && "md:mt-0")}>
+              <span className={cn("flex items-center gap-1", !raised && "mt-1")}>
                 <span
                   className={cn(
-                    "min-w-0 flex-1 truncate text-xs",
-                    raised && "md:flex-initial md:text-sm md:font-medium",
+                    "min-w-0 truncate",
+                    raised ? "flex-initial text-sm font-medium" : "flex-1 text-xs",
                   )}
                 >
                   {card.name}
@@ -271,19 +277,15 @@ export function LeaderZone({
                   </span>
                 )}
                 {raised ? (
-                  // The facts column (U3b): beside the card from md, where the
-                  // type line joins the caption; under it on phones, as before.
+                  // The facts column (U3b; U4a at every tier): beside the card,
+                  // the type line joined with the caption. On a phone's narrow
+                  // column the line wraps "pretty", so the type line stays whole.
                   <div className={RAISED_FACTS_CLASS}>
                     {nameRow}
-                    {caption && (
-                      <span data-slot="leader-caption" className={cn(CAPTION_CLASS, "md:hidden")}>
-                        {caption}
-                      </span>
-                    )}
                     {facts && (
                       <p
                         data-slot="leader-facts"
-                        className="type-meta text-muted-foreground hidden md:block"
+                        className="type-meta text-muted-foreground max-md:text-pretty"
                       >
                         {facts}
                       </p>

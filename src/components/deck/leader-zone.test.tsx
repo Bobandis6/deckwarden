@@ -297,8 +297,10 @@ describe("LeaderZone — the bones (U3a, WAVE5 D4)", () => {
   });
 });
 
-describe("LeaderZone — the raised card (U3b, WAVE5 D4)", () => {
-  const RAISED_ROW = "w-40 max-w-[45%] md:flex md:w-full md:max-w-none md:items-start md:gap-4";
+describe("LeaderZone — the raised card (U3b, WAVE5 D4; U4a at every tier, WAVE5 D5)", () => {
+  // U4a: the row runs on phones too (U3b's was md-gated: the pins moved with it).
+  const RAISED_ROW = "flex w-full items-start gap-3 md:gap-4";
+  const RAISED_CARD = "w-40 max-w-[45%] shrink-0 md:w-45 md:max-w-none";
   const giada: EditorCard = {
     ...card({
       name: "Giada, Font of Hope",
@@ -316,7 +318,7 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4)", () => {
     card: giada,
   };
 
-  it("from md: the card at 180 px with its facts beside it, raised by the hero shadow on U2's 120 ms", () => {
+  it("the card (160 px on a phone, 45 % at most; 180 from md) with its facts beside it, raised by the hero shadow on U2's 120 ms", () => {
     render(
       <LeaderZone
         zone={commanderZone}
@@ -332,28 +334,27 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4)", () => {
     const button = screen.getByRole("button", { name: "Show Giada, Font of Hope" });
     const row = button.closest("li")!;
     expect(row.className).toBe(RAISED_ROW);
-    expect(button.className).toContain("md:w-45 md:shrink-0");
+    expect(button.className).toContain(RAISED_CARD);
+    expect(button.className).not.toContain("w-full");
     const img = screen.getByRole("img", { name: "Giada, Font of Hope" });
-    // HERO_CARD_SHADOW's values from md (phones keep shadow-md until U4a).
-    expect(img.className).toContain(
-      "shadow-md md:shadow-lg md:shadow-primary/25 md:dark:shadow-black/60",
-    );
+    // HERO_CARD_SHADOW's values at every tier (U4a: phones too, no shadow-md left).
+    expect(img.className).toContain("shadow-lg shadow-primary/25 dark:shadow-black/60");
+    expect(img.className).not.toContain("shadow-md");
     // The frame's 2 px lift and ring on settle-120, in place of CardImage's untokened 150 ms.
     expect(img.className).toContain("motion-safe:hover:-translate-y-0.5");
     expect(img.className).toContain("transform_120ms_var(--ease-settle-120)");
     expect(img.className).not.toContain("150ms");
-    // The facts: the type line and the caption as the adapter gives them (data, em dash kept).
+    // The facts: the type line and the caption as the adapter gives them (data,
+    // em dash kept), shown at every tier; the mono caption is the share page's alone.
     const facts = row.querySelector<HTMLElement>("[data-slot=leader-facts]")!;
     expect(facts.textContent).toBe("Legendary Creature — Angel · 2/2");
-    expect(facts.className).toBe("type-meta text-muted-foreground hidden md:block");
-    // Phones keep the mono caption under the card; from md the facts line carries it.
-    const caption = row.querySelector<HTMLElement>("[data-slot=leader-caption]")!;
-    expect(caption.textContent).toBe("2/2");
-    expect(caption.className).toContain("font-mono");
-    expect(caption.className).toContain("md:hidden");
-    expect(screen.getByText("Giada, Font of Hope").className).toContain(
-      "md:text-sm md:font-medium",
-    );
+    // On a phone the line wraps pretty, so the type line stays whole above "· 2/2".
+    expect(facts.className).toBe("type-meta text-muted-foreground max-md:text-pretty");
+    expect(row.querySelector("[data-slot=leader-caption]")).toBeNull();
+    expect(facts.parentElement!.className).toBe("min-w-0 flex-1 pt-1");
+    const name = screen.getByText("Giada, Font of Hope");
+    expect(name.className).toBe("min-w-0 truncate flex-initial text-sm font-medium");
+    expect(name.parentElement!.className).toBe("flex items-center gap-1");
     expect(screen.getByRole("button", { name: "Remove Giada, Font of Hope" })).toBeTruthy();
   });
 
@@ -374,7 +375,7 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4)", () => {
     );
   });
 
-  it("the Skeleton is the same row while a seed is on its way: the card's box, then the name row and a facts line", () => {
+  it("the Skeleton is the same row while a seed is on its way, at every tier: the card's box, then the name row and a facts line", () => {
     render(
       <LeaderZone
         zone={commanderZone}
@@ -391,16 +392,19 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4)", () => {
     expect(row.className).toBe(RAISED_ROW);
     const [box, facts] = [...row.children] as HTMLElement[];
     expect(box.dataset.slot).toBe("skeleton");
-    expect(box.className).toContain("aspect-[488/680] w-full");
-    expect(box.className).toContain("md:w-45 md:shrink-0");
-    expect(facts.className).toBe("md:min-w-0 md:flex-1 md:pt-1");
-    const [nameRow, caption, meta] = [...facts.children] as HTMLElement[];
-    expect(nameRow.className).toContain("mt-1 flex items-center gap-1 md:mt-0");
+    expect(box.className).toContain("aspect-[488/680]");
+    expect(box.className).toContain(RAISED_CARD);
+    expect(box.className).not.toContain("w-full");
+    expect(facts.className).toBe("min-w-0 flex-1 pt-1");
+    const [nameRow, meta, ...rest] = [...facts.children] as HTMLElement[];
+    expect(rest).toHaveLength(0);
+    expect(nameRow.className).toBe("flex items-center gap-1");
+    expect(nameRow.querySelector("[data-slot=skeleton]")?.className).toContain(
+      "h-3.5 max-w-36 flex-1",
+    );
     expect(nameRow.querySelector(".size-6.pointer-coarse\\:size-11")).not.toBeNull();
-    expect(caption.className).toContain("md:hidden");
-    expect(meta.className).toBe("type-meta hidden md:block");
-    // Each line holds a no-break space, so it keeps its line box.
-    expect(caption.textContent).toBe(" ");
+    expect(meta.className).toBe("type-meta block");
+    // The line holds a no-break space, so it keeps its line box.
     expect(meta.textContent).toBe(" ");
   });
 
@@ -419,8 +423,11 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4)", () => {
     expect(row.className).toBe("w-40 max-w-[45%]");
     expect(row.querySelector("[data-slot=leader-facts]")).toBeNull();
     expect(row.querySelector("[data-slot=leader-caption]")?.className).not.toContain("md:hidden");
-    expect(screen.getByRole("img", { name: "Giada, Font of Hope" }).className).toContain(
-      "transform_150ms",
+    const img = screen.getByRole("img", { name: "Giada, Font of Hope" });
+    expect(img.className).toContain("shadow-md");
+    expect(img.className).toContain("transform_150ms");
+    expect(screen.getByText("Giada, Font of Hope").className).toBe(
+      "min-w-0 truncate flex-1 text-xs",
     );
   });
 });

@@ -2,9 +2,10 @@
  * The deck pane's legality line (Y4a, WAVE4 D5): the bracket line renders
  * directly after the ValidationPanel — the Warden's line when approved, the
  * progress and problem lines otherwise — and before the leader zone; with
- * no `bracket` the pane renders as before.
+ * no `bracket` the pane renders as before. U4a: the phone Deck tab (one
+ * count, the "Group · Sort" popover).
  */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { toEditorCard, type EditorEntry } from "@/lib/decks/editor-state";
@@ -208,5 +209,122 @@ describe("DeckListPane — the bones (U3a, WAVE5 D4)", () => {
     const img = screen.getByRole("img", { name: "Kozilek, the Great Distortion" });
     expect(img.getAttribute("loading")).toBe("eager");
     expect(img.getAttribute("fetchpriority")).toBe("high");
+  });
+});
+
+describe("DeckListPane — the phone Deck tab (U4a, WAVE5 D5)", () => {
+  const sol = toEditorCard({
+    ...card({ name: "Sol Ring", primaryType: "Artifact" }),
+    id: "sol",
+    image: null,
+  });
+  const listedEntries: EditorEntry[] = [
+    ...entries,
+    { cardId: "sol", zone: "main", qty: 1, tags: [] },
+  ];
+  const listedCards = new Map([...cards, ["sol", sol]]);
+
+  function pane(over: Partial<React.ComponentProps<typeof DeckListPane>> = {}) {
+    return render(
+      <DeckListPane
+        adapter={mtg}
+        format={COMMANDER}
+        entries={listedEntries}
+        cards={listedCards}
+        issues={[]}
+        analytics={[]}
+        onSetQty={() => undefined}
+        onRemove={() => {}}
+        onPreview={() => {}}
+        onAddCards={() => {}}
+        extras={false}
+        {...over}
+      />,
+    );
+  }
+
+  /** Base UI triggers open on the pointer sequence, not a bare click. */
+  function press(trigger: HTMLElement) {
+    fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
+    fireEvent.mouseDown(trigger, { button: 0 });
+    fireEvent.click(trigger, { button: 0 });
+  }
+
+  it("one count: the heading sr-only below md (the tab is the title); the ring leads its count, the count in the foreground and its words muted; Add cards at the right", () => {
+    pane({ phone: true });
+    expect(screen.getByRole("heading", { level: 2, name: "Deck" }).className).toContain(
+      "max-md:sr-only",
+    );
+    const size = document.querySelector<HTMLElement>("[data-slot=deck-size]")!;
+    // The label's words are unchanged; the count is its own span.
+    expect(size.textContent).toBe("2 / 100 · 98 to go");
+    const count = size.firstElementChild as HTMLElement;
+    expect(count.textContent).toBe("2 / 100");
+    expect(count.className).toBe("max-md:text-foreground max-md:font-medium");
+    expect(size.className).toContain("text-muted-foreground");
+    const cluster = size.parentElement!;
+    expect(cluster.className).toContain("max-md:justify-start max-md:gap-x-1.5");
+    expect(cluster.querySelector("[data-slot=completion-ring]")?.getAttribute("class")).toContain(
+      "max-md:order-first",
+    );
+    // "Add cards" rides the other group, which goes last on a phone.
+    const add = screen.getByRole("button", { name: "Add cards" });
+    expect(add.parentElement!.className).toContain("max-md:order-last");
+    expect(add.parentElement!.className).toContain("self-stretch");
+  });
+
+  it("at the minimum the words read cards; over it the rank-cuts link is 44 px on a phone's touch", () => {
+    pane({
+      entries: [...entries, { cardId: "sol", zone: "main", qty: 100, tags: [] }],
+      onOpenCuts: () => {},
+    });
+    expect(document.querySelector("[data-slot=deck-size]")?.textContent).toBe("101 / 100 cards");
+    expect(screen.getByRole("button", { name: /^Over by 1/ }).className).toContain(
+      "max-md:pointer-coarse:min-h-11",
+    );
+  });
+
+  it("one controls row on a phone: View, then Group · Sort; its popover holds Group and Sort, stays open on a pick, and Escape returns focus to the trigger", async () => {
+    pane({ phone: true });
+    expect(screen.getByRole("group", { name: "View" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Group" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Sort" })).toBeNull();
+    const trigger = screen.getByRole("button", { name: "Group · Sort" });
+    expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(trigger.parentElement!.className).toBe("mt-4 flex items-center justify-between gap-3");
+
+    press(trigger);
+    const popover = await screen.findByRole("dialog");
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(popover.className).toContain("grid w-auto grid-cols-[auto_auto]");
+    expect(popover.className).toContain("*:contents");
+    const group = within(popover).getByRole("group", { name: "Group" });
+    within(popover).getByRole("group", { name: "Sort" });
+    expect(within(popover).getByText("Group")).toBeTruthy();
+    expect(within(popover).getByText("Sort")).toBeTruthy();
+
+    // A pick regroups the list and leaves the popover open for the other.
+    fireEvent.click(within(group).getByRole("button", { name: "Cost" }));
+    expect(within(group).getByRole("button", { name: "Cost" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    expect(screen.getByRole("dialog")).toBe(popover);
+
+    // Focus inside the popover (a finger on the pressed item), then Escape from there.
+    const pressed = within(group).getByRole("button", { name: "Cost" });
+    pressed.focus();
+    expect(popover.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(pressed, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("from md the three Segmenteds sit inline (U3a's row) and there is no popover", () => {
+    pane({ phone: false });
+    expect(screen.getByRole("group", { name: "View" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Group" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Sort" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Group · Sort" })).toBeNull();
   });
 });

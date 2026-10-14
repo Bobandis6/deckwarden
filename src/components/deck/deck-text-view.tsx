@@ -45,6 +45,11 @@
  * scroll-edge gradient over the rows below; under the fallbacks the solid
  * strip and the hairline instead. `useStuck` decides; it never runs on the
  * share page, which passes no `stickyHeaders`.
+ *
+ * U4a (WAVE5 D5, 44 px on touch): an editable row's name button stretches
+ * to its row on a coarse pointer, so the name is a 44 px target like the
+ * steppers; the row and the look are unchanged, and the share page's rows
+ * (no `onSetQty`) keep theirs.
  */
 import { ArrowLeftRightIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
@@ -256,7 +261,12 @@ export function DeckTextView({
                 <button
                   type="button"
                   onClick={() => onPreview(card)}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 text-left hover:underline"
+                  // U4a: on touch an editable row's name is its row's height,
+                  // a 44 px target like the steppers beside it.
+                  className={cn(
+                    "flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 text-left hover:underline",
+                    onSetQty && "pointer-coarse:self-stretch",
+                  )}
                 >
                   {severity.has(card.id) && (
                     <span

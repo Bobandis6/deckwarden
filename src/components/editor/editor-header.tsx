@@ -49,6 +49,19 @@
  * is at its floor; from `md` to `wide` the chip hides (which also lets the
  * md header's first row hold the cluster at 768 px). Phones keep the chip
  * until U4a.
+ *
+ * U4a (WAVE5 D5, the phone header; the owner's call of 2026-10-14 for the
+ * status row): below `md` the header is a grid of fixed rows, never a wrap.
+ * Row 1 (56 px): the mark, the name (truncating, its 8rem floor, 44 px on
+ * touch) and More. A fork's credit line under the name. Then the status row
+ * (40 px, 44 on touch) for every deck: the save slot under the name, its
+ * label left-aligned, and the primary action at the right (Keep this deck
+ * on a seeded draft, Share once a row exists). The save status and Share
+ * stay outside any menu, and a kept draft changes the row's words, never
+ * its height. The chip steps aside below `wide` (beside the name it would
+ * cut a phone's name under its floor), and Appearance moves into More
+ * (`phone`, the editor's tier): one appearance control per page at every
+ * tier. From `md` nothing here changes.
  */
 import { CheckIcon, EllipsisIcon, PanelRightIcon } from "lucide-react";
 import Link from "next/link";
@@ -58,13 +71,15 @@ import { BrandMark } from "@/components/brand-mark";
 import { CHROME_CLASS } from "@/components/chrome-material";
 import { ForkCreditLine } from "@/components/deck/fork-button";
 import type { SaveStatus } from "@/components/editor/use-autosave";
-import { AppearanceMenu } from "@/components/theme/appearance-menu";
+import { AppearanceItems, AppearanceMenu } from "@/components/theme/appearance-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
@@ -110,6 +125,7 @@ export function EditorHeader({
   onOpenTools,
   draft = false,
   onKeep,
+  phone = false,
 }: {
   adapter: GameAdapter;
   format: FormatDef;
@@ -131,26 +147,31 @@ export function EditorHeader({
   draft?: boolean;
   /** "Keep this deck" (Y2a) — a seeded draft's explicit save; the button renders only when given. */
   onKeep?: () => void;
+  /** The phone tier (U4a): Appearance lives in More, the header's own control steps aside. */
+  phone?: boolean;
 }) {
   return (
     <header
       className={cn(
         "flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2 lg:h-14 lg:flex-nowrap lg:py-0",
+        // U4a: the phone's fixed rows (the name's, a fork's credit, the status row).
+        "max-md:grid max-md:grid-cols-[auto_minmax(0,1fr)_auto] max-md:grid-rows-[3.5rem_auto_2.5rem] max-md:gap-y-0 max-md:py-0 max-md:pointer-coarse:grid-rows-[3.5rem_auto_2.75rem]",
         CHROME_CLASS,
       )}
     >
       <Link
         href="/"
         aria-label="Deckwarden"
-        className="group/mark focus-visible:ring-ring/50 flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
+        className="group/mark focus-visible:ring-ring/50 flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 max-md:col-start-1 max-md:row-start-1 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
       >
         <BrandMark className="size-8 motion-safe:transition-transform motion-safe:duration-[120ms] motion-safe:group-hover/mark:-rotate-3" />
       </Link>
       {/* U3b: the chip shrinks with the name (min-w-0, its words truncating),
-          alone once the name is at 8rem, and steps aside from md to wide. */}
+          alone once the name is at 8rem, and steps aside from md to wide.
+          U4a: and on phones, where it would cut the name under its floor. */}
       <Badge
         variant="outline"
-        className="text-muted-foreground min-w-0 shrink font-normal md:max-wide:hidden"
+        className="text-muted-foreground min-w-0 shrink font-normal max-md:hidden md:max-wide:hidden"
       >
         <span className="truncate">
           {adapter.name} · {format.label}
@@ -162,20 +183,22 @@ export function EditorHeader({
         aria-label="Deck name"
         placeholder="Untitled — click to name your deck"
         maxLength={120}
-        className="focus-visible:ring-ring/50 order-last min-w-[8rem] basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 lg:order-none lg:flex-1 lg:basis-auto"
+        className="focus-visible:ring-ring/50 order-last min-w-[8rem] basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 max-md:col-start-2 max-md:row-start-1 max-md:w-full max-md:text-ellipsis max-md:pointer-coarse:min-h-11 lg:order-none lg:flex-1 lg:basis-auto"
       />
-      {/* Fork credit (P3.6) rides the name row on mobile and sits inline on desktop. */}
+      {/* Fork credit (P3.6) rides the name row on mobile and sits inline on
+          desktop. U4a: on phones, its own line under the name. */}
       {forkedFrom && (
         <ForkCreditLine
           credit={forkedFrom}
-          className="order-last basis-full truncate px-2 lg:order-none lg:max-w-56 lg:basis-auto"
+          className="order-last basis-full truncate px-2 max-md:col-[2/-1] max-md:row-start-2 lg:order-none lg:max-w-56 lg:basis-auto"
         />
       )}
-      <div className="ml-auto flex items-center gap-1.5 lg:ml-0">
+      {/* U4a: on phones the cluster steps aside, its items placed in the rows. */}
+      <div className="ml-auto flex items-center gap-1.5 max-md:contents lg:ml-0">
         <SaveIndicator status={saveStatus} onRetry={onRetry} draft={draft} />
         <span
           data-slot="primary-slot"
-          className="max-md:contents md:inline-flex md:w-[7.5rem] md:shrink-0 md:justify-end"
+          className="max-md:col-[2/-1] max-md:row-start-3 max-md:flex max-md:justify-self-end md:inline-flex md:w-[7.5rem] md:shrink-0 md:justify-end"
         >
           {onKeep ? (
             <Button size="sm" onClick={onKeep}>
@@ -200,7 +223,15 @@ export function EditorHeader({
         )}
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<Button variant="ghost" size="icon-sm" aria-label="More" ref={moreRef} />}
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="More"
+                ref={moreRef}
+                className="max-md:col-start-3 max-md:row-start-1"
+              />
+            }
           >
             <EllipsisIcon />
           </DropdownMenuTrigger>
@@ -238,9 +269,27 @@ export function EditorHeader({
               Keyboard shortcuts
               <DropdownMenuShortcut>?</DropdownMenuShortcut>
             </DropdownMenuItem>
+            {/* U4a: the phone's appearance control, the header's own stepping aside. */}
+            {phone && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Appearance</DropdownMenuLabel>
+                  <AppearanceItems />
+                </DropdownMenuGroup>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
-        <AppearanceMenu />
+        {/* From md the header's own appearance control. The editor's first
+            commit reads the tier's server snapshot ("wide"), so on a phone it
+            renders here for one commit: CSS keeps it out of the phone's rows
+            until the tier settles (no shift), and then it is gone. */}
+        {!phone && (
+          <span className="contents max-md:hidden">
+            <AppearanceMenu />
+          </span>
+        )}
       </div>
     </header>
   );
@@ -263,6 +312,8 @@ export const SAVING_LABEL_AFTER_MS = 300;
  * real state. The live region announces the change as before. A draft
  * (Y2a) at rest reads "Draft" with no check — its first edit turns the
  * slot to "Unsaved…" like any other, and the minted row ends the draft.
+ * On phones (U4a) the box sits under the name with its label left-aligned,
+ * the outgoing label anchored to the same left edge.
  */
 function SaveIndicator({
   status,
@@ -309,7 +360,7 @@ function SaveIndicator({
       data-draft={draft || undefined}
       title={resting ? "Saves on your first change" : undefined}
       aria-live="polite"
-      className="inline-flex h-7 w-36 shrink-0 items-center justify-end gap-2 text-sm tabular-nums"
+      className="inline-flex h-7 w-36 shrink-0 items-center justify-end gap-2 text-sm tabular-nums max-md:col-start-2 max-md:row-start-3 max-md:ml-2 max-md:justify-start"
     >
       {status === "error" ? (
         <>
@@ -325,7 +376,7 @@ function SaveIndicator({
           className={cn(
             "text-muted-foreground relative inline-flex items-center gap-1",
             fading &&
-              "animate-dw-in before:absolute before:top-0 before:right-0 before:whitespace-nowrap before:animate-dw-out before:content-[attr(data-was)_/_'']",
+              "animate-dw-in before:absolute before:top-0 before:right-0 before:whitespace-nowrap before:animate-dw-out before:content-[attr(data-was)_/_''] max-md:before:right-auto max-md:before:left-0",
           )}
         >
           {label === "Saved" && (

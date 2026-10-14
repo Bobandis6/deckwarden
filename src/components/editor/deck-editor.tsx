@@ -2157,6 +2157,8 @@ export function DeckEditor({
             onOpen={openFromHeader}
             moreRef={moreRef}
             onOpenTools={() => setToolsOpen(true)}
+            // U4a: on phones Appearance lives in More (one control per page).
+            phone={tier === "phone"}
             draft={liveDeckId === null}
             // A draft holding cards it never edited holds a seed's — the
             // URL's, once settled, or the Surprise me door's (Y2b): any
@@ -2386,6 +2388,8 @@ export function DeckEditor({
             )
           }
           extras={tier !== "phone"}
+          // U4a: on phones Group and Sort fold into one popover beside View.
+          phone={tier === "phone"}
           // U3a: the seed lands in a reserved leader box (the doors above wait the same way).
           seeding={draftSeed !== null && !seedSettled}
           owned={hasCollection ? owned : undefined}

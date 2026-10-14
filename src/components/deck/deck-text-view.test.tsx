@@ -276,6 +276,36 @@ describe("DeckTextView touch targets (R4)", () => {
   });
 });
 
+describe("DeckTextView — 44 px on touch (U4a, WAVE5 D5)", () => {
+  it("an editable row's name stretches to its row on a coarse pointer (a 44 px target like the steppers); the share page's names keep theirs", () => {
+    const { unmount } = render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol }])}
+        severity={new Map()}
+        onSetQty={vi.fn()}
+        onRemove={vi.fn()}
+        onPreview={vi.fn()}
+      />,
+    );
+    const name = screen.getByText("Sol Ring").closest("button")!;
+    expect(name.className).toContain("pointer-coarse:self-stretch");
+    expect(name.className).toContain("flex min-w-0 flex-1 items-center");
+    unmount();
+    render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol }])}
+        severity={new Map()}
+        onPreview={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Sol Ring").closest("button")!.className).not.toContain(
+      "pointer-coarse",
+    );
+  });
+});
+
 describe("DeckTextView — lines to space (U3a, WAVE5 D4)", () => {
   it("a group heading is its label and its count on space: 12 px uppercase muted label, 14 px semibold tabular count, pt-5 pb-1.5, no hairline", () => {
     const { container } = render(

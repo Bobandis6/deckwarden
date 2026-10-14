@@ -1556,7 +1556,10 @@ describe("DeckEditor — an honest first screen (Y2a)", () => {
     expect(slot().getAttribute("title")).toBe("Saves on your first change");
     expect(slot().querySelector("svg")).toBeNull();
     expect(progressLine()?.textContent).toBe("Choose a commander · 100 to go");
-    expect(within(section("Deck list")).getByText("0 / 100 · 100 to go")).toBeTruthy();
+    // U4a: the count is its own span inside the label; the label's words are unchanged.
+    expect(section("Deck list").querySelector("[data-slot=deck-size]")?.textContent).toBe(
+      "0 / 100 · 100 to go",
+    );
     // Progress is not a problem: no red count, and never the approval line.
     expect(within(section("Deck list")).queryByRole("button", { name: /problem/ })).toBeNull();
     expect(screen.queryByText(/The Warden approves/)).toBeNull();
@@ -1592,7 +1595,9 @@ describe("DeckEditor — an honest first screen (Y2a)", () => {
     render(<DeckEditor deckId={null} draftGame="optcg" draftFormat="standard" />);
     expect(slot().textContent).toBe("Draft");
     expect(progressLine()?.textContent).toBe("Choose a leader · 50 to go");
-    expect(within(section("Deck list")).getByText("0 / 50 · 50 to go")).toBeTruthy();
+    expect(section("Deck list").querySelector("[data-slot=deck-size]")?.textContent).toBe(
+      "0 / 50 · 50 to go",
+    );
   });
 
   it("a precon draft offers Keep this deck: one click = exactly one create + one PUT, then Share", async () => {
@@ -1620,6 +1625,38 @@ describe("DeckEditor — an honest first screen (Y2a)", () => {
     expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Keep this deck" })).toBeNull();
     expect(slot().hasAttribute("data-draft")).toBe(false);
+  });
+
+  it("on a phone Appearance steps into More and Group · Sort folds the controls (U4a); a flip to wide brings the header's control and the inline row back, nothing created", async () => {
+    fetchMock.mockImplementation(seedRoute);
+    const viewport = stubViewport(375);
+    render(
+      <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftFromSlug="tiny" />,
+    );
+    await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
+    // The header: no Appearance button on the phone; More carries the group.
+    expect(screen.queryByRole("button", { name: "Appearance" })).toBeNull();
+    const more = screen.getByRole("button", { name: "More" });
+    fireEvent.pointerDown(more, { pointerType: "mouse", button: 0 });
+    fireEvent.mouseDown(more, { button: 0 });
+    fireEvent.click(more, { button: 0 });
+    const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
+    expect(within(menu).getByRole("group", { name: "Appearance" })).toBeTruthy();
+    fireEvent.keyDown(menu, { key: "Escape" });
+    await pollFor(() => (screen.queryByRole("menu") ? null : document.body));
+    // The deck pane: View, then the Group · Sort trigger; Group and Sort wait inside it.
+    expect(screen.getByRole("group", { name: "View" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Group · Sort" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Group" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Sort" })).toBeNull();
+
+    // The tier flip: the header's own control and the inline row, one of each.
+    act(() => viewport.resize(1440));
+    expect(screen.getAllByRole("button", { name: "Appearance" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Group · Sort" })).toBeNull();
+    expect(screen.getByRole("group", { name: "Group" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Sort" })).toBeTruthy();
+    expect(posts()).toBe(0);
   });
 
   it("removing a card toasts Removed X · Undo; Undo restores it (quantity, position) and autosaves", async () => {

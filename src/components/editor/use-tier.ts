@@ -8,11 +8,14 @@
  * content mounts, and what an explicit inspection opens) agrees with the
  * grid on screen. Widths themselves are never decided here.
  *
- * useSyncExternalStore: the editor is client-only on both routes, so the
- * server snapshot never paints — but it must exist, and it reads `wide`
- * (the desktop layout, the one every editor screenshot in the R-series
- * was taken at). Both lists are subscribed once; a change on either
- * re-reads both.
+ * useSyncExternalStore: the editor is client-only on both routes in
+ * production, so the server snapshot never paints there — but it must
+ * exist, and it reads `wide` (the desktop layout, the one every editor
+ * screenshot in the R-series was taken at). Both lists are subscribed once;
+ * a change on either re-reads both. U4a found one exception: `next dev`
+ * server-renders /decks/new, so on dev the editor's first paint is the
+ * snapshot's and hydration then flips a phone to `phone` — a tier-gated
+ * control in a phone's first screen needs a CSS guard as well.
  */
 import { useSyncExternalStore } from "react";
 

@@ -58,8 +58,16 @@
  * U3b (WAVE5 D4, the materials): the leader card is `raised` (from md, a
  * 180 px card with its facts beside it, its Skeleton the same row), and a
  * group heading is the chrome material only while stuck.
+ *
+ * U4a (WAVE5 D5, the phone Deck tab): one count on a phone. The tab says
+ * "Deck · N", so the pane's heading is sr-only there; the ring leads the
+ * count ("100 / 100" in the foreground at 500, "cards" muted beside it) and
+ * "Add cards" sits at the row's right. The raised leader row runs at every
+ * tier (the card at 160 px, 45 % at most, its facts beside it). View stays
+ * one Segmented while Group and Sort fold into a "Group · Sort" popover
+ * (`phone`, the editor's tier), so the controls are one 44 px row on touch.
  */
-import { PlusIcon } from "lucide-react";
+import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
@@ -74,6 +82,7 @@ import { ValidationPanel } from "@/components/deck/validation-panel";
 import { useCountUp } from "@/components/editor/use-count-up";
 import { EmptyState } from "@/components/empty-state";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
 import {
   deckSizeCount,
@@ -150,6 +159,8 @@ interface DeckListPaneProps {
   extras?: boolean;
   /** A URL seed is on its way (U3a): the leader zone holds the card's box, the extras wait. */
   seeding?: boolean;
+  /** The phone tier (U4a): Group and Sort fold into the "Group · Sort" popover beside View. */
+  phone?: boolean;
 }
 
 export function DeckListPane({
@@ -179,6 +190,7 @@ export function DeckListPane({
   bracket,
   extras = true,
   seeding = false,
+  phone = false,
 }: DeckListPaneProps) {
   // Stored preference wins; absent fields fall back (group to the adapter's
   // default). Read once — this pane only mounts client-side, after deck load.
@@ -211,7 +223,10 @@ export function DeckListPane({
   // "· N to go" follows the counted-up number so the two never disagree
   // mid-animation; at or over the minimum the label keeps saying "cards".
   const toGo = toGoPhrase(format.deckSize.min - shownTotal);
-  const sizeLabel = `${max !== null ? `${shownTotal} / ${max}` : `${shownTotal}`}${toGo ? ` · ${toGo}` : " cards"}`;
+  // U4a: the count and its words in two spans (the phone sets the count in
+  // the foreground); the label's text is unchanged.
+  const sizeCount = max !== null ? `${shownTotal} / ${max}` : `${shownTotal}`;
+  const sizeWords = toGo ? ` · ${toGo}` : " cards";
   const progress = progressLine(deckProgress(entries, format), adapter.display.leaderNoun);
 
   const { leader, rest } = splitLeaderEntries(entries, format);
@@ -234,15 +249,56 @@ export function DeckListPane({
   };
   const listed = rest.length > 0;
 
+  // View / Group / Sort: one row from md; on a phone Group and Sort sit in the popover (U4a).
+  const viewControl = (
+    <Segmented
+      ariaLabel="View"
+      touch
+      options={VIEW_OPTIONS}
+      value={view}
+      onChange={(v) => {
+        setView(v);
+        persist({ view: v });
+      }}
+    />
+  );
+  const groupControl = (
+    <Segmented
+      label="Group"
+      touch
+      options={GROUP_OPTIONS}
+      value={groupBy}
+      onChange={(v) => {
+        setGroupBy(v);
+        persist({ groupBy: v });
+      }}
+    />
+  );
+  const sortControl = (
+    <Segmented
+      label="Sort"
+      touch
+      options={SORT_OPTIONS}
+      value={sortBy}
+      onChange={(v) => {
+        setSortBy(v);
+        persist({ sortBy: v });
+      }}
+    />
+  );
+
   return (
     <div className="p-3">
       {/* Summary (R3): count · ring · ownership · the over-limit action. U3a:
           on a phone the row keeps "Add cards"' 44 px before it appears; from
-          md the right cluster never wraps — the ownership line truncates. */}
+          md the right cluster never wraps — the ownership line truncates.
+          U4a: on a phone one count — the heading sr-only (the tab is the
+          title), the ring before its count at the left, "Add cards" at the
+          right. */}
       <div className="flex items-center justify-between gap-2 max-md:pointer-coarse:min-h-11">
         {/* Stretched to the row, so "Add cards" arriving never moves its box. */}
-        <div className="flex shrink-0 items-center gap-2 self-stretch">
-          <h2 className="text-sm font-semibold">Deck</h2>
+        <div className="flex shrink-0 items-center gap-2 self-stretch max-md:order-last">
+          <h2 className="text-sm font-semibold max-md:sr-only">Deck</h2>
           {/* The empty state carries its own (Y2a: a phone shows one). */}
           {onAddCards && listed && (
             <Button size="sm" className="pointer-coarse:min-h-11 md:hidden" onClick={onAddCards}>
@@ -251,14 +307,14 @@ export function DeckListPane({
             </Button>
           )}
         </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 md:flex-nowrap">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 max-md:justify-start max-md:gap-x-1.5 md:flex-nowrap">
           {/* The over-limit pain point (the DECK_SIZE error's always-visible
               face) links straight to the Cut Coach (P3.4). */}
           {onOpenCuts && max !== null && total > max && (
             <button
               type="button"
               onClick={onOpenCuts}
-              className="text-destructive shrink-0 cursor-pointer text-xs font-medium whitespace-nowrap hover:underline"
+              className="text-destructive shrink-0 cursor-pointer text-xs font-medium whitespace-nowrap hover:underline max-md:pointer-coarse:min-h-11"
             >
               Over by {total - max} — rank cuts
             </button>
@@ -278,9 +334,10 @@ export function DeckListPane({
             className="text-muted-foreground shrink-0 text-sm whitespace-nowrap tabular-nums"
             data-slot="deck-size"
           >
-            {sizeLabel}
+            <span className="max-md:text-foreground max-md:font-medium">{sizeCount}</span>
+            {sizeWords}
           </span>
-          <CompletionRing value={total} max={max} />
+          <CompletionRing value={total} max={max} className="max-md:order-first" />
         </div>
       </div>
 
@@ -328,41 +385,36 @@ export function DeckListPane({
       )}
 
       {/* A quiet first screen (Y2a): nothing to view, group or sort yet.
-          U3a: "View" is the group's name, not a label (Text / Grid says it). */}
-      {listed && (
-        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
-          <Segmented
-            ariaLabel="View"
-            touch
-            options={VIEW_OPTIONS}
-            value={view}
-            onChange={(v) => {
-              setView(v);
-              persist({ view: v });
-            }}
-          />
-          <Segmented
-            label="Group"
-            touch
-            options={GROUP_OPTIONS}
-            value={groupBy}
-            onChange={(v) => {
-              setGroupBy(v);
-              persist({ groupBy: v });
-            }}
-          />
-          <Segmented
-            label="Sort"
-            touch
-            options={SORT_OPTIONS}
-            value={sortBy}
-            onChange={(v) => {
-              setSortBy(v);
-              persist({ sortBy: v });
-            }}
-          />
-        </div>
-      )}
+          U3a: "View" is the group's name, not a label (Text / Grid says it).
+          U4a: on a phone one row, View then a "Group · Sort" popover holding
+          the other two; the popover returns focus to its trigger on close. */}
+      {listed &&
+        (phone ? (
+          <div className="mt-4 flex items-center justify-between gap-3">
+            {viewControl}
+            <Popover>
+              <PopoverTrigger render={<Button variant="outline" size="sm" />}>
+                Group · Sort
+                <ChevronDownIcon data-icon="inline-end" aria-hidden />
+              </PopoverTrigger>
+              {/* Each Segmented's wrapper steps aside (*:contents), so the two
+                  labels share a column and the two groups line up beside them. */}
+              <PopoverContent
+                align="end"
+                className="grid w-auto grid-cols-[auto_auto] items-center gap-x-2 gap-y-3 *:contents"
+              >
+                {groupControl}
+                {sortControl}
+              </PopoverContent>
+            </Popover>
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
+            {viewControl}
+            {groupControl}
+            {sortControl}
+          </div>
+        ))}
 
       {error && (
         <p aria-live="polite" className="text-destructive mt-1 text-xs">
