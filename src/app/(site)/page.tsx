@@ -79,7 +79,17 @@ export default async function Home() {
         )}
       >
         <div className="flex flex-col items-start gap-5">
-          <h1 className="type-display text-balance">Your next great deck starts here.</h1>
+          {/* The same line count in Literata and its metric-matched fallback,
+              so the font's arrival never reflows the hero (U5, measured on
+              prod at 390: a 50 px shift when the fan's preloads delayed the
+              font): the two disagree in boxes 352-382 px wide (3 lines
+              against 2, phones of 384-414 px) and 700-750 (2 against 1,
+              768-782), so phones get 7em (336 px, 3 lines in both), md
+              12em (2 lines), lg the whole column (1 line; xl's third holds
+              2 in both). */}
+          <h1 className="type-display max-w-[7em] text-balance md:max-w-[12em] lg:max-w-none">
+            Your next great deck starts here.
+          </h1>
           <p className="text-muted-foreground max-w-xl text-lg text-pretty">
             Keyboard-first deck building for Commander and the One Piece Card Game. Free, no account
             needed.

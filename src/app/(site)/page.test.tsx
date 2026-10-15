@@ -136,8 +136,9 @@ describe("home (U5, home B)", () => {
 
   it("the split hero: the pinned H1, the 15-word sentence, Build a deck and Browse commanders", async () => {
     const html = await renderHome();
+    // The H1 wraps the same in Literata and its fallback at every width (no reflow on the swap).
     expect(html).toMatch(
-      /<h1 class="type-display text-balance">Your next great deck starts here\.<\/h1>/,
+      /<h1 class="type-display max-w-\[7em\] text-balance md:max-w-\[12em\] lg:max-w-none">Your next great deck starts here\.<\/h1>/,
     );
     const sentence =
       "Keyboard-first deck building for Commander and the One Piece Card Game. Free, no account needed.";
