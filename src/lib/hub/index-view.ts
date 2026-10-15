@@ -2,15 +2,17 @@
  * The leader-index view preference (R5a, REDESIGN.md §2 "Commander and
  * leader indexes"): List or Grid under `deckwarden:index-view`, one value
  * for both indexes (how you like browsing leaders does not change per
- * game). Stored as the bare word; anything else reads as "list".
+ * game). Stored as the bare word; anything else reads as the default.
  *
- * `useIndexView` reads through useSyncExternalStore like the appearance
- * store (R2), with one deliberate difference: the SERVER snapshot is
- * "list", not null — the list must be in the server HTML (hubs-smoke greps
- * it, and it is what search engines index), so a Grid reader sees the list
- * for one paint and the grid after hydration. Same-tab saves notify every
- * subscriber synchronously; other tabs follow through the `storage` event;
- * an in-memory fallback covers storage that throws.
+ * The default is the image grid (U7a, WAVE5 F14: an image-led index shows
+ * its images). `useIndexView` reads through useSyncExternalStore like the
+ * appearance store (R2), with one deliberate difference: the SERVER
+ * snapshot is the default, not null — a view must be in the server HTML
+ * (hubs-smoke greps its names and hrefs, and it is what search engines
+ * index), so a List reader sees the grid for one paint and the list after
+ * hydration. Same-tab saves notify every subscriber synchronously; other
+ * tabs follow through the `storage` event; an in-memory fallback covers
+ * storage that throws.
  */
 import { useSyncExternalStore } from "react";
 
@@ -18,9 +20,9 @@ export const INDEX_VIEWS = ["list", "grid"] as const;
 export type IndexView = (typeof INDEX_VIEWS)[number];
 
 export const INDEX_VIEW_KEY = "deckwarden:index-view";
-export const DEFAULT_INDEX_VIEW: IndexView = "list";
+export const DEFAULT_INDEX_VIEW: IndexView = "grid";
 
-/** A stored value, validated; anything unreadable is the list. */
+/** A stored value, validated; anything unreadable is the default (the grid). */
 export function parseIndexView(raw: string | null): IndexView {
   return INDEX_VIEWS.includes(raw as IndexView) ? (raw as IndexView) : DEFAULT_INDEX_VIEW;
 }
@@ -74,7 +76,7 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-/** The reader's index view — "list" on the server and until hydration. */
+/** The reader's index view — the default (the grid) on the server and until hydration. */
 export function useIndexView(): IndexView {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

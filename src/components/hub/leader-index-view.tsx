@@ -2,12 +2,16 @@
 
 /**
  * The leader index body (R5a, REDESIGN.md §2 "Commander and leader
- * indexes"): the compact list or the image grid, behind a List / Grid toggle
+ * indexes"): the image grid or the compact list, behind a List / Grid toggle
  * persisted under `deckwarden:index-view` (lib/hub/index-view.ts) — one
- * value for both indexes. The store's server snapshot is "list", so the
- * server HTML always carries the list (hubs-smoke greps it; it is what gets
- * indexed) and a Grid reader sees the grid after hydration — the same
- * flash-to-preference the deck view has had since P1.3.
+ * value for both indexes. The grid is the default (U7a, WAVE5 F14) and the
+ * store's server snapshot, so the server HTML carries the grid: every link,
+ * in the list's order, with its name, rank or card number and identity as
+ * text beside the image (hubs-smoke greps them; it is what gets indexed). A
+ * List reader sees the list after hydration — the same flash-to-preference
+ * the deck view has had since P1.3. Each view's `<ul>` is keyed by the
+ * view, so that swap replaces the rows instead of moving them: no layout
+ * shift for the rows on screen.
  *
  * Both views render the same rows and the same hrefs, ending right after the
  * slug (the smokes' negative checks depend on that). Two flavors:
@@ -19,7 +23,9 @@
  *     list is /leaders' markup from before P4.9 — and the grid puts the card
  *     number top-left, like the home shelf's One Piece cards. There is no
  *     rank: A to Z is not a ranking.
- * The grid is the `small` rendition with the G2 frame, lazy; a leader
+ * The grid is the `small` rendition with the G2 frame; the first
+ * EAGER_CARDS load at once (CardImage's `priority`: the LCP image, and a
+ * first row that is visible before hydration), the rest lazy. A leader
  * without one shows its name in the box. ?colors= / ?page= / ?q= are the
  * page's; the toggle never touches the URL. `summary` is a polite live
  * line left of the toggle (/leaders' count). It is text, not an element:
@@ -62,6 +68,9 @@ export const INDEX_VIEW_OPTIONS: { value: IndexView; label: string }[] = [
 const HUB_PREFIX: Record<IndexGame, string> = { mtg: "/c/", optcg: "/l/" };
 
 const BADGE_CLASS = "bg-background/85 absolute top-1 left-1 rounded px-1 text-[10px]";
+
+/** The grid's first cards, eager: the first row at 1440 (six columns), three rows at 390. */
+export const EAGER_CARDS = 6;
 
 function ListRow({ game, leader }: { game: IndexGame; leader: IndexLeader }) {
   if (game === "optcg") {
@@ -144,8 +153,8 @@ export function LeaderIndexView({
         />
       </div>
       {view === "grid" ? (
-        <ul className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
-          {leaders.map((leader) => (
+        <ul key="grid" className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
+          {leaders.map((leader, i) => (
             <li key={leader.id} className="relative">
               <Link
                 href={`${hub}${leader.slug}`}
@@ -156,6 +165,7 @@ export function LeaderIndexView({
                   alt=""
                   width={TILE_IMAGE.width}
                   height={TILE_IMAGE.height}
+                  priority={i < EAGER_CARDS}
                   frame
                   className="h-auto w-full"
                   fallback={leader.name}
@@ -166,7 +176,7 @@ export function LeaderIndexView({
           ))}
         </ul>
       ) : (
-        <ul className="mt-3 divide-y rounded-lg border">
+        <ul key="list" className="mt-3 divide-y rounded-lg border">
           {leaders.map((leader) => (
             <li key={leader.id}>
               <Link

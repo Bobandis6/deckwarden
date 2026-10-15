@@ -142,7 +142,7 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
         {decks.length === 0 ? (
           <EmptyState mark title="Nothing in this folder yet." />
         ) : (
-          <DeckTileGrid className="lg:grid-cols-2">
+          <DeckTileGrid>
             {decks.map((deck) => (
               <DeckTile
                 key={deck.id}

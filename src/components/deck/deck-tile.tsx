@@ -6,8 +6,10 @@
  * renders it too, so it takes finished `DeckTileData` (lib/decks/tiles.ts)
  * and only paints: the 3 px identity strip along the top (an inline
  * background, aria-hidden — readable before any image), the leader-image
- * slot (the `small` rendition, or the color gradient while a game's images
- * are gated), the name as THE link, the game chip and format, the
+ * slot (the `small` rendition as a 96 px full card since U7a, WAVE5 F15, or
+ * the color gradient in the same box while a game's images are gated), the
+ * name as THE link (up to two lines: the card's 134 px height leaves the
+ * room a one-line name would truncate into), the game chip and format, the
  * visibility word on owner surfaces, the UTC-pinned updated date, the
  * byline, and `♥ N` only when someone actually liked (engagement-smoke
  * pins the glyph as content).
@@ -72,7 +74,7 @@ export function DeckTile({
       <span
         aria-hidden
         data-slot="tile-art"
-        className="bg-muted relative w-14 shrink-0 overflow-hidden rounded-[4.75%/3.5%]"
+        className="bg-muted relative w-24 shrink-0 overflow-hidden rounded-[4.75%/3.5%]"
         style={{ aspectRatio: `${TILE_IMAGE.width} / ${TILE_IMAGE.height}` }}
       >
         {tile.leaderImage ? (
@@ -96,7 +98,7 @@ export function DeckTile({
           href={tile.href}
           title={linkTitle}
           data-slot="tile-link"
-          className="block truncate text-sm font-medium outline-none hover:underline after:absolute after:inset-0 after:content-['']"
+          className="line-clamp-2 text-sm font-medium wrap-break-word outline-none hover:underline after:absolute after:inset-0 after:content-['']"
         >
           {tile.name}
         </Link>
@@ -138,7 +140,13 @@ export function DeckTile({
   );
 }
 
-/** The grid every collection lays its tiles in — one column on phones, three from `lg`. */
+/**
+ * The grid every collection lays its tiles in — one column below `md`, two
+ * from it (U7a, WAVE5 D8). With the 96 px card, two columns from `md` keep
+ * the text column at least a phone's (228 px at 768 in home's container,
+ * where `sm`'s two columns would leave 164 at 640); /precons alone adds a
+ * third from `xl` through its own class.
+ */
 export function DeckTileGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <ul className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-3", className)}>{children}</ul>;
+  return <ul className={cn("grid gap-3 md:grid-cols-2", className)}>{children}</ul>;
 }

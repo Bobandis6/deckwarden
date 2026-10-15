@@ -296,7 +296,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
                   Empty — file a deck into it with the folder picker on any deck row.
                 </p>
               ) : (
-                <DeckTileGrid className="lg:grid-cols-2">
+                <DeckTileGrid>
                   {inFolder.map((deck) => (
                     <DeckItem
                       key={deck.id}
@@ -327,7 +327,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
               }
             />
           ) : (
-            <DeckTileGrid className="lg:grid-cols-2">
+            <DeckTileGrid>
               {unfiled.map((deck) => (
                 <DeckItem
                   key={deck.id}

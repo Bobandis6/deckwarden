@@ -163,7 +163,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
         {decks.length === 0 ? (
           <EmptyState mark title="No public decks yet." />
         ) : (
-          <DeckTileGrid className="lg:grid-cols-2">
+          <DeckTileGrid>
             {decks.map((deck) => (
               <DeckTile
                 key={deck.id}

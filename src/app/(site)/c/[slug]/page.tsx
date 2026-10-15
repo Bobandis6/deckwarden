@@ -439,7 +439,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           <p className="text-muted-foreground mt-0.5 text-xs">
             Official preconstructed decks with {leader.name} at the helm.
           </p>
-          <DeckTileGrid className="mt-2 lg:grid-cols-2">
+          <DeckTileGrid className="mt-2">
             {hubPrecons.map((deck) => (
               <DeckTile
                 key={deck.publicId}
@@ -462,7 +462,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
             Public Deckwarden decks running {leader.name}.
           </p>
           {/* R5a: the shared DeckTile (G5/G8) — no per-viewer state, so the hub stays ISR. */}
-          <DeckTileGrid className="mt-2 lg:grid-cols-2">
+          <DeckTileGrid className="mt-2">
             {hubDecks.map((deck) => (
               <DeckTile
                 key={deck.publicId}

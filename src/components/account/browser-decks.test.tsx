@@ -82,8 +82,8 @@ describe("BrowserDecks", () => {
       ["Krenko — Mob Rule", `/decks/${KRENKO.id}/edit`],
       ["Share page", `/d/${KRENKO.publicId}`],
     ]);
-    // Reading width: two columns at most (the signed-in account grid's rule).
-    expect(section.querySelector("ul")?.className).toContain("lg:grid-cols-2");
+    // The shared tile grid: one column below `md`, two from it (U7a).
+    expect(section.querySelector("ul")?.className).toBe("grid gap-3 md:grid-cols-2");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -177,8 +177,8 @@ describe("YourDecks (home's guest section — output unchanged by the X1 extract
       ["Krenko — Mob Rule", `/decks/${KRENKO.id}/edit`, "Edit Krenko — Mob Rule"],
       ["Share page", `/d/${KRENKO.publicId}`, null],
     ]);
-    // Home's grid keeps its three columns from `lg`.
-    expect(section.querySelector("ul")?.className).toBe("grid gap-3 sm:grid-cols-2 lg:grid-cols-3");
+    // Home's grid: two columns from `md`, no third (U7a, WAVE5 D8).
+    expect(section.querySelector("ul")?.className).toBe("grid gap-3 md:grid-cols-2");
   });
 
   it("no tokens → nothing rendered", async () => {

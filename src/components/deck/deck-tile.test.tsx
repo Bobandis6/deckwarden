@@ -1,9 +1,11 @@
 /**
  * DeckTile (R5a): one link named by the deck name with the strip, chip and
  * image as decoration; the 3 px strip painted inline and aria-hidden; the
- * gradient slot when the image is gated; `♥ N` only above zero; the
+ * 96 px card box (U7a) with the gradient in the same box when the image is
+ * gated; the name on up to two lines; `♥ N` only above zero; the
  * visibility word only when the data carries it; the actions slot above
- * the stretched link; `data-game` for the accent.
+ * the stretched link; `data-game` for the accent; the grid one column
+ * below `md` and two from it.
  */
 import { render, screen } from "@testing-library/react";
 import Link from "next/link";
@@ -50,6 +52,9 @@ describe("DeckTile", () => {
     expect(links[0].getAttribute("href")).toBe("/d/q9j9uxphwp9n");
     expect(links[0].textContent).toBe("Queza — The Agony Engine");
     expect(links[0].className).toContain("after:absolute after:inset-0");
+    // Up to two lines, never cut to one: the 96 px card leaves the room (U7a).
+    expect(links[0].className).toContain("line-clamp-2");
+    expect(links[0].className).not.toContain("truncate");
 
     const strip = container.querySelector("[data-slot=identity-strip]") as HTMLElement;
     expect(strip.getAttribute("aria-hidden")).toBe("true");
@@ -63,6 +68,11 @@ describe("DeckTile", () => {
     expect(img.getAttribute("width")).toBe("146");
     expect(img.getAttribute("height")).toBe("204");
     expect(screen.queryByRole("img")).toBeNull();
+    // The art box: a 96 px full card (WAVE5 F15) at the small rendition's ratio.
+    const art = container.querySelector("[data-slot=tile-art]") as HTMLElement;
+    expect(art.className).toContain("w-24");
+    expect(art.style.aspectRatio).toBe("146 / 204");
+    expect(container.querySelector("ul")?.className).toBe("grid gap-3 md:grid-cols-2");
 
     const tile = container.querySelector("[data-slot=deck-tile]") as HTMLElement;
     expect(tile.getAttribute("data-game")).toBe("mtg");
@@ -82,6 +92,10 @@ describe("DeckTile", () => {
     );
     expect(container.querySelector("img")).toBeNull();
     const gradient = container.querySelector("[data-slot=tile-gradient]") as HTMLElement;
+    // The gradient fills the same 96 px box the image would.
+    const art = container.querySelector("[data-slot=tile-art]") as HTMLElement;
+    expect(art.contains(gradient)).toBe(true);
+    expect(art.className).toContain("w-24");
     // jsdom normalizes the hex to rgb() in computed inline styles.
     expect(gradient.style.backgroundImage).toContain("rgb(106, 27, 154)");
     expect(

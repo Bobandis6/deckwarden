@@ -1,17 +1,19 @@
 /**
- * LeaderIndexView (R5a): the list is the default and what the server
- * renders; the toggle is a group named "Index view" with aria-pressed
- * items; Grid swaps in the image grid with the same hrefs (ending right
- * after the slug), ranks and names, the rank badge top-left and lazy
- * framed images; the choice persists under `deckwarden:index-view` and a
- * corrupt stored value renders the list.
+ * LeaderIndexView (R5a; the grid by default since U7a): the grid is the
+ * default and what the server renders, with the same hrefs (ending right
+ * after the slug) in the same order, ranks and names as text, the rank
+ * badge top-left and framed images, the first EAGER_CARDS eager and the
+ * rest lazy; the toggle is a group named "Index view" with aria-pressed
+ * items; List swaps in the compact list with the same hrefs, replacing the
+ * rows rather than moving them; the choice persists under
+ * `deckwarden:index-view` and a corrupt stored value renders the grid.
  */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { INDEX_VIEW_KEY } from "@/lib/hub/index-view";
-import { LeaderIndexView, type IndexLeader } from "./leader-index-view";
+import { EAGER_CARDS, LeaderIndexView, type IndexLeader } from "./leader-index-view";
 
 const IMAGE = "https://cards.scryfall.io/small/front/5/b/5b40815d-0104-461e-b193-fcf5e1f35299.jpg";
 
@@ -39,33 +41,15 @@ afterEach(() => {
 });
 
 describe("LeaderIndexView", () => {
-  it("renders the list by default with ranks, names, pips and exact hub hrefs", () => {
+  it("renders the grid by default: framed images, the rank top-left, names, pips and exact hub hrefs", () => {
     const { container } = render(<LeaderIndexView leaders={LEADERS} />);
-    const group = screen.getByRole("group", { name: "Index view" });
-    expect(screen.getByRole("button", { name: "List" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "Grid" }).getAttribute("aria-pressed")).toBe("false");
-    expect(group).toBeTruthy();
-    const links = screen.getAllByRole("link");
-    expect(links.map((l) => l.getAttribute("href"))).toEqual([
-      "/c/syr-konrad-the-grim",
-      "/c/etali-primal-storm",
-    ]);
-    expect(links[0].textContent).toContain("1");
-    expect(links[0].textContent).toContain("Syr Konrad, the Grim");
-    expect(container.querySelector(".pip.pip-b")).toBeTruthy();
-    expect(container.querySelector("img")).toBeNull();
-  });
-
-  it("Grid swaps in framed lazy images with the rank top-left, persists, and List comes back", () => {
-    const { container } = render(<LeaderIndexView leaders={LEADERS} />);
-    fireEvent.click(screen.getByRole("button", { name: "Grid" }));
-    expect(window.localStorage.getItem(INDEX_VIEW_KEY)).toBe("grid");
+    expect(screen.getByRole("group", { name: "Index view" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Grid" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "List" }).getAttribute("aria-pressed")).toBe("false");
 
     const img = container.querySelector("img") as HTMLImageElement;
     expect(img.getAttribute("src")).toBe(IMAGE);
     expect(img.getAttribute("alt")).toBe("");
-    expect(img.getAttribute("loading")).toBe("lazy");
     expect(img.className).toContain("hover:ring-2");
     const links = screen.getAllByRole("link");
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
@@ -75,40 +59,101 @@ describe("LeaderIndexView", () => {
     const badge = links[0].querySelector(".absolute") as HTMLElement;
     expect(badge.className).toContain("top-1 left-1");
     expect(badge.textContent).toBe("1");
+    expect(links[0].textContent).toContain("Syr Konrad, the Grim");
     // No printing: the name stands in the box, the grid never breaks.
     expect(links[1].textContent).toContain("Etali, Primal Storm");
+    expect(container.querySelector(".pip.pip-b")).toBeTruthy();
     expect(container.querySelector(".pip.pip-r")).toBeTruthy();
+    // The default is never written: storage holds only what a reader picks.
+    expect(window.localStorage.getItem(INDEX_VIEW_KEY)).toBeNull();
+  });
 
+  it("the first EAGER_CARDS cards load at once (the LCP image and the first row), the rest lazy", () => {
+    const many: IndexLeader[] = Array.from({ length: EAGER_CARDS + 2 }, (_, i) => ({
+      id: `l${i}`,
+      name: `Leader ${i}`,
+      slug: `leader-${i}`,
+      rank: i + 1,
+      ciMask: 1,
+      image: IMAGE,
+    }));
+    const { container } = render(<LeaderIndexView leaders={many} />);
+    const imgs = [...container.querySelectorAll("img")];
+    expect(EAGER_CARDS).toBe(6);
+    expect(imgs).toHaveLength(EAGER_CARDS + 2);
+    imgs.forEach((img, i) => {
+      const eager = i < EAGER_CARDS;
+      expect(img.getAttribute("loading")).toBe(eager ? "eager" : "lazy");
+      expect(img.getAttribute("fetchpriority")).toBe(eager ? "high" : null);
+    });
+  });
+
+  it("List swaps in the compact list with the same hrefs, persists, and Grid comes back", () => {
+    const { container } = render(<LeaderIndexView leaders={LEADERS} />);
     fireEvent.click(screen.getByRole("button", { name: "List" }));
     expect(window.localStorage.getItem(INDEX_VIEW_KEY)).toBe("list");
+    expect(screen.getByRole("button", { name: "List" }).getAttribute("aria-pressed")).toBe("true");
+
     expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("ul")?.className).toContain("divide-y");
+    const links = screen.getAllByRole("link");
+    expect(links.map((l) => l.getAttribute("href"))).toEqual([
+      "/c/syr-konrad-the-grim",
+      "/c/etali-primal-storm",
+    ]);
+    expect(links[0].textContent).toContain("1");
+    expect(links[0].textContent).toContain("Syr Konrad, the Grim");
+    expect(container.querySelector(".pip.pip-b")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Grid" }));
+    expect(window.localStorage.getItem(INDEX_VIEW_KEY)).toBe("grid");
+    expect(container.querySelector("img")).toBeTruthy();
   });
 
-  it("a corrupt stored value renders the list; a stored grid renders the grid after hydration", () => {
-    window.localStorage.setItem(INDEX_VIEW_KEY, '{"view":"grid"}');
+  it("the swap replaces the rows (each view's list keyed by the view) instead of moving them", () => {
+    const { container } = render(<LeaderIndexView leaders={LEADERS} />);
+    const gridList = container.querySelector("ul");
+    const gridRow = container.querySelector("li");
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
+    expect(container.querySelector("ul")).not.toBe(gridList);
+    expect(container.querySelector("li")).not.toBe(gridRow);
+    expect(gridRow?.isConnected).toBe(false);
+  });
+
+  it("a corrupt stored value renders the grid; a stored list renders the list after hydration", () => {
+    window.localStorage.setItem(INDEX_VIEW_KEY, '{"view":"list"}');
     const first = render(<LeaderIndexView leaders={LEADERS} />);
-    expect(first.container.querySelector("img")).toBeNull();
+    expect(first.container.querySelector("img")).toBeTruthy();
     first.unmount();
 
-    window.localStorage.setItem(INDEX_VIEW_KEY, "grid");
+    window.localStorage.setItem(INDEX_VIEW_KEY, "list");
     const second = render(<LeaderIndexView leaders={LEADERS} />);
-    expect(second.container.querySelector("img")).toBeTruthy();
+    expect(second.container.querySelector("img")).toBeNull();
+    expect(second.container.querySelector("ul")?.className).toContain("divide-y");
   });
 
-  it("the server HTML is always the list, whatever the reader stored", () => {
-    window.localStorage.setItem(INDEX_VIEW_KEY, "grid");
+  it("the server HTML is always the grid, whatever the reader stored", () => {
+    window.localStorage.setItem(INDEX_VIEW_KEY, "list");
     const html = renderToString(<LeaderIndexView leaders={LEADERS} />);
-    expect(html).toContain('href="/c/syr-konrad-the-grim"');
-    expect(html).not.toContain("<img");
-    expect(html).toContain("divide-y");
+    // Every link in the list's order, its rank and name as text beside the image.
+    expect([...html.matchAll(/href="(\/c\/[a-z0-9-]+)"/g)].map((m) => m[1])).toEqual([
+      "/c/syr-konrad-the-grim",
+      "/c/etali-primal-storm",
+    ]);
+    expect(html).toContain("<img");
+    expect(html).toContain(`src="${IMAGE}"`);
+    expect(html).toContain('loading="eager"');
+    expect(html).toContain("Syr Konrad, the Grim");
+    expect(html).toContain("Etali, Primal Storm");
+    expect(html).not.toContain("divide-y");
   });
 });
 
 /**
- * The One Piece flavor (P4.9, /leaders): the list keeps /leaders' markup —
- * name, printed card number, life, color chips, no rank — and the grid
- * shows the mirror's small WebP with the card number top-left; both link
- * /l/ hubs, and the same stored preference drives both indexes.
+ * The One Piece flavor (P4.9, /leaders): the grid shows the mirror's small
+ * WebP with the card number top-left; the list keeps /leaders' markup —
+ * name, printed card number, life, color chips, no rank; both link /l/
+ * hubs, and the same stored preference drives both indexes.
  */
 const OP_IMAGE = "https://img.deckwarden.gg/optcg/small/OP15-058.webp";
 
@@ -136,29 +181,14 @@ const OP_LEADERS: IndexLeader[] = [
 ];
 
 describe("LeaderIndexView, One Piece flavor", () => {
-  it("lists /l/ hubs with the card number, life and color chips — no rank, no images", () => {
+  it("Grid by default: the small WebP framed, the card number top-left, the name when no image", () => {
     const { container } = render(<LeaderIndexView game="optcg" leaders={OP_LEADERS} />);
-    const links = screen.getAllByRole("link");
-    expect(links.map((l) => l.getAttribute("href"))).toEqual([
-      "/l/enel-op15-058",
-      "/l/monkey-d-luffy-st01-001",
-    ]);
-    expect(links[0].textContent).toBe("EnelOP15-0584 LifePurple");
-    // No life on record → no "Life" text, never "null Life".
-    expect(links[1].textContent).toBe("Monkey.D.LuffyST01-001Red");
-    expect(container.querySelector("img")).toBeNull();
-    expect(container.querySelector(".pip")).toBeNull();
-  });
-
-  it("Grid: the small WebP framed and lazy, the card number top-left, the name when no image", () => {
-    const { container } = render(<LeaderIndexView game="optcg" leaders={OP_LEADERS} />);
-    fireEvent.click(screen.getByRole("button", { name: "Grid" }));
-    expect(window.localStorage.getItem(INDEX_VIEW_KEY)).toBe("grid");
+    expect(screen.getByRole("button", { name: "Grid" }).getAttribute("aria-pressed")).toBe("true");
 
     const imgs = container.querySelectorAll("img");
     expect(imgs).toHaveLength(1);
     expect(imgs[0].getAttribute("src")).toBe(OP_IMAGE);
-    expect(imgs[0].getAttribute("loading")).toBe("lazy");
+    expect(imgs[0].getAttribute("loading")).toBe("eager");
     expect(imgs[0].className).toContain("hover:ring-2");
 
     const links = screen.getAllByRole("link");
@@ -175,15 +205,31 @@ describe("LeaderIndexView, One Piece flavor", () => {
     expect((links[1].querySelector(".absolute") as HTMLElement).textContent).toBe("ST01-001");
   });
 
-  it("the server HTML is the One Piece list, with the summary beside the toggle", () => {
-    window.localStorage.setItem(INDEX_VIEW_KEY, "grid");
+  it("List: /l/ hubs with the card number, life and color chips — no rank, no images", () => {
+    window.localStorage.setItem(INDEX_VIEW_KEY, "list");
+    const { container } = render(<LeaderIndexView game="optcg" leaders={OP_LEADERS} />);
+    const links = screen.getAllByRole("link");
+    expect(links.map((l) => l.getAttribute("href"))).toEqual([
+      "/l/enel-op15-058",
+      "/l/monkey-d-luffy-st01-001",
+    ]);
+    expect(links[0].textContent).toBe("EnelOP15-0584 LifePurple");
+    // No life on record → no "Life" text, never "null Life".
+    expect(links[1].textContent).toBe("Monkey.D.LuffyST01-001Red");
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector(".pip")).toBeNull();
+  });
+
+  it("the server HTML is the One Piece grid, with the summary beside the toggle", () => {
+    window.localStorage.setItem(INDEX_VIEW_KEY, "list");
     const html = renderToString(
       <LeaderIndexView game="optcg" leaders={OP_LEADERS} summary="2 leaders" />,
     );
     expect(html).toContain('href="/l/enel-op15-058"');
     // One text node: the count reads whole in the HTML (no React comment split).
     expect(html).toContain('aria-live="polite">2 leaders</p>');
-    expect(html).not.toContain("<img");
+    expect(html).toContain(`src="${OP_IMAGE}"`);
+    expect(html).toContain(">OP15-058</span>");
     expect(html).not.toContain('href="/c/');
   });
 });

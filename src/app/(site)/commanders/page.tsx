@@ -2,10 +2,10 @@
  * /commanders — the leader index (P2.4): browse commanders by color and
  * popularity. Rows come straight from card data (edhrec_rank order), so the
  * page is honest with zero users. R5a: the color filter is the shared
- * ColorChip (C14), the rows render through LeaderIndexView — the compact
- * list in the server HTML, an image grid behind the List / Grid toggle
- * persisted under `deckwarden:index-view` — and `data-game="mtg"` gives the
- * chips and frames the Magic accent.
+ * ColorChip (C14), the rows render through LeaderIndexView — the image grid
+ * in the server HTML since U7a (WAVE5 F14), the compact list behind the
+ * List / Grid toggle persisted under `deckwarden:index-view` — and
+ * `data-game="mtg"` gives the chips and frames the Magic accent.
  *
  * Caching intent: force-dynamic — ?colors= / ?page= / ?q= (W4, REC-2: a
  * name filter on name_norm over the trgm index, so "browse to choose" works

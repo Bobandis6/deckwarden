@@ -11,15 +11,9 @@ import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
 import type { BrowserDeck } from "@/components/deck/use-browser-decks";
 import { deckTileData } from "@/lib/decks/tiles";
 
-export function BrowserDeckTiles({
-  decks,
-  className,
-}: {
-  decks: BrowserDeck[];
-  className?: string;
-}) {
+export function BrowserDeckTiles({ decks }: { decks: BrowserDeck[] }) {
   return (
-    <DeckTileGrid className={className}>
+    <DeckTileGrid>
       {decks.map((deck) => (
         <DeckTile
           key={deck.id}

@@ -33,8 +33,7 @@ export function BrowserDecks() {
           {one ? "Sign in to keep it on every device." : "Sign in to keep them on every device."}
         </p>
       </div>
-      {/* Two columns at most: the account page is the reading width (the signed-in grid's rule). */}
-      <BrowserDeckTiles decks={decks} className="lg:grid-cols-2" />
+      <BrowserDeckTiles decks={decks} />
     </section>
   );
 }

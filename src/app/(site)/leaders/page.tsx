@@ -19,11 +19,14 @@
  *
  * R5a: the filter and the row dots are the shared ColorChip (C14), and the
  * main carries `data-game="optcg"`. P4.9: the rows render through
- * LeaderIndexView's One Piece flavor — the same list in the server HTML, and
- * the image grid behind the List / Grid toggle /commanders already has (one
- * stored preference for both). The grid became affordable with
- * img.deckwarden.gg and the mirror's small WebP: 142 leaders × ~10 KB ≈
- * 1.4 MB, lazy, where the full PNGs would have been ~24.8 MB.
+ * LeaderIndexView's One Piece flavor — the list keeps /leaders' markup from
+ * before P4.9, and the image grid sits behind the List / Grid toggle
+ * /commanders has (one stored preference for both). The grid became
+ * affordable with img.deckwarden.gg and the mirror's small WebP: 142
+ * leaders × ~10 KB ≈ 1.4 MB, lazy past the first six, where the full PNGs
+ * would have been ~24.8 MB. U7a: the grid is the default and the server
+ * HTML (WAVE5 F14), and the header's action says "Build a deck", the home
+ * card's words.
  */
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -105,7 +108,7 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="type-title">One Piece Leaders</h1>
         <Button nativeButton={false} render={<Link href="/decks/new?game=optcg" />}>
-          Start a deck
+          Build a deck
         </Button>
       </div>
       <p className="text-muted-foreground mt-1 text-sm">
