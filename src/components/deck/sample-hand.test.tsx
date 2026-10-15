@@ -141,3 +141,24 @@ describe("SampleHand — the heading (U3a)", () => {
     expect(screen.getByRole("button", { name: /Sample hand/ })).toBeTruthy();
   });
 });
+
+describe("SampleHand — the phone's Hand tab (U4b)", () => {
+  it("`bare` drops the collapsible and its heading (the tab names it); the Draw button and the deal are the same", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    render(<SampleHand entries={entries} cards={cards} format={COMMANDER} bare />);
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Sample hand/ })).toBeNull();
+    expect(phase()).toBe("none");
+    fireEvent.click(screen.getByRole("button", { name: "Draw sample hand" }));
+    expect(slots()).toHaveLength(7);
+    expect(screen.getByRole("group", { name: "Keep this hand?" })).toBeTruthy();
+  });
+
+  it("`bare` says what it needs while the deck is empty; the collapsible still renders nothing", () => {
+    const { unmount } = render(<SampleHand entries={[]} cards={cards} format={COMMANDER} bare />);
+    expect(screen.getByText("Add cards to draw a sample hand.")).toBeTruthy();
+    unmount();
+    const { container } = render(<SampleHand entries={[]} cards={cards} format={COMMANDER} />);
+    expect(container.textContent).toBe("");
+  });
+});

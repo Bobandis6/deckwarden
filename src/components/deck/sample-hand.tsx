@@ -28,6 +28,10 @@
  *
  * U3a (WAVE5 D4): the heading's hairline becomes space in the editor, like
  * the list groups'; `ruled` keeps it on the share page until U6.
+ *
+ * U4b (WAVE5 D5): `bare` is the phone's Hand tab: the controls and the
+ * hand without the collapsible or its heading (the tab names it), and a
+ * line instead of nothing while the deck is empty.
  */
 import { ChevronDownIcon } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -57,6 +61,7 @@ export function SampleHand({
   format,
   onPreview,
   ruled = false,
+  bare = false,
 }: {
   entries: EditorEntry[];
   cards: ReadonlyMap<string, EditorCard>;
@@ -64,6 +69,8 @@ export function SampleHand({
   onPreview?: (card: EditorCard) => void;
   /** The share page's hairline heading until U6 (U3a). */
   ruled?: boolean;
+  /** U4b: the phone's Hand tab, no collapsible and no heading. */
+  bare?: boolean;
 }) {
   const library = useMemo(() => buildLibrary(entries, format), [entries, format]);
   const [hand, setHand] = useState<string[] | null>(null);
@@ -75,7 +82,11 @@ export function SampleHand({
   const [deal, setDeal] = useState(0);
   const [staggered, setStaggered] = useState(false);
 
-  if (library.length === 0) return null;
+  if (library.length === 0) {
+    return bare ? (
+      <p className="text-muted-foreground text-sm">Add cards to draw a sample hand.</p>
+    ) : null;
+  }
 
   const draw = (mullCount: number) => {
     setHand(drawHand(library, format.openingHandSize));
@@ -98,6 +109,95 @@ export function SampleHand({
         ? `${mulliganNote ? `After ${mulligans} mulligan${mulligans === 1 ? "" : "s"}` : ""}${shortNote}`
         : "";
 
+  const body = (
+    <>
+      <div
+        className={
+          bare ? "flex flex-wrap items-center gap-2" : "mt-2 flex flex-wrap items-center gap-2"
+        }
+        data-phase={phase}
+      >
+        {phase === "none" && (
+          <Button variant="outline" size="sm" onClick={() => draw(0)}>
+            Draw sample hand
+          </Button>
+        )}
+        {phase === "dealt" && (
+          <span
+            role="group"
+            aria-label="Keep this hand?"
+            className="flex flex-wrap items-center gap-2"
+          >
+            <span className="text-sm font-medium">Keep this hand?</span>
+            <Button size="sm" onClick={() => setPhase("kept")}>
+              Keep
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => draw(mulligans + 1)}>
+              Mulligan
+            </Button>
+          </span>
+        )}
+        {phase === "kept" && (
+          <Button variant="outline" size="sm" onClick={() => draw(0)}>
+            New hand
+          </Button>
+        )}
+        <span
+          aria-live="polite"
+          data-slot="hand-status"
+          className="text-muted-foreground text-xs tabular-nums"
+        >
+          {status}
+        </span>
+      </div>
+      {hand !== null && (
+        <ul
+          key={deal}
+          data-slot="dealt-hand"
+          data-kept={phase === "kept" || undefined}
+          className="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-7"
+        >
+          {hand.map((cardId, i) => {
+            const card = cards.get(cardId);
+            if (!card) return null;
+            const face = (
+              <CardImage
+                src={card.image ? toSmallImage(card.image) : null}
+                alt={card.name}
+                title={card.name}
+                width={146}
+                height={204}
+                className="type-micro w-full rounded-[4.75%/3.5%] shadow-sm"
+              />
+            );
+            return (
+              // Duplicates (30 Islands) are legal hands — key must include the slot.
+              <li
+                key={`${cardId}-${i}`}
+                className={DEAL_CARD_MOTION_CLASS}
+                style={staggered ? { animationDelay: `${i * DEAL_STAGGER_MS}ms` } : undefined}
+              >
+                {onPreview ? (
+                  <button
+                    type="button"
+                    onClick={() => onPreview(card)}
+                    className="block w-full cursor-pointer"
+                    aria-label={card.name}
+                  >
+                    {face}
+                  </button>
+                ) : (
+                  face
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
+  );
+
+  if (bare) return body;
   return (
     <Collapsible defaultOpen className="mt-6" render={<section />}>
       <h2 className={ruled ? "border-b pb-1" : "pb-1.5"}>
@@ -109,86 +209,7 @@ export function SampleHand({
           />
         </CollapsibleTrigger>
       </h2>
-      <CollapsibleContent>
-        <div className="mt-2 flex flex-wrap items-center gap-2" data-phase={phase}>
-          {phase === "none" && (
-            <Button variant="outline" size="sm" onClick={() => draw(0)}>
-              Draw sample hand
-            </Button>
-          )}
-          {phase === "dealt" && (
-            <span
-              role="group"
-              aria-label="Keep this hand?"
-              className="flex flex-wrap items-center gap-2"
-            >
-              <span className="text-sm font-medium">Keep this hand?</span>
-              <Button size="sm" onClick={() => setPhase("kept")}>
-                Keep
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => draw(mulligans + 1)}>
-                Mulligan
-              </Button>
-            </span>
-          )}
-          {phase === "kept" && (
-            <Button variant="outline" size="sm" onClick={() => draw(0)}>
-              New hand
-            </Button>
-          )}
-          <span
-            aria-live="polite"
-            data-slot="hand-status"
-            className="text-muted-foreground text-xs tabular-nums"
-          >
-            {status}
-          </span>
-        </div>
-        {hand !== null && (
-          <ul
-            key={deal}
-            data-slot="dealt-hand"
-            data-kept={phase === "kept" || undefined}
-            className="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-7"
-          >
-            {hand.map((cardId, i) => {
-              const card = cards.get(cardId);
-              if (!card) return null;
-              const face = (
-                <CardImage
-                  src={card.image ? toSmallImage(card.image) : null}
-                  alt={card.name}
-                  title={card.name}
-                  width={146}
-                  height={204}
-                  className="type-micro w-full rounded-[4.75%/3.5%] shadow-sm"
-                />
-              );
-              return (
-                // Duplicates (30 Islands) are legal hands — key must include the slot.
-                <li
-                  key={`${cardId}-${i}`}
-                  className={DEAL_CARD_MOTION_CLASS}
-                  style={staggered ? { animationDelay: `${i * DEAL_STAGGER_MS}ms` } : undefined}
-                >
-                  {onPreview ? (
-                    <button
-                      type="button"
-                      onClick={() => onPreview(card)}
-                      className="block w-full cursor-pointer"
-                      aria-label={card.name}
-                    >
-                      {face}
-                    </button>
-                  ) : (
-                    face
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CollapsibleContent>
+      <CollapsibleContent>{body}</CollapsibleContent>
     </Collapsible>
   );
 }

@@ -39,7 +39,7 @@
  * `md`, 0 from it) to sit above the bar; the same class sets it on the
  * root and on the portaled toast viewport (EDITOR_BOTTOM_INSET_CLASS).
  *
- * The phone card sheet is a bottom, modal Drawer opened ONLY by explicit
+ * The phone card sheet is a bottom Drawer opened ONLY by explicit
  * inspection (DeckEditor decides — typing, adds, `/` and tab changes never
  * open it); `Drawer.VirtualKeyboardProvider` sits inside its root (it reads
  * the drawer's store — it cannot wrap the editor) so the tag input scrolls
@@ -49,10 +49,23 @@
  * U3b (WAVE5 D4): the phone's tab bar is the chrome material, its top
  * hairline kept, so the pane scrolling under it shows through, softened;
  * the drawers stay opaque.
+ *
+ * U4b (WAVE5 D5, F9): the card sheet has three snap points, a 9rem peek
+ * (the name, the cost line and the actions), the half (the card) and the
+ * full point (the text, tags and printings; the popup's own height,
+ * 100dvh − 6rem). It opens at the half and is modal only at the full point:
+ * at the peek and the half the deck rows behind it stay tappable, and a tap
+ * on another row swaps the body in place (keyed on the card, a 250 ms fade
+ * on settle-250; the first body never fades, the frame never moves). The
+ * scrim is 40 % at the full point and fades with the snap progress below
+ * it (Base UI's own progress, so a drag toward the half fades it under the
+ * finger); it never blocks a tap below full. A release after a swipe runs
+ * on flick-400, a tap or Escape on settle-400 (DrawerContent's
+ * `flickRelease`). The body is the caller's, rendered per point.
  */
 import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer";
 import { LayersIcon, SearchIcon, WrenchIcon, XIcon } from "lucide-react";
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { CHROME_CLASS } from "@/components/chrome-material";
 import type { EditorTier } from "@/components/editor/use-tier";
@@ -64,6 +77,26 @@ import { cn } from "@/lib/utils";
 export type EditorPane = "deck" | "search" | "tools";
 
 const PANES: readonly EditorPane[] = ["search", "deck", "tools"];
+
+/** Where the phone card sheet rests (U4b): what its body shows depends on it. */
+export type SheetPoint = "peek" | "half" | "full";
+
+type SnapPoint = DrawerPrimitive.Root.SnapPoint;
+const SHEET_PEEK: SnapPoint = "9rem";
+const SHEET_HALF: SnapPoint = 0.55;
+const SHEET_FULL: SnapPoint = 1;
+/** The sheet's snap points, smallest first (Base UI resolves each against the viewport). */
+const SHEET_SNAP_POINTS: SnapPoint[] = [SHEET_PEEK, SHEET_HALF, SHEET_FULL];
+
+function sheetPoint(snap: SnapPoint | null): SheetPoint {
+  if (snap === SHEET_PEEK) return "peek";
+  if (snap === SHEET_FULL) return "full";
+  return "half";
+}
+
+/** The sheet's scrim: 40 % at the full point, faded to nothing with the snap progress below it. */
+const SHEET_SCRIM_CLASS =
+  "bg-black/40 supports-backdrop-filter:backdrop-blur-none data-snap-points:[--drawer-overlay-min-opacity:0]";
 
 /**
  * `--editor-bottom-inset`: the bar (3.5rem) plus the device's bottom
@@ -102,10 +135,16 @@ export interface EditorLayoutProps {
   deck: ReactNode;
   /** The tools content — the Card / Suggestions / Combos / Cuts tabs (or the single Card panel). */
   tools: ReactNode;
-  /** The phone card sheet's body (a second CardDetailPane); the sheet unmounts when closed. */
-  sheet: ReactNode;
+  /**
+   * The phone card sheet's body (a second CardDetailPane), rendered for the
+   * point the sheet rests at, with the frame's Close to place in its header
+   * row; the sheet unmounts when closed.
+   */
+  sheet: (frame: { point: SheetPoint; close: ReactNode }) => ReactNode;
   /** The sheet's accessible name — the inspected card's name. */
   sheetTitle: string | null;
+  /** The inspected card's id: a change while the sheet stays open re-targets it (U4b). */
+  sheetKey: string | null;
   /** R2's ambient layer — the LAST child, so its sticky credit row sits at the surface's end. */
   ambient: ReactNode;
   activePane: EditorPane;
@@ -128,6 +167,7 @@ export function EditorLayout({
   tools,
   sheet,
   sheetTitle,
+  sheetKey,
   ambient,
   activePane,
   onActivePaneChange,
@@ -137,6 +177,29 @@ export function EditorLayout({
   onSheetOpenChange,
   deckCount,
 }: EditorLayoutProps) {
+  // The card sheet (U4b): it rests where the hand left it (a controlled snap
+  // point) and opens at the half. A body that arrives while it stays open is
+  // a re-target and fades in; the body it opened with never does. Derived
+  // from the props as they change ("storing information from previous
+  // renders", react.dev), so nothing waits for an effect.
+  const [snap, setSnap] = useState<SnapPoint | null>(SHEET_HALF);
+  const [sheetFrame, setSheetFrame] = useState({
+    open: sheetOpen,
+    key: sheetKey,
+    swapped: false,
+  });
+  if (sheetFrame.open !== sheetOpen || sheetFrame.key !== sheetKey) {
+    const opening = sheetOpen && !sheetFrame.open;
+    const retarget = sheetOpen && sheetFrame.open && sheetFrame.key !== sheetKey;
+    setSheetFrame({
+      open: sheetOpen,
+      key: sheetKey,
+      swapped: sheetOpen && (retarget || (!opening && sheetFrame.swapped)),
+    });
+    if (opening) setSnap(SHEET_HALF);
+  }
+  const point = sheetPoint(snap);
+  const full = point === "full";
   const sectionRefs = useRef<Record<EditorPane, HTMLElement | null>>({
     search: null,
     deck: null,
@@ -281,26 +344,55 @@ export function EditorLayout({
       )}
 
       {tier === "phone" && (
-        <Drawer open={sheetOpen} onOpenChange={(open) => onSheetOpenChange(open)} showSwipeHandle>
+        // Modal only at the full point, and pointer dismissal off below it:
+        // a tap on the deck behind the peek or the half re-targets the sheet
+        // (DeckEditor's explicit inspection) instead of closing it. Escape,
+        // Close and a swipe down close it from every point; closing resets
+        // the point to the half (defaultSnapPoint).
+        <Drawer
+          open={sheetOpen}
+          onOpenChange={(open) => onSheetOpenChange(open)}
+          snapPoints={SHEET_SNAP_POINTS}
+          snapPoint={snap}
+          defaultSnapPoint={SHEET_HALF}
+          onSnapPointChange={(next) => setSnap(next)}
+          modal={full}
+          disablePointerDismissal={!full}
+          showSwipeHandle
+        >
           <DrawerPrimitive.VirtualKeyboardProvider>
-            <DrawerContent data-game={gameId}>
-              <div className="flex shrink-0 items-center justify-end px-2">
-                <DrawerTitle className="sr-only">{sheetTitle ?? "Card"}</DrawerTitle>
-                <DrawerClose
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Close"
-                      className="pointer-coarse:size-11"
-                    />
-                  }
-                >
-                  <XIcon />
-                </DrawerClose>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
-                {sheet}
+            <DrawerContent
+              data-game={gameId}
+              overlay="always"
+              overlayClassName={cn(SHEET_SCRIM_CLASS, !full && "pointer-events-none")}
+              flickRelease
+              className="shadow-lg"
+            >
+              <DrawerTitle className="sr-only">{sheetTitle ?? "Card"}</DrawerTitle>
+              <div
+                key={sheetKey ?? ""}
+                data-slot="sheet-body"
+                data-point={point}
+                data-swapped={sheetFrame.swapped ? "" : undefined}
+                className="flex min-h-0 flex-1 flex-col motion-safe:data-swapped:animate-dw-in"
+              >
+                {sheet({
+                  point,
+                  close: (
+                    <DrawerClose
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Close"
+                          className="pointer-coarse:size-11"
+                        />
+                      }
+                    >
+                      <XIcon />
+                    </DrawerClose>
+                  ),
+                })}
               </div>
             </DrawerContent>
           </DrawerPrimitive.VirtualKeyboardProvider>

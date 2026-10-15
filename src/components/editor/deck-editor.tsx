@@ -96,7 +96,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { AmbientArt } from "@/components/deck/ambient-art";
-import { AnalyticsPanel } from "@/components/deck/analytics-blocks";
+import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
 import { BracketLine } from "@/components/deck/bracket-line";
 import { BracketSheet } from "@/components/deck/bracket-sheet";
 import { BuyDeckDialog, countedEntries } from "@/components/deck/buy-deck-menu";
@@ -104,7 +104,11 @@ import { SampleHand } from "@/components/deck/sample-hand";
 import { useBracketFacts } from "@/components/deck/use-bracket-facts";
 import type { SwapEditing } from "@/components/editor/alternatives-section";
 import { AutofillSheet } from "@/components/editor/autofill-sheet";
-import { CardDetailPane, type PrintingEditing } from "@/components/editor/card-detail-pane";
+import {
+  CardDetailPane,
+  type PrintingEditing,
+  type SheetActions,
+} from "@/components/editor/card-detail-pane";
 import { ComboRadarPanel } from "@/components/editor/combo-radar-panel";
 import { CutCoachPanel } from "@/components/editor/cut-coach-panel";
 import { FitSheet, type FitApply } from "@/components/editor/fit-sheet";
@@ -182,6 +186,7 @@ import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
 import { deckEstimate, FIT_COPY } from "@/lib/recommend/fit";
 import { useAppearance } from "@/lib/theme/appearance";
+import { cn } from "@/lib/utils";
 import type {
   AnalyticsBlock,
   FormatDef,
@@ -227,11 +232,22 @@ type LoadState =
   | { state: "error"; message: string }
   | { state: "ready"; adapter: GameAdapter; format: FormatDef };
 
-type RightTab = "card" | "suggest" | "combos" | "cuts";
+// U4b: the phone's strip adds the analytics and the sample hand as tabs.
+type RightTab = "card" | "suggest" | "combos" | "cuts" | "analytics" | "hand";
 
 const TOKEN_HEADER = "x-deck-token";
 /** Add-toast lifetime (F3): long enough to reach Undo, short enough to never stack up. */
 const TOAST_MS = 5000;
+
+/**
+ * The phone's Tools strip (U4b): one row of six at 360 px. The list spans
+ * the row and its tabs share what is left over; 13 px labels on 4 px
+ * sides, each at least 44 px on touch; a strip wider than the row (a
+ * larger text setting, a narrower phone) scrolls sideways instead of
+ * wrapping or clipping a name.
+ */
+const PHONE_STRIP_CLASS = "w-full gap-0 overflow-x-auto [scrollbar-width:none]";
+const PHONE_TAB_CLASS = "flex-[1_0_auto] px-1 text-[0.8125rem] pointer-coarse:min-w-11";
 
 /** Write headers: token when this browser holds one, else the session cookie authenticates. */
 function writeHeaders(deckId: string): Record<string, string> {
@@ -1108,6 +1124,13 @@ export function DeckEditor({
     [tier],
   );
   const inspectCard = useCallback((card: EditorCard) => showCard(card, true), [showCard]);
+  // U4b: a dealt card on the phone's Hand tab opens the sheet over the hand
+  // and leaves the strip where it is (inspectCard would flip it to Card, so
+  // the hand would be gone when the sheet closes). Phone-only by its caller.
+  const inspectInPlace = useCallback((card: EditorCard) => {
+    setPreview(card);
+    setSheetOpen(true);
+  }, []);
 
   // The swap sheets' doors (Y7b). Both are the dialog slot, so opening one
   // from the Why sheet's callout closes that sheet; neither touches the deck.
@@ -1992,50 +2015,123 @@ export function DeckEditor({
             (liveDeckId === null && (door.kind === "precon" || door.kind === "surprise")),
         );
 
+  // The card sheet's actions (U4b, WAVE5 D5's peek), each only where it
+  // applies to the inspected card. Add is the search pane's main-list add
+  // (the "Added" toast and its Undo; "Swap in…" at the deck's maximum, Y7b)
+  // for a card the deck doesn't hold yet: a second copy stays the row's
+  // stepper, where the format's copy rule is the validator's to judge.
+  // Remove is the row's remove (its Undo) for a card with an entry, a
+  // non-leader entry first, as tagging picks it, the leader's included;
+  // Swap… is the row's Swap Lab sheet. The two sheets close the card sheet
+  // first, so neither opens over a card that is about to leave. The sheet
+  // itself stays layout: only these are edits.
+  const sheetEntry = preview
+    ? (entries.find((e) => e.cardId === preview.id && e.zone !== leaderZone?.id) ??
+      entries.find((e) => e.cardId === preview.id))
+    : undefined;
+  const sheetActions: SheetActions = {};
+  if (preview) {
+    const card = preview;
+    if (mainZone && !sheetEntry) {
+      sheetActions.add = {
+        label: deckFull ? "Swap in…" : "Add",
+        onClick: () => {
+          if (deckFull) {
+            setSheetOpen(false);
+            openSwapIn(card, 1, "panel");
+            return;
+          }
+          const error = handleAdd(card, mainZone.id, 1);
+          if (error) toast.add({ title: error, type: "error", timeout: TOAST_MS });
+        },
+      };
+    }
+    if (sheetEntry) {
+      const { zone, cardId } = sheetEntry;
+      sheetActions.onRemove = () => handleRemove(zone, cardId);
+    }
+    if (canSwapId(card.id)) {
+      sheetActions.onSwap = () => {
+        setSheetOpen(false);
+        openSwap(card, "row");
+      };
+    }
+  }
+
   // The tools content (R4): one tree, mounted wherever the tier puts it —
-  // the third pane at wide, the drawer at md, the Tools tab on phones. The
-  // phone tab also hosts the analytics and the sample hand (the contract's
-  // Tools composition; the deck pane drops them there through `extras`), so
-  // a 768 px crossing remounts both and a dealt hand resets. The compact
-  // attribution ends the content at every tier — the site footer no longer
-  // renders on the editor routes.
+  // the third pane at wide, the drawer at md, the Tools tab on phones. On a
+  // phone it is ONE strip (U4b, WAVE5 D5): Card first, the panels the
+  // adapter declares, then Analytics and the sample hand as tabs of their
+  // own, no longer collapsibles stacked above the strip (One Piece: Card ·
+  // Analytics · Hand). From md the analytics and the hand stay below the
+  // deck list (the deck pane's `extras`), where they sit beside what they
+  // describe, and the strip keeps its four panels; so a 768 px crossing
+  // remounts both and a dealt hand resets. The compact attribution ends the
+  // content at every tier — the site footer no longer renders on the
+  // editor routes.
+  const phone = tier === "phone";
+  // A strip that lost its tab across a tier flip (Analytics or Hand from md
+  // up) shows the Card tab, the strip's first.
+  const shownTab = !phone && (rightTab === "analytics" || rightTab === "hand") ? "card" : rightTab;
+  const phoneTab = phone ? PHONE_TAB_CLASS : undefined;
   const toolsContent = (
     <>
-      {tier === "phone" && (
-        <div className="px-3">
-          <AnalyticsPanel blocks={analytics} />
-          <SampleHand
-            entries={entries}
-            cards={cards}
-            format={load.format}
-            onPreview={inspectCard}
-          />
-        </div>
-      )}
-      {tabbed ? (
+      {tabbed || phone ? (
         // Base UI Tabs (F11): controlled by rightTab so showCard / openCuts
         // still drive it; every panel keepMounted so results survive a
         // switch — each panel's `active` prop gates its fetching.
         <Tabs
-          value={rightTab}
+          value={shownTab}
           onValueChange={(value) => setRightTab(value as RightTab)}
           className="gap-0"
         >
           {/* Coarse pointers (R4): a 56 px row with a 48 px list and no list
               padding, so each trigger (list height − 1px) clears 44 px. */}
-          <div className="flex h-10 shrink-0 items-center border-b px-2 pointer-coarse:h-14">
+          <div
+            className={cn(
+              "flex h-10 shrink-0 items-center border-b px-2 pointer-coarse:h-14",
+              phone && "px-1",
+            )}
+          >
             <TabsList
               variant="indicator"
               aria-label="Right pane view"
-              className="pointer-coarse:p-0 pointer-coarse:group-data-horizontal/tabs:h-12"
+              className={cn(
+                "pointer-coarse:p-0 pointer-coarse:group-data-horizontal/tabs:h-12",
+                phone && PHONE_STRIP_CLASS,
+              )}
             >
               <TabsIndicator />
-              <TabsTrigger value="card">Card</TabsTrigger>
-              {load.adapter.recommend && <TabsTrigger value="suggest">Suggestions</TabsTrigger>}
-              {load.adapter.capabilities.combos && <TabsTrigger value="combos">Combos</TabsTrigger>}
+              <TabsTrigger value="card" className={phoneTab}>
+                Card
+              </TabsTrigger>
+              {load.adapter.recommend && (
+                <TabsTrigger value="suggest" className={phoneTab}>
+                  Suggestions
+                </TabsTrigger>
+              )}
+              {load.adapter.capabilities.combos && (
+                <TabsTrigger value="combos" className={phoneTab}>
+                  Combos
+                </TabsTrigger>
+              )}
               {/* Always-on when declared (P3.4): no layout shift at the
                   limit — the under-limit state says nothing needs cutting. */}
-              {load.adapter.recommend?.cuts && <TabsTrigger value="cuts">Cuts</TabsTrigger>}
+              {load.adapter.recommend?.cuts && (
+                <TabsTrigger value="cuts" className={phoneTab}>
+                  Cuts
+                </TabsTrigger>
+              )}
+              {phone && (
+                <>
+                  <TabsTrigger value="analytics" className={phoneTab}>
+                    Analytics
+                  </TabsTrigger>
+                  <TabsTrigger value="hand" className={phoneTab}>
+                    Hand
+                  </TabsTrigger>
+                </>
+              )}
             </TabsList>
           </div>
           <TabsContent value="card" keepMounted>
@@ -2100,6 +2196,26 @@ export function DeckEditor({
                 onSetQty={handleSetQty}
               />
             </TabsContent>
+          )}
+          {phone && (
+            <>
+              <TabsContent value="analytics" keepMounted>
+                <div className="px-3 pt-3">
+                  <AnalyticsBlocks blocks={analytics} />
+                </div>
+              </TabsContent>
+              <TabsContent value="hand" keepMounted>
+                <div className="px-3 pt-3">
+                  <SampleHand
+                    entries={entries}
+                    cards={cards}
+                    format={load.format}
+                    onPreview={inspectInPlace}
+                    bare
+                  />
+                </div>
+              </TabsContent>
+            </>
           )}
         </Tabs>
       ) : (
@@ -2397,16 +2513,18 @@ export function DeckEditor({
         />
       }
       tools={toolsContent}
-      sheet={
+      sheet={({ point, close }) => (
         <CardDetailPane
           adapter={load.adapter}
           card={preview}
           tagging={tagging}
           printing={printingEditing}
           swap={swapEditing}
+          sheet={{ point, close, actions: sheetActions }}
         />
-      }
+      )}
       sheetTitle={preview?.name ?? null}
+      sheetKey={preview?.id ?? null}
       ambient={
         // Last child of the layout on purpose: the credit chip's sticky row sits at the surface's end (R2).
         <AmbientArt

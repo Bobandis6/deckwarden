@@ -28,13 +28,24 @@
  * footer line and Printings, on the same terms: closed by default, asked on
  * first open, and present only when the editor hands over a `swap` — the
  * shown card is in the main list and the adapter offers alternatives.
+ *
+ * U4b (WAVE5 D5) lays the same pane out as the phone card sheet's body when
+ * the editor hands over `sheet`: a fixed header row (the name, then the
+ * type line and cost on one muted line, the frame's Close at its end), then
+ * a scrolling column that grows with the point the sheet rests at: the
+ * actions at the peek (Add / Remove / Swap…, each only where it applies),
+ * the card image from the half, and the text, tags, the footer line,
+ * Alternatives and Printings at the full point. Rendering by point (not
+ * clipping) keeps the column shorter than the sheet below full, so a drag
+ * up on it moves the sheet instead of scrolling the column.
  */
-import { ArrowRightIcon, ArrowUpRightIcon, ChevronDownIcon, XIcon } from "lucide-react";
+import { ArrowRightIcon, ArrowUpRightIcon, ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { AlternativesSection, type SwapEditing } from "@/components/editor/alternatives-section";
+import type { SheetPoint } from "@/components/editor/editor-layout";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -70,12 +81,35 @@ type PrintingsState =
   | { status: "error" }
   | { status: "done"; rows: GalleryPrinting[]; total: number; truncated: boolean };
 
+/**
+ * The phone sheet's actions (U4b, WAVE5 D5's peek), each present only where
+ * it applies; the editor decides which and what each does.
+ */
+export interface SheetActions {
+  /** One more copy into the main list; its label says "Swap in…" at the deck's maximum. */
+  add?: { label: string; onClick: () => void };
+  onRemove?: () => void;
+  /** Opens Swap Lab's sheet for the card. */
+  onSwap?: () => void;
+}
+
+/** The phone card sheet's frame (U4b): where it rests, its Close, the actions. */
+export interface CardSheet {
+  point: SheetPoint;
+  close: ReactNode;
+  actions: SheetActions;
+}
+
+/** A sheet action: 32 px, 44 on touch. */
+const SHEET_ACTION_CLASS = "pointer-coarse:h-11 pointer-coarse:px-4";
+
 export function CardDetailPane({
   adapter,
   card,
   tagging = null,
   printing = null,
   swap = null,
+  sheet = null,
 }: {
   adapter: GameAdapter;
   card: EditorCard | null;
@@ -83,6 +117,8 @@ export function CardDetailPane({
   printing?: PrintingEditing | null;
   /** Y7a: present only for a main-list card the adapter offers alternatives for. */
   swap?: SwapEditing | null;
+  /** U4b: lay the pane out as the phone card sheet's body. */
+  sheet?: CardSheet | null;
 }) {
   // Printings sub-state (W6) lives on the pane, not a keyed child: the rows
   // cache must survive card switches (one fetch per card per pane session),
@@ -124,10 +160,17 @@ export function CardDetailPane({
   }, []);
 
   if (!card) {
-    return (
+    const empty = (
       <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
         Search or click a card to see it here.
       </div>
+    );
+    if (!sheet) return empty;
+    return (
+      <>
+        <div className="flex shrink-0 justify-end pt-1 pr-2">{sheet.close}</div>
+        {empty}
+      </>
     );
   }
   const statLine = adapter.display.statLine?.(card) ?? null;
@@ -139,27 +182,16 @@ export function CardDetailPane({
   const printings = printingsByCard.get(card.id) ?? null;
   const printingsOpen = openFor === card.id;
 
-  return (
-    <div className="p-3">
-      <CardImage
-        src={paneImage}
-        alt={card.name}
-        width={488}
-        height={680}
-        className="mx-auto w-full max-w-72 rounded-[4.75%/3.5%] shadow-md"
-      />
+  // In the sheet the footer's two links are 44 px targets on touch (U4b);
+  // the pane keeps its text links.
+  const footerLinkClass = sheet
+    ? "hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+    : "hover:underline";
 
-      <div className="mt-3 flex flex-wrap items-baseline gap-x-2">
-        <h2 className="font-semibold">{card.name}</h2>
-        <CostPips html={adapter.display.costHtml(card)} className="text-xs" />
-      </div>
-      <p className="text-muted-foreground mt-0.5 text-sm">
-        {/* Printed id first where names don't identify (P4.6): "OP15-058 ·
-            Leader — Sky Island" tells the two Enel leaders apart. */}
-        {adapter.display.idBadge?.(card) ? `${adapter.display.idBadge(card)} · ` : ""}
-        {adapter.display.subtitle(card)}
-        {statLine ? ` · ${statLine}` : ""}
-      </p>
+  // Everything after the name and the type line, in both layouts: the pane
+  // stacks it under them, the sheet shows it at the full point.
+  const details = (
+    <>
       <div className="mt-2 text-sm leading-relaxed whitespace-pre-wrap">
         {adapter.display.bodyText(card)}
       </div>
@@ -175,7 +207,7 @@ export function CardDetailPane({
           {adapter.capabilities.buy && (
             <a
               href={withPartner(adapter.capabilities.buy.cardUrl(card))}
-              className="hover:underline"
+              className={footerLinkClass}
               target="_blank"
               rel={
                 process.env.NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE ? "sponsored noopener" : "noopener"
@@ -185,7 +217,7 @@ export function CardDetailPane({
               <ArrowUpRightIcon aria-hidden className="ml-0.5 inline size-3.5 align-[-0.15em]" />
             </a>
           )}
-          <Link href={`/cards/${card.id}`} className="hover:underline" target="_blank">
+          <Link href={`/cards/${card.id}`} className={footerLinkClass} target="_blank">
             Card page
             <ArrowRightIcon aria-hidden className="ml-1 inline size-3.5 align-[-0.15em]" />
           </Link>
@@ -250,6 +282,112 @@ export function CardDetailPane({
           )}
         </CollapsibleContent>
       </Collapsible>
+    </>
+  );
+
+  // Printed id first where names don't identify (P4.6): "OP15-058 ·
+  // Leader — Sky Island" tells the two Enel leaders apart.
+  const idBadge = adapter.display.idBadge?.(card);
+  const costHtml = adapter.display.costHtml(card);
+
+  if (sheet) {
+    const { point, close, actions } = sheet;
+    return (
+      <>
+        {/* The header row stays put while the column below it scrolls (at
+            the full point); data-expanded (Base UI's, the full point)
+            tightens it. pr-2: the Close's own padding lines its X up with
+            the column's right edge. */}
+        <div className="flex shrink-0 items-start gap-2 pt-1 pr-2 pl-4 group-data-expanded/drawer-popup:pt-0">
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-base leading-6 font-medium">{card.name}</h2>
+            <p className="text-muted-foreground flex min-w-0 items-center gap-1 text-sm">
+              <span className="truncate">
+                {idBadge ? `${idBadge} · ` : ""}
+                {adapter.display.subtitle(card)}
+                {statLine ? ` · ${statLine}` : ""}
+              </span>
+              {costHtml && (
+                <>
+                  <span aria-hidden>·</span>
+                  <CostPips html={costHtml} className="shrink-0" />
+                </>
+              )}
+            </p>
+          </div>
+          {close}
+        </div>
+        <div
+          data-slot="sheet-column"
+          className="min-h-0 flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+        >
+          {(actions.add || actions.onRemove || actions.onSwap) && (
+            <div data-slot="sheet-actions" className="mt-2 flex flex-wrap items-center gap-2">
+              {actions.add && (
+                <Button size="sm" className={SHEET_ACTION_CLASS} onClick={actions.add.onClick}>
+                  <PlusIcon data-icon="inline-start" aria-hidden />
+                  {actions.add.label}
+                </Button>
+              )}
+              {actions.onRemove && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={SHEET_ACTION_CLASS}
+                  onClick={actions.onRemove}
+                >
+                  Remove
+                </Button>
+              )}
+              {actions.onSwap && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={SHEET_ACTION_CLASS}
+                  onClick={actions.onSwap}
+                >
+                  Swap…
+                </Button>
+              )}
+            </div>
+          )}
+          {/* From the half: the card, sized so it fits the half under the
+              header and the actions (124 px at the half's 55 %). */}
+          {point !== "peek" && (
+            <CardImage
+              src={paneImage}
+              alt={card.name}
+              width={488}
+              height={680}
+              className="mt-3 h-auto w-[min(60%,calc((55dvh-7.75rem)*0.7176))] rounded-[4.75%/3.5%] shadow-md"
+            />
+          )}
+          {point === "full" && details}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="p-3">
+      <CardImage
+        src={paneImage}
+        alt={card.name}
+        width={488}
+        height={680}
+        className="mx-auto w-full max-w-72 rounded-[4.75%/3.5%] shadow-md"
+      />
+
+      <div className="mt-3 flex flex-wrap items-baseline gap-x-2">
+        <h2 className="font-semibold">{card.name}</h2>
+        <CostPips html={costHtml} className="text-xs" />
+      </div>
+      <p className="text-muted-foreground mt-0.5 text-sm">
+        {idBadge ? `${idBadge} · ` : ""}
+        {adapter.display.subtitle(card)}
+        {statLine ? ` · ${statLine}` : ""}
+      </p>
+      {details}
     </div>
   );
 }

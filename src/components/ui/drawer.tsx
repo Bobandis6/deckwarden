@@ -4,6 +4,63 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer";
 import { cn } from "@/lib/utils";
 
+/** The longest release a swipe can start (drawer and sheet travel, WAVE5 D2's 400 ms slot), plus a frame. */
+const RELEASE_MARK_MS = 450;
+
+/**
+ * The release split (U4b, WAVE5 D2 and D5): a release after a drag runs on
+ * flick-400, scaled by the swipe's strength; a tap-open, Close and Escape
+ * keep settle-400. Base UI marks the popup `data-swiping` while it is
+ * dragged and drops the mark in the same commit that moves the popup to its
+ * new place, so the attribute that picks the curve has to be written before
+ * Base UI's own release handler runs: a capture-phase pointer-up or
+ * touch-end (touch releases through touch events) sees the drag, a
+ * `data-swiping` popup with a non-zero swipe movement, and marks the popup
+ * `data-released="swipe"`. A press without movement (a tap on Close, on the
+ * handle) never marks it. The next press clears it, and so does a timer
+ * after the longest release.
+ */
+const FLICK_RELEASE_CLASS =
+  "data-[released=swipe]:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-[released=swipe]:ease-flick-400";
+
+function swipeMoved(popup: HTMLElement) {
+  return ["--drawer-swipe-movement-x", "--drawer-swipe-movement-y"].some(
+    (name) => (Number.parseFloat(popup.style.getPropertyValue(name)) || 0) !== 0,
+  );
+}
+
+function useFlickRelease(enabled: boolean) {
+  const timer = React.useRef<number | null>(null);
+  React.useEffect(
+    () => () => {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+    },
+    [],
+  );
+  const mark = React.useCallback((event: React.SyntheticEvent<HTMLElement>) => {
+    const popup = event.currentTarget;
+    if (!popup.hasAttribute("data-swiping") || !swipeMoved(popup)) return;
+    popup.setAttribute("data-released", "swipe");
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      popup.removeAttribute("data-released");
+      timer.current = null;
+    }, RELEASE_MARK_MS);
+  }, []);
+  const clear = React.useCallback((event: React.SyntheticEvent<HTMLElement>) => {
+    event.currentTarget.removeAttribute("data-released");
+  }, []);
+  if (!enabled) return null;
+  return {
+    onPointerDownCapture: clear,
+    onTouchStartCapture: clear,
+    onPointerUpCapture: mark,
+    onPointerCancelCapture: mark,
+    onTouchEndCapture: mark,
+    onTouchCancelCapture: mark,
+  };
+}
+
 type DrawerContextProps = {
   hasSnapPoints: boolean;
   modal: DrawerPrimitive.Root.Props["modal"];
@@ -94,17 +151,36 @@ function DrawerContent({
   className,
   children,
   keepMounted,
+  overlay = "modal",
+  overlayClassName,
+  flickRelease = false,
   ...props
 }: DrawerPrimitive.Popup.Props & {
   /** Keep the popup in the DOM while closed (R4: the editor's tools drawer keeps its panels' state). */
   keepMounted?: boolean;
+  /**
+   * When the scrim renders: only while the drawer is modal (the default), or
+   * at every snap point (U4b: the phone card sheet, modal only at its full
+   * point, fades its scrim with the snap progress instead of mounting it).
+   */
+  overlay?: "modal" | "always";
+  /** Classes for the scrim (U4b: the phone card sheet's 40 % at its full point). */
+  overlayClassName?: string;
+  /** U4b: a release after a swipe on flick-400, a tap or Escape on settle-400 (see FLICK_RELEASE_CLASS). */
+  flickRelease?: boolean;
 }) {
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection } = useDrawer();
   const swipeAxis = swipeDirection === "down" || swipeDirection === "up" ? "y" : "x";
+  const releaseHandlers = useFlickRelease(flickRelease);
 
   return (
     <DrawerPortal data-slot="drawer-portal" keepMounted={keepMounted}>
-      {modal === true && <DrawerOverlay data-snap-points={hasSnapPoints ? "" : undefined} />}
+      {(overlay === "always" || modal === true) && (
+        <DrawerOverlay
+          data-snap-points={hasSnapPoints ? "" : undefined}
+          className={overlayClassName}
+        />
+      )}
       <DrawerPrimitive.Viewport
         data-slot="drawer-viewport"
         data-modal={modal}
@@ -127,6 +203,8 @@ function DrawerContent({
             "[--bleed:3rem] [--peek:1rem] [--stack-height:var(--drawer-frontmost-height,var(--drawer-height,0px))] [--stack-peek-offset:max(0px,calc((var(--nested-drawers)-var(--stack-progress))*var(--peek)))] [--stack-progress:clamp(0,var(--drawer-swipe-progress),1)] [--stack-scale-base:max(0,calc(1-(var(--nested-drawers)*var(--stack-step))))] [--stack-scale:clamp(0,calc(var(--stack-scale-base)+(var(--stack-step)*var(--stack-progress))),1)] [--stack-shrink:calc(1-var(--stack-scale))] [--stack-step:0.05]",
             // Transitions.
             "data-ending-style:transform-(--closed-transform) data-ending-style:opacity-[0.9999] data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-nested-drawer-swiping:duration-0 data-ending-style:data-nested-drawer-swiping:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:transform-(--closed-transform) data-swiping:duration-0 data-ending-style:data-swiping:duration-[calc(var(--drawer-swipe-strength)*400ms)]",
+            // The release split (U4b), opt-in.
+            flickRelease && FLICK_RELEASE_CLASS,
             // Axis: y.
             "data-[swipe-axis=y]:inset-x-0 data-[swipe-axis=y]:data-nested-drawer-open:h-(--stack-height)",
             // Axis: x.
@@ -141,6 +219,7 @@ function DrawerContent({
             "data-[swipe-direction=right]:right-0 data-[swipe-direction=right]:origin-right data-[swipe-direction=right]:[--closed-transform:translate3d(calc(100%+var(--drawer-inset,0px)+2px),0,0)] data-[swipe-direction=right]:[--translate-x:calc(var(--drawer-swipe-movement-x)-var(--stack-peek-offset)-(var(--stack-shrink)*100%))]",
             className,
           )}
+          {...releaseHandlers}
           {...props}
         >
           {showSwipeHandle && <DrawerSwipeHandle />}

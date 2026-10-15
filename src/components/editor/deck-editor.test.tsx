@@ -237,9 +237,15 @@ describe("DeckEditor (draft) across the tiers", () => {
     fireEvent.click(screen.getByRole("option", { name: /Arcane Signet/ }));
     await act(async () => {});
     const sheet = screen.getByRole("dialog", { name: "Arcane Signet" });
-    // Two headings by design: the sr-only DrawerTitle and the pane's own name.
+    // Two headings by design: the sr-only DrawerTitle and the body's own name.
     expect(within(sheet).getAllByRole("heading", { name: "Arcane Signet" })).toHaveLength(2);
-    expect(within(sheet).getByRole("link", { name: /Card page/ })).toBeTruthy();
+    // U4b: it opens at the half: the actions (a search result: Add) and the
+    // card; the text, the tags and the footer's links wait for the full point.
+    expect(document.querySelector("[data-slot=sheet-body]")?.getAttribute("data-point")).toBe(
+      "half",
+    );
+    expect(within(sheet).getByRole("button", { name: "Add" })).toBeTruthy();
+    expect(within(sheet).queryByRole("link", { name: /Card page/ })).toBeNull();
     fireEvent.keyDown(sheet, { key: "Escape" });
     await act(async () => {});
     expect(sheetPopup()).toBeNull();
@@ -408,6 +414,186 @@ describe("DeckEditor (a loaded deck) — openCuts by tier", () => {
     expect(screen.getByRole("tab", { name: "Cuts" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(posts()).toBe(0);
+  });
+});
+
+describe("DeckEditor — the phone card sheet (U4b)", () => {
+  /** A saved Commander deck, no commander: Sol Ring and Arcane Signet in the main list. */
+  function smallDeck() {
+    const entry = (wire: CardWire) => ({
+      cardId: wire.id,
+      zone: "main",
+      qty: 1,
+      tags: [],
+      printingId: null,
+      card: wire,
+    });
+    return {
+      deck: {
+        id: "deck-7",
+        publicId: "yyyyyyyy7777",
+        game: "mtg",
+        format: "commander",
+        name: "Small",
+        description: null,
+        notes: null,
+        visibility: "unlisted",
+        isOwner: true,
+        forkedFrom: null,
+        leaderIds: [],
+      },
+      cards: [entry(sol), entry(signet)],
+      owned: [],
+      hasCollection: false,
+    };
+  }
+
+  async function renderSmall(width = 375) {
+    const viewport = stubViewport(width);
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/decks/deck-7" && (init?.method ?? "GET") === "GET") {
+        return ok(smallDeck());
+      }
+      return route(input, init);
+    });
+    render(<DeckEditor deckId="deck-7" />);
+    await act(async () => {});
+    await act(async () => {});
+    return viewport;
+  }
+  const rowName = (name: string) => within(section("Deck list")).getByRole("button", { name });
+  const sheetBody = () => document.querySelector("[data-slot=sheet-body]");
+  const writes = () =>
+    fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method).length;
+
+  it("a row tap opens it at the half, non-modal; another row's tap while it stays open re-targets it in the same frame; Escape closes it; nothing written", async () => {
+    await renderSmall();
+    fireEvent.click(rowName("Sol Ring"));
+    await act(async () => {});
+    const sheet = screen.getByRole("dialog", { name: "Sol Ring" });
+    const frame = sheetPopup();
+    expect(sheetBody()?.getAttribute("data-point")).toBe("half");
+    expect(sheetBody()?.hasAttribute("data-swapped")).toBe(false);
+    expect(document.querySelector("[data-slot=drawer-viewport]")?.getAttribute("data-modal")).toBe(
+      "false",
+    );
+    // A card the deck holds: Remove, and Swap… (an artifact Swap Lab offers
+    // alternatives for); Add is for a card the deck doesn't hold.
+    expect(within(sheet).getByRole("button", { name: "Remove" })).toBeTruthy();
+    expect(within(sheet).getByRole("button", { name: "Swap…" })).toBeTruthy();
+    expect(within(sheet).queryByRole("button", { name: "Add" })).toBeNull();
+    // The half shows the card, not its text yet.
+    expect(within(sheet).getByRole("img", { name: "Sol Ring" })).toBeTruthy();
+    expect(within(sheet).queryByRole("link", { name: /Card page/ })).toBeNull();
+    // The deck behind stays live: the next row re-targets the same frame.
+    fireEvent.click(rowName("Arcane Signet"));
+    await act(async () => {});
+    const retargeted = screen.getByRole("dialog", { name: "Arcane Signet" });
+    expect(sheetPopup()).toBe(frame);
+    expect(sheetBody()?.hasAttribute("data-swapped")).toBe(true);
+    expect(sheetBody()?.getAttribute("data-point")).toBe("half");
+    fireEvent.keyDown(retargeted, { key: "Escape" });
+    await act(async () => {});
+    expect(sheetPopup()).toBeNull();
+    // Layout, not edits: opening, re-targeting and closing wrote nothing.
+    await settle(1500);
+    expect(writes()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+  });
+
+  it("Remove is the row's remove (its toast); the sheet stays on the card and offers Add, the search pane's add; a saved deck PUTs, nothing is created", async () => {
+    await renderSmall();
+    fireEvent.click(rowName("Sol Ring"));
+    await act(async () => {});
+    const sheet = screen.getByRole("dialog", { name: "Sol Ring" });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Remove" }));
+    expect(screen.getByText("Removed Sol Ring")).toBeTruthy();
+    expect(within(section("Deck list")).queryByRole("button", { name: "Sol Ring" })).toBeNull();
+    expect(within(sheet).queryByRole("button", { name: "Remove" })).toBeNull();
+    expect(within(sheet).queryByRole("button", { name: "Swap…" })).toBeNull();
+    fireEvent.click(within(sheet).getByRole("button", { name: "Add" }));
+    expect(screen.getByText("Added Sol Ring")).toBeTruthy();
+    expect(rowName("Sol Ring")).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Sol Ring" })).toBe(sheet);
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(0);
+    expect(puts()).toBeGreaterThan(0);
+  });
+
+  it("Swap… closes the card sheet and opens Swap Lab's sheet for the card", async () => {
+    await renderSmall();
+    fireEvent.click(rowName("Sol Ring"));
+    await act(async () => {});
+    const sheet = screen.getByRole("dialog", { name: "Sol Ring" });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Swap…" }));
+    await act(async () => {});
+    expect(screen.queryByRole("dialog", { name: "Sol Ring" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Swap Sol Ring" })).toBeTruthy();
+    expect(posts()).toBe(0);
+  });
+
+  it("the phone's Tools pane is one strip, Card first, Analytics and Hand among its tabs; a dealt card opens the sheet and the strip stays on Hand; from wide the strip keeps its four", async () => {
+    const viewport = await renderSmall();
+    fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
+    const strip = screen.getByRole("tablist", { name: "Right pane view" });
+    expect(
+      within(strip)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Card", "Suggestions", "Combos", "Cuts", "Analytics", "Hand"]);
+    // One navigation: no collapsibles stacked above the strip any more.
+    const tools = section("Card detail and suggestions");
+    expect(within(tools).queryByRole("button", { name: /^Analytics/ })).toBeNull();
+    expect(within(tools).queryByRole("button", { name: /Sample hand/ })).toBeNull();
+    // The hand: its Draw button lives in the tab; a dealt card is an inspection that keeps the tab.
+    const handTab = within(strip).getByRole("tab", { name: "Hand" });
+    fireEvent.click(handTab);
+    const handPanel = document.getElementById(handTab.getAttribute("aria-controls")!)!;
+    fireEvent.click(within(handPanel).getByRole("button", { name: "Draw sample hand" }));
+    const dealt = within(handPanel).getAllByRole("button", { name: /Sol Ring|Arcane Signet/ });
+    expect(dealt.length).toBeGreaterThan(0);
+    fireEvent.click(dealt[0]);
+    await act(async () => {});
+    expect(sheetPopup()).toBeTruthy();
+    expect(handTab.getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(sheetPopup()!, { key: "Escape" });
+    await act(async () => {});
+    // Analytics as a tab, then a flip to wide: four tabs, Card shown.
+    fireEvent.click(within(strip).getByRole("tab", { name: "Analytics" }));
+    act(() => viewport.resize(1440));
+    const wide = screen.getByRole("tablist", { name: "Right pane view" });
+    expect(
+      within(wide)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Card", "Suggestions", "Combos", "Cuts"]);
+    expect(within(wide).getByRole("tab", { name: "Card" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    // From md the analytics and the hand sit under the deck list again.
+    expect(within(section("Deck list")).getByText("Sample hand")).toBeTruthy();
+    expect(posts()).toBe(0);
+  });
+
+  it("One Piece's phone strip is Card · Analytics · Hand; from wide its single Card panel and heading stay", () => {
+    const viewport = stubViewport(375);
+    render(<DeckEditor deckId={null} draftGame="optcg" draftFormat="standard" />);
+    fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
+    const strip = screen.getByRole("tablist", { name: "Right pane view" });
+    expect(
+      within(strip)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Card", "Analytics", "Hand"]);
+    // An empty deck's Hand tab says what it needs.
+    fireEvent.click(within(strip).getByRole("tab", { name: "Hand" }));
+    expect(screen.getByText("Add cards to draw a sample hand.")).toBeTruthy();
+    act(() => viewport.resize(1440));
+    expect(screen.queryByRole("tablist", { name: "Right pane view" })).toBeNull();
+    expect(
+      within(section("Card detail and suggestions")).getByRole("heading", { name: "Card" }),
+    ).toBeTruthy();
   });
 });
 
