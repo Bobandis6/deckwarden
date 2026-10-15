@@ -8,7 +8,8 @@
  * `YourDecks` (claim tokens); the two share the `your-decks` id and never
  * render together (the id is content since X1 — My decks goes to /account).
  * Nothing to continue → nothing rendered: home is not a discovery surface
- * for one's own empty account.
+ * for one's own empty account. The heading is home's serif section h2
+ * since U5 (WAVE5 D6: zero uppercase section labels).
  */
 import Link from "next/link";
 
@@ -22,9 +23,7 @@ export async function ContinueBuilding({ userId }: { userId: string }) {
   return (
     <section id="your-decks" aria-label="Continue building" className="w-full space-y-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-          Continue building
-        </h2>
+        <h2 className="type-section">Continue building</h2>
         {rows.length >= CONTINUE_BUILDING_LIMIT && (
           <Link href="/account" className="text-xs underline underline-offset-4">
             All your decks

@@ -699,3 +699,51 @@
     color: var(--background);
   }
 }
+
+/* Home's hero fan (U5, WAVE5 D6 section 1): three full `normal` cards at
+   --fan-h (180 px below md, so the turned side cards stay inside a 360 px
+   phone's gutters, and less on a narrower screen, where the fan's 1.88
+   card heights of width would otherwise scroll the page sideways; 280 from
+   md) in a box of explicit height, so nothing shifts when they land. The
+   center card (the first child, the most played) sits on top; the other
+   two step out by 0.62 of a card width, overlapping it by about a third,
+   and turn 8 degrees about their bottom edges. They also sit --fan-drop
+   lower, so the center card's bottom edge clears their artist and © lines
+   (D0: never covered; 0.13 is the least that clears them, measured with
+   elementFromPoint). Children, not `img`: a card with no image is
+   CardImage's named <span>. */
+@layer components {
+  .home-fan {
+    --fan-h: min(180px, calc((100vw - 1rem) / 1.88));
+    --fan-w: calc(var(--fan-h) * 488 / 680);
+    --fan-step: calc(var(--fan-w) * 0.62);
+    --fan-drop: calc(var(--fan-h) * 0.14);
+    position: relative;
+    height: calc(var(--fan-h) * 1.05 + var(--fan-drop) + 2.5rem);
+  }
+  @media (width >= 48rem) {
+    .home-fan {
+      --fan-h: 280px;
+    }
+  }
+  .home-fan > * {
+    position: absolute;
+    top: calc(1.25rem + var(--fan-drop));
+    left: calc(50% - var(--fan-w) / 2);
+    width: var(--fan-w);
+    height: var(--fan-h);
+    transform-origin: 50% 100%;
+  }
+  .home-fan > :first-child {
+    top: 1.25rem;
+    z-index: 1;
+  }
+  .home-fan > :nth-child(2) {
+    translate: calc(-1 * var(--fan-step)) 0;
+    rotate: -8deg;
+  }
+  .home-fan > :nth-child(3) {
+    translate: var(--fan-step) 0;
+    rotate: 8deg;
+  }
+}

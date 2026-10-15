@@ -16,11 +16,21 @@
  * the cold-start shelf, name order, no label, no popularity wording (§2's
  * words). Both shelves take the `small` rendition of each default printing
  * (One Piece's since P4.9: the mirror's WebP on img.deckwarden.gg).
+ *
+ * U5 (WAVE5 D6): home's hero fans the Magic index's top three as full
+ * `normal` cards, and the shelf shows the NEXT six, so no image appears in
+ * two sections of the page (D0). One statement still serves both: the page
+ * asks `loadTopCommanders` for FAN_SIZE + SHELF_SIZE rows and `magicHome`
+ * splits them.
  */
+import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { leaderTileImage } from "@/lib/decks/tiles";
 
-/** Six per shelf — two rows of three in the game card. */
+/** Six per shelf: three by two below `lg`, one row of six from it (U5). */
 export const SHELF_SIZE = 6;
+
+/** The hero fan's cards (U5): the Magic index's top three. */
+export const FAN_SIZE = 3;
 
 export interface MagicShelfRow {
   id: string;
@@ -52,6 +62,46 @@ export function magicShelf(rows: readonly MagicShelfRow[]): MagicShelfCard[] {
         row.printingId ? { id: row.printingId, imageOverride: row.imageOverride } : null,
       ),
     }));
+}
+
+export interface FanCard {
+  id: string;
+  name: string;
+  /**
+   * The `normal` rendition (488 × 680, the artist and © line in the frame);
+   * null when the leader has no default printing.
+   */
+  image: string | null;
+}
+
+export interface MagicHome {
+  /** The top FAN_SIZE rows, most played first: the hero's fan. */
+  fan: FanCard[];
+  /** The next SHELF_SIZE rows: the shelf never repeats a fan card. */
+  shelf: MagicShelfCard[];
+}
+
+/**
+ * Home's Magic rows split in rank order (U5): the fan takes the first
+ * FAN_SIZE slugged rows, the shelf the SHELF_SIZE after them. Fewer rows
+ * than that (a young corpus) shorten the shelf first; no row is ever in
+ * both.
+ */
+export function magicHome(rows: readonly MagicShelfRow[]): MagicHome {
+  const slugged = rows.filter((row) => row.slug !== null);
+  return {
+    fan: slugged.slice(0, FAN_SIZE).map((row) => ({
+      id: row.id,
+      name: row.name,
+      image: row.printingId
+        ? embeddablePrintingImageUrl(
+            { id: row.printingId, imageOverride: row.imageOverride },
+            "normal",
+          )
+        : null,
+    })),
+    shelf: magicShelf(slugged.slice(FAN_SIZE, FAN_SIZE + SHELF_SIZE)),
+  };
 }
 
 export interface FinishLeaderRow {

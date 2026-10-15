@@ -340,9 +340,11 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4; U4a at every tier, WAVE
     // HERO_CARD_SHADOW's values at every tier (U4a: phones too, no shadow-md left).
     expect(img.className).toContain("shadow-lg shadow-primary/25 dark:shadow-black/60");
     expect(img.className).not.toContain("shadow-md");
-    // The frame's 2 px lift and ring on settle-120, in place of CardImage's untokened 150 ms.
+    // The frame's 2 px lift and ring on settle-120: CardImage's own list since
+    // U5 (LATER row 230), naming `translate`, the property the lift writes.
     expect(img.className).toContain("motion-safe:hover:-translate-y-0.5");
-    expect(img.className).toContain("transform_120ms_var(--ease-settle-120)");
+    expect(img.className).toContain("translate_120ms_var(--ease-settle-120)");
+    expect(img.className).not.toContain("transform_");
     expect(img.className).not.toContain("150ms");
     // The facts: the type line and the caption as the adapter gives them (data,
     // em dash kept), shown at every tier; the mono caption is the share page's alone.
@@ -425,7 +427,8 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4; U4a at every tier, WAVE
     expect(row.querySelector("[data-slot=leader-caption]")?.className).not.toContain("md:hidden");
     const img = screen.getByRole("img", { name: "Giada, Font of Hope" });
     expect(img.className).toContain("shadow-md");
-    expect(img.className).toContain("transform_150ms");
+    // CardImage's list (U5, LATER row 230): the share page's lift animates too.
+    expect(img.className).toContain("translate_120ms_var(--ease-settle-120)");
     expect(screen.getByText("Giada, Font of Hope").className).toBe(
       "min-w-0 truncate flex-1 text-xs",
     );

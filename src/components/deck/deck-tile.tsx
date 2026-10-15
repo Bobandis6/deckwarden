@@ -21,7 +21,9 @@
  * optional `actions` slot (the account's folder select and Share link) sits
  * above that overlay. `data-game` on the tile gives its focus ring the game
  * accent (R1a's rule). Explicit width and height on the slot: nothing
- * shifts when an image lands.
+ * shifts when an image lands. Hover (U5, WAVE5 D6): the tint and a 2 px
+ * lift over 120 ms on settle-120, the lift `motion-safe:` only (reduced
+ * motion keeps the tint); the lift is a `translate`, so no box moves.
  */
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
@@ -60,7 +62,7 @@ export function DeckTile({
       data-slot="deck-tile"
       data-game={tile.game ?? undefined}
       className={cn(
-        "bg-card hover:bg-muted/40 relative flex gap-3 overflow-hidden rounded-lg border p-3 pt-4 motion-safe:transition-colors",
+        "bg-card hover:bg-muted/40 relative flex gap-3 overflow-hidden rounded-lg border p-3 pt-4 motion-safe:transition-[background-color,translate] motion-safe:hover:-translate-y-0.5",
         "has-[[data-slot=tile-link]:focus-visible]:ring-ring/50 has-[[data-slot=tile-link]:focus-visible]:ring-2",
         className,
       )}

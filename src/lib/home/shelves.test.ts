@@ -4,11 +4,21 @@
  * branches over one query — finishes present → labeled, exactly the
  * finish rows and never padded with unranked leaders; no finishes at all
  * → the cold-start shelf in the query's name order with no label — and,
- * since P4.9, the mirror's small WebP on each One Piece card.
+ * since P4.9, the mirror's small WebP on each One Piece card. U5: home's
+ * Magic rows split into the hero fan (the top three, `normal`) and the
+ * shelf (the next six), never sharing a card.
  */
 import { describe, expect, it } from "vitest";
 
-import { magicShelf, opShelf, type FinishLeaderRow } from "./shelves";
+import {
+  FAN_SIZE,
+  magicHome,
+  magicShelf,
+  opShelf,
+  SHELF_SIZE,
+  type FinishLeaderRow,
+  type MagicShelfRow,
+} from "./shelves";
 
 describe("magicShelf", () => {
   it("links each hub and takes the small rendition of the default printing", () => {
@@ -36,6 +46,63 @@ describe("magicShelf", () => {
       "https://cards.scryfall.io/small/front/5/b/5b40815d-0104-461e-b193-fcf5e1f35299.jpg",
     );
     expect(cards[1].image).toBeNull();
+  });
+});
+
+const commander = (i: number, overrides: Partial<MagicShelfRow> = {}): MagicShelfRow => ({
+  id: `c${i}`,
+  name: `Commander ${i}`,
+  slug: `commander-${i}`,
+  ciMask: i % 32,
+  printingId: `${i.toString(16).padStart(2, "0")}aaaaaa-0000-4000-8000-000000000000`,
+  imageOverride: null,
+  ...overrides,
+});
+
+describe("magicHome (U5)", () => {
+  it("asks for nine rows: the fan's three and the shelf's six", () => {
+    expect([FAN_SIZE, SHELF_SIZE]).toEqual([3, 6]);
+  });
+
+  it("the fan takes the top three as `normal` renditions, the shelf the next six, no card in both", () => {
+    const rows = Array.from({ length: FAN_SIZE + SHELF_SIZE }, (_, i) => commander(i + 1));
+    const { fan, shelf } = magicHome(rows);
+    expect(fan.map((c) => c.name)).toEqual(["Commander 1", "Commander 2", "Commander 3"]);
+    expect(fan[0]).toEqual({
+      id: "c1",
+      name: "Commander 1",
+      image: "https://cards.scryfall.io/normal/front/0/1/01aaaaaa-0000-4000-8000-000000000000.jpg",
+    });
+    expect(shelf.map((c) => c.name)).toEqual([4, 5, 6, 7, 8, 9].map((i) => `Commander ${i}`));
+    expect(shelf[0].image).toBe(
+      "https://cards.scryfall.io/small/front/0/4/04aaaaaa-0000-4000-8000-000000000000.jpg",
+    );
+    // D0: no image on two sections of one page.
+    const fanIds = new Set(fan.map((c) => c.id));
+    expect(shelf.some((c) => fanIds.has(c.id))).toBe(false);
+  });
+
+  it("an override image serves the fan as stored; no printing → null (CardImage's named box)", () => {
+    const override =
+      "https://cards.scryfall.io/normal/front/f/f/ffaaaaaa-0000-4000-8000-000000000000.jpg";
+    const { fan } = magicHome([
+      commander(1, { imageOverride: { front: override } }),
+      commander(2, { printingId: null }),
+    ]);
+    expect(fan.map((c) => c.image)).toEqual([override, null]);
+  });
+
+  it("skips unslugged rows, and a short corpus shortens the shelf first", () => {
+    const { fan, shelf } = magicHome([
+      commander(1),
+      commander(2, { slug: null }),
+      commander(3),
+      commander(4),
+      commander(5),
+    ]);
+    expect(fan.map((c) => c.id)).toEqual(["c1", "c3", "c4"]);
+    expect(shelf.map((c) => c.id)).toEqual(["c5"]);
+    expect(magicHome([])).toEqual({ fan: [], shelf: [] });
   });
 });
 

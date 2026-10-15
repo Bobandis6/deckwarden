@@ -8,7 +8,8 @@
  * decks_recent_public partial index plus the joined default printing.
  *
  * Bylines follow the P2.2 opt-in: an author appears only when they chose a
- * username; guest decks and username-less accounts stay anonymous.
+ * username; guest decks and username-less accounts stay anonymous. The
+ * heading is home's serif section h2 since U5 (WAVE5 D6).
  */
 import Link from "next/link";
 
@@ -21,9 +22,7 @@ export async function RecentPublicDecks() {
 
   return (
     <section aria-label="Recent public decks" className="w-full space-y-3">
-      <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-        Recent public decks
-      </h2>
+      <h2 className="type-section">Recent public decks</h2>
       {rows.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           No public decks yet —{" "}

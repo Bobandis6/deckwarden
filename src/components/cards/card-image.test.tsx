@@ -4,7 +4,7 @@
  * high-priority above the fold, the fade-in keyed on load, the G2 frame
  * classes behind `frame`, and the no-src fallback in an aspect box with the
  * caller's text (the smoke-pinned "Card image coming soon" on the One Piece
- * surfaces).
+ * surfaces); the transition list on U2's tokens, naming `translate` (U5).
  */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -46,6 +46,17 @@ describe("CardImage", () => {
     expect(framed).toContain("motion-safe:hover:-translate-y-0.5");
     rerender(<CardImage src={SRC} alt="Sol Ring" width={488} height={680} />);
     expect(screen.getByRole("img").className).not.toContain("hover:ring-2");
+  });
+
+  it("transitions the lift's `translate` (not `transform`) and the ring on settle-120, the fade on settle-250 (U5)", () => {
+    render(<CardImage src={SRC} alt="Sol Ring" width={488} height={680} frame />);
+    const classes = screen.getByRole("img").className.split(" ");
+    // LATER row 230: Tailwind v4's -translate-y-0.5 writes `translate`; a list
+    // naming `transform` left the 2 px lift a jump on every framed card.
+    expect(classes).toContain(
+      "motion-safe:[transition:opacity_250ms_var(--ease-settle-250),translate_120ms_var(--ease-settle-120),box-shadow_120ms_var(--ease-settle-120)]",
+    );
+    expect(classes).toContain("motion-safe:hover:-translate-y-0.5");
   });
 
   it("no src renders the fallback text in a same-aspect box and no <img>", () => {

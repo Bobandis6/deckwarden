@@ -1,20 +1,24 @@
 /**
  * The homepage leader shelves (R5a, §2 item 2): six real leader cards per
- * game card. Magic shows the commanders in the most EDHREC decklists with
- * their `small` renditions under the index's honest label (decklist
- * popularity via Scryfall — not games played, Y1). One Piece shows the leaders with the most recent Top finishes
- * under a label that names the source — the ordering IS tournament data,
- * so the Limitless credit sits with it (the attribution rule) — or, when no
- * finish exists anywhere (the cold-start branch `opShelf` pins), leaders in
- * name order with no label and no popularity wording. One Piece cards carry
- * the printed id top-left (C13's corner rule) and, since P4.9, the mirror's
- * small WebP in the image slot; a leader with no image paints its color
- * gradient there instead.
+ * game region. Magic shows the commanders in the most EDHREC decklists,
+ * after the hero fan's three (U5: the shelf never repeats a fan card), with
+ * their `small` renditions under a serif heading and the index's honest
+ * clause (decklist popularity via Scryfall, not games played: Y1's sense in
+ * one clause, WAVE5 D6). One Piece shows the leaders with the most recent
+ * Top finishes under a heading and a clause that names the source — the
+ * ordering IS tournament data, so the Limitless credit sits with it (the
+ * attribution rule) — or, when no finish exists anywhere (the cold-start
+ * branch `opShelf` pins), leaders in name order with no heading and no
+ * popularity wording. One Piece cards carry the printed id top-left (C13's
+ * corner rule) and, since P4.9, the mirror's small WebP in the image slot;
+ * a leader with no image paints its color gradient there instead.
  *
  * Each card is one link — its hub — named by the leader (plus the printed
- * id for One Piece, which is what tells the seventeen Luffys apart).
- * Images are lazy: the hero text is the LCP, and a small image already in
- * the viewport loads at once regardless.
+ * id for One Piece, which is what tells the seventeen Luffys apart). The
+ * cards sit three by two below `lg` and in one row of six from it, about
+ * 150 px wide (U5). Images are lazy: both shelves sit below the fold at
+ * every width, under the hero fan's eager cards (the LCP from `md`; the H1
+ * on a phone).
  */
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -84,17 +88,19 @@ function ShelfCard({
   );
 }
 
-const SHELF_LABEL_CLASS = "text-muted-foreground text-xs font-medium tracking-wide uppercase";
-const SHELF_GRID_CLASS = "mt-2 grid grid-cols-3 gap-2";
+/** A shelf's serif heading (U5: the uppercase label is for list groups only, F4). */
+const SHELF_HEADING_CLASS = "type-small";
+const SHELF_CLAUSE_CLASS = "text-muted-foreground mt-1 text-xs";
+const SHELF_GRID_CLASS =
+  "mt-3 grid grid-cols-[repeat(3,minmax(0,9.5rem))] gap-3 lg:grid-cols-[repeat(6,minmax(0,9.5rem))]";
 
 export function MagicShelf({ cards }: { cards: MagicShelfCard[] }) {
   if (cards.length === 0) return null;
   return (
     <section aria-label="Popular in Commander decklists">
-      <h3 className={SHELF_LABEL_CLASS}>Popular in Commander decklists</h3>
-      <p className="text-muted-foreground mt-0.5 text-xs">
-        Commander-eligible cards ranked by how many EDHREC decklists include them — as commander or
-        in the 99 (via Scryfall). Not games played.
+      <h3 className={SHELF_HEADING_CLASS}>Popular in Commander decklists</h3>
+      <p className={SHELF_CLAUSE_CLASS}>
+        Ranked by EDHREC decklist count via Scryfall, not games played.
       </p>
       <ul className={SHELF_GRID_CLASS}>
         {cards.map((card) => (
@@ -119,8 +125,8 @@ export function OpShelf({ shelf }: { shelf: OpShelfData }) {
     <section aria-label={labeled ? "Recent Top finishes" : "Leaders"}>
       {labeled && (
         <>
-          <h3 className={SHELF_LABEL_CLASS}>Recent Top finishes</h3>
-          <p className="text-muted-foreground mt-0.5 text-xs">
+          <h3 className={SHELF_HEADING_CLASS}>Recent Top finishes</h3>
+          <p className={SHELF_CLAUSE_CLASS}>
             Leaders placing top {TOP_PLACEMENT} at {MIN_EVENT_PLAYERS}+ player events, newest first.
             Results from{" "}
             <a href={tournaments.sourceHref} className="underline" rel="noreferrer" target="_blank">

@@ -5,7 +5,7 @@
  * gated; the name on up to two lines; `♥ N` only above zero; the
  * visibility word only when the data carries it; the actions slot above
  * the stretched link; `data-game` for the accent; the grid one column
- * below `md` and two from it.
+ * below `md` and two from it; the hover lift (U5).
  */
 import { render, screen } from "@testing-library/react";
 import Link from "next/link";
@@ -163,5 +163,22 @@ describe("DeckTile — the declared chip (Y5)", () => {
       </DeckTileGrid>,
     );
     expect(container.querySelector("[data-slot=tile-badge]")).toBeNull();
+  });
+
+  it("lifts 2 px on hover over U2's default 120 ms, the lift motion-safe and named in the list (U5)", () => {
+    const { container } = render(
+      <DeckTileGrid>
+        <DeckTile tile={queza} />
+      </DeckTileGrid>,
+    );
+    const tile = container.querySelector("[data-slot=deck-tile]") as HTMLElement;
+    const classes = tile.className.split(" ");
+    // Tailwind v4's -translate-y-0.5 writes `translate`, so the list names it
+    // (CardImage's lift named `transform` and never animated, LATER row 230).
+    expect(classes).toContain("motion-safe:transition-[background-color,translate]");
+    expect(classes).toContain("motion-safe:hover:-translate-y-0.5");
+    // Reduced motion keeps the tint: it is not behind motion-safe.
+    expect(classes).toContain("hover:bg-muted/40");
+    expect(tile.className).not.toContain("transition-colors");
   });
 });

@@ -11,7 +11,8 @@
  * X1: the fetch moved into the hook and the tiles into BrowserDeckTiles —
  * the signed-out account page lists the same decks — and this component's
  * output is unchanged. The id stays as content; the header's My decks link
- * goes to /account now and nothing links to the section by hash.
+ * goes to /account now and nothing links to the section by hash. The
+ * heading is home's serif section h2 since U5 (WAVE5 D6).
  */
 import { BrowserDeckTiles } from "@/components/deck/browser-deck-tiles";
 import { useBrowserDecks } from "@/components/deck/use-browser-decks";
@@ -23,9 +24,7 @@ export function YourDecks() {
 
   return (
     <section id="your-decks" aria-label="Continue building" className="w-full space-y-3">
-      <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-        Continue building
-      </h2>
+      <h2 className="type-section">Continue building</h2>
       <BrowserDeckTiles decks={decks} />
     </section>
   );

@@ -1,23 +1,27 @@
 /**
- * The capabilities strip (R5a, §2 item 5): five short cards, copy only for
- * features that have shipped — validation (P1.x), Commander Spellbook
- * combos (P2.5, Magic), share pages (P1.7/P2.6), sample hands (P2.7, both
- * games — seven cards for Magic, five for One Piece since P4.6), and
- * tournament finishes (P3.5 Topdeck.gg, P4.5 Limitless). Three bodies are
- * P2.8's FEATURES copy where it still read true. Cold-start rule: no
- * numbers, no testimonials.
+ * What Deckwarden does (R5a, §2 item 5; an offset list since U5, WAVE5 D6
+ * section 6): five plain items, copy only for features that have shipped —
+ * validation (P1.x), Commander Spellbook combos (P2.5, Magic), share pages
+ * (P1.7/P2.6), sample hands (P2.7, both games — seven cards for Magic, five
+ * for One Piece since P4.6), and tournament finishes (P3.5 Topdeck.gg, P4.5
+ * Limitless). The serif heading sits on the left and the items in the right
+ * half under a gold rule, as a description list (title, body): no cards, no
+ * per-item headings. The titles are D6's plain ones; the bodies are R5a's
+ * (U9 owns their dashes). Cold-start rule: no numbers, no testimonials.
  */
+import { cn } from "@/lib/utils";
+
 const CAPABILITIES: Array<{ title: string; body: string }> = [
   {
-    title: "The Warden checks your work",
+    title: "Legality checks",
     body: "Format legality, color identity, copy limits, and banned cards validated as you build — every flag comes with the reason, not just an ✗.",
   },
   {
-    title: "Combos, surfaced",
+    title: "Combos",
     body: "Commander hubs and Magic card pages show their Commander Spellbook combos beside staples, curve templates, and budget tiers.",
   },
   {
-    title: "Share pages that sell the deck",
+    title: "Share pages",
     body: "Every deck gets a fast mobile-friendly page with curve, prices, and a share image that unfurls in Discord — with the commander's art for Magic.",
   },
   {
@@ -30,18 +34,21 @@ const CAPABILITIES: Array<{ title: string; body: string }> = [
   },
 ];
 
-export function CapabilitiesStrip() {
+export function CapabilitiesStrip({ className }: { className?: string }) {
   return (
     <section
       aria-label="What Deckwarden does"
-      className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-5"
+      className={cn("grid gap-8 md:grid-cols-2 md:gap-12", className)}
     >
-      {CAPABILITIES.map((c) => (
-        <div key={c.title} className="rounded-lg border p-3">
-          <h2 className="text-sm font-semibold">{c.title}</h2>
-          <p className="text-muted-foreground mt-1 text-xs">{c.body}</p>
-        </div>
-      ))}
+      <h2 className="type-section">What Deckwarden does</h2>
+      <dl className="border-gold/30 space-y-5 border-t pt-6">
+        {CAPABILITIES.map((c) => (
+          <div key={c.title}>
+            <dt className="font-medium">{c.title}</dt>
+            <dd className="text-muted-foreground mt-1 text-sm">{c.body}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }

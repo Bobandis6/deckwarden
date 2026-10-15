@@ -7,7 +7,11 @@
  * `priority` (the hub heroes and the card page — eager, high fetch
  * priority, no fade: the LCP image should not wait on hydration), fading in
  * on load, with `frame` opting into the G2 treatment: card radius, the game
- * accent as a ring on hover, a 2 px lift. Motion is `motion-safe:` only.
+ * accent as a ring on hover, a 2 px lift. Motion is `motion-safe:` only and
+ * on U2's tokens (U5, LATER row 230): the lift and the ring over 120 ms on
+ * settle-120, the fade over 250 ms on settle-250. The list names `translate`,
+ * the property Tailwind v4's `-translate-y-0.5` writes (it named `transform`
+ * until U5, so the lift had never animated).
  * Keyboard focus belongs to the interactive parent (the buttons and links
  * around these images already draw --ring, the game accent on data-game
  * surfaces), so the frame draws no focus ring of its own.
@@ -97,7 +101,7 @@ export function CardImage({
             }
       }
       className={cn(
-        "motion-safe:[transition:opacity_250ms,transform_150ms,box-shadow_150ms]",
+        "motion-safe:[transition:opacity_250ms_var(--ease-settle-250),translate_120ms_var(--ease-settle-120),box-shadow_120ms_var(--ease-settle-120)]",
         !priority && (loaded ? "opacity-100" : "opacity-0"),
         frame && FRAME_CLASS,
         className,

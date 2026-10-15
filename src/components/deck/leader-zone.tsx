@@ -69,13 +69,12 @@ const RAISED_ROW_CLASS = "flex w-full items-start gap-3 md:gap-4";
 /** The raised card: 160 px (45 % of the pane at most) on phones, 180 px (11.25rem) from md. */
 const RAISED_CARD_CLASS = `${CARD_ROW_CLASS} shrink-0 md:w-45 md:max-w-none`;
 /**
- * The raised card's image: HERO_CARD_SHADOW's values (surface-header.tsx),
- * and the frame's lift and ring on U2's tokens — 120 ms on settle-120, the
- * fade (a lazy image's) on the 250 ms cross-fade — in place of CardImage's
- * untokened 150 ms (LATER row 230).
+ * The raised card's image: HERO_CARD_SHADOW's values (surface-header.tsx).
+ * Its lift and ring run on CardImage's own tokened list since U5 (120 ms on
+ * settle-120, the fade on settle-250; LATER row 230), which this card had
+ * overridden alone since U3b.
  */
-const RAISED_IMAGE_CLASS =
-  "shadow-lg shadow-primary/25 dark:shadow-black/60 motion-safe:[transition:opacity_250ms_var(--ease-settle-250),transform_120ms_var(--ease-settle-120),box-shadow_120ms_var(--ease-settle-120)]";
+const RAISED_IMAGE_CLASS = "shadow-lg shadow-primary/25 dark:shadow-black/60";
 /** The raised card's facts column: beside the card, its first line 4 px below the card's top edge. */
 const RAISED_FACTS_CLASS = "min-w-0 flex-1 pt-1";
 const CAPTION_CLASS = "text-muted-foreground block truncate font-mono text-[0.65rem]";
