@@ -1,0 +1,101 @@
+# U7a session prompt — Indexes + tiles (the image grid by default on `/commanders` and `/leaders`, "Build a deck" on `/leaders`, 96 px full-card deck tiles on two columns)
+
+> **Status: not run yet.** Written 2026-10-14 at the end of U4b (code `36340df`), every anchor below re-grepped against `36340df`. Add a dated ship note at the top of this file when U7a ships, the way `U4b-session-prompt.md` has one.
+
+Pull latest, then run U7a, the eighth Wave-5 package and the first of the public surfaces. **`WAVE5.md` is the contract.** Read, in this order: D0 (no layout change outside the surfaces a package names, the pinned strings, new copy with at most one middle dot a line, images hotlinked unoptimized through the project's helpers, no image reused across two sections of one page); **D8's first three paragraphs** (image grids by default, "Build a deck" on `/leaders`, tiles) and D8's "Pins and tests"; E's U7a section and the U7a row of the **pin matrix**; F's tile-crops row (LATER row 211, F15 stays deferred); D6's paragraph 4 and 5 (U5 builds home B on these tiles: "a two-column grid of the 96 px tiles from U7a"); then U4b's ship note (top of `U4b-session-prompt.md`) for the measuring recipes, not the editor.
+
+U7a is S–M. **No migration, no new route, no new dependency.** It touches `src/lib/hub/index-view.ts` (the default), `src/components/hub/leader-index-view.tsx` (its docblock says the server snapshot is "list"), `src/app/(site)/leaders/page.tsx` (one label), `src/components/deck/deck-tile.tsx` (the art box and `DeckTileGrid`'s columns), and their tests.
+
+Pre-flight, in order.
+1. **Main is green.** `pnpm check` = **2,285 tests / 209 files / the same 6 `no-unused-vars` warnings / 0 errors** on `36340df` (and on the U4b docs commit after it). A test red for a date reason is fixed first, as its own commit (a wall-clock fixture is written relative to `Date.now()`).
+2. **Nightlies green** (`gh run list --workflow=nightly-ingest.yml --limit 3`). A red run is P4.7 branch F and preempts everything.
+3. **A warm beta signal outranks a package, and so does the owner's editor review.** Ask the owner whether anything was posted (a warm signal gets the `P2.9-session-prompt.md` or `P4.7-session-prompt.md` round as its own session first), and what came of the editor review handed over at U4b's end (E's sequence puts it between U4b and U7a): findings become LATER rows or a fix package of their own, the owner's call, before U7a starts.
+4. **Ask for read-only database access once, at the start**, in plain words: `pnpm db:size` (287.2 MB at U4b, alert 350) and the census (210 decks = 16 account + 13 guest + 181 precons; 1 user at U4b), one `read only` transaction (the `postgres` client with `sql.begin("read only", …)` asserting `transaction_read_only = on`; write it to `scripts/.tmp/census-u7a.ts` and delete it when done), nothing written.
+5. **Working tree clean** at or after U4b's docs commit. Another session may share this working copy: stage explicit paths only, never `git add -A`; re-read `LATER.md`, `REDESIGN.md`, `WAVE5.md` and `MEMORY.md` immediately before editing them.
+6. **State your baseline**: `pnpm check` as above, `pnpm db:size`, and save `pnpm build`'s route table (stop the dev server first: they share `.next`); the diff at the end must be **empty**. Then the **before captures**, before any edit: `/commanders` and `/leaders` at 390 (touch) and 1440 in both themes, with no stored view and with a stored `"list"` (the server HTML through `curl` on dev: count `<img`; the hydrated view in Brave); the deck tiles where they render: home's three sections (Continue building only with own decks, the guest's own decks, Recent public decks), a hub's two deck shelves on `/c/[slug]`, and, through RTL or a throwaway local page, `/account`, `/u/[username]` and `/f/[publicId]` (all signed-in or row-owning views; never mint a row); `/leaders`' transfer size at load and CLS of both indexes and home at 390 and 1440.
+7. **The lab is a record.** D8's tile comes from the home comp's direction B, `/Users/danielson/Documents/Claude/deckwarden/.claude/worktrees/design-lab/src/components/lab/home-comp.tsx` (`DeckTileComp` at `:329`, the art `w-24` at `:349`; B's grid `gap-4 md:grid-cols-2` at `:392`, two columns from `md`, not today's `sm:grid-cols-2 lg:grid-cols-3`), and `DESIGN-LAB.md` rows d1 (`:172`), d4 (`:175`) and a5 (`:154`), and its finding at `:96` (/leaders renders zero `<img>` at load while the HTML carries 142 thumbnail URLs). Do not start the lab server; read lab files by absolute path and **never `cd` into the worktree**.
+
+## What U7a is NOT (scope fence)
+
+- NOT home's composition (U5: the hero, the shelves, the sections), the share page (U6), the hubs' sections and the long lists (U7b: `/c/` explainers, staples and printings folds, `/precons` and `/sets` year strips), tile art crops (LATER row 211), the hub CTAs (F17), the editor.
+- NOT `src/components/deck/precons-index-view.tsx:209` (`"mt-3 lg:grid-cols-2 xl:grid-cols-3"`, U7b's page): whatever `DeckTileGrid`'s base becomes, measure that its override still wins there.
+- NOT the leader index's ranks, identity chips, pagination, pick banner or `?q=` flow, nor any `/c/` or `/l/` href or their order (hubs-smoke reads the first `/c/` href).
+- NOT any copy string, `aria-label`, URL or nav label beyond D8's one label: "Start a deck" → "Build a deck" on `/leaders` (unpinned; the home card already says "Build a deck").
+- Anything else → `LATER.md` with a trigger (the last row at U4b's end is **245**).
+
+## Facts you inherit (verified 2026-10-14 against `36340df` — re-grep lines, trust the shapes)
+
+**The default is a constant in the lib, not the component.** `src/lib/hub/index-view.ts:20-21`: `INDEX_VIEW_KEY = "deckwarden:index-view"`, `DEFAULT_INDEX_VIEW: IndexView = "list"`; `parseIndexView` (`:24-26`) returns the default for anything unreadable, so flipping the constant makes an empty or corrupt value read as the grid too (D8: "the corrupt-value test flips to 'renders the grid'"); `getServerSnapshot()` (`:61-63`) returns the default, so the server HTML of `/commanders` and `/leaders` (both `ƒ` dynamic routes) switches with it. `src/components/hub/leader-index-view.tsx`: `useIndexView()` `:128`, the toggle `:138-144`, the grid `:146-167` (mounts `CardImage`), the list `:168-180`, the docblock `:7-10` ("the server snapshot is list"). The pick banner is `src/components/hub/leader-pick-banner.tsx` (null without an intent, `:18-19`), rendered at `src/app/(site)/commanders/page.tsx:108` and `src/app/(site)/leaders/page.tsx:122`; `?q=` belongs to the pages (`commanders/page.tsx:63`, `leaders/page.tsx:78`), the toggle never touches the URL (`leader-index-view.tsx:23-24`). The docblock gives the list's reason for being the server HTML: "hubs-smoke greps it; it is what gets indexed". The grid keeps both: each link wraps a `CardImage` with an empty `alt` (the name as its `fallback`) and `GridCaption` (`:94-116`), which prints the rank badge (Magic) or the printed id (One Piece) and the name as text, in the same order as the list; prove it with `smoke:hubs` on dev and rewrite the docblock.
+
+**The pins on "list"** (more than the matrix names): `src/components/hub/leader-index-view.test.tsx:42` (List pressed, Grid not; `/c/` hrefs; `.pip.pip-b`; no `img`), `:87` (a corrupt `'{"view":"grid"}'` → no img; `"grid"` → img), `:98-104` (the server HTML has no `<img` and has `divide-y`), `:178-188` (One Piece's server HTML no `<img`); `src/lib/hub/index-view.test.tsx:24-32` (null and junk parse to "list"), `:37`, `:60-65` (`<span>list</span>`). Each flips deliberately and is said in the ship note.
+
+**"Start a deck"**: `src/app/(site)/leaders/page.tsx:108`, a `Button` rendering `<Link href="/decks/new?game=optcg" />` (`:107`) in the header row beside the h1 (`:105-110`). No test or smoke pins it; "Build a deck" already exists at `src/components/home/game-card.tsx:53`.
+
+**`DeckTile`** (`src/components/deck/deck-tile.tsx`): the art box `:75` is `bg-muted relative w-14 shrink-0 overflow-hidden rounded-[4.75%/3.5%]` with its aspect ratio from `TILE_IMAGE` (`src/lib/decks/tiles.ts:40`, 146 × 204, so 56 × 78.2 px today, 96 × 134.1 at `w-24`); the image `object-cover` (`:84`); a slot gradient without an image. Both games' tiles are already full cards: `leaderTileImage` (`tiles.ts:115-120`) → `thumbnailUrl(embeddablePrintingImageUrl(printing, "normal"))` → Scryfall's `small` or the One Piece mirror's small WebP (`src/lib/cards/images.ts:133-137`); no art crop reaches a tile, so D8's "One Piece tiles keep their full-card thumbnail" holds for both games, and the change is the box. **`DeckTileGrid`** (`:142-144`): `"grid gap-3 sm:grid-cols-2 lg:grid-cols-3"` through `cn`, so a caller's `lg:grid-cols-2` wins; its docblock says "three from `lg`".
+
+**Where the three columns really are.** D8 lists home's rail, the hub deck shelf, `/account`, `/u` and `/f`; at `36340df` only home's three sections use the bare grid: `src/components/deck/continue-building.tsx:34`, the guest's `src/components/deck/your-decks.tsx:29` → `browser-deck-tiles.tsx:22`, and `src/components/deck/recent-public-decks.tsx:36`. Already two columns through an override: `/c/[slug]` `:442` (precons) and `:465` (decks), `"mt-2 lg:grid-cols-2"`; `/account` (`src/app/(site)/account/page.tsx:299`, `:330`) and `src/components/account/browser-decks.tsx:37`; `/u/[username]` `:166`; `/f/[publicId]` `:145`. `/l/[slug]` has no deck shelf. Decide whether the base class changes (home follows, the overrides become redundant) or home's call sites do.
+
+**Tests on tiles**: `src/components/deck/deck-tile.test.tsx:63-64` pin the image's 146 × 204 attributes (nothing pins `w-14`); `src/components/account/browser-decks.test.tsx:86` (`toContain("lg:grid-cols-2")`, `/account`) and `:181` (YourDecks, an exact `toBe("grid gap-3 sm:grid-cols-2 lg:grid-cols-3")`, which moves with any base-class change); `src/components/account/account-deck-tile.test.tsx` asserts no size or column (`:93`, `:97`); `src/lib/cards/images.test.ts:118-121` (`OPTCG_SMALL_IMAGE` equals `TILE_IMAGE`).
+
+**Smokes that must stay green** (dev only; read the deck-create counters first; never retry into a 429): `scripts/hubs-smoke.ts` checks names, hrefs and order, never the markup (`:105-107`, `:117`, `:123`, `:143-144`, `:152` the first `href="/c/…"` is the top slug, so the grid must keep the list's order, `:164-166` the no-JS form, `:182`); `scripts/seo-smoke.ts:333-341` (`/leaders`: 200, the canonical, `/l/<slug>`, "©BANDAI"); `scripts/engagement-smoke.ts:248` ("♥" on home's rail), `:246`, `:256-257` ("Continue building", the deck's edit link).
+
+**LATER rows U7a meets**: 61 (the card-stacks grid; WAVE5's note that U7a makes the grid the default), 211 (tile art crops with credits, stays deferred), 230 (CardImage's untokened 150 / 250 ms transition: its trigger names U7a, "the next package that touches CardImage or its tiles"), 227 (`.pip` at 0.8em beyond the deck rows: U7a or U7b), 209 (the hub veil, U7b's).
+
+**Pins that must stay green**: U4b's, U4a's, U3a's and U3b's (the editor is untouched), `editor-layout.test.tsx`'s "Deck · 34", the hub and share tests, every `aria-label`.
+
+## Verify-first list (never from memory)
+
+1. **The grid by default**: with no stored view, `/commanders` and `/leaders` server HTML carries the grid (`<img` with the small renditions, lazy below the fold) with the rank and identity chips; a stored `"list"` renders the list after hydration; junk renders the grid; the toggle still writes `deckwarden:index-view`; the order of the `/c/` and `/l/` links unchanged.
+2. **"Build a deck"** on `/leaders`, the header row's box unchanged.
+3. **The tiles at 96 px** at every site, the strip, the one link per tile, the name, the meta lines and ♥ unchanged; home's sections two columns from wherever you decide; One Piece and Magic alike; no overflow at 360.
+4. **Weight and shift**: `/leaders`' transfer at load before and after (P4.9 measured about 1.4 MB of small WebPs for the 142 leaders), lazy images below the fold; CLS of both indexes and home at 390 and 1440 (each image box carries its size, so nothing should move).
+5. **Nothing else moves**: the hubs' boxes outside the deck shelves, `/precons`' grid, the editor (untouched).
+6. **`pnpm build`'s route table diff is empty**; `/c/[slug]`, `/l/[slug]` and `/cards/[id]` stay `●`, `/sets` and `/precons` stay `○`.
+7. **Deploy verification** through `gh api repos/Bobandis6/deckwarden/commits/<full sha>/statuses` → context "Vercel" (U4b's landed a minute after the push; CI is separate).
+
+## Design decisions to make explicitly (disclose + pin each)
+
+- **Where the default flips**: `DEFAULT_INDEX_VIEW` (one constant; empty and corrupt values follow it) or a server snapshot of its own.
+- **The grid's columns**: `DeckTileGrid`'s base (its docblock, the five overrides that become redundant, `browser-decks.test.tsx:181`) or home's three call sites; one column below `sm` or `md` (the comp's B grid is `md:grid-cols-2`).
+- **The 96 px box** and the text column beside it (the name's truncation, the two meta lines, ♥) at 390 and 360; whether the gradient fallback keeps the same box.
+- **Lazy loading on `/leaders`** (CardImage's own lazy default, or a first row eager for the LCP), measured.
+- **LATER row 230**: CardImage's untokened transition, if U7a touches CardImage; otherwise say why it waits.
+
+## Deployable outcome
+
+**U7a is one commit of code**, then the docs commit. The before captures are taken first; keep the raw files in `.claude/u7a-evidence/` (git-ignored).
+
+Verified **on dev**: the grid in both indexes' server HTML, the stored list and the toggle, "Build a deck", the 96 px tiles and two columns where they render, both themes at 390 and 1440, CLS, `/leaders`' weight; the smokes above.
+
+Verified **on prod, signed out, zero creates**: `/commanders` and `/leaders` in their grids at 390 and 1440 (curl the server HTML for `<img`; Brave for the hydrated view and the toggle), home's recent decks on two columns of 96 px tiles, a hub's deck shelf; `/c/[slug]`, `/l/[slug]` and `/cards/[id]` stay `●`; `/sets` and `/precons` stay `○`.
+
+Tests: `leader-index-view.test.tsx` and `index-view.test.tsx` (the default flipped, said in the ship note), the tile tests (the art box), `browser-decks.test.tsx` if the base class moves; U4b's and the earlier pins stay green.
+
+Docs in the same package: the `WAVE5.md` tracker ticked with the sha and any deviation beside it; a dated ship note at the top of this file; REDESIGN.md "U7a decisions and deviations" under the Wave-5 addendum; `LATER.md` rows from **246** for anything deferred (row 61's note and row 230 closed or kept with a reason); memory updated; **`U5-session-prompt.md` written** the way this one was. `pnpm db:size` stated. Nothing posted, seeded or simulated.
+
+## Session notes (environment)
+
+- PATH per command: `export PATH="$HOME/.local/node22/bin:$HOME/.local/bin:$PATH"` (node, pnpm, gh). `psql` and `aws` are absent. Ad-hoc SQL runs through `pnpm exec tsx` on a file in `scripts/.tmp/` (gitignored but linted; delete yours when done) inside one `read only` transaction.
+- **Never `cd` out of the repo root**, not even into `.claude/u7a-evidence`: a `cd` moves the harness's primary working directory. Read files by absolute path; `sips` takes absolute paths. The DevTools MCP writes screenshots and snapshots only inside the workspace (`.claude/u7a-evidence/`), not the scratchpad.
+- `.env.local`'s `DATABASE_URL` is prod's pooler; dev shares prod's database. `source .env.local` fails in zsh. A deck made on dev is a real row: delete any QA deck and re-prove the census. The signed-in surfaces (`/account`, a user's `/u`, a folder's `/f`) go through RTL or a throwaway `src/app/qa-u7a/` page that renders the real components from fixtures (never staged; delete it and `.next/dev` before `pnpm check`, the build and the commit).
+- Dev server: `preview_start {name: "dev-log"}` after `lsof -nP -iTCP:3000 -sTCP:LISTEN`. Stop it before `pnpm build`, restart it after if you still need dev. `next dev` re-adds the AGENTS.md block; commit it with your work if it appears.
+- **Measuring browser**: the chrome-devtools MCP (Brave). A leftover automation Brave can hold the profile ("The browser is already running"): ask the owner, then quit only that profile's main process (`ps ax -o pid=,command= | grep "user-data-dir=$HOME/.cache/chrome-devtools-mcp/chrome-profile" | grep -v Helper`); a fresh Brave restores the old tabs. `emulate` with `viewport: "390x844x3,mobile,touch"` (or `"360x780x3,mobile,touch"`) gives `(pointer: coarse)`, `1440x900x1` the desktop; `cpuThrottlingRate: 4` and `networkConditions: "Fast 4G"` for CLS and traces; reset both when done. `navigate_page` with `initScript` sets the theme and the stored view per load (`localStorage.setItem('deckwarden:index-view', …)`). `wait_for` prints the whole page snapshot (huge on these pages): poll for readiness in `evaluate_script` instead, and save snapshots with `filePath` to grep a uid.
+- **Box-by-box "unchanged" proofs** (U4a, U4b): fingerprint every visible element's tag, `data-slot`, `aria-label`, own text with its size, weight and color, and rect under the regions you claim unchanged, per width before any edit, and diff the multisets after; let async lines settle first (U4b's 768 capture caught the bracket line mid-read).
+- **CLS**: a buffered `PerformanceObserver({ type: "layout-shift", buffered: true })` registered in an `initScript`, read after the page settles, each entry's sources named.
+- Media features the MCP can't emulate (reduced motion, reduced transparency, more contrast): U2's CSSOM-copy method.
+- A read-only subagent (Explore) re-grepping anchors in the background while you measure saves context; U4b's survey of these anchors took it about four minutes.
+- `react-hooks/refs` and `react-hooks/set-state-in-effect` are lint errors in this tree; derive state during render the way `deck-list-pane.tsx` does ("storing information from previous renders").
+- Four source files hold a literal NUL byte (`grep -a`; `src/lib/decks/editor-state.ts` reads as binary to grep). Prettier reflows scripted-edit anchors after `pnpm format`; assert every anchor; `*.md` is prettier-ignored.
+- **Tailwind v4 reads the Markdown docs for class names** (LATER row 217): a class quoted in a doc is minted into the served CSS; quote only classes that exist in `src/`.
+- `grep` here is ugrep: put `-e` before a pattern that starts with `--`, and quote `--include='*.tsx'` globs.
+- Prod: curls need `--compressed`; ISR pages lag a deploy by up to an hour; U7a creates no prod decks.
+
+## Context, not tasks
+
+- Sequence after U7a: U5 home B → U6 share B (**owner review: the public surfaces**; U6 drops U3a's `ruled` on the share page) → U7b → U9 → U10a → U10b.
+- U4b's open threads: LATER 240 (the other drawers' release split), 241 (focus at the sheet's modal flip), 242 (the printings refetch after a re-target), 243 (copies from the sheet), 244 (the strip's last pixel at 360), 245 (a tablet's footer links); row 232 closed (the tab bar smooth on the owner's phone). U4a's: 235 to 239. U3b's: 230, 231, 233, 234. U3a's: 224 to 227.
+- The ladder (U8): `.type-display`, `-title`, `-section`, `-small`, `-caption` (Literata); `.type-body`, `-label`, `-label-sm`, `-label-xs`, `-meta`, `-meta-multiline`, `-eyebrow`, `-micro` (Geist). A utility beside one still wins, so don't add `tracking-*`, `text-*` sizes, `leading-*` or weights next to a class.
+- The owner's 22 answers of 2026-10-12 stand (`WAVE5.md`, Context); F14 (the grid by default) and F15 (96 px full cards) are this package's.
+- P2.9's and P4.7's standing triggers still exist beside the U-series and get their own round. The r/EDH post is still unposted; P2.9 round 3 is armed for it.
+- The site is unannounced. The cold-start rule holds. Premium never gates card data.
+- The lab branch `design-lab` (worktree `.claude/worktrees/design-lab`, `395179d`) is a record: read it by absolute path, never commit to it, rebase it, push it or delete it.
