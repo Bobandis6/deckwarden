@@ -130,15 +130,45 @@ describe("SampleHand — Keep / Mulligan (F4)", () => {
   });
 });
 
-describe("SampleHand — the heading (U3a)", () => {
-  it("the hairline becomes space in the editor; `ruled` keeps it on the share page until U6", () => {
+describe("SampleHand — the heading (U3a; the share page's, U6)", () => {
+  it("the editor's collapsible heading rests on space; the share page's is a serif h2 over its region, no collapsible", () => {
     const { unmount } = mount();
     const heading = screen.getByRole("heading", { level: 2 });
     expect(heading.className).toBe("pb-1.5");
-    unmount();
-    render(<SampleHand entries={entries} cards={cards} format={COMMANDER} ruled />);
-    expect(screen.getByRole("heading", { level: 2 }).className).toBe("border-b pb-1");
     expect(screen.getByRole("button", { name: /Sample hand/ })).toBeTruthy();
+    unmount();
+    render(<SampleHand entries={entries} cards={cards} format={COMMANDER} titled />);
+    const titled = screen.getByRole("heading", { level: 2, name: "Sample hand" });
+    expect(titled.className).toBe("type-section");
+    expect(titled.querySelector("button")).toBeNull();
+    expect(screen.getByRole("region", { name: "Sample hand" }).className).toBe("mt-8");
+    expect(screen.queryByRole("button", { name: /Sample hand/ })).toBeNull();
+    // "Draw sample hand" is the dealer (D0's pinned words).
+    fireEvent.click(screen.getByRole("button", { name: "Draw sample hand" }));
+    expect(slots()).toHaveLength(7);
+  });
+
+  it("the share page's empty deck has no block at all", () => {
+    const { container } = render(
+      <SampleHand entries={[]} cards={cards} format={COMMANDER} titled />,
+    );
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("a One Piece card deals the mirror's small WebP, not the full PNG (LATER row 143)", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    const mirrored = new Map<string, EditorCard>([
+      [atraxa.id, { ...atraxa, image: null }],
+      [island.id, { ...island, image: "https://img.deckwarden.gg/optcg/images/OP15-058.png" }],
+    ]);
+    render(<SampleHand entries={entries} cards={mirrored} format={COMMANDER} titled />);
+    fireEvent.click(screen.getByRole("button", { name: "Draw sample hand" }));
+    const srcs = new Set(
+      [...document.querySelectorAll("[data-slot=dealt-hand] img")].map((img) =>
+        img.getAttribute("src"),
+      ),
+    );
+    expect([...srcs]).toEqual(["https://img.deckwarden.gg/optcg/small/OP15-058.webp"]);
   });
 });
 

@@ -20,15 +20,43 @@
  * bars, `aria-hidden`, and named by ONE visible legend line — so the
  * renderer draws whatever target a block hands it and still knows nothing
  * about which game or template produced it.
+ *
+ * U6 (WAVE5 D7): `variant="share"` is the share page's open look, no
+ * tracks: each histogram as thin bars (10 px, in the brand's chart color)
+ * over no baseline, a target's outline a thin box behind its bar; each
+ * breakdown as ONE stacked bar with a legend instead of a row per slice on
+ * a filled track. A slice keeps its own `colorVar`; the others take the
+ * chart colors in order (the adapter sorts them largest first) and the
+ * smallest, past the fifth, muted ink at 40 %. Segments sit 1 px apart,
+ * each with a faint inset edge so a pale one (White on ivory) still shows
+ * its box; the bar is aria-hidden and the legend says every count. The
+ * editor and the hub keep the panel look.
  */
 import { ChevronDownIcon } from "lucide-react";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AnalyticsBlock } from "@/lib/games/types";
+import { cn } from "@/lib/utils";
 
-function barColor(colorVar?: string): string {
-  return colorVar ? `var(${colorVar})` : "var(--chart-2)";
+/** The panel's look (the editor, the hub) or the share page's (U6). */
+export type AnalyticsVariant = "panel" | "share";
+
+function barColor(colorVar: string | undefined, fallback = "--chart-2"): string {
+  return colorVar ? `var(${colorVar})` : `var(${fallback})`;
 }
+
+/** The chart colors a stacked bar walks for slices without their own, largest first (U6). */
+const STACK_COLORS = ["--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5"] as const;
+/** The smallest slices' ink (U6, D7): muted at 40 %, mixed in oklab (an oklch mix with transparent casts hue 0, U3b). */
+export const STACK_REST_COLOR = "color-mix(in oklab, var(--muted-foreground) 40%, transparent)";
+
+function sliceColor(colorVar: string | undefined, index: number): string {
+  if (colorVar) return `var(${colorVar})`;
+  return index < STACK_COLORS.length ? `var(${STACK_COLORS[index]})` : STACK_REST_COLOR;
+}
+
+/** A segment's and a swatch's faint inset edge (U6): a pale slice keeps its box on ivory. */
+const SEGMENT_EDGE_CLASS = "ring-foreground/15 ring-1 ring-inset";
 
 /** The bar's grow-in (G6): from `scale-y-0` at first style to full height, ≤ 400 ms, motion-safe only. */
 export const HISTOGRAM_BAR_MOTION_CLASS =
@@ -38,7 +66,14 @@ export const HISTOGRAM_BAR_MOTION_CLASS =
 const TARGET_OUTLINE_CLASS =
   "border-muted-foreground/60 rounded-t-sm border border-b-0 border-dashed";
 
-function Histogram({ block }: { block: Extract<AnalyticsBlock, { kind: "histogram" }> }) {
+function Histogram({
+  block,
+  thin,
+}: {
+  block: Extract<AnalyticsBlock, { kind: "histogram" }>;
+  /** The share page's look (U6): thin bars, no baseline, a capped width. */
+  thin: boolean;
+}) {
   const target = block.target;
   // One scale for bars AND target, so a template bucket never overflows the
   // track while the deck is small.
@@ -46,7 +81,7 @@ function Histogram({ block }: { block: Extract<AnalyticsBlock, { kind: "histogra
   return (
     <div>
       <h3 className="text-muted-foreground text-xs font-medium">{block.title}</h3>
-      <div className="mt-1 flex items-stretch gap-1">
+      <div className={cn("mt-1 flex items-stretch gap-1", thin && "max-w-md")}>
         {block.buckets.map((bucket, i) => {
           const ghost = target?.values[i] ?? 0;
           return (
@@ -54,22 +89,27 @@ function Histogram({ block }: { block: Extract<AnalyticsBlock, { kind: "histogra
               <div className="type-micro text-muted-foreground tabular-nums">
                 {bucket.value > 0 ? bucket.value : " "}
               </div>
-              <div className="border-border relative flex h-16 items-end border-b">
+              <div
+                className={cn(
+                  "relative flex h-16 items-end",
+                  thin ? "justify-center" : "border-border border-b",
+                )}
+              >
                 {ghost > 0 && (
                   <div
                     aria-hidden
                     data-slot="histogram-target"
-                    className={`pointer-events-none absolute inset-x-0 bottom-0 ${TARGET_OUTLINE_CLASS}`}
+                    className={`pointer-events-none absolute bottom-0 ${thin ? "left-1/2 w-4 -translate-x-1/2" : "inset-x-0"} ${TARGET_OUTLINE_CLASS}`}
                     style={{ height: `${(ghost / max) * 100}%` }}
                   />
                 )}
                 <div
                   data-slot="histogram-bar"
-                  className={`relative w-full rounded-t-sm ${HISTOGRAM_BAR_MOTION_CLASS}`}
+                  className={`relative ${thin ? "w-2.5" : "w-full"} rounded-t-sm ${HISTOGRAM_BAR_MOTION_CLASS}`}
                   style={{
                     // Nonzero buckets stay visible even next to a tall max.
                     height: bucket.value > 0 ? `${Math.max((bucket.value / max) * 100, 5)}%` : 0,
-                    background: barColor(bucket.colorVar),
+                    background: barColor(bucket.colorVar, thin ? "--chart-1" : "--chart-2"),
                   }}
                 />
               </div>
@@ -110,6 +150,50 @@ function Breakdown({ block }: { block: Extract<AnalyticsBlock, { kind: "breakdow
               />
             </span>
             <span className="w-7 shrink-0 text-right tabular-nums">{slice.value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * A breakdown on the share page (U6, D7): one stacked bar, a segment per
+ * slice in proportion, 1 px apart, then a legend of label and count. The
+ * bar is a picture of the legend, so it is aria-hidden; nothing is drawn
+ * behind it.
+ */
+function StackedBreakdown({ block }: { block: Extract<AnalyticsBlock, { kind: "breakdown" }> }) {
+  const slices = block.slices.filter((slice) => slice.value > 0);
+  return (
+    <div>
+      <h3 className="text-muted-foreground text-xs font-medium">{block.title}</h3>
+      {slices.length > 0 && (
+        <div
+          aria-hidden
+          data-slot="breakdown-bar"
+          className="mt-1.5 flex h-3 gap-px overflow-hidden rounded-sm"
+        >
+          {slices.map((slice, i) => (
+            <span
+              key={slice.label}
+              data-slot="breakdown-segment"
+              className={cn("h-full min-w-0.5 basis-0", SEGMENT_EDGE_CLASS)}
+              style={{ flexGrow: slice.value, background: sliceColor(slice.colorVar, i) }}
+            />
+          ))}
+        </div>
+      )}
+      <ul data-slot="breakdown-legend" className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        {slices.map((slice, i) => (
+          <li key={slice.label} className="flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className={cn("size-2.5 shrink-0 rounded-sm", SEGMENT_EDGE_CLASS)}
+              style={{ background: sliceColor(slice.colorVar, i) }}
+            />
+            <span>{slice.label}</span>
+            <span className="text-muted-foreground tabular-nums">{slice.value}</span>
           </li>
         ))}
       </ul>
@@ -186,7 +270,15 @@ function DataTable({ block }: { block: Extract<AnalyticsBlock, { kind: "table" }
 }
 
 /** The bare block list — stats gather into one tile row, other kinds stack. */
-export function AnalyticsBlocks({ blocks }: { blocks: AnalyticsBlock[] }) {
+export function AnalyticsBlocks({
+  blocks,
+  variant = "panel",
+}: {
+  blocks: AnalyticsBlock[];
+  /** "share" (U6): thin curve bars and stacked breakdowns, no tracks. */
+  variant?: AnalyticsVariant;
+}) {
+  const share = variant === "share";
   const stats = blocks.filter((b) => b.kind === "stat");
   const rest = blocks.filter((b) => b.kind !== "stat");
   return (
@@ -200,9 +292,13 @@ export function AnalyticsBlocks({ blocks }: { blocks: AnalyticsBlock[] }) {
       )}
       {rest.map((b) =>
         b.kind === "histogram" ? (
-          <Histogram key={b.id} block={b} />
+          <Histogram key={b.id} block={b} thin={share} />
         ) : b.kind === "breakdown" ? (
-          <Breakdown key={b.id} block={b} />
+          share ? (
+            <StackedBreakdown key={b.id} block={b} />
+          ) : (
+            <Breakdown key={b.id} block={b} />
+          )
         ) : (
           <DataTable key={b.id} block={b} />
         ),

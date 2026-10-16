@@ -2499,7 +2499,6 @@ export function DeckEditor({
                 facts={bracketFacts.state}
                 onRetry={bracketFacts.retry}
                 onWhy={openBracket}
-                slot
               />
             )
           }

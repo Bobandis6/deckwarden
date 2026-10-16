@@ -2,7 +2,9 @@
  * SurfaceSkeleton (R6, C9): the four loading shells render the real band at
  * the surface's own height (SURFACE_BAND — the same string the page
  * reads), a hero box at the hub card's aspect where the page has one, title
- * bars, and NO text; every skeleton pulses motion-safe only.
+ * bars, and NO text; every skeleton pulses motion-safe only. U6: the deck
+ * shell is the share page's header B on DECK_HEADER, the classes the share
+ * view reads.
  */
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -11,7 +13,7 @@ import CardLoading from "@/app/(site)/cards/[id]/loading";
 import HubLoading from "@/app/(site)/c/[slug]/loading";
 import DeckLoading from "@/app/(site)/d/[publicId]/loading";
 import LeaderLoading from "@/app/(site)/l/[slug]/loading";
-import { SURFACE_BAND } from "@/components/surface-header";
+import { DECK_HEADER, SURFACE_BAND } from "@/components/surface-header";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const band = () => document.querySelector<HTMLElement>("[data-slot=surface-header]")!;
@@ -63,15 +65,23 @@ describe("SurfaceSkeleton", () => {
     expect(main().textContent).toBe("");
   });
 
-  it("/d/ renders the deck band, title bars and no hero", () => {
+  it("/d/ renders the share page's header B: the 160 / 280 px band, the leader's box rising into it, the title column", () => {
     render(<DeckLoading />);
     expect(main().dataset.kind).toBe("deck");
     expect(main().className).toContain("py-6");
     for (const cls of SURFACE_BAND.deck.split(" ")) expect(band().className).toContain(cls);
-    expect(document.querySelector("[data-slot=skeleton-hero]")).toBeNull();
+    expect(SURFACE_BAND.deck).toBe("h-40 sm:h-40 md:h-70");
+    expect(band().className).not.toContain("md:h-56");
+    expect(band().className).not.toContain("sm:h-44");
+    const hero = document.querySelector<HTMLElement>("[data-slot=skeleton-hero]")!;
+    expect(hero.className).toContain(DECK_HEADER.card);
+    expect(hero.style.aspectRatio).toBe("488 / 680");
+    expect(hero.parentElement!.className).toBe(DECK_HEADER.cards);
+    expect(hero.parentElement!.className).toContain("md:-mt-28");
+    expect(hero.parentElement!.parentElement!.className).toBe(DECK_HEADER.grid);
     const title = document.querySelector<HTMLElement>("[data-slot=skeleton-title]")!;
-    expect(title.className).toContain("mt-4");
     expect(title.className).toContain("h-9");
+    expect(title.parentElement!.className).toBe(DECK_HEADER.text);
     expect(main().textContent).toBe("");
     expect(document.querySelectorAll("[data-slot=skeleton]").length).toBeGreaterThan(3);
   });

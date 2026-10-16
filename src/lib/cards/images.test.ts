@@ -58,6 +58,14 @@ describe("toSmallImage", () => {
     const tricky = `https://cards.scryfall.io/png/front/e/3/normal.png`;
     expect(toSmallImage(tricky)).toBe(tricky);
   });
+
+  it("downsizes the One Piece mirror's full PNG to its small WebP (U6, LATER row 143); r2.dev stays whole", () => {
+    expect(toSmallImage(`${OPTCG_IMAGE_HOST}/optcg/images/OP15-058.png`)).toBe(
+      `${OPTCG_IMAGE_HOST}/${OPTCG_SMALL_PREFIX}/OP15-058.webp`,
+    );
+    const r2dev = "https://pub-0123456789abcdef.r2.dev/optcg/images/OP15-058.png";
+    expect(toSmallImage(r2dev)).toBe(r2dev);
+  });
 });
 
 describe("embeddablePrintingImageUrl", () => {

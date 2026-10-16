@@ -4,9 +4,10 @@
  * Piece, "3/4" for a Magic commander — read through the adapter's display
  * contract, never hand-rolled in core. `LeaderZone` renders the caption
  * under each card (and, for the editor's raised card from md, `leaderFacts`
- * beside it, U3b); the share page's artwork header renders `leaderLine`,
- * every leader with its caption, partners joined with " & " in the deck's
- * leader order. Pure, no IO.
+ * beside it, U3b). The share page's header named every leader with its
+ * caption through `leaderLine` until U6, whose meta line carries the names
+ * and printed ids with the format, the card itself carrying the stats.
+ * Pure, no IO.
  */
 import type { CardData, GameAdapter } from "@/lib/games/types";
 
@@ -29,11 +30,4 @@ export function leaderCaption(adapter: Display | undefined, card: CardData): str
 export function leaderFacts(adapter: Display | undefined, card: CardData): string {
   if (!adapter) return "";
   return [adapter.display.subtitle(card), leaderCaption(adapter, card)].filter(Boolean).join(" · ");
-}
-
-/** "Enel · OP15-058 · 5000 Power · 5 Life"; partners: "A · 2/2 & B · 3/3". */
-export function leaderLine(adapter: Display, cards: readonly CardData[]): string {
-  return cards
-    .map((card) => [card.name, leaderCaption(adapter, card)].filter(Boolean).join(" · "))
-    .join(" & ");
 }

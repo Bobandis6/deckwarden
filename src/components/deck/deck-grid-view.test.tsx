@@ -68,7 +68,7 @@ describe("DeckGridView — severity as text", () => {
 });
 
 describe("DeckGridView — the group heading (U3a)", () => {
-  it("the text view's heading — label and count on space, sticky when asked; `ruled` keeps the share page's hairline", () => {
+  it("the text view's heading — label and count on space, sticky when asked; the share page's the same, unstuck (U6)", () => {
     const { container, unmount } = render(
       <DeckGridView groups={groups} severity={new Map()} onPreview={() => {}} stickyHeaders />,
     );
@@ -79,9 +79,12 @@ describe("DeckGridView — the group heading (U3a)", () => {
     expect(container.querySelector("section")?.className ?? "").not.toContain("mt-4");
     unmount();
     const share = render(
-      <DeckGridView groups={groups} severity={new Map()} onPreview={() => {}} ruled />,
+      <DeckGridView groups={groups} severity={new Map()} onPreview={() => {}} />,
     );
-    expect(screen.getByRole("heading", { level: 3 }).className).toContain("border-b pb-1");
-    expect(share.container.querySelector("section")?.className).toBe("mt-4");
+    const shared = screen.getByRole("heading", { level: 3 });
+    expect(shared.className).toContain("pt-5 pb-1.5");
+    expect(shared.className).not.toContain("border-b");
+    expect(shared.className).not.toContain("sticky");
+    expect(share.container.querySelector("section")?.hasAttribute("class")).toBe(false);
   });
 });

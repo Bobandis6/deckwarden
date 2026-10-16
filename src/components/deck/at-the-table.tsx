@@ -13,6 +13,10 @@
  * (CardNamePreview, D0) on a button that opens the card's page, like the
  * text view's names. Quiet by design — muted labels, no color, no badge:
  * a bracket is not a problem.
+ *
+ * U6 (WAVE5 D7, F4): the heading is a serif h2 in sentence case at the
+ * small step (`.type-small`), not the uppercase label, which names list
+ * groups only; it stays an h2 between the page's h1 and its blocks' h2s.
  */
 import { useId } from "react";
 
@@ -37,10 +41,7 @@ export function AtTheTable({
       data-slot="at-the-table"
       className="mt-3 rounded-lg border px-3 py-2"
     >
-      <h2
-        id={headingId}
-        className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
-      >
+      <h2 id={headingId} className="type-small">
         {BRACKET_COPY.atTheTable}
       </h2>
       <dl className="mt-1.5 space-y-1 text-xs">

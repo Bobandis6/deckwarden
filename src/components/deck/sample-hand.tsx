@@ -27,14 +27,20 @@
  * itself (`drawHand` / `buildLibrary`) is untouched.
  *
  * U3a (WAVE5 D4): the heading's hairline becomes space in the editor, like
- * the list groups'; `ruled` keeps it on the share page until U6.
+ * the list groups'.
  *
  * U4b (WAVE5 D5): `bare` is the phone's Hand tab: the controls and the
  * hand without the collapsible or its heading (the tab names it), and a
  * line instead of nothing while the deck is empty.
+ *
+ * U6 (WAVE5 D7): `titled` is the share page's block: a section under a
+ * serif h2, the page's other blocks' form, with "Draw sample hand" as the
+ * dealer and no collapsible (an empty hand has nothing to fold away); the
+ * editor keeps its collapsible beside Analytics'. A One Piece deal draws
+ * the mirror's small WebPs, not the full PNGs (LATER row 143).
  */
 import { ChevronDownIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { Button } from "@/components/ui/button";
@@ -44,6 +50,7 @@ import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import { buildLibrary, drawHand } from "@/lib/decks/sample-hand";
 import type { FormatDef } from "@/lib/games/types";
 import { prefersReducedMotion } from "@/lib/theme/motion";
+import { cn } from "@/lib/utils";
 
 /** Per-slot delay of the deal; the last of seven cards starts at 180 ms. */
 export const DEAL_STAGGER_MS = 30;
@@ -60,18 +67,19 @@ export function SampleHand({
   cards,
   format,
   onPreview,
-  ruled = false,
   bare = false,
+  titled = false,
 }: {
   entries: EditorEntry[];
   cards: ReadonlyMap<string, EditorCard>;
   format: FormatDef;
   onPreview?: (card: EditorCard) => void;
-  /** The share page's hairline heading until U6 (U3a). */
-  ruled?: boolean;
   /** U4b: the phone's Hand tab, no collapsible and no heading. */
   bare?: boolean;
+  /** U6: the share page's section under a serif h2, no collapsible. */
+  titled?: boolean;
 }) {
+  const headingId = useId();
   const library = useMemo(() => buildLibrary(entries, format), [entries, format]);
   const [hand, setHand] = useState<string[] | null>(null);
   const [mulligans, setMulligans] = useState(0);
@@ -112,9 +120,7 @@ export function SampleHand({
   const body = (
     <>
       <div
-        className={
-          bare ? "flex flex-wrap items-center gap-2" : "mt-2 flex flex-wrap items-center gap-2"
-        }
+        className={cn("flex flex-wrap items-center gap-2", !bare && (titled ? "mt-3" : "mt-2"))}
         data-phase={phase}
       >
         {phase === "none" && (
@@ -198,9 +204,19 @@ export function SampleHand({
   );
 
   if (bare) return body;
+  if (titled) {
+    return (
+      <section aria-labelledby={headingId} className="mt-8">
+        <h2 id={headingId} className="type-section">
+          Sample hand
+        </h2>
+        {body}
+      </section>
+    );
+  }
   return (
     <Collapsible defaultOpen className="mt-6" render={<section />}>
-      <h2 className={ruled ? "border-b pb-1" : "pb-1.5"}>
+      <h2 className="pb-1.5">
         <CollapsibleTrigger className="group/trigger text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded text-xs font-medium tracking-wide uppercase hover:underline pointer-coarse:min-h-11">
           Sample hand
           <ChevronDownIcon

@@ -26,11 +26,10 @@
  * same helper).
  *
  * U3a (WAVE5 D4): the heading is the groups' `GroupHeading` (label and
- * count on space; `ruled` keeps the share page's hairline until U6). The
- * editor's image is `priority` — the pane's largest paint, so eager, high
- * fetch priority and no fade — and while a URL seed is on its way
- * (`pending`) the zone holds the card's box as a Skeleton, so the seed
- * fills a reserved slot instead of replacing the empty state.
+ * count on space). The editor's image is `priority` — the pane's largest
+ * paint, so eager, high fetch priority and no fade — and while a URL seed
+ * is on its way (`pending`) the zone holds the card's box as a Skeleton,
+ * so the seed fills a reserved slot instead of replacing the empty state.
  *
  * U3b (WAVE5 D4, the raised card): from `md` the editor's card (`raised`)
  * is a row, the card at 180 px with its facts beside it (the name and
@@ -45,6 +44,13 @@
  * the facts line beside it, the hero shadow at every tier; the facts line
  * carries the caption everywhere, so the mono caption is the share page's
  * alone. The Skeleton keeps step: the same row on phones, box for box.
+ *
+ * U6 (WAVE5 D7): the share page no longer renders this zone. Its header
+ * carries the leader's card (the comp's B: the card leads, so the block
+ * and its h3 went), so the editor, which passes `onRemove` and `raised`,
+ * is the one caller; the read-only shape (no `onRemove`, the accent ring,
+ * the mono caption under an unraised card) is kept, unused, until the
+ * next change here folds it (LATER).
  */
 import { ArrowRightIcon, XIcon } from "lucide-react";
 import Link from "next/link";
@@ -98,8 +104,6 @@ interface LeaderZoneProps {
   onBrowseLeader?: () => void;
   /** For the caption's id badge and stat line; absent = name only. */
   adapter?: GameAdapter;
-  /** The share page's hairline heading until U6 (U3a). */
-  ruled?: boolean;
   /** The editor (U3a): the card image is the pane's LCP — eager, high fetch priority, no fade. */
   priority?: boolean;
   /** A URL seed is on its way (U3a): the card's box as a Skeleton instead of the empty state. */
@@ -117,7 +121,6 @@ export function LeaderZone({
   onChooseLeader,
   onBrowseLeader,
   adapter,
-  ruled = false,
   priority = false,
   pending = false,
   raised = false,
@@ -130,12 +133,8 @@ export function LeaderZone({
   // described onto the card button — the name stays "Show {name}".
   const idPrefix = useId();
   return (
-    <section className={ruled ? "mt-4" : undefined}>
-      <GroupHeading
-        label={zone.label}
-        qty={items.reduce((n, i) => n + i.entry.qty, 0)}
-        ruled={ruled}
-      />
+    <section>
+      <GroupHeading label={zone.label} qty={items.reduce((n, i) => n + i.entry.qty, 0)} />
       {items.length === 0 && pending ? (
         // The seeded card's box (U3a): the image's aspect, the name row at
         // the Remove button's height, the caption's line — so the seed lands

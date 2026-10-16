@@ -18,7 +18,7 @@
  * stays "Show {name}" and the ring's hue is no longer the only channel.
  *
  * U3a (WAVE5 D4): the text view's `GroupHeading` — label and count on
- * space — with `ruled` keeping the share page's hairline headings until U6.
+ * space — on the editor and, since U6 (WAVE5 D7), the share page too.
  */
 import { useId } from "react";
 
@@ -40,8 +40,6 @@ interface DeckGridViewProps {
   adapter?: GameAdapter;
   /** Editor: group headers stick to the top of the scrolling pane (C12). */
   stickyHeaders?: boolean;
-  /** The share page's hairline headings until U6 (U3a). */
-  ruled?: boolean;
 }
 
 const BADGE_CLASS =
@@ -54,14 +52,13 @@ export function DeckGridView({
   owned,
   adapter,
   stickyHeaders = false,
-  ruled = false,
 }: DeckGridViewProps) {
   const idPrefix = useId();
   return (
     <>
       {groups.map((group) => (
-        <section key={group.key} className={ruled ? "mt-4" : undefined}>
-          <GroupHeading label={group.label} qty={group.qty} sticky={stickyHeaders} ruled={ruled} />
+        <section key={group.key}>
+          <GroupHeading label={group.label} qty={group.qty} sticky={stickyHeaders} />
           <ul className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2">
             {group.items.map(({ entry, card }) => {
               const badge = adapter?.display.idBadge?.(card);

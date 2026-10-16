@@ -4,13 +4,19 @@
  * grow-in from a `starting:` state; a block with a `target` draws one
  * aria-hidden outline per nonzero target bucket, scaled on the same max as
  * the bars, and one visible legend naming the target; a block without one
- * draws nothing extra; a stat's tone gains a visible word.
+ * draws nothing extra; a stat's tone gains a visible word. U6: the share
+ * variant's thin curve and stacked breakdowns, no tracks.
  */
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { AnalyticsBlock } from "@/lib/games/types";
-import { AnalyticsBlocks, HISTOGRAM_BAR_MOTION_CLASS, STAT_TONE_WORD } from "./analytics-blocks";
+import {
+  AnalyticsBlocks,
+  HISTOGRAM_BAR_MOTION_CLASS,
+  STACK_REST_COLOR,
+  STAT_TONE_WORD,
+} from "./analytics-blocks";
 
 const curve: Extract<AnalyticsBlock, { kind: "histogram" }> = {
   kind: "histogram",
@@ -96,5 +102,98 @@ describe("AnalyticsBlocks — stat tone", () => {
     ]);
     for (const w of words) expect(w.className).not.toContain("sr-only");
     expect(screen.getByText("Problem")).toBeTruthy();
+  });
+});
+
+describe("AnalyticsBlocks — the share variant (U6, WAVE5 D7)", () => {
+  const types: Extract<AnalyticsBlock, { kind: "breakdown" }> = {
+    kind: "breakdown",
+    id: "types",
+    title: "Card types",
+    slices: [
+      { label: "Land", value: 37 },
+      { label: "Instant", value: 34 },
+      { label: "Artifact", value: 9 },
+      { label: "Sorcery", value: 9 },
+      { label: "Creature", value: 8 },
+      { label: "Enchantment", value: 2 },
+      { label: "Battle", value: 0 },
+    ],
+  };
+  const colors: Extract<AnalyticsBlock, { kind: "breakdown" }> = {
+    kind: "breakdown",
+    id: "colors",
+    title: "Colors",
+    slices: [
+      { label: "Blue", value: 55, colorVar: "--mana-u" },
+      { label: "Colorless", value: 8, colorVar: "--mana-c" },
+    ],
+  };
+
+  it("a breakdown is ONE stacked bar, a segment per nonzero slice in proportion, then its legend; no track", () => {
+    render(<AnalyticsBlocks blocks={[types]} variant="share" />);
+    const bar = document.querySelector<HTMLElement>("[data-slot=breakdown-bar]")!;
+    expect(bar.getAttribute("aria-hidden")).toBe("true");
+    expect(bar.className).toContain("gap-px");
+    const segments = [...bar.querySelectorAll<HTMLElement>("[data-slot=breakdown-segment]")];
+    expect(segments.map((el) => el.style.flexGrow)).toEqual(["37", "34", "9", "9", "8", "2"]);
+    // The chart colors largest first; past the fifth, muted ink at 40 % (oklab).
+    expect(segments.map((el) => el.style.background)).toEqual([
+      "var(--chart-1)",
+      "var(--chart-2)",
+      "var(--chart-3)",
+      "var(--chart-4)",
+      "var(--chart-5)",
+      STACK_REST_COLOR,
+    ]);
+    expect(STACK_REST_COLOR).toBe("color-mix(in oklab, var(--muted-foreground) 40%, transparent)");
+    for (const el of segments) expect(el.className).toContain("ring-inset");
+    const legend = document.querySelector<HTMLElement>("[data-slot=breakdown-legend]")!;
+    expect([...legend.querySelectorAll("li")].map((li) => li.textContent)).toEqual([
+      "Land37",
+      "Instant34",
+      "Artifact9",
+      "Sorcery9",
+      "Creature8",
+      "Enchantment2",
+    ]);
+    expect(screen.getByRole("heading", { level: 3, name: "Card types" })).toBeTruthy();
+    expect(document.querySelector(".bg-muted")).toBeNull();
+  });
+
+  it("a slice's own color wins (Colors keeps the mana colors)", () => {
+    render(<AnalyticsBlocks blocks={[colors]} variant="share" />);
+    const segments = [...document.querySelectorAll<HTMLElement>("[data-slot=breakdown-segment]")];
+    expect(segments.map((el) => el.style.background)).toEqual(["var(--mana-u)", "var(--mana-c)"]);
+  });
+
+  it("the curve is thin bars over no baseline, in the brand's chart color; a target is a thin outline behind its bar", () => {
+    render(<AnalyticsBlocks blocks={[curve]} variant="share" />);
+    expect(bars()).toHaveLength(8);
+    for (const bar of bars()) {
+      expect(bar.className).toContain("w-2.5");
+      expect(bar.className).toContain(HISTOGRAM_BAR_MOTION_CLASS);
+      expect(bar.style.background).toBe("var(--chart-1)");
+      expect(bar.parentElement!.className).not.toContain("border-b");
+    }
+    expect(bars()[0].parentElement!.parentElement!.parentElement!.className).toContain("max-w-md");
+    for (const ghost of ghosts()) {
+      expect(ghost.className).toContain("w-4");
+      expect(ghost.className).toContain("border-dashed");
+    }
+    expect(document.querySelector("[data-slot=histogram-legend]")?.textContent).toBe(
+      "Curve template",
+    );
+  });
+
+  it("the panel (the editor, the hub) is unchanged: a row per slice on its track, full-width bars on a baseline", () => {
+    render(<AnalyticsBlocks blocks={[types, { ...curve, target: undefined }]} />);
+    expect(document.querySelector("[data-slot=breakdown-bar]")).toBeNull();
+    expect(document.querySelectorAll(".bg-muted")).toHaveLength(7);
+    for (const bar of bars()) {
+      expect(bar.className).toContain("w-full");
+      expect(bar.style.background).toBe("var(--chart-2)");
+      expect(bar.parentElement!.className).toContain("border-b");
+    }
   });
 });

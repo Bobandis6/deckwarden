@@ -2,10 +2,10 @@
 
 /**
  * Read-only deck rendering for the share page (P1.7). Reuses the editor's
- * building blocks with their mutation handlers omitted: LeaderZone,
- * DeckTextView/DeckGridView over the pure view-model grouping, the
- * ValidationPanel status line, and the bare AnalyticsBlocks list. Clicking a
- * card navigates to its card page. Mobile-first single column.
+ * building blocks with their mutation handlers omitted: DeckTextView /
+ * DeckGridView over the pure view-model grouping, the ValidationPanel
+ * status line, and the bare AnalyticsBlocks list (LeaderZone until U6).
+ * Clicking a card navigates to its card page. Mobile-first single column.
  *
  * View toggles are deliberately not persisted here (unlike the editor):
  * loading localStorage prefs during render would break SSR hydration, and a
@@ -23,17 +23,16 @@
  * the accent band with the SAME resolved `art` as a banner and its visible
  * credit (zero new requests; One Piece and the private gate get the
  * gradient), the name at the page-title step, the leaders line through the
- * adapter (`leaderLine` — partners in `leaderIds` order), author, format
- * and count, the legality line (the Warden line for zero issues, the
- * expandable panel otherwise), the share actions, then description, fork
- * credit and ownership as before. Two credits on purpose when a crop is
- * on screen: the banner's in the header and the ambient chip riding the
- * viewport as the reader scrolls past — the ambient crop stays on screen
- * after the header does, and the hard rule wants a credit beside it.
- * Card names in the text view and the validation chips carry the hover /
- * focus preview (`preview`); Copy decklist confirms in a status slot with
- * a check that plays once and resets; the leader cards carry the accent
- * ring (in LeaderZone's read-only shape).
+ * adapter (partners in `leaderIds` order), author, format and count, the
+ * legality line (the Warden line for zero issues, the expandable panel
+ * otherwise), the share actions, then description, fork credit and
+ * ownership as before. Two credits on purpose when a crop is on screen:
+ * the banner's in the header and the ambient chip riding the viewport as
+ * the reader scrolls past — the ambient crop stays on screen after the
+ * header does, and the hard rule wants a credit beside it. Card names in
+ * the text view and the validation chips carry the hover / focus preview
+ * (`preview`); Copy decklist confirms in a status slot with a check that
+ * plays once and resets.
  *
  * X1 (WAVE3.md D1, REC-1): the signed-out Like, Bookmark and Fork prompts
  * link /account?next=/d/<publicId>, so signing in ends on this deck again.
@@ -60,11 +59,28 @@
  * the private gate's fetch reports true for a claim-token holder too. A
  * guest owner's dialog reads the sign-in sentence with `?next=` back here.
  * The visitor row is untouched.
+ *
+ * U6 (WAVE5 D7, direction B): one header and two heading levels. The band
+ * is 280 px from md (160 below) and the leader's full card rises into its
+ * lower-left edge (`DECK_HEADER`: 200 px from md, 140 below, partners side
+ * by side), `priority` and on the hero shadow, with the title column beside
+ * it: the H1, two meta lines of one middle dot each ("{leader} · {format}",
+ * then "{N} cards · Updated {date} by {author}"; a precon's badge, count,
+ * product line and byline), the Warden and bracket lines in the editor's
+ * status-slot forms, "At the table", and the action rows as they were. The
+ * description sits under it at reading width. The leader zone's block and
+ * its h3 are gone (the card leads), so the h1 is followed by h2s only:
+ * Cards (over the editor's controls row and read-only rows: 14 px medium
+ * counts, 11.2 px pips, the groups' label-and-count h3s on space), Notes at
+ * reading width, Sample hand and Analytics (the share variant: thin curve
+ * bars and one stacked bar per breakdown). The cost groups' h3s are the
+ * page's only uppercase labels.
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { Fragment, useId, useMemo, useState, useSyncExternalStore } from "react";
 
+import { CardImage } from "@/components/cards/card-image";
 import { CopyStatus, useCopyToClipboard } from "@/components/copy-status";
 import { AmbientArt } from "@/components/deck/ambient-art";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
@@ -76,7 +92,6 @@ import { DeckGridView } from "@/components/deck/deck-grid-view";
 import { DeckTextView } from "@/components/deck/deck-text-view";
 import { EngagementButtons, type EngagementViewer } from "@/components/deck/engagement-buttons";
 import { ForkButton, ForkCreditLine } from "@/components/deck/fork-button";
-import { LeaderZone } from "@/components/deck/leader-zone";
 import { OwnerShareRow } from "@/components/deck/owner-share-row";
 import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
@@ -84,7 +99,12 @@ import { useBracketFacts } from "@/components/deck/use-bracket-facts";
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { useTier } from "@/components/editor/use-tier";
 import { EmptyState } from "@/components/empty-state";
-import { SURFACE_BAND, SurfaceHeader } from "@/components/surface-header";
+import {
+  DECK_HEADER,
+  HERO_CARD_SHADOW,
+  SURFACE_BAND,
+  SurfaceHeader,
+} from "@/components/surface-header";
 import { badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toast";
@@ -103,7 +123,6 @@ import {
 } from "@/lib/decks/editor-state";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
 import { readGoals, type DeckGoals } from "@/lib/decks/goals";
-import { leaderLine } from "@/lib/decks/leader-caption";
 import { hasLeader } from "@/lib/decks/panel-view";
 import { releasedLabel, type PreconInfo } from "@/lib/decks/precon-info";
 import { getDeckToken } from "@/lib/decks/token-store";
@@ -118,6 +137,7 @@ import type { DeckViewMode } from "@/lib/decks/view-prefs";
 import { getAdapter } from "@/lib/games/registry";
 import type { BracketFreshness, CompleteCombo, GameId } from "@/lib/games/types";
 import { useAppearance } from "@/lib/theme/appearance";
+import { cn } from "@/lib/utils";
 
 /** Structural subset of deckMetaJson / the GET /api/decks/[id] `deck` object. */
 export interface ShareDeckMeta {
@@ -241,9 +261,12 @@ export function DeckShareView({
   // The Why sheet (Y5): read-only here; a Drawer on phones, a Modal from md.
   const [whyOpen, setWhyOpen] = useState(false);
   const tier = useTier();
+  // The blocks' headings name their regions; the header card's severity text (R6).
+  const idPrefix = useId();
 
   // Leaders in the decks-row order (R2), the same reorder the editor's
-  // hydration applies, so the leader zone lists the art leader first.
+  // hydration applies, so the header (the leader zone until U6) shows the
+  // art leader first.
   const entries = useMemo<EditorEntry[]>(() => {
     const mapped = cards.map((c) => ({
       cardId: c.cardId,
@@ -357,15 +380,10 @@ export function DeckShareView({
   const { leader, rest } = splitLeaderEntries(entries, format);
   const groups = groupDeckEntries(rest, cardMap, groupBy, sortBy);
   const severity = issueSeverityByCard(issues);
-  const leaderZoneDef = format.zones.find((z) => z.isLeaderZone);
   const leaderItems = leader.flatMap((entry) => {
     const card = cardMap.get(entry.cardId);
     return card ? [{ entry, card }] : [];
   });
-  const leaders = leaderLine(
-    adapter,
-    leaderItems.map((item) => item.card),
-  );
 
   const total = deckSizeCount(entries, format);
   const sizeLabel = format.deckSize.max !== null ? `${total} / ${format.deckSize.max}` : `${total}`;
@@ -418,145 +436,225 @@ export function DeckShareView({
     >
       <header>
         {/* The artwork header (R5b, G3): the resolved crop as the banner with
-            its visible credit, or the accent gradient. */}
+            its visible credit, or the accent gradient; 280 px from md since
+            U6 (D7, direction B), the leader's card rising into its lower-left
+            edge and the title column beside it. */}
         <SurfaceHeader art={art} className={SURFACE_BAND.deck} />
-        <h1 className="type-title mt-4 break-words">{deck.name}</h1>
-        {leaderZoneDef && leaders && (
-          <p data-slot="leader-line" className="mt-1 text-sm break-words">
-            <span className="text-muted-foreground">{leaderZoneDef.label}</span> {leaders}
-          </p>
-        )}
-        {precon ? (
-          // Product chrome (W8b, D7): the badge beside the format chip, the
-          // product meta line, and the source byline. No "Updated" — a
-          // precon's only date is its release (cold-start rule: product
-          // lists never look "recent").
-          <>
-            <p className="text-muted-foreground mt-1 text-sm">
-              <span className={badgeVariants({ variant: "secondary" })} data-slot="precon-badge">
-                Precon
-              </span>{" "}
-              {format.label} · <span className="tabular-nums">{sizeLabel}</span> cards
+        <div className={leaderItems.length > 0 ? DECK_HEADER.grid : undefined}>
+          {leaderItems.length > 0 && (
+            // The leader leads (U6): the full card is the header's first
+            // image, so `priority` (eager, high fetch priority, no fade), on
+            // U8's hero shadow with CardImage's frame (the hover ring and the
+            // 2 px lift). A click opens the card's page; a validation ring and
+            // its words (R6) ride the button, as they did in the leader zone.
+            <div className={DECK_HEADER.cards}>
+              {leaderItems.map(({ entry, card }) => {
+                const level = severity.get(card.id);
+                const levelId = level ? `${idPrefix}-${entry.cardId}` : undefined;
+                return (
+                  <div
+                    key={entry.cardId}
+                    data-slot="header-leader"
+                    className={cn(
+                      "shrink-0",
+                      leaderItems.length > 1 ? DECK_HEADER.partner : DECK_HEADER.card,
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onPreview(card)}
+                      aria-label={`Show ${card.name}`}
+                      aria-describedby={levelId}
+                      className={cn(
+                        "focus-visible:ring-ring/50 block w-full rounded-[4.75%/3.5%] outline-none focus-visible:ring-3",
+                        level === "error" && "ring-destructive ring-2",
+                        level === "warning" && "ring-2 ring-amber-500",
+                      )}
+                    >
+                      <CardImage
+                        src={card.image}
+                        alt={card.name}
+                        width={488}
+                        height={680}
+                        frame
+                        priority
+                        className={cn("w-full text-xs", HERO_CARD_SHADOW)}
+                      />
+                    </button>
+                    {level && (
+                      <span id={levelId} data-slot="severity" className="sr-only">
+                        {level === "error" ? "Has a problem" : "Warning"}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className={DECK_HEADER.text}>
+            <h1 className="type-title break-words">{deck.name}</h1>
+            {/* Two meta lines with one middle dot each (U6, D7): the leaders
+                (partners joined with " & ", a printed id after its name as
+                the rows show it) and the format; then the count, the date
+                and the byline. The stat line is on the card itself. */}
+            <p data-slot="leader-line" className="type-meta text-muted-foreground mt-1 break-words">
+              {leaderItems.map(({ card }, i) => {
+                const badge = adapter.display.idBadge?.(card);
+                return (
+                  <Fragment key={card.id}>
+                    {i > 0 && " & "}
+                    <span className="text-foreground">{card.name}</span>
+                    {badge && ` ${badge}`}
+                  </Fragment>
+                );
+              })}
+              {leaderItems.length > 0 && " · "}
+              {format.label}
             </p>
-            <p className="text-muted-foreground mt-1 text-sm" data-slot="precon-meta">
-              Preconstructed deck · {precon.setName} ({precon.setCode})
-              {releasedLabel(precon.releaseDate) && (
-                <> · Released {releasedLabel(precon.releaseDate)}</>
-              )}
-            </p>
-            <p className="text-muted-foreground mt-1 text-sm" data-slot="precon-byline">
-              Official product list · data via MTGJSON
-            </p>
-          </>
-        ) : (
-          <p className="text-muted-foreground mt-1 text-sm">
-            {author && (
+            {precon ? (
+              // Product chrome (W8b, D7): the badge with the count, the product
+              // meta line, and the source byline. No "Updated" — a precon's
+              // only date is its release (cold-start rule: product lists never
+              // look "recent").
               <>
-                by{" "}
-                <Link href={`/u/${author.username}`} className="text-foreground hover:underline">
-                  {author.name}
-                </Link>{" "}
-                ·{" "}
+                <p data-slot="meta-line" className="type-meta text-muted-foreground mt-1">
+                  <span
+                    className={badgeVariants({ variant: "secondary" })}
+                    data-slot="precon-badge"
+                  >
+                    Precon
+                  </span>{" "}
+                  <span className="tabular-nums">{sizeLabel}</span> cards
+                </p>
+                <p className="type-meta text-muted-foreground mt-1" data-slot="precon-meta">
+                  Preconstructed deck · {precon.setName} ({precon.setCode})
+                  {releasedLabel(precon.releaseDate) && (
+                    <> · Released {releasedLabel(precon.releaseDate)}</>
+                  )}
+                </p>
+                <p className="type-meta text-muted-foreground mt-1" data-slot="precon-byline">
+                  Official product list · data via MTGJSON
+                </p>
               </>
+            ) : (
+              <p data-slot="meta-line" className="type-meta text-muted-foreground mt-0.5">
+                <span className="tabular-nums">{sizeLabel}</span> cards · Updated{" "}
+                {/* timeZone pinned: this SSRs on the server (UTC) and hydrates in the
+                  viewer's zone — an unpinned date string mismatches and throws
+                  React #418. UTC-dated "Updated" is fine for a share page. */}
+                {updated.toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  timeZone: "UTC",
+                })}
+                {author && (
+                  <>
+                    {" "}
+                    by{" "}
+                    <Link
+                      href={`/u/${author.username}`}
+                      className="text-foreground hover:underline"
+                    >
+                      {author.name}
+                    </Link>
+                  </>
+                )}
+              </p>
             )}
-            {format.label} · <span className="tabular-nums">{sizeLabel}</span> cards · Updated{" "}
-            {/* timeZone pinned: this SSRs on the server (UTC) and hydrates in the
-              viewer's zone — an unpinned date string mismatches and throws
-              React #418. UTC-dated "Updated" is fine for a share page. */}
-            {updated.toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-              timeZone: "UTC",
-            })}
-          </p>
-        )}
 
-        {/* The legality line (F1's Warden line at zero issues; the expandable panel otherwise). */}
-        <ValidationPanel
-          formatLabel={format.label}
-          issues={issues}
-          cards={cardMap}
-          onPreview={onPreview}
-          preview
-        />
-        {/* The bracket line (Y5): the editor's order, the table's voice. */}
-        {table && (
-          <BracketLine
-            adapter={adapter}
-            read={table.read}
-            ctx={table.ctx}
-            facts={facts.state}
-            onRetry={facts.retry}
-            onWhy={() => setWhyOpen(true)}
-          />
-        )}
-        {tableLines && <AtTheTable lines={tableLines} cards={cardMap} onPreview={onPreview} />}
+            {/* The legality line (F1's Warden line at zero issues; the expandable
+                panel otherwise) and the bracket line (Y5: the editor's order, the
+                table's voice): the editor's status-slot forms since U6, one 16 px
+                gutter for the shield, the dots and the gauge. */}
+            <ValidationPanel
+              formatLabel={format.label}
+              issues={issues}
+              cards={cardMap}
+              onPreview={onPreview}
+              preview
+            />
+            {table && (
+              <BracketLine
+                adapter={adapter}
+                read={table.read}
+                ctx={table.ctx}
+                facts={facts.state}
+                onRetry={facts.retry}
+                onWhy={() => setWhyOpen(true)}
+              />
+            )}
+            {tableLines && <AtTheTable lines={tableLines} cards={cardMap} onPreview={onPreview} />}
 
-        {ownerView ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <OwnerShareRow
-              deckId={deck.id}
-              publicId={deck.publicId}
-              deckName={deck.name}
-              decklist={decklist}
-              tableText={copyForTable}
-              // No claim token here = the session owns it (ownerView): account-only.
-              journal={
-                adapter.journal ? { game: adapter.id, accountDeck: editToken === null } : null
-              }
-              buy={
-                adapter.capabilities.buy && (
+            {ownerView ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <OwnerShareRow
+                  deckId={deck.id}
+                  publicId={deck.publicId}
+                  deckName={deck.name}
+                  decklist={decklist}
+                  tableText={copyForTable}
+                  // No claim token here = the session owns it (ownerView): account-only.
+                  journal={
+                    adapter.journal ? { game: adapter.id, accountDeck: editToken === null } : null
+                  }
+                  buy={
+                    adapter.capabilities.buy && (
+                      <BuyDeckMenu
+                        buy={adapter.capabilities.buy}
+                        entries={countedEntries(entries, format)}
+                        cards={cardMap}
+                        owned={owned}
+                      />
+                    )
+                  }
+                />
+              </div>
+            ) : (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <EngagementButtons
+                  deckId={deck.id}
+                  likesCount={deck.likesCount}
+                  viewer={viewer}
+                  signInHref={signInHref}
+                />
+                {/* The primary CTA on a product page (W8b, REC-4): seed a DRAFT —
+              no row minted until the first real edit — beside Fork, which
+              stays the signed-in copy path. */}
+                {precon && (
+                  <Button
+                    nativeButton={false}
+                    size="sm"
+                    render={<Link href={`/decks/new?game=${adapter.id}&from=${precon.slug}`} />}
+                  >
+                    Start from this precon
+                  </Button>
+                )}
+                <ForkButton deckId={deck.id} signedIn={viewer !== null} signInHref={signInHref} />
+                <Button variant="outline" size="sm" onClick={() => copy.copy(decklist())}>
+                  Copy decklist
+                </Button>
+                {/* Buy menu (W7, D6) — only for games whose adapter declares buy. */}
+                {adapter.capabilities.buy && (
                   <BuyDeckMenu
                     buy={adapter.capabilities.buy}
                     entries={countedEntries(entries, format)}
                     cards={cardMap}
                     owned={owned}
                   />
-                )
-              }
-            />
-          </div>
-        ) : (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <EngagementButtons
-              deckId={deck.id}
-              likesCount={deck.likesCount}
-              viewer={viewer}
-              signInHref={signInHref}
-            />
-            {/* The primary CTA on a product page (W8b, REC-4): seed a DRAFT —
-              no row minted until the first real edit — beside Fork, which
-              stays the signed-in copy path. */}
-            {precon && (
-              <Button
-                nativeButton={false}
-                size="sm"
-                render={<Link href={`/decks/new?game=${adapter.id}&from=${precon.slug}`} />}
-              >
-                Start from this precon
-              </Button>
-            )}
-            <ForkButton deckId={deck.id} signedIn={viewer !== null} signInHref={signInHref} />
-            <Button variant="outline" size="sm" onClick={() => copy.copy(decklist())}>
-              Copy decklist
-            </Button>
-            {/* Buy menu (W7, D6) — only for games whose adapter declares buy. */}
-            {adapter.capabilities.buy && (
-              <BuyDeckMenu
-                buy={adapter.capabilities.buy}
-                entries={countedEntries(entries, format)}
-                cards={cardMap}
-                owned={owned}
-              />
-            )}
-            {/* Copy confirmation (F12): a live slot at the row's end — the check
+                )}
+                {/* Copy confirmation (F12): a live slot at the row's end — the check
               plays once (keyed by nonce) and the slot clears after COPY_RESET_MS. */}
-            <CopyStatus copy={copy} />
+                <CopyStatus copy={copy} />
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
-        {deck.description && <p className="mt-3 text-sm whitespace-pre-wrap">{deck.description}</p>}
+        {/* The owner's words at reading width (D7: 42 rem, not the 64 rem container). */}
+        {deck.description && (
+          <p className="max-w-reading mt-4 text-sm whitespace-pre-wrap">{deck.description}</p>
+        )}
         {preconPrices && (
           <p data-slot="precon-prices" className="text-muted-foreground mt-1 text-sm">
             Est. price today ≈ <span className="tabular-nums">${preconPrices.total}</span> (cheapest
@@ -582,66 +680,64 @@ export function DeckShareView({
         )}
       </header>
 
-      {leaderZoneDef && (
-        <LeaderZone
-          zone={leaderZoneDef}
-          items={leaderItems}
-          severity={severity}
-          onPreview={onPreview}
-          adapter={adapter}
-          ruled
-        />
-      )}
+      {/* The blocks (U6, D7): serif h2s over the editor's read-only rows, the
+          cost groups the only uppercase labels (their h3s). The leader zone's
+          own block is gone: the card leads in the header. */}
+      <section aria-labelledby={`${idPrefix}-cards`} className="mt-8">
+        <h2 id={`${idPrefix}-cards`} className="type-section">
+          Cards
+        </h2>
+        {/* The editor's controls row (U3a): "View" names the group, Text and
+            Grid say it; one 28 px height, 44 px on touch. */}
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+          <Segmented ariaLabel="View" options={VIEW_OPTIONS} value={view} onChange={setView} />
+          <Segmented label="Group" options={GROUP_OPTIONS} value={groupBy} onChange={setGroupBy} />
+          <Segmented label="Sort" options={SORT_OPTIONS} value={sortBy} onChange={setSortBy} />
+        </div>
 
-      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
-        <Segmented label="View" options={VIEW_OPTIONS} value={view} onChange={setView} />
-        <Segmented label="Group" options={GROUP_OPTIONS} value={groupBy} onChange={setGroupBy} />
-        <Segmented label="Sort" options={SORT_OPTIONS} value={sortBy} onChange={setSortBy} />
-      </div>
-
-      {rest.length === 0 ? (
-        <EmptyState mark className="mt-4" title="This deck has no cards yet." />
-      ) : view === "text" ? (
-        <DeckTextView
-          adapter={adapter}
-          groups={groups}
-          severity={severity}
-          onPreview={onPreview}
-          owned={owned}
-          preview
-          ruled
-        />
-      ) : (
-        <DeckGridView
-          groups={groups}
-          severity={severity}
-          onPreview={onPreview}
-          owned={owned}
-          adapter={adapter}
-          ruled
-        />
-      )}
+        {rest.length === 0 ? (
+          <EmptyState mark className="mt-4" title="This deck has no cards yet." />
+        ) : view === "text" ? (
+          <DeckTextView
+            adapter={adapter}
+            groups={groups}
+            severity={severity}
+            onPreview={onPreview}
+            owned={owned}
+            preview
+          />
+        ) : (
+          <DeckGridView
+            groups={groups}
+            severity={severity}
+            onPreview={onPreview}
+            owned={owned}
+            adapter={adapter}
+          />
+        )}
+      </section>
 
       {deck.notes && (
-        <section className="mt-6">
-          <h2 className="text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase">
+        <section aria-labelledby={`${idPrefix}-notes`} className="mt-8">
+          <h2 id={`${idPrefix}-notes`} className="type-section">
             Notes
           </h2>
-          <p className="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap">
+          {/* Reading width (D7): 42 rem, about 75 characters a line, not 140. */}
+          <p className="max-w-reading mt-3 text-sm leading-relaxed break-words whitespace-pre-wrap">
             {deck.notes}
           </p>
         </section>
       )}
 
-      <SampleHand entries={entries} cards={cardMap} format={format} onPreview={onPreview} ruled />
+      <SampleHand entries={entries} cards={cardMap} format={format} onPreview={onPreview} titled />
 
       {analytics.length > 0 && (
-        <section className="mt-6">
-          <h2 className="text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase">
+        <section aria-labelledby={`${idPrefix}-analytics`} className="mt-8">
+          <h2 id={`${idPrefix}-analytics`} className="type-section">
             Analytics
           </h2>
-          <div className="mt-2">
-            <AnalyticsBlocks blocks={analytics} />
+          <div className="mt-3">
+            <AnalyticsBlocks blocks={analytics} variant="share" />
           </div>
         </section>
       )}

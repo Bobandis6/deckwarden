@@ -1,15 +1,15 @@
 /**
  * Leader captions (R5b): One Piece reads id + stat line, Magic its P/T (no
- * id badge), a stat-less card has no caption, and partners join with " & "
- * in the given order; the raised card's facts (U3b) join the type line and
- * the caption.
+ * id badge), a stat-less card has no caption; the raised card's facts (U3b)
+ * join the type line and the caption. (The share header's `leaderLine` and
+ * its partner join left with U6.)
  */
 import { describe, expect, it } from "vitest";
 
 import type { CardData } from "@/lib/games/types";
 import { card } from "@/lib/games/mtg/test-fixtures";
 import { getAdapter } from "@/lib/games/registry";
-import { leaderCaption, leaderFacts, leaderLine } from "./leader-caption";
+import { leaderCaption, leaderFacts } from "./leader-caption";
 
 const mtg = getAdapter("mtg");
 const optcg = getAdapter("optcg");
@@ -39,15 +39,6 @@ const queza = card({
     toughness: "5",
   },
 });
-const tymna = card({
-  name: "Tymna the Weaver",
-  attrs: {
-    type_line: "Legendary Creature — Human Cleric",
-    oracle_text: "",
-    power: "2",
-    toughness: "2",
-  },
-});
 const planeswalker = card({
   name: "Tevesh Szat, Doom of Fools",
   attrs: { type_line: "Legendary Planeswalker — Szat", oracle_text: "", loyalty: "4" },
@@ -64,18 +55,6 @@ describe("leaderCaption", () => {
     expect(leaderCaption(mtg, planeswalker)).toBe("Loyalty 4");
     expect(leaderCaption(mtg, stateless)).toBe("");
     expect(leaderCaption(undefined, enel)).toBe("");
-  });
-});
-
-describe("leaderLine", () => {
-  it("names each leader with its caption; partners join with ' & ' in order", () => {
-    expect(leaderLine(optcg, [enel])).toBe("Enel · OP15-058 · 5000 Power · 5 Life");
-    expect(leaderLine(mtg, [queza])).toBe("Queza, Augur of Agonies · 2/5");
-    expect(leaderLine(mtg, [tymna, queza])).toBe(
-      "Tymna the Weaver · 2/2 & Queza, Augur of Agonies · 2/5",
-    );
-    expect(leaderLine(mtg, [stateless])).toBe("Nameless");
-    expect(leaderLine(mtg, [])).toBe("");
   });
 });
 

@@ -100,17 +100,21 @@ export function optcgSmallImageUrl(url: string): string | null {
 }
 
 /**
- * Downsize an already-resolved display URL to the `small` CDN rendition.
+ * Downsize an already-resolved display URL to the `small` rendition.
  * Exists for consumers that only hold the wire's `card.image` (the default
  * printing was resolved server-side, so the printing id isn't available to
- * re-derive from) — e.g. the sample-hand widget's 7-card fan. Rewrites only
- * the documented cards.scryfall.io pattern; override URLs (stored at `normal`,
- * served as-is for every version) and anything else pass through untouched,
- * the One Piece mirror's full PNG included (LATER: the sample hand's small
- * rendition).
+ * re-derive from) — e.g. the sample-hand widget's 7-card fan. Rewrites the
+ * documented cards.scryfall.io pattern and, since U6 (LATER row 143), the One
+ * Piece mirror's full PNG to its small WebP (about 10 KB against 174 KB);
+ * override URLs (stored at `normal`, served as-is for every version) and
+ * anything else, r2.dev included, pass through untouched — a full image,
+ * never a broken one.
  */
 export function toSmallImage(url: string): string {
-  return url.replace(/^(https:\/\/cards\.scryfall\.io\/)normal(\/)/, "$1small$2");
+  return (
+    optcgSmallImageUrl(url) ??
+    url.replace(/^(https:\/\/cards\.scryfall\.io\/)normal(\/)/, "$1small$2")
+  );
 }
 
 /**

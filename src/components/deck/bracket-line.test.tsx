@@ -2,8 +2,9 @@
  * Y4a — the bracket line (WAVE4 D5), rendered: D5's line table character for
  * character from real Magic reads, the two lines Y4a adds, what follows the
  * text ("Why?", "Retry", or nothing), 44 px on coarse pointers, and One
- * Piece's nothing at all. U3a: the editor's status slot — present and empty
- * before a read, the bracket number forward, the quiet Why?.
+ * Piece's nothing at all. U3a: the status slot — present and empty before
+ * a read, the bracket number forward, the quiet Why? — the only form since
+ * U6 gave the share page the editor's line.
  */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -74,7 +75,6 @@ function renderLine(
     onRetry = vi.fn(),
     targetLevel = null,
     answers = null,
-    slot = false,
   }: {
     combos?: CompleteCombo[] | null;
     facts?: BracketFactsState;
@@ -83,8 +83,6 @@ function renderLine(
     onRetry?: () => void;
     targetLevel?: number | null;
     answers?: BracketAnswers | null;
-    /** The editor's status slot (U3a). */
-    slot?: boolean;
   } = {},
 ) {
   const read =
@@ -113,7 +111,6 @@ function renderLine(
       facts={facts}
       onWhy={onWhy}
       onRetry={onRetry}
-      slot={slot}
     />,
   );
 }
@@ -290,21 +287,6 @@ describe("adapter gating (D0)", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("no read (no commander yet) renders nothing", () => {
-    const list = spec([]);
-    const { container } = render(
-      <BracketLine
-        adapter={mtg}
-        read={null}
-        ctx={{ deck: list.deck, cards: list.cards, progress: null }}
-        facts="off"
-        onWhy={() => {}}
-        onRetry={() => {}}
-      />,
-    );
-    expect(container.innerHTML).toBe("");
-  });
-
   it("One Piece holds no slot either (U3a): nothing to reserve without a read to give", () => {
     const list = spec([]);
     const { container } = render(
@@ -315,14 +297,13 @@ describe("adapter gating (D0)", () => {
         facts="off"
         onWhy={() => {}}
         onRetry={() => {}}
-        slot
       />,
     );
     expect(container.innerHTML).toBe("");
   });
 });
 
-describe("the editor's status slot (U3a, WAVE5 D4)", () => {
+describe("the status slot (U3a, WAVE5 D4; the share page's too since U6)", () => {
   const line = () => document.querySelector<HTMLElement>("[data-slot=bracket-line]")!;
 
   it("no read yet: the slot is present and empty — a read's own box, hidden, nothing to press or focus", () => {
@@ -335,7 +316,6 @@ describe("the editor's status slot (U3a, WAVE5 D4)", () => {
         facts="off"
         onWhy={() => {}}
         onRetry={() => {}}
-        slot
       />,
     );
     const empty = line();
@@ -348,7 +328,7 @@ describe("the editor's status slot (U3a, WAVE5 D4)", () => {
     // The same classes as a read's line, so the read lands in the same box.
     const emptyClass = empty.className;
     unmount();
-    renderLine(spec([]), { slot: true });
+    renderLine(spec([]));
     expect(line().className).toBe(emptyClass);
   });
 
@@ -368,7 +348,7 @@ describe("the editor's status slot (U3a, WAVE5 D4)", () => {
   ])(
     "%s: the words are unchanged; the bracket number reads foreground medium, the rest muted",
     (_label, list, lead, text) => {
-      renderLine(list, { slot: true });
+      renderLine(list);
       expect(lineText()).toBe(text);
       const strong = line().querySelector("span > span")!;
       expect(strong.textContent).toBe(lead);
@@ -379,18 +359,18 @@ describe("the editor's status slot (U3a, WAVE5 D4)", () => {
   );
 
   it("core's own lines name no number, so nothing comes forward", () => {
-    const { unmount } = renderLine(spec([rhystic]), { facts: "checking", slot: true });
+    const { unmount } = renderLine(spec([rhystic]), { facts: "checking" });
     expect(lineText()).toBe("Checking combos…");
     expect(line().querySelector("span > span")).toBeNull();
     unmount();
-    renderLine(spec([rhystic]), { facts: "failed", combos: null, slot: true });
+    renderLine(spec([rhystic]), { facts: "failed", combos: null });
     expect(lineText()).toBe("Couldn't check combos · Retry");
     expect(line().querySelector("span > span")).toBeNull();
   });
 
   it("Why? is a muted text button, no underline, forward on hover and focus; 44 px on touch without growing the line", () => {
     const onWhy = vi.fn();
-    renderLine(spec([rhystic]), { slot: true, onWhy });
+    renderLine(spec([rhystic]), { onWhy });
     const why = screen.getByRole("button", { name: "Why?" });
     expect(why.className).toContain("text-muted-foreground");
     expect(why.className).toContain("hover:text-foreground");
@@ -400,14 +380,5 @@ describe("the editor's status slot (U3a, WAVE5 D4)", () => {
     expect(why.className).toContain("pointer-coarse:-my-[13px]");
     fireEvent.click(why);
     expect(onWhy).toHaveBeenCalledTimes(1);
-  });
-
-  it("without the slot (the share page until U6) the line is as it was", () => {
-    renderLine(spec([rhystic]));
-    expect(line().querySelector("span > span")).toBeNull();
-    const why = screen.getByRole("button", { name: "Why?" });
-    expect(why.className).toContain("text-foreground");
-    expect(why.className.split(" ")).toContain("underline");
-    expect(why.className).not.toContain("-my-[13px]");
   });
 });

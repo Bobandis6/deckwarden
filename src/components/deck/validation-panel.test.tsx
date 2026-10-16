@@ -201,26 +201,25 @@ describe("ValidationPanel — F5 previews (share pages)", () => {
   });
 });
 
-describe("ValidationPanel — the editor's status slot (U3a, WAVE5 D4)", () => {
+describe("ValidationPanel — the status slot (U3a, WAVE5 D4; the share page's too since U6)", () => {
   const SHORT: ValidationIssue = { ...DECK_SIZE, progress: true };
   const BANNED: ValidationIssue = {
     code: "BANNED",
     severity: "error",
     message: "Mana Crypt is banned in Commander.",
   };
-  const slotted = (issues: ValidationIssue[], progress: string | null, slot: boolean) => (
+  const slotted = (issues: ValidationIssue[], progress: string | null) => (
     <ValidationPanel
       formatLabel="Commander"
       issues={issues}
       cards={new Map()}
       onPreview={() => {}}
       progress={progress}
-      slot={slot}
     />
   );
 
   it("the progress line and the problem toggle hold the Warden line's 20 px, each dot centered in the 16 px icon gutter", () => {
-    render(slotted([SHORT, BANNED], "2 to go", true));
+    render(slotted([SHORT, BANNED], "2 to go"));
     const line = document.querySelector<HTMLElement>('[data-slot="progress-line"]')!;
     expect(line.className).toContain("leading-5");
     expect(line.firstElementChild?.className).toContain(
@@ -234,21 +233,19 @@ describe("ValidationPanel — the editor's status slot (U3a, WAVE5 D4)", () => {
     expect(problems.firstElementChild?.className).toContain("size-4");
   });
 
-  it("the Warden line is the same with or without the slot (U8's .type-caption, the text pin)", () => {
-    const { unmount } = render(slotted([], null, true));
-    const slottedLine = screen.getByRole("status");
-    expect(slottedLine.textContent).toBe("The Warden approves this deck ✓");
-    const slottedClass = slottedLine.className;
-    unmount();
-    render(slotted([], null, false));
-    expect(screen.getByRole("status").className).toBe(slottedClass);
+  it("the Warden line is U8's .type-caption line on the shield (the text pin)", () => {
+    render(slotted([], null));
+    const line = screen.getByRole("status");
+    expect(line.textContent).toBe("The Warden approves this deck ✓");
+    expect(line.className).toContain("type-caption");
+    expect(line.querySelector("svg")?.getAttribute("class")).toContain("size-4");
   });
 
-  it("without the slot (the share page until U6) the lines keep their markup", () => {
-    render(slotted([SHORT, BANNED], "2 to go", false));
-    const line = document.querySelector<HTMLElement>('[data-slot="progress-line"]')!;
-    expect(line.className).not.toContain("leading-5");
-    expect(line.firstElementChild?.className).toBe("bg-muted-foreground/60 size-1.5 rounded-full");
-    expect(screen.getByRole("button", { name: /^1 problem/ }).className).not.toContain("leading-5");
+  it("without a progress line (the share page) every issue is a problem, its dot in the gutter", () => {
+    render(slotted([SHORT, BANNED], null));
+    expect(document.querySelector('[data-slot="progress-line"]')).toBeNull();
+    const problems = screen.getByRole("button", { name: /^2 problems/ });
+    expect(problems.className).toContain("leading-5");
+    expect(problems.firstElementChild?.className).toContain("size-4");
   });
 });

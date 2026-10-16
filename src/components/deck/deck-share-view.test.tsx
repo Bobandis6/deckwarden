@@ -5,9 +5,12 @@
  * `leaderIds` order), author link, format · count, the Warden legality
  * line inside the header, the actions in their pinned order; Copy decklist
  * confirming with a check that resets (and saying so when the clipboard
- * refuses); the leader card's accent ring; the hover / focus preview on a
- * card name that still navigates on click. X1: the signed-out Like,
- * Bookmark and Fork prompts carry the way back to this deck.
+ * refuses); the hover / focus preview on a card name that still navigates
+ * on click. X1: the signed-out Like, Bookmark and Fork prompts carry the
+ * way back to this deck. U6 (WAVE5 D7, direction B): the leader's card in
+ * the header (priority, the hero shadow, a validation ring with its words),
+ * the two meta lines, and the heading tree (h1, then h2s, then the cost
+ * groups' h3s) with no Leader block.
  */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +25,7 @@ import { COMMANDER } from "@/lib/games/mtg/formats";
 import { atraxa, card, thrasios, tymna } from "@/lib/games/mtg/test-fixtures";
 import type { DeckGoals } from "@/lib/decks/goals";
 import { setDeckToken } from "@/lib/decks/token-store";
+import { DECK_HEADER, HERO_CARD_SHADOW } from "@/components/surface-header";
 import type { BracketFreshness, CardData, CompleteCombo } from "@/lib/games/types";
 import {
   COPY_RESET_MS,
@@ -45,6 +49,7 @@ const commanderZone = COMMANDER.zones.find((z) => z.isLeaderZone)!.id;
 const mainZone = COMMANDER.zones.find((z) => !z.isLeaderZone)!.id;
 
 const SOL_RING_IMAGE = "https://cards.scryfall.io/normal/front/8/3/83f43730.jpg";
+const ATRAXA_IMAGE = "https://cards.scryfall.io/normal/front/d/0/d0d33d52.jpg";
 
 const ART: CardArt = {
   url: "https://cards.scryfall.io/art_crop/front/2/0/20e44330.jpg",
@@ -107,13 +112,17 @@ describe("DeckShareView — the artwork header", () => {
     expect(h1.className).toContain("type-title");
     expect(h1.className).toContain("break-words");
 
+    // D7's two meta lines, one middle dot each (U6): the leader and the format,
+    // then the count, the date and the byline.
     expect(header.querySelector("[data-slot=leader-line]")?.textContent).toBe(
-      "Commander Atraxa, Praetors' Voice · 4/4",
+      "Atraxa, Praetors' Voice · Commander",
+    );
+    expect(header.querySelector("[data-slot=meta-line]")?.textContent).toBe(
+      "100 / 100 cards · Updated Sep 9, 2026 by Bobandis6",
     );
     expect(within(header).getByRole("link", { name: "Bobandis6" }).getAttribute("href")).toBe(
       "/u/bobandis6",
     );
-    expect(header.textContent).toContain("Commander · 100 / 100 cards · Updated Sep 9, 2026");
 
     // Two live regions sit in the header (the Warden line and the Copy slot);
     // the legality line is the one carrying the format title.
@@ -176,7 +185,59 @@ describe("DeckShareView — the artwork header", () => {
       />,
     );
     expect(document.querySelector("[data-slot=leader-line]")?.textContent).toBe(
-      "Commander Tymna the Weaver & Thrasios, Triton Hero",
+      "Tymna the Weaver & Thrasios, Triton Hero · Commander",
+    );
+    // Both cards lead, side by side at the partner width (U6), in the same order.
+    const leaders = [...document.querySelectorAll<HTMLElement>("header [data-slot=header-leader]")];
+    expect(leaders.map((el) => el.querySelector("button")?.getAttribute("aria-label"))).toEqual([
+      "Show Tymna the Weaver",
+      "Show Thrasios, Triton Hero",
+    ]);
+    for (const el of leaders) expect(el.className).toContain(DECK_HEADER.partner);
+  });
+
+  it("a deck without a leader yet: no card, the title column alone, the format as the first line", () => {
+    render(<DeckShareView deck={{ ...deck, leaderIds: [] }} cards={[wire(solRing, mainZone)]} />);
+    const header = screen.getByRole("banner");
+    expect(header.querySelector("[data-slot=header-leader]")).toBeNull();
+    expect(header.querySelector("[data-slot=leader-line]")?.textContent).toBe("Commander");
+    expect(within(header).getByRole("heading", { level: 1 }).parentElement!.className).toBe(
+      DECK_HEADER.text,
+    );
+  });
+
+  it("a One Piece leader: its printed id after its name, as the rows show it; the stats stay on the card", () => {
+    const enel: ShareDeckCard = {
+      cardId: "ef4c399f-fee2-4408-8e1c-dfefb0ac03be",
+      zone: "leader",
+      qty: 1,
+      tags: [],
+      printingId: null,
+      card: {
+        id: "ef4c399f-fee2-4408-8e1c-dfefb0ac03be",
+        name: "Enel",
+        externalKey: "OP15-058",
+        primaryType: "Leader",
+        costValue: null,
+        colorsMask: 32,
+        ciMask: 32,
+        isLeaderCandidate: true,
+        isPreview: false,
+        cheapestUsd: null,
+        popularity: null,
+        legality: [],
+        attrs: { category: "leader", power_num: 5000, life: 5 },
+        image: null,
+      },
+    };
+    render(
+      <DeckShareView
+        deck={{ ...deck, game: "optcg", format: "standard", leaderIds: [enel.cardId] }}
+        cards={[enel]}
+      />,
+    );
+    expect(document.querySelector("[data-slot=leader-line]")?.textContent).toBe(
+      "Enel OP15-058 · Standard",
     );
   });
 });
@@ -270,11 +331,144 @@ describe("DeckShareView — F12", () => {
     expect(document.querySelector("[data-slot=copy-status]")?.textContent).toBe("Copy failed");
   });
 
-  it("the leader card carries the accent ring (read-only leader zone)", () => {
+  it("the leader's card leads in the header (U6): priority, the hero shadow, no accent ring; a click opens its page", () => {
+    const pictured = cards.map((c) =>
+      c.cardId === atraxa.id ? { ...c, card: { ...c.card, image: ATRAXA_IMAGE } } : c,
+    );
+    render(<DeckShareView deck={deck} cards={pictured} />);
+    const header = screen.getByRole("banner");
+    const leader = within(header).getByRole("button", { name: "Show Atraxa, Praetors' Voice" });
+    expect(leader.closest("[data-slot=header-leader]")?.className).toContain(DECK_HEADER.card);
+    expect(leader.className).not.toContain("ring-accent-game");
+    expect(leader.hasAttribute("aria-describedby")).toBe(false);
+    const img = within(leader).getByRole("img", { name: "Atraxa, Praetors' Voice" });
+    expect(img.getAttribute("src")).toBe(ATRAXA_IMAGE);
+    expect(img.getAttribute("loading")).toBe("eager");
+    expect(img.getAttribute("fetchpriority")).toBe("high");
+    expect(img.className).not.toContain("opacity-0");
+    expect(img.className).toContain(HERO_CARD_SHADOW);
+    // The card column rises into the band from md; the title column sits beside it.
+    const column = leader.closest("[data-slot=header-leader]")!.parentElement!;
+    expect(column.className).toBe(DECK_HEADER.cards);
+    expect(column.parentElement!.className).toBe(DECK_HEADER.grid);
+    // 16 px gutters, not the comp's 24 (LATER row 177): at 768 the title column
+    // is 504 px and the owner's row (492) stays one line like the visitor's.
+    expect(DECK_HEADER.grid).toContain("md:gap-x-4 md:pl-4");
+    expect(DECK_HEADER.cards).toContain("md:-mt-28");
+    fireEvent.click(leader);
+    expect(push).toHaveBeenCalledWith(`/cards/${atraxa.id}`);
+    // The Leader block is gone: no "Commander" group heading anywhere.
+    expect(screen.queryByRole("heading", { level: 3, name: /^Commander/ })).toBeNull();
+  });
+
+  it("a leader with a problem keeps its ring and says so (R6): the error ring and 'Has a problem'", () => {
+    // Sol Ring can't be a commander: COMMANDER_INELIGIBLE names it.
+    render(
+      <DeckShareView
+        deck={{ ...deck, leaderIds: [solRing.id] }}
+        cards={[wire(solRing, commanderZone), ...filler.map((c) => wire(c, mainZone))]}
+      />,
+    );
+    const leader = within(screen.getByRole("banner")).getByRole("button", {
+      name: "Show Sol Ring",
+    });
+    expect(leader.className).toContain("ring-destructive");
+    const described = document.getElementById(leader.getAttribute("aria-describedby")!)!;
+    expect(described.textContent).toBe("Has a problem");
+    expect(described.className).toBe("sr-only");
+  });
+});
+
+describe("DeckShareView — the heading tree and the blocks (U6, WAVE5 D7)", () => {
+  const notes = "Mulligan for Sol Ring.\n\nHold the rest.";
+
+  it("h1, then h2s only (Cards, Notes, Sample hand, Analytics), then h3s: no level skipped, no Leader block", () => {
+    render(<DeckShareView deck={{ ...deck, notes }} cards={cards} author={author} />);
+    const headings = screen.getAllByRole("heading");
+    const levels = headings.map((h) => Number(h.tagName.slice(1)));
+    expect(levels[0]).toBe(1);
+    expect(headings[0].textContent).toBe("Atraxa Superfriends");
+    // Lighthouse's heading-order: never deeper than one level past the one before.
+    levels.forEach((level, i) => {
+      if (i > 0) expect(level).toBeLessThanOrEqual(levels[i - 1] + 1);
+    });
+    expect(levels[1]).toBe(2);
+    expect(Math.max(...levels)).toBe(3);
+    expect(headings.filter((h) => h.tagName === "H2").map((h) => h.textContent)).toEqual([
+      "Cards",
+      "Notes",
+      "Sample hand",
+      "Analytics",
+    ]);
+    for (const h2 of headings.filter((h) => h.tagName === "H2")) {
+      expect(h2.className).toBe("type-section");
+    }
+    // Each block is a region named by its h2.
+    const cardsRegion = screen.getByRole("region", { name: "Cards" });
+    const analytics = screen.getByRole("region", { name: "Analytics" });
+    expect(screen.getByRole("region", { name: "Notes" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Sample hand" })).toBeTruthy();
+    // The h3s are the cost groups (label and count) and the analytics blocks' titles.
+    const groups = within(cardsRegion).getAllByRole("heading", { level: 3 });
+    expect(groups.map((h) => h.textContent)).toEqual(["Artifact99"]);
+    expect(groups[0].querySelector("[data-slot=group-count]")?.textContent).toBe("99");
+    for (const h3 of headings.filter((h) => h.tagName === "H3")) {
+      expect(cardsRegion.contains(h3) || analytics.contains(h3)).toBe(true);
+    }
+  });
+
+  it("the uppercase label names the cost groups and nothing else (D0, F4)", () => {
+    render(<DeckShareView deck={{ ...deck, notes }} cards={cards} author={author} />);
+    const upper = [...document.querySelectorAll<HTMLElement>("main *")].filter((el) =>
+      /(^|\s)(uppercase|type-eyebrow|tracking-wide)(\s|$)/.test(el.getAttribute("class") ?? ""),
+    );
+    expect(upper.length).toBeGreaterThan(0);
+    const cardsRegion = screen.getByRole("region", { name: "Cards" });
+    for (const el of upper) {
+      expect(el.closest("h3")).not.toBeNull();
+      expect(cardsRegion.contains(el)).toBe(true);
+    }
+  });
+
+  it("the controls row is the editor's: View named, not labelled; Notes and the description at reading width", () => {
+    render(
+      <DeckShareView
+        deck={{ ...deck, notes, description: "Superfriends, proliferated." }}
+        cards={cards}
+        author={author}
+      />,
+    );
+    const cardsRegion = screen.getByRole("region", { name: "Cards" });
+    expect(within(cardsRegion).getByRole("group", { name: "View" })).toBeTruthy();
+    expect(within(cardsRegion).queryByText("View")).toBeNull();
+    expect(within(cardsRegion).getByText("Group")).toBeTruthy();
+    expect(within(cardsRegion).getByText("Sort")).toBeTruthy();
+    const notesBody = within(screen.getByRole("region", { name: "Notes" })).getByText(/Mulligan/);
+    expect(notesBody.className).toContain("max-w-reading");
+    expect(screen.getByText("Superfriends, proliferated.").className).toContain("max-w-reading");
+    // The rows are the editor's read-only rows: 14 px medium counts, 11.2 px pips.
+    const qty = cardsRegion.querySelector<HTMLElement>("[data-slot=qty]")!;
+    expect(qty.className).toContain("text-sm font-medium");
+    expect(cardsRegion.querySelector("[data-slot=pips]")?.className).toContain(
+      "[--pip-size:0.8em]",
+    );
+  });
+
+  it("Analytics in the share variant: thin curve bars, one stacked bar per breakdown with its legend, no tracks", () => {
     render(<DeckShareView deck={deck} cards={cards} />);
-    const leader = screen.getByRole("button", { name: "Show Atraxa, Praetors' Voice" });
-    expect(leader.className).toContain("ring-accent-game");
-    expect(leader.className).toContain("ring-2");
+    const analytics = screen.getByRole("region", { name: "Analytics" });
+    const bars = [...analytics.querySelectorAll<HTMLElement>("[data-slot=histogram-bar]")];
+    expect(bars.length).toBeGreaterThan(0);
+    for (const bar of bars) expect(bar.className).toContain("w-2.5");
+    const stacked = analytics.querySelectorAll("[data-slot=breakdown-bar]");
+    // Magic's two breakdowns: Card types and Colors.
+    expect(stacked).toHaveLength(2);
+    for (const bar of stacked) expect(bar.getAttribute("aria-hidden")).toBe("true");
+    const legends = [...analytics.querySelectorAll<HTMLElement>("[data-slot=breakdown-legend]")];
+    // Card types counts the commander too, largest first.
+    expect(legends[0].textContent).toBe("Artifact99Creature1");
+    // No filled track behind any bar.
+    expect(analytics.querySelector(".bg-muted")).toBeNull();
   });
 });
 
@@ -344,7 +538,13 @@ describe("DeckShareView — precon chrome (W8b, D7)", () => {
     const header = screen.getByRole("banner");
 
     expect(header.querySelector("[data-slot=precon-badge]")?.textContent).toBe("Precon");
-    expect(header.textContent).toContain("Commander · 100 / 100 cards");
+    // U6: the format rides the leader line; the badge sits with the count.
+    expect(header.querySelector("[data-slot=leader-line]")?.textContent).toBe(
+      "Atraxa, Praetors' Voice · Commander",
+    );
+    expect(header.querySelector("[data-slot=meta-line]")?.textContent).toBe(
+      "Precon 100 / 100 cards",
+    );
     expect(header.querySelector("[data-slot=precon-meta]")?.textContent).toBe(
       "Preconstructed deck · Commander 2016 (C16) · Released Nov 2016",
     );
@@ -544,7 +744,9 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
     expect(warden.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const table = header.querySelector<HTMLElement>("[data-slot=at-the-table]")!;
-    expect(within(table).getByRole("heading", { name: "At the table" })).toBeTruthy();
+    // U6: an h2 in sentence case at the serif small step, not the uppercase label.
+    const tableHeading = within(table).getByRole("heading", { level: 2, name: "At the table" });
+    expect(tableHeading.className).toBe("type-small");
     expect([...table.querySelectorAll("[data-line]")].map((el) => el.textContent)).toEqual([
       "Game Changers (Wizards' list): Cyclonic Rift, Rhystic Study",
       "Combos (Commander Spellbook): none found",

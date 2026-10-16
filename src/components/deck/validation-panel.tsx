@@ -32,12 +32,13 @@
  * stays legality-only. Without it (the share page) the approved markup is
  * the same single line as before.
  *
- * U3a (WAVE5 D4, the status slot): the editor passes `slot`, and the first
- * line holds the Warden line's 20 px whichever line it is — the progress
- * line and the problem toggle take `leading-5` (the toggle stays 44 px on
- * touch) — with each dot centered in the 16 px icon gutter, so every line's
- * text starts where the Warden's and the bracket line's do. The share page
- * passes no `slot` and keeps its markup until U6.
+ * U3a (WAVE5 D4, the status slot): the first line holds the Warden line's
+ * 20 px whichever line it is — the progress line and the problem toggle
+ * take `leading-5` (the toggle stays 44 px on touch) — with each dot
+ * centered in the 16 px icon gutter, so every line's text starts where the
+ * Warden's and the bracket line's do. The editor's form since U3a and the
+ * share page's since U6 (WAVE5 D7), so it is the only form: the `slot`
+ * switch is gone.
  */
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -67,8 +68,6 @@ interface ValidationPanelProps {
   progress?: string | null;
   /** Under the Warden line while the deck is approved (Y2b: the editor's "Share this deck"). */
   approvalAction?: ReactNode;
-  /** The editor's status slot (U3a): a 20 px first line in every state, dots in the icon gutter. */
-  slot?: boolean;
 }
 
 /** A status dot centered in the 16 px icon gutter (U3a), where the Warden's shield sits. */
@@ -88,7 +87,6 @@ export function ValidationPanel({
   preview = false,
   progress = null,
   approvalAction,
-  slot = false,
 }: ValidationPanelProps) {
   const [open, setOpen] = useState(false);
   const zero = issues.length === 0;
@@ -156,16 +154,9 @@ export function ValidationPanel({
       {progress !== null && (
         <p
           data-slot="progress-line"
-          className={cn(
-            "text-muted-foreground flex items-center gap-1.5 text-xs font-medium",
-            slot && "leading-5",
-          )}
+          className="text-muted-foreground flex items-center gap-1.5 text-xs leading-5 font-medium"
         >
-          {slot ? (
-            <GutterDot className="bg-muted-foreground/60" />
-          ) : (
-            <span aria-hidden className="bg-muted-foreground/60 size-1.5 rounded-full" />
-          )}
+          <GutterDot className="bg-muted-foreground/60" />
           {progress}
         </p>
       )}
@@ -176,19 +167,11 @@ export function ValidationPanel({
             aria-expanded={open}
             onClick={() => setOpen((o) => !o)}
             className={cn(
-              "flex items-center gap-1.5 rounded text-xs font-medium hover:underline pointer-coarse:min-h-11",
+              "flex items-center gap-1.5 rounded text-xs leading-5 font-medium hover:underline pointer-coarse:min-h-11",
               errors > 0 ? "text-destructive" : "text-amber-700 dark:text-amber-400",
-              slot && "leading-5",
             )}
           >
-            {slot ? (
-              <GutterDot className={errors > 0 ? "bg-destructive" : "bg-amber-500"} />
-            ) : (
-              <span
-                aria-hidden
-                className={`size-1.5 rounded-full ${errors > 0 ? "bg-destructive" : "bg-amber-500"}`}
-              />
-            )}
+            <GutterDot className={errors > 0 ? "bg-destructive" : "bg-amber-500"} />
             {summary}
             {open ? (
               <ChevronUpIcon aria-hidden className="size-3.5" />

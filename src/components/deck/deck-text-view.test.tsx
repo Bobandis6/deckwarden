@@ -385,26 +385,28 @@ describe("DeckTextView — lines to space (U3a, WAVE5 D4)", () => {
     expect(share.container.querySelector("section")?.className).not.toContain("content-visibility");
   });
 
-  it("`ruled` keeps the share page's look until U6: the hairline heading, the 12 px quantity and pips", () => {
+  it("the share page's read-only rows are the editor's (U6, D7): the label-and-count heading, the 14 px quantity, the 11.2 px pips", () => {
     const { container } = render(
       <DeckTextView
         adapter={mtg}
         groups={group([{ card: sol, qty: 2 }])}
         severity={new Map()}
         onPreview={vi.fn()}
-        ruled
+        preview
       />,
     );
     const heading = screen.getByRole("heading", { level: 3 });
-    expect(heading.className).toBe(
-      "text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase",
-    );
-    expect(heading.textContent).toBe("Test2");
-    expect(container.querySelector("section")?.className).toBe("mt-4");
-    expect(document.querySelector("[data-slot=qty]")?.className).toContain("text-xs");
+    expect(heading.className).toBe("flex items-baseline gap-2 pt-5 pb-1.5");
+    expect(heading.querySelector(".type-eyebrow")?.textContent).toBe("Test");
+    expect(heading.querySelector("[data-slot=group-count]")?.textContent).toBe("2");
+    expect(container.querySelector("section")?.hasAttribute("class")).toBe(false);
+    const qty = document.querySelector<HTMLElement>("[data-slot=qty]")!;
+    expect(qty.className).toContain("text-sm font-medium tabular-nums");
+    expect(qty.className).not.toContain("text-xs");
     const pips = document.querySelector<HTMLElement>("[data-slot=pips]")!;
-    expect(pips.className).toContain("text-xs");
-    expect(pips.className).not.toContain("--pip-size");
+    expect(pips.className).toContain("text-sm [--pip-size:0.8em]");
+    // Read-only rows keep the fine-pointer pip column on touch (no steppers to make room for).
+    expect(pips.className).not.toContain("pointer-coarse");
   });
 });
 
@@ -528,7 +530,7 @@ describe("DeckTextView — the stuck heading (U3b, WAVE5 D4)", () => {
         groups={group([{ card: sol }])}
         severity={new Map()}
         onPreview={vi.fn()}
-        ruled
+        preview
       />,
     );
     expect(FakeObserver.all).toHaveLength(0);

@@ -351,7 +351,6 @@ export function DeckListPane({
           cards={cards}
           onPreview={onPreview}
           progress={progress}
-          slot
           approvalAction={
             onShare ? (
               <button

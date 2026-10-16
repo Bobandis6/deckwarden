@@ -203,7 +203,7 @@ describe("LeaderZone — the bones (U3a, WAVE5 D4)", () => {
   const pictured: EditorCard = { ...enel, image: "https://img.deckwarden.gg/optcg/OP15-058.webp" };
   const item = { entry: { cardId: enel.id, zone: "leader", qty: 1, tags: [] }, card: pictured };
 
-  it("the editor's image is priority: eager, high fetch priority, no fade; the share page's stays lazy", () => {
+  it("the editor's image is priority: eager, high fetch priority, no fade; the read-only shape's stays lazy", () => {
     const { unmount } = render(
       <LeaderZone
         zone={leaderZone}
@@ -227,7 +227,6 @@ describe("LeaderZone — the bones (U3a, WAVE5 D4)", () => {
         severity={new Map()}
         onPreview={() => {}}
         adapter={optcg}
-        ruled
       />,
     );
     expect(screen.getByRole("img", { name: "Enel" }).getAttribute("loading")).toBe("lazy");
@@ -273,27 +272,15 @@ describe("LeaderZone — the bones (U3a, WAVE5 D4)", () => {
     expect(screen.getByRole("img", { name: "Enel" })).toBeTruthy();
   });
 
-  it("the heading is the groups' label and count on space; `ruled` keeps the share page's hairline", () => {
-    const { container, unmount } = render(
+  it("the heading is the groups' label and count on space", () => {
+    const { container } = render(
       <LeaderZone zone={commanderZone} items={[]} severity={new Map()} onPreview={() => {}} />,
     );
     const heading = screen.getByRole("heading", { level: 3 });
     expect(heading.className).toContain("pt-5 pb-1.5");
     expect(heading.className).not.toContain("border-b");
     expect(heading.querySelector("[data-slot=group-count]")?.textContent).toBe("0");
-    expect(container.querySelector("section")?.className ?? "").not.toContain("mt-4");
-    unmount();
-    const share = render(
-      <LeaderZone
-        zone={commanderZone}
-        items={[]}
-        severity={new Map()}
-        onPreview={() => {}}
-        ruled
-      />,
-    );
-    expect(screen.getByRole("heading", { level: 3 }).className).toContain("border-b pb-1");
-    expect(share.container.querySelector("section")?.className).toBe("mt-4");
+    expect(container.querySelector("section")?.hasAttribute("class")).toBe(false);
   });
 });
 
@@ -410,7 +397,7 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4; U4a at every tier, WAVE
     expect(meta.textContent).toBe(" ");
   });
 
-  it("without `raised` (the share page) the card keeps its box above the name and no facts line", () => {
+  it("without `raised` (the share page's shape until U6) the card keeps its box above the name and no facts line", () => {
     render(
       <LeaderZone
         zone={commanderZone}
@@ -418,7 +405,6 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4; U4a at every tier, WAVE
         severity={new Map()}
         onPreview={() => {}}
         adapter={getAdapter("mtg")}
-        ruled
       />,
     );
     const row = screen.getByRole("button", { name: "Show Giada, Font of Hope" }).closest("li")!;
@@ -427,7 +413,7 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4; U4a at every tier, WAVE
     expect(row.querySelector("[data-slot=leader-caption]")?.className).not.toContain("md:hidden");
     const img = screen.getByRole("img", { name: "Giada, Font of Hope" });
     expect(img.className).toContain("shadow-md");
-    // CardImage's list (U5, LATER row 230): the share page's lift animates too.
+    // CardImage's list (U5, LATER row 230): this shape's lift animates too.
     expect(img.className).toContain("translate_120ms_var(--ease-settle-120)");
     expect(screen.getByText("Giada, Font of Hope").className).toBe(
       "min-w-0 truncate flex-1 text-xs",

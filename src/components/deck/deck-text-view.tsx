@@ -36,8 +36,9 @@
  * count (`GroupHeading`) on space instead of a hairline; the quantity is
  * 14 px medium tabular, the name's size; the pips are 0.8em of a text-sm
  * column (11.2 px). The editor's groups skip layout and paint while off
- * screen (`content-visibility: auto`). `ruled` keeps the share page's look
- * until U6 (WAVE5 D7): the hairline headings, the 12 px quantity and pips.
+ * screen (`content-visibility: auto`). U6 (WAVE5 D7) gave the share page
+ * the same headings and rows; its `ruled` look (the hairline headings, the
+ * 12 px quantity and pips) is gone.
  *
  * U3b (WAVE5 D4, the materials): a sticky heading has no backing of its own
  * at rest (U3a's 46 px band over the ambient art is gone) and becomes the
@@ -65,9 +66,6 @@ import { cn } from "@/lib/utils";
 
 /** A list group's heading (U3a): the label beside its count, on space — no hairline, no section margin. */
 export const GROUP_HEADER_CLASS = "flex items-baseline gap-2 pt-5 pb-1.5";
-/** The share page's group heading until U6: the eyebrow with its count inside, a hairline under. */
-export const RULED_GROUP_HEADER_CLASS =
-  "text-muted-foreground border-b pb-1 text-xs font-medium tracking-wide uppercase";
 /** Sticks to the top of the nearest scroll container (the editor's deck section); no backing at rest (U3b). */
 export const STICKY_HEADER_CLASS = "sticky top-0 z-10";
 /**
@@ -145,42 +143,23 @@ const DEFERRED_GROUP_CLASS =
  * A list group's heading (U3a, WAVE5 D4): the uppercase 12 px label in muted
  * ink and its count at 14 px semibold tabular in the foreground, so "LAND 38"
  * reads as a label and a number. Shared by the text and grid views and the
- * leader zone; `ruled` is the share page's heading until U6. A sticky one is
- * the chrome material only while stuck (U3b), its gradient after the count.
+ * editor's leader zone, on the editor and the share page alike (U6). A
+ * sticky one is the chrome material only while stuck (U3b), its gradient
+ * after the count.
  */
 export function GroupHeading({
   label,
   qty,
   sticky = false,
-  ruled = false,
 }: {
   label: string;
   qty: number;
   /** Sticks inside the editor's scrolling pane (C12); the material only while stuck (U3b). */
   sticky?: boolean;
-  /** The share page's look until U6: the eyebrow, its count inside, the hairline. */
-  ruled?: boolean;
 }) {
   const ref = useRef<HTMLHeadingElement>(null);
   const stuck = useStuck(ref, sticky);
   const edge = stuck && <span aria-hidden data-slot="stuck-edge" className={STUCK_EDGE_CLASS} />;
-  if (ruled) {
-    return (
-      <h3
-        ref={ref}
-        data-stuck={stuck || undefined}
-        className={cn(
-          RULED_GROUP_HEADER_CLASS,
-          sticky && STICKY_HEADER_CLASS,
-          stuck && STUCK_HEADER_CLASS,
-        )}
-      >
-        {label}
-        <span className="ml-1.5 tabular-nums">{qty}</span>
-        {edge}
-      </h3>
-    );
-  }
   return (
     <h3
       ref={ref}
@@ -221,8 +200,6 @@ interface DeckTextViewProps {
   pop?: { key: string; nonce: number } | null;
   /** Share pages: hover / focus card previews on the name buttons (F5). */
   preview?: boolean;
-  /** The share page's look until U6 (U3a): hairline headings, the 12 px quantity and pips. */
-  ruled?: boolean;
 }
 
 export function DeckTextView({
@@ -238,19 +215,18 @@ export function DeckTextView({
   stickyHeaders = false,
   pop = null,
   preview = false,
-  ruled = false,
 }: DeckTextViewProps) {
   return (
     <>
       {groups.map((group) => (
         <section
           key={group.key}
-          className={cn(ruled && "mt-4", stickyHeaders && DEFERRED_GROUP_CLASS)}
+          className={stickyHeaders ? DEFERRED_GROUP_CLASS : undefined}
           style={
             stickyHeaders ? ({ "--group-rows": group.items.length } as CSSProperties) : undefined
           }
         >
-          <GroupHeading label={group.label} qty={group.qty} sticky={stickyHeaders} ruled={ruled} />
+          <GroupHeading label={group.label} qty={group.qty} sticky={stickyHeaders} />
           <ul className="mt-1">
             {group.items.map(({ entry, card }) => {
               const rowKey = `${entry.zone}:${entry.cardId}`;
@@ -321,8 +297,7 @@ export function DeckTextView({
                         key={popping ? pop.nonce : "qty"}
                         data-slot="qty"
                         className={cn(
-                          "w-6 text-center tabular-nums",
-                          ruled ? "text-xs" : "text-sm font-medium",
+                          "w-6 text-center text-sm font-medium tabular-nums",
                           popping && "motion-safe:animate-dw-in [--dw-opacity:1] [--dw-scale:0.5]",
                         )}
                       >
@@ -341,10 +316,7 @@ export function DeckTextView({
                   ) : (
                     <span
                       data-slot="qty"
-                      className={cn(
-                        "w-6 shrink-0 text-center tabular-nums",
-                        ruled ? "text-xs" : "text-sm font-medium",
-                      )}
+                      className="w-6 shrink-0 text-center text-sm font-medium tabular-nums"
                     >
                       {entry.qty}
                     </span>
@@ -360,8 +332,7 @@ export function DeckTextView({
                   <span
                     data-slot="pips"
                     className={cn(
-                      "inline-flex min-w-20 shrink-0 justify-end",
-                      ruled ? "text-xs" : "text-sm [--pip-size:0.8em]",
+                      "inline-flex min-w-20 shrink-0 justify-end text-sm [--pip-size:0.8em]",
                       onSetQty && "pointer-coarse:min-w-12",
                     )}
                   >
