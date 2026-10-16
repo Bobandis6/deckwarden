@@ -326,7 +326,7 @@ Wave 5 (the design lab of 2026-10-11, written up in `DESIGN-LAB.md` at `e766299`
 | U10a Form primitives | hand-copied Field, Input, Textarea, Checkbox, Table and Spinner on the 12 hand-rolled input sites | the hand-rolled input grep returns none; every form's RTL green; the edge token on every field |
 | U10b Stepper + Chip | ButtonGroup for the row stepper; one `Chip` with two shapes | the stepper pins green; the chip grep shows two shapes only |
 
-**Status:** progress is tracked in `WAVE5.md`'s tracker (tick per package with date + sha; deviations recorded beside the tick).
+**Status (2026-10-16): Wave 5 is complete — U1 `27d3631` → U2 `95ea360` → U8 `948cb0a` → U3a `ed8991f` → U3b `9a4a9e2` → U4a `cdf0b5f` → U4b `36340df` → U7a `16d4159` → U5 `8e80f85` → U6 `58cc253` → U7b `8b8ddc0` → U9 `49a07aa` → U10a `540ad26` → U10b `8c62acd`; `WAVE5.md`'s tracker holds each tick with its deviations, `REDESIGN.md`'s Wave-5 addendum the decisions.** The next package is whichever the owner names: the standing P2.9 / P4.7 rounds (the r/EDH post is the owner's) keep their priority.
 
 ## 7. Feature Additions Beyond the Original Doc
 
