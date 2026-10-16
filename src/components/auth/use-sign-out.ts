@@ -47,6 +47,6 @@ export function useSignOut() {
 /** The three states' labels, shared so both hosts read identically. */
 export function signOutLabel(pending: boolean, failed: boolean): string {
   if (pending) return "Signing out…";
-  if (failed) return "Couldn't sign out — try again";
+  if (failed) return "Couldn't sign out. Try again";
   return "Sign out";
 }

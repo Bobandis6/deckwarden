@@ -95,7 +95,7 @@ describe("recommendForSnapshot — rank all → goals → slice (Y6a)", () => {
     expect(out.recommendations.map((r) => r.name)).toEqual(POOL.slice(25).map((c) => c.name));
     expect(out.hidden.map((r) => r.name)).toEqual(POOL.slice(0, 25).map((c) => c.name));
     expect(out.hidden[0].conflicts.map((c) => c.why)).toEqual([
-      "A Game Changer (Wizards' list) — your Bracket 2 target allows none",
+      "A Game Changer (Wizards' list). Your Bracket 2 target allows none",
     ]);
     expect(out.combosTruncated).toBe(false);
   });
@@ -105,7 +105,7 @@ describe("recommendForSnapshot — rank all → goals → slice (Y6a)", () => {
     expect(out.recommendations.map((r) => r.name)).toEqual(POOL.slice(0, 25).map((c) => c.name));
     expect(out.hidden).toEqual([]);
     expect(out.recommendations[0].conflicts.map((c) => [c.severity, c.why])).toEqual([
-      ["flag", "Would make this deck at least Bracket 3 — a Game Changer (Wizards' list)"],
+      ["flag", "Would make this deck at least Bracket 3: a Game Changer (Wizards' list)"],
     ]);
   });
 

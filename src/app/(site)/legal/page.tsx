@@ -43,7 +43,7 @@ export default function LegalPage() {
             Scryfall
           </a>
           . Scryfall is not affiliated with Deckwarden and does not endorse it. Card data and prices
-          on Deckwarden are — and will always remain — free to view without an account or payment.
+          on Deckwarden are, and will always remain, free to view without an account or payment.
           Prices are daily estimates, not offers to buy or sell.
         </p>
         <p>
@@ -144,8 +144,8 @@ export default function LegalPage() {
           Questions and takedown requests:{" "}
           <a href="mailto:contact@deckwarden.gg" className="underline">
             contact@deckwarden.gg
-          </a>{" "}
-          — takedowns are honored immediately. Bug reports are best as a{" "}
+          </a>
+          . Takedowns are honored immediately. Bug reports are best as a{" "}
           <a
             href="https://github.com/Bobandis6/deckwarden/issues"
             className="underline"

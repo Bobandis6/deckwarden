@@ -24,17 +24,17 @@ export default function PrivacyPage() {
       <h1 className="type-title">Privacy</h1>
       <p className="text-muted-foreground mt-2">
         Deckwarden has optional sign-in, no ads, and no analytics. Cookies exist only to keep you
-        signed in — nothing tracks you. This page lists everything it does store.
+        signed in. Nothing tracks you. This page lists everything it does store.
       </p>
 
       <section className="mt-8 space-y-3">
         <h2 className="type-section">Accounts (optional)</h2>
         <p>
-          You never need an account to build, share, or browse — signing in just keeps your decks
+          You never need an account to build, share, or browse. Signing in just keeps your decks
           across browsers. Sign-in is via Discord or Google only; there are no passwords here. From
           the provider we store your display name, email address, and avatar URL, used solely to
-          show you your account and tie your decks to it — never for marketing, and never shared.
-          The avatar URL is refreshed each time you sign in; your name and email are not.
+          show you your account and tie your decks to it, never for marketing, and never shared. The
+          avatar URL is refreshed each time you sign in; your name and email are not.
         </p>
         <p>
           You can also choose a different picture on the account page. Then we store that choice:
@@ -52,8 +52,8 @@ export default function PrivacyPage() {
           Importing a collection is optional too. If you upload a ManaBox or Moxfield CSV export on
           the account page, the file is read in your browser and only three things per line reach
           our servers: which card printing, its finish, and how many. Purchase prices, conditions,
-          languages, and binder names are never sent. The collection is private — it only ever shows{" "}
-          <em>you</em> which cards you own in decks you view — and you can wipe it from the account
+          languages, and binder names are never sent. The collection is private. It only ever shows{" "}
+          <em>you</em> which cards you own in decks you view, and you can wipe it from the account
           page at any time.
         </p>
         <p>
@@ -63,14 +63,14 @@ export default function PrivacyPage() {
           the process. You can delete your account yourself from the{" "}
           <Link href="/account" className="underline">
             account page
-          </Link>{" "}
-          — it permanently and immediately removes your account and everything in it: decks (with
+          </Link>
+          . It permanently and immediately removes your account and everything in it: decks (with
           their saved versions and the games you logged), folders, likes, bookmarks, and your
           imported collection. If you can no longer sign in, email{" "}
           <a href="mailto:contact@deckwarden.gg" className="underline">
             contact@deckwarden.gg
           </a>{" "}
-          instead and removal is handled manually — privately, not through a public issue tracker.
+          instead and removal is handled manually and privately, not through a public issue tracker.
         </p>
       </section>
 
@@ -80,13 +80,13 @@ export default function PrivacyPage() {
           Decks are stored on our servers: the card list, deck name, description, and visibility
           (public, unlisted, or private). If you keep a game journal (signed in only), each game you
           log stores its date, result, number of players, the deck list you played, and any details
-          you add — the turn it ended, your seat, the table’s bracket, notes. Your games are visible
-          only to you. Anyone you give a share link can view a public or unlisted deck — that’s the
+          you add: the turn it ended, your seat, the table’s bracket, notes. Your games are visible
+          only to you. Anyone you give a share link can view a public or unlisted deck. That’s the
           point of the link. Private decks are viewable only from the browser that created them or
           by the signed-in account that owns them.
         </p>
         <p>
-          The edit key for each deck lives in your browser’s localStorage (not a cookie — it is
+          The edit key for each deck lives in your browser’s localStorage (not a cookie, so it is
           never sent automatically). Clearing site data deletes your edit keys, and without a key a
           deck can no longer be edited or deleted from your browser, so export anything you care
           about first.
@@ -121,7 +121,7 @@ export default function PrivacyPage() {
         <p>
           Hosting is on Vercel, the database on Neon (US region), and encrypted backups on
           Cloudflare R2. Card images load directly from Scryfall’s CDN, so your browser makes
-          requests to scryfall.io when viewing cards — governed by{" "}
+          requests to scryfall.io when viewing cards, governed by{" "}
           <a
             href="https://scryfall.com/docs/privacy"
             className="underline"
@@ -150,7 +150,7 @@ export default function PrivacyPage() {
           >
             open a GitHub issue
           </a>{" "}
-          for bugs — either way we’ll sort it out. Attribution and terms live on the{" "}
+          for bugs. Either way we’ll sort it out. Attribution and terms live on the{" "}
           <Link href="/legal" className="underline">
             legal page
           </Link>

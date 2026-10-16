@@ -5,7 +5,7 @@
  *
  * 1. blocked — the adapter's "needs a legal list" line, with nothing after
  *    it (the problem list above already names the card);
- * 2. the facts failed — "Couldn't check combos · Retry";
+ * 2. the facts failed — "Couldn't check combos" and Retry;
  * 3. a draft — the adapter's draft line at once (what the card data proves
  *    needs no facts; a combo joins when they land), with "Why?" once the
  *    facts are in and the list has found something to explain — or the
@@ -48,7 +48,7 @@ function withStale(
   view: BracketLineView,
 ): BracketLineView {
   return read.answersStale && ctx.voice !== "table" && view.action === "why"
-    ? { ...view, text: `${view.text} · ${BRACKET_COPY.rulesChanged}` }
+    ? { ...view, text: `${view.text}. ${BRACKET_COPY.rulesChanged}` }
     : view;
 }
 
@@ -71,12 +71,12 @@ export function bracketLineView(
 }
 
 /** Where a line's lead ends: the copy's own separators. */
-const LEAD_SEPARATORS = [" · ", " — "] as const;
+const LEAD_SEPARATORS = [" · "] as const;
 
 /**
  * The line's lead (U3a, WAVE5 D4): the adapter's words before their first
  * separator — the bracket number, which the adapter's lines put first
- * ("Bracket 1–2", "At least Bracket 3 (Upgraded)", "Your target: Bracket
+ * ("Bracket 1 to 2", "At least Bracket 3 (Upgraded)", "Your target: Bracket
  * 2") — for the editor to set in the foreground; the whole line when it has
  * no separator. Null for core's own lines ("Checking combos…", "Couldn't
  * check combos"), which carry no number. Pure presentation: the words and

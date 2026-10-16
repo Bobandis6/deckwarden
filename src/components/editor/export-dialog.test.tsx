@@ -49,7 +49,7 @@ describe("ExportDialog", () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy to clipboard" }));
     });
     expect(screen.getByRole("status").textContent).toBe(
-      "Couldn't copy — select the list and copy it.",
+      "Couldn't copy. Select the list and copy it.",
     );
   });
 });

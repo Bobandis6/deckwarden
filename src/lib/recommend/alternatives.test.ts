@@ -161,7 +161,7 @@ describe("alternativesForSnapshot", () => {
     expect(res.alternatives[3].shared).toEqual(["ramp"]);
     expect(res.alternatives[0].evidence[0]).toEqual({
       source: "scryfall_tagger",
-      why: "Both: ramp · mana rock — community-tagged on Scryfall Tagger",
+      why: "Both: ramp, mana rock. Community-tagged on Scryfall Tagger",
       with: [],
       howOften: null,
       confidence: "medium",

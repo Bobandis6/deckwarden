@@ -28,7 +28,7 @@ export const revalidate = 86400;
 export const metadata: Metadata = {
   title: "Precons",
   description:
-    "Every Commander preconstructed deck, card for card — browse official precons by year and color, then start from one and make it yours.",
+    "Every Commander preconstructed deck, card for card. Browse official precons by year and color, then start from one and make it yours.",
   alternates: { canonical: "/precons" },
 };
 
@@ -84,7 +84,7 @@ export default async function PreconsPage() {
           aria-disabled="true"
           className="text-muted-foreground inline-flex items-center rounded-md border border-dashed px-2 py-1 text-sm pointer-coarse:min-h-11 pointer-coarse:px-3"
         >
-          {GAME_SWITCH_LABELS.optcg} — soon
+          {GAME_SWITCH_LABELS.optcg} (soon)
         </span>
         <span className="text-muted-foreground text-xs">One Piece starter decks are coming.</span>
       </div>

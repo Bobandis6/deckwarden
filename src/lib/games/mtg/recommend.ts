@@ -170,7 +170,7 @@ export const mtgRecommend: RecommendMeta = {
     bucketOf: mtgCurveBucketOf,
     evidence({ bucketLabel, current, target }) {
       return {
-        why: `Fills a curve gap — ${current} of the template's ~${target} nonland cards at mana value ${bucketLabel}`,
+        why: `Fills a curve gap: ${current} of the template's ~${target} nonland cards at mana value ${bucketLabel}`,
       };
     },
   },
@@ -228,14 +228,14 @@ export const mtgRecommend: RecommendMeta = {
         const howOften = `EDHREC rank #${fmt(rank)}`;
         if (rank <= STAPLE_RANK) {
           return {
-            why: "A Commander staple in EDHREC decklists — cutting it gives up a proven card",
+            why: "A Commander staple in EDHREC decklists. Cutting it gives up a proven card",
             howOften,
             side: "keep",
           };
         }
         if (rank <= WIDELY_PLAYED_RANK) {
           return {
-            why: "In many Commander decklists — it usually earns its slot",
+            why: "In many Commander decklists. It usually earns its slot",
             howOften,
             side: "keep",
           };
@@ -250,7 +250,7 @@ export const mtgRecommend: RecommendMeta = {
     curve: {
       evidence({ bucketLabel, current, target }) {
         return {
-          why: `${current} nonland cards at mana value ${bucketLabel} vs the template's ~${target} — this bucket has slack`,
+          why: `${current} nonland cards at mana value ${bucketLabel} vs the template's ~${target}. This bucket has slack`,
         };
       },
     },
@@ -269,7 +269,7 @@ export const mtgRecommend: RecommendMeta = {
           ? ` (${results.slice(0, 2).join(", ")}${results.length > 2 ? ", …" : ""})`
           : "";
         return {
-          why: `Part of ${partners}${payoff} — cutting it breaks the combo`,
+          why: `Part of ${partners}${payoff}. Cutting it breaks the combo`,
           howOften:
             popularity !== null ? `In ${fmt(popularity)} decks on Commander Spellbook` : null,
         };
@@ -298,14 +298,14 @@ export const mtgRecommend: RecommendMeta = {
         const pct = share >= 1 ? 100 : Math.min(99, Math.round(share * 100));
         if (share >= TOURNAMENT_STAPLE_SHARE) {
           return {
-            why: `Played in ${pct}% of competitive top-16 lists with ${cmd} — cutting it gives up a measured staple`,
+            why: `Played in ${pct}% of competitive top-16 lists with ${cmd}. Cutting it gives up a measured staple`,
             howOften,
             side: "keep" as const,
           };
         }
         if (share >= TOURNAMENT_PLAYED_SHARE) {
           return {
-            why: `Played in ${pct}% of competitive top-16 lists with ${cmd} — it sees real measured play`,
+            why: `Played in ${pct}% of competitive top-16 lists with ${cmd}. It sees real measured play`,
             howOften,
             side: "keep" as const,
           };

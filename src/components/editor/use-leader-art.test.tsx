@@ -1,7 +1,7 @@
 /**
  * useLeaderArt (R2, REDESIGN.md §3): one request per (card, printing)
  * change and none for anything else; the crop decoded before it commits;
- * the stale guard — two responses landing out of order never let the
+ * the stale guard · two responses landing out of order never let the
  * earlier leader's art win; the previous art staying up until the
  * replacement has loaded; removal clearing at once; Off keeping the art in
  * state so On needs no request; failures and null art committing null.

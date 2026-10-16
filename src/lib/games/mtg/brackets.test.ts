@@ -315,7 +315,7 @@ describe("D4: mass land denial", () => {
     expect(r.minimum).toBe(4);
     expect(factor(r, "land-denial")).toEqual({
       id: "land-denial",
-      sentence: "Mass land denial: Armageddon. Brackets 1–3 expect none.",
+      sentence: "Mass land denial: Armageddon. Brackets 1 to 3 expect none.",
       cards: [armageddon.id],
       source: "Community-tagged on Scryfall Tagger",
       atLeast: 4,
@@ -337,7 +337,7 @@ describe("D4: mass land denial", () => {
     expect(factor(r, "combo:2552-3263")).toEqual({
       id: "combo:2552-3263",
       sentence:
-        "Combo: Mycosynth Lattice + Vandalblast — mass land denial. Brackets 1–3 expect none.",
+        "Combo: Mycosynth Lattice + Vandalblast (mass land denial). Brackets 1 to 3 expect none.",
       cards: [lattice.id, vandalblast.id],
       source: "Commander Spellbook",
       atLeast: 4,
@@ -376,7 +376,7 @@ describe("D4: infinite turns and control of every opponent", () => {
     const r = assess(list([pilgrimage, prophets]), [c]);
     expect(r.minimum).toBe(4);
     expect(factor(r, "combo:2120-5329")?.sentence).toBe(
-      "Two-card combo: Deeproot Pilgrimage + Wanderwine Prophets — infinite turns. Brackets 1–3 expect no chained extra turns.",
+      "Two-card combo: Deeproot Pilgrimage + Wanderwine Prophets (infinite turns). Brackets 1 to 3 expect no chained extra turns.",
     );
   });
 
@@ -409,7 +409,7 @@ describe("D4: infinite turns and control of every opponent", () => {
     const r = assess(list([duplicator, mindslaver]), [c]);
     expect(r.minimum).toBe(4);
     expect(factor(r, "combo:1167-5483")?.sentence).toBe(
-      "Two-card combo: Esoteric Duplicator + Mindslaver — control of every opponent. Commander Spellbook rates that Bracket 4.",
+      "Two-card combo: Esoteric Duplicator + Mindslaver (control of every opponent). Commander Spellbook rates that Bracket 4.",
     );
   });
 });
@@ -625,7 +625,7 @@ describe("D4: a complete combo's Spellbook tag", () => {
     expect(r.minimum).toBe(4);
     expect(factorIds(r)).toEqual(["combo:742-1295", "game-changers"]);
     expect(factor(r, "combo:742-1295")?.sentence).toBe(
-      "Two-card combo: Demonic Consultation + Thassa's Oracle. A fast one — Commander Spellbook rates it Bracket 4.",
+      "Two-card combo: Demonic Consultation + Thassa's Oracle. A fast one. Commander Spellbook rates it Bracket 4.",
     );
   });
 });
@@ -658,7 +658,7 @@ describe("D4: a combo that uses your commander", () => {
         id: "combo:1089-2353",
         question: "Can this combo win or lock the game before turn 6?",
         because:
-          "Curiosity + Niv-Mizzet, Parun: Commander Spellbook rates it Bracket 3 or 4. It rates combos without knowing your commander — with yours always there, it may be faster.",
+          "Curiosity + Niv-Mizzet, Parun: Commander Spellbook rates it Bracket 3 or 4. It rates combos without knowing your commander. With yours always there, it may be faster.",
         cards: [curiosity.id, niv.id],
         source: "Commander Spellbook",
         raisesTo: 4,
@@ -672,7 +672,7 @@ describe("D4: a combo that uses your commander", () => {
     const r = assess(list([curiosity], { commanders: [niv] }), [loop("E")]);
     expect(r.minimum).toBe(3);
     expect(r.review[0]?.because).toBe(
-      "Curiosity + Niv-Mizzet, Parun: Commander Spellbook rates combos without knowing your commander — with yours always there, it may be faster.",
+      "Curiosity + Niv-Mizzet, Parun: Commander Spellbook rates combos without knowing your commander. With yours always there, it may be faster.",
     );
   });
 
@@ -701,7 +701,7 @@ describe("D4: a combo that needs a template", () => {
     results: ["Infinite colorless mana", "Infinite creature ETB", "Infinite death triggers"],
   });
 
-  it("D11: a loop that needs an unnamed extra permanent — your call, never counted", () => {
+  it("D11: a loop that needs an unnamed extra permanent, your call, never counted", () => {
     const r = assess(list([altar, mikaeus]), [persist]);
     expect(r.minimum).toBe(1);
     expect(factorIds(r)).toEqual([]);
@@ -838,7 +838,7 @@ describe("D4: each change names what would lower it", () => {
     ]);
     expect(factor(r, "combo:partners")).toMatchObject({
       sentence:
-        "Two-card combo with your commander: Partner A + Partner B. A fast one — Commander Spellbook rates it Bracket 4.",
+        "Two-card combo with your commander: Partner A + Partner B. A fast one. Commander Spellbook rates it Bracket 4.",
       change: null,
     });
   });
@@ -1048,10 +1048,10 @@ describe("mtgBracketFreshness", () => {
 describe("assumptions (WAVE4 D5's fixed text, the date from ingest)", () => {
   it("say what the read can't see", () => {
     expect(assess(list([])).assumptions).toEqual([
-      "Reads the card list only — it can't see how fast your deck wins. Wizards expects games to last at least 9, 8, 6 and 4 turns at Brackets 1–4.",
+      "Reads the card list only. It can't see how fast your deck wins. Wizards expects games to last at least 9, 8, 6 and 4 turns at Brackets 1 to 4.",
       "A combo counts as fast when it needs 4 mana or less to assemble (Commander Spellbook).",
       "Your commander counts as always available.",
-      "Tutors and fast mana don't change the read — Wizards dropped tutor limits in October 2025.",
+      "Tutors and fast mana don't change the read. Wizards dropped tutor limits in October 2025.",
       "Land-denial and extra-turn lists are Scryfall community tags, not Wizards lists.",
       "Combos no EDHREC deck has played aren't checked.",
       "Game Changers: Wizards' list as of Oct 2, 2026.",

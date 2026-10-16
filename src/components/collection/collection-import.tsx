@@ -126,7 +126,7 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
           json && typeof json === "object" && "error" in json ? String(json.error) : null;
         throw new Error(
           res.status === 429
-            ? "Imports are limited to 10 per hour — try again later."
+            ? "Imports are limited to 10 per hour. Try again later."
             : (message ?? `Import failed (${res.status})`),
         );
       }
@@ -186,9 +186,9 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
                 {summary.identities.toLocaleString("en-US")} cards
               </span>{" "}
               <span className="text-muted-foreground tabular-nums">
-                · {summary.printings.toLocaleString("en-US")} printings ·{" "}
+                · {summary.printings.toLocaleString("en-US")} printings,{" "}
                 {summary.rows.toLocaleString("en-US")} rows
-                {updated ? ` · updated ${updated}` : ""}
+                {updated ? `, updated ${updated}` : ""}
               </span>
             </>
           )}
@@ -232,7 +232,7 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
         <div className="space-y-2 rounded-md border border-dashed p-2 text-sm">
           <p>
             <span className="font-medium">{FORMAT_LABEL[prepared.parsed.format]} export</span>{" "}
-            <span className="text-muted-foreground">({prepared.fileName})</span> —{" "}
+            <span className="text-muted-foreground">({prepared.fileName})</span>:{" "}
             <span className="tabular-nums">
               {prepared.parsed.lineCount.toLocaleString("en-US")} lines →{" "}
               {prepared.rows.length.toLocaleString("en-US")} printings to import
@@ -255,7 +255,7 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
                   <ul className="mt-1 ml-3 list-disc space-y-0.5">
                     {prepared.parsed.rejects.slice(0, 20).map((r) => (
                       <li key={r.line}>
-                        line {r.line} — {REJECT_LABELS[r.reason]}:{" "}
+                        line {r.line}, {REJECT_LABELS[r.reason]}:{" "}
                         <span className="font-mono">{r.text.slice(0, 80)}</span>
                       </li>
                     ))}
@@ -276,7 +276,7 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
             )}
             {prepared.parsed.proxiesSkipped > 0 && (
               <li>
-                {prepared.parsed.proxiesSkipped} proxy line(s) skipped — proxies aren’t owned cards.
+                {prepared.parsed.proxiesSkipped} proxy line(s) skipped. Proxies aren’t owned cards.
               </li>
             )}
             {prepared.parsed.unknownFinishes.count > 0 && (
@@ -295,7 +295,7 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
             {prepared.overflow > 0 && (
               <li className="text-destructive">
                 This file has more than {COLLECTION_LIMITS.rowsPerImport.toLocaleString("en-US")}{" "}
-                distinct printings — only the first{" "}
+                distinct printings. Only the first{" "}
                 {COLLECTION_LIMITS.rowsPerImport.toLocaleString("en-US")} will be sent (
                 {prepared.overflow.toLocaleString("en-US")} left out).
               </li>
@@ -312,7 +312,7 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
                 disabled={busy}
               />
               <span>
-                <span className="font-medium">Merge</span> — update quantities from this file; cards
+                <span className="font-medium">Merge</span>: update quantities from this file; cards
                 not in the file stay as they are. Re-importing a fresh export never double counts.
               </span>
             </label>
@@ -325,7 +325,7 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
                 disabled={busy}
               />
               <span>
-                <span className="font-medium">Replace</span> — delete my current collection first;
+                <span className="font-medium">Replace</span>: delete my current collection first;
                 this file becomes the whole collection.
               </span>
             </label>
@@ -376,7 +376,7 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
           </p>
           <p className="text-muted-foreground text-xs tabular-nums">
             Matched {report.resolved.toLocaleString("en-US")} of{" "}
-            {report.received.toLocaleString("en-US")} rows — by Scryfall ID{" "}
+            {report.received.toLocaleString("en-US")} rows: by Scryfall ID{" "}
             {report.resolvedBy.scryfallId.toLocaleString("en-US")}, by set + number{" "}
             {report.resolvedBy.setNumber.toLocaleString("en-US")}, by name{" "}
             {report.resolvedBy.name.toLocaleString("en-US")}.
@@ -387,7 +387,7 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
           </p>
           {report.capped && (
             <p className="text-destructive text-xs">
-              Collection cap reached ({report.capped.limit.toLocaleString("en-US")} printings) —{" "}
+              Collection cap reached ({report.capped.limit.toLocaleString("en-US")} printings).{" "}
               {report.capped.dropped.toLocaleString("en-US")} new printings were not imported.
             </p>
           )}
@@ -403,8 +403,8 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
                     {u.name}
                     {u.setCode
                       ? ` (${u.setCode.toUpperCase()}${u.collectorNumber ? ` ${u.collectorNumber}` : ""})`
-                      : ""}{" "}
-                    — {UNRESOLVED_LABELS[u.reason]}
+                      : ""}
+                    : {UNRESOLVED_LABELS[u.reason]}
                   </li>
                 ))}
                 {report.unresolvedTotal > 50 && (
@@ -426,7 +426,7 @@ export function CollectionImport({ summary: initial }: { summary: CollectionSumm
                     report.unresolved
                       .map(
                         (u) =>
-                          `${u.name}${u.setCode ? ` (${u.setCode.toUpperCase()}${u.collectorNumber ? ` ${u.collectorNumber}` : ""})` : ""}${u.scryfallId ? ` ${u.scryfallId}` : ""} — ${UNRESOLVED_LABELS[u.reason]}`,
+                          `${u.name}${u.setCode ? ` (${u.setCode.toUpperCase()}${u.collectorNumber ? ` ${u.collectorNumber}` : ""})` : ""}${u.scryfallId ? ` ${u.scryfallId}` : ""}: ${UNRESOLVED_LABELS[u.reason]}`,
                       )
                       .join("\n"),
                   )

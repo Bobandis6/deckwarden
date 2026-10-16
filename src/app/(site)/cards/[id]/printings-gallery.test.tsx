@@ -108,7 +108,7 @@ describe("initial render", () => {
     expect(pressed[0].textContent).toContain("Commander Masters");
     expect(pressed[0].textContent).toContain("Shown");
     // Hero caption: set line, D4 caption with year, Default badge, no Reset.
-    expect(screen.getByText("CMM · #410 · Unc. · 2023")).toBeTruthy();
+    expect(screen.getByText("CMM #410 · Unc. (2023)")).toBeTruthy();
     expect(screen.getByText("Default")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
     // The hero stays the LCP element: eager + fetchpriority, scryfall-derived src.
@@ -136,7 +136,7 @@ describe("pinning on md+", () => {
     expect(window.history.length).toBe(depth);
     expect(rowButton(/Secret Lair Drop/).getAttribute("aria-pressed")).toBe("true");
     expect(rowButton(/Commander Masters/).getAttribute("aria-pressed")).toBe("false");
-    expect(screen.getByText("SLD · #2783 · Rare · 2020")).toBeTruthy();
+    expect(screen.getByText("SLD #2783 · Rare (2020)")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Reset to default" })).toBeTruthy();
     // The hero swap is async (decode off-screen) — the polite line follows it.
     await screen.findByText("Showing Secret Lair Drop #2783");
@@ -169,7 +169,7 @@ describe("phone", () => {
     // Drawer content: title, caption line, honest price line (no USD → dash).
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Secret Lair Drop")).toBeTruthy();
-    expect(within(dialog).getByText("SLD · #2783 · Rare · 2020")).toBeTruthy();
+    expect(within(dialog).getByText("SLD #2783 · Rare (2020)")).toBeTruthy();
     expect(within(dialog).getByText("— · foil $129.95")).toBeTruthy();
     // The pinned row did not move (queried raw — the modal drawer makes the
     // page behind it inert, so role queries can't see the table).
@@ -205,7 +205,7 @@ describe("the tail", () => {
     );
     renderGallery({ total: 300 });
     fireEvent.click(screen.getByRole("button", { name: "Show all 300 printings" }));
-    await screen.findByText("Showing 4 of 300 printings — newest first");
+    await screen.findByText("Showing 4 of 300 printings, newest first");
     expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
   });
 
@@ -216,7 +216,7 @@ describe("the tail", () => {
     );
     renderGallery({ total: 5 });
     fireEvent.click(screen.getByRole("button", { name: "Show all 5 printings" }));
-    await screen.findByText("Couldn’t load — try again");
+    await screen.findByText("Couldn’t load. Try again");
     expect(
       screen.getByRole("button", { name: "Show all 5 printings" }).hasAttribute("disabled"),
     ).toBe(false);

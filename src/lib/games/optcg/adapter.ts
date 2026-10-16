@@ -202,7 +202,7 @@ export const optcgAdapter: GameAdapter<OptcgAttrs> = {
     // 1,615 upstream duplicate names (17 printed Enels): the printed id is
     // the only thing that identifies a card, so surface it everywhere.
     idBadge: (card: OptcgCard) => card.externalKey,
-    searchPlaceholder: "Add cards — try “4 OP01-025”",
+    searchPlaceholder: "Add cards: try “4 OP01-025”",
     importPlaceholder:
       "1 Enel (OP15-058)\n4 OP01-025\n…paste a sim-style list or a Limitless export.",
   },

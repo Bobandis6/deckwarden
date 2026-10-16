@@ -232,7 +232,7 @@ export function parseCollectionCsv(text: string): ParseOutcome {
     return {
       ok: false,
       error:
-        "This doesn't look like a ManaBox or Moxfield collection export — the header row names neither a Scryfall ID nor Count + Edition columns.",
+        "This doesn't look like a ManaBox or Moxfield collection export: the header row names neither a Scryfall ID nor Count + Edition columns.",
       header,
     };
   }
@@ -331,5 +331,5 @@ export const REJECT_LABELS: Record<RejectReason, string> = {
 
 /** Copyable reject list: one line per reject, "line N — reason: text". */
 export function formatRejects(rejects: readonly ParseReject[]): string {
-  return rejects.map((r) => `line ${r.line} — ${REJECT_LABELS[r.reason]}: ${r.text}`).join("\n");
+  return rejects.map((r) => `line ${r.line}, ${REJECT_LABELS[r.reason]}: ${r.text}`).join("\n");
 }

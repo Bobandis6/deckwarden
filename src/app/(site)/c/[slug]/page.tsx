@@ -191,7 +191,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           {status !== "legal" && (
             <p className="mt-2 inline-block rounded-md bg-destructive/15 px-2 py-1 text-sm text-destructive">
               {status === "banned"
-                ? "Banned in Commander — shown for reference"
+                ? "Banned in Commander, shown for reference"
                 : "Not legal in Commander"}
             </p>
           )}
@@ -287,7 +287,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
             The {metaLens.rows.length} most-played cards in {metaLens.totalLists} settled top-
             {TOP_PLACEMENT} lists running {leader.name}
             {metaLens.setCount > 1 ? " (any pairing)" : ""} at {MIN_EVENT_PLAYERS}+ player events
-            since {sinceLabel(metaLens.since)}, ranked by lists played — top-4 counts shown for
+            since {sinceLabel(metaLens.since)}, ranked by lists played. Top-4 counts shown for
             context. Results from{" "}
             <a
               href={tournamentsMeta.sourceHref}
@@ -351,7 +351,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
                       <span className="font-semibold tabular-nums">
                         {ordinal(finish.placement)}
                       </span>{" "}
-                      <span className="text-muted-foreground">of {finish.playerCount}</span> —{" "}
+                      <span className="text-muted-foreground">of {finish.playerCount}</span> at{" "}
                       {/* W10: the event name goes to our event page; the external
                           source link stays on every row (attribution + smoke pin). */}
                       <Link
@@ -371,9 +371,11 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
                     </span>
                     <span className="text-muted-foreground block text-xs">
                       {eventDateLabel(finish.startDate)}
-                      {record && <span title="wins–losses–draws"> · {record}</span>}
-                      {partners.length > 0 && <> · with {partners.join(" and ")}</>}
-                      {finish.playerName && <> · by {finish.playerName}</>}
+                      {(record || finish.playerName) && " · "}
+                      {record && <span title="wins–losses–draws">{record}</span>}
+                      {record && finish.playerName && " "}
+                      {finish.playerName && `by ${finish.playerName}`}
+                      {partners.length > 0 && `, with ${partners.join(" and ")}`}
                     </span>
                   </span>
                   {finish.decklistUrl && (

@@ -67,11 +67,11 @@ export default async function TournamentEventPage({ params }: PageProps<"/tourna
       <h1 className="type-title">{event.name}</h1>
       <p className="text-muted-foreground mt-1 text-sm">
         {eventDateLabel(event.startDate)} · {event.playerCount} players
-        {event.topCut ? <> · top cut {event.topCut}</> : null}
+        {event.topCut ? <>, top cut {event.topCut}</> : null}
         {tournamentsMeta && (
           <>
-            {" "}
-            · on{" "}
+            {", "}
+            on{" "}
             <a
               href={tournamentsMeta.eventUrl(event.externalKey)}
               className="underline"

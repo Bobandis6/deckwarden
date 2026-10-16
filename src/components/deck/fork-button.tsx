@@ -54,7 +54,7 @@ export function ForkButton({
     setError(null);
     try {
       const res = await fetch(`/api/decks/${deckId}/fork`, { method: "POST" });
-      if (res.status === 429) throw new Error("Too many forks for now — try again later.");
+      if (res.status === 429) throw new Error("Too many forks for now. Try again later.");
       if (!res.ok) throw new Error(`Couldn't fork this deck (${res.status}).`);
       const json: { deck: { id: string } } = await res.json();
       router.push(`/decks/${json.deck.id}/edit`);

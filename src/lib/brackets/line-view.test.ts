@@ -91,11 +91,11 @@ describe("bracketLineView", () => {
   it("Y4b: answers from older rules add D5's words before Why? — only where Why? follows", () => {
     const stale = (status: BracketRead["status"]) => ({ ...read(status), answersStale: true });
     expect(view(stale("read"), "ready")).toEqual({
-      text: "adapter line (read) · Rules changed since you answered",
+      text: "adapter line (read). Rules changed since you answered",
       action: "why",
     });
     expect(view(stale("draft"), "ready").text).toBe(
-      "adapter line (draft) · Rules changed since you answered",
+      "adapter line (draft). Rules changed since you answered",
     );
     expect(view(stale("blocked"), "ready")).toEqual({
       text: "adapter line (blocked)",
@@ -142,13 +142,13 @@ describe("bracketLineLead (U3a): the bracket number the editor sets in the foreg
     bracketLineLead({ text, action });
 
   it("the words before the first separator — the adapter puts the number first", () => {
-    expect(lead("Bracket 1–2 · nothing here goes past Core")).toBe("Bracket 1–2");
+    expect(lead("Bracket 1 to 2 · nothing here goes past Core")).toBe("Bracket 1 to 2");
     expect(lead("Your target: Bracket 2 · the cards say at least 3")).toBe(
       "Your target: Bracket 2",
     );
-    expect(lead("Bracket 3 or 4 — one combo is your call")).toBe("Bracket 3 or 4");
+    expect(lead("Bracket 3 or 4 · one combo is your call")).toBe("Bracket 3 or 4");
     expect(
-      lead("Bracket 4 (Optimized) — from the cards and your answers · one combo is your call"),
+      lead("Bracket 4 (Optimized) · from the cards and your answers, one combo is your call"),
     ).toBe("Bracket 4 (Optimized)");
     expect(lead(`At least Bracket 3 (Upgraded) · ${BRACKET_COPY.rulesChanged}`)).toBe(
       "At least Bracket 3 (Upgraded)",

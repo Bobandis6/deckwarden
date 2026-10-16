@@ -77,7 +77,7 @@ describe("ValidationPanel — progress, not problems (Y2a)", () => {
   const EMPTY_COMMANDER: ValidationIssue = {
     code: "ZONE_SIZE",
     severity: "error",
-    message: "Commander must have 1–2 cards (has 0).",
+    message: "Commander must have 1 to 2 cards (has 0).",
     zone: "commander",
     progress: true,
   };

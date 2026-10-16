@@ -19,7 +19,7 @@ export const WARDEN_COPY = {
     eyebrow: "500",
     title: "Something went wrong",
     /** The Warden's line; the reassurance is P1.8's promise, kept true by the editor's retry. */
-    hint: "The Warden has reported this one. Your decks are safe — saves that failed will retry from the editor.",
+    hint: "The Warden has reported this one. Your decks are safe. Saves that failed will retry from the editor.",
   },
   /**
    * Y10 (WAVE4 D10): the first logged game earns one restrained line — the

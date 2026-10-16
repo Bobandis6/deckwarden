@@ -34,7 +34,7 @@ const literata = Literata({
 // Piece added beside it, not replacing it. Per-page titles ride the template
 // unchanged, so /c/'s ~4k indexed titles do not move.
 const DESCRIPTION =
-  "Build, analyze, and share Magic: The Gathering Commander and One Piece Card Game decks — no account needed.";
+  "Build, analyze, and share Magic: The Gathering Commander and One Piece Card Game decks. No account needed.";
 const SITE_TITLE = "Deckwarden — Commander & One Piece deck builder";
 
 // One themeColor, one value (W2, D0 "brand details"): the browser chrome

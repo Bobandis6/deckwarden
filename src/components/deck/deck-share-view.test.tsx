@@ -736,9 +736,7 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
     render(<DeckShareView deck={{ ...deck, goals }} cards={gcCards} bracketFacts={SERVER} />);
     const header = screen.getByRole("banner");
     const line = header.querySelector<HTMLElement>("[data-slot=bracket-line]")!;
-    expect(line.textContent).toBe(
-      "Played as Bracket 3 (Upgraded) · the cards say at least 3 · Why?",
-    );
+    expect(line.textContent).toBe("Played as Bracket 3 (Upgraded) · the cards say at least 3 Why?");
     // The editor's order: the Warden's line, then the bracket line.
     const warden = within(header).getByTitle("Legal Commander deck");
     expect(warden.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -807,8 +805,8 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
       fireEvent.click(within(menu).getByRole("menuitem", { name: "Copy for the table" }));
     });
     expect(writeText.mock.calls[0][0].split("\n")).toEqual([
-      "Atraxa Superfriends — Commander",
-      "Played as Bracket 3 (Upgraded) · the cards say at least 3 · checked Oct 5, 2026",
+      "Atraxa Superfriends · Commander",
+      "Played as Bracket 3 (Upgraded) · the cards say at least 3 (checked Oct 5, 2026)",
       "Game Changers (Wizards' list): Cyclonic Rift, Rhystic Study",
       "Combos (Commander Spellbook): none found",
       "Land denial / extra turns (Scryfall Tagger): none",
@@ -852,7 +850,7 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
     await act(async () => {
       fireEvent.click(within(menu).getByRole("menuitem", { name: "Copy for the table" }));
     });
-    expect(writeText.mock.calls[0][0].split("\n")[1]).toMatch(/· checked Oct 4, 2026$/);
+    expect(writeText.mock.calls[0][0].split("\n")[1]).toMatch(/\(checked Oct 4, 2026\)$/);
     spy.mockRestore();
   });
 
@@ -1038,7 +1036,7 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
       />,
     );
     expect(document.querySelector("[data-slot=bracket-line]")?.textContent).toBe(
-      "Bracket 3 or 4 — one combo is your call · Why?",
+      "Bracket 3 or 4 · one combo is your call Why?",
     );
   });
 

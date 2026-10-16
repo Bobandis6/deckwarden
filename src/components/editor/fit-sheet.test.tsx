@@ -159,7 +159,7 @@ describe("FitSheet — the total and the asks", () => {
     });
     fireEvent.click(within(sheet).getByRole("button", { name: "Fit" }));
     expect(fitState()).toBe("within");
-    expect(sheet.textContent).toContain("Already within your budget — est. $300 of your $400.");
+    expect(sheet.textContent).toContain("Already within your budget: est. $300 of your $400.");
     fireEvent.click(within(sheet).getByRole("button", { name: "Save $400 as this deck's total" }));
     expect(onSaveTotal).toHaveBeenCalledWith(400);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -255,7 +255,7 @@ describe("FitSheet — the total and the asks", () => {
       expect(within(sheet).queryByText(flagged.name)).toBeNull();
       // The goals the alternatives keep to, read-only — the total is the sheet's own.
       expect(sheet.querySelector("[data-slot=goals-line]")?.textContent).toBe(
-        "Your goals: Bracket 3 (Upgraded) · ≤ $5 a card",
+        "Your goals: Bracket 3 (Upgraded), ≤ $5 a card",
       );
     } finally {
       ROWS.set(PRICEY[0].id, ROWS.get(PRICEY[0].id)!.slice(1));
@@ -346,7 +346,7 @@ describe("FitSheet — honest outcomes", () => {
     await settled();
     expect(asked().map(name)).toEqual(["Pricey A", "Pricey B", "Pricey C"]);
     expect(unknown.sheet.textContent).toContain(
-      "Couldn't check combos — combo pieces aren't kept out of these swaps.",
+      "Couldn't check combos. Combo pieces aren't kept out of these swaps.",
     );
   });
 
@@ -362,7 +362,7 @@ describe("FitSheet — honest outcomes", () => {
     preset(sheet, "$150");
     await waitFor(() =>
       expect(sheet.textContent).toContain(
-        "Alternatives are rate-limited for a moment — try again shortly.",
+        "Alternatives are rate-limited for a moment. Try again shortly.",
       ),
     );
     // The batch landed; nothing more is asked while a card failed.
@@ -379,7 +379,7 @@ describe("FitSheet — honest outcomes", () => {
     const { sheet } = renderSheet({ entries: ENTRIES.slice(1) });
     preset(sheet, "$150");
     expect(sheet.textContent).toContain(
-      "Add a Commander first — alternatives follow its color identity.",
+      "Add a Commander first. Alternatives follow its color identity.",
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });

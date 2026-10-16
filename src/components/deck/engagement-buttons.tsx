@@ -89,7 +89,7 @@ export function EngagementButtons({
     } catch {
       setLiked(!next);
       setCount((c) => Math.max(0, c + (next ? -1 : 1)));
-      setError("Couldn't save that — try again.");
+      setError("Couldn't save that. Try again.");
     }
   };
 
@@ -104,7 +104,7 @@ export function EngagementButtons({
       setBookmarked(state.bookmarked);
     } catch {
       setBookmarked(!next);
-      setError("Couldn't save that — try again.");
+      setError("Couldn't save that. Try again.");
     }
   };
 

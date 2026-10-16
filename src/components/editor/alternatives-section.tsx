@@ -115,7 +115,7 @@ export function useAlternatives(key: string | null, enabled: boolean) {
           signal: controller.signal,
         });
         if (res.status === 429) {
-          throw new Error("Alternatives are rate-limited for a moment — try again shortly.");
+          throw new Error("Alternatives are rate-limited for a moment. Try again shortly.");
         }
         if (!res.ok) throw new Error(`Alternatives failed to load (${res.status}).`);
         const data = (await res.json()) as AlternativesResponse;
@@ -227,7 +227,7 @@ export function AlternativesContent({
     <>
       {!asked ? (
         <p className="text-muted-foreground text-xs">
-          Add a {adapter.display.leaderNoun} first — alternatives follow its color identity.
+          Add a {adapter.display.leaderNoun} first. Alternatives follow its color identity.
         </p>
       ) : state?.status === "error" ? (
         <p className="text-destructive text-xs">
@@ -287,7 +287,7 @@ function AlternativesBodyView({
   if (data.reason === "no-roles") {
     return (
       <p className="text-muted-foreground text-xs">
-        No community roles for this card yet — {credit}
+        No community roles for this card yet ({credit})
       </p>
     );
   }
@@ -409,7 +409,7 @@ function AlternativeItem({
           const role = labels.get(k);
           return (
             <span key={k}>
-              {i > 0 && " · "}
+              {i > 0 && ", "}
               {role ? (
                 <SourceLink label={role.label} href={role.href} className="hover:underline" />
               ) : (
@@ -417,8 +417,8 @@ function AlternativeItem({
               )}
             </span>
           );
-        })}{" "}
-        — community-tagged on{" "}
+        })}
+        . Community-tagged on{" "}
         <SourceLink
           label={source.label}
           href={source.href}
@@ -426,7 +426,7 @@ function AlternativeItem({
         />
       </p>
       {chips.length > 0 && (
-        <p className="text-muted-foreground mt-0.5 text-xs">{chips.join(" · ")}</p>
+        <p className="text-muted-foreground mt-0.5 text-xs">{chips.join(", ")}</p>
       )}
       {lead && <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs">{lead.why}</p>}
       {row.conflicts.map((c) => (

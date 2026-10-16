@@ -179,7 +179,7 @@ describe("RecommendationsPanel — a draft (Y2b)", () => {
     render(<RecommendationsPanel {...props()} />);
     await flush();
     expect(
-      screen.getByText("Suggestions are rate-limited for a moment — try again shortly."),
+      screen.getByText("Suggestions are rate-limited for a moment. Try again shortly."),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
@@ -274,7 +274,7 @@ describe("RecommendationsPanel — a saved deck (P3.2)", () => {
       screen.getAllByText("Completes a combo with Basalt Monolith: infinite colorless mana"),
     ).toHaveLength(1);
     // Source names follow the same order (strongest first).
-    expect(screen.getByText("Commander Spellbook · Curve template")).toBeTruthy();
+    expect(screen.getByText("Commander Spellbook, Curve template")).toBeTruthy();
     expect(screen.getByText("EDHREC · $0.40")).toBeTruthy();
 
     fireEvent.click(
@@ -327,7 +327,7 @@ describe("RecommendationsPanel — a saved deck (P3.2)", () => {
     await flush();
     expect(onAdd).not.toHaveBeenCalled();
     expect(
-      screen.getByText("Couldn't load Arcane Signet — try adding it from search."),
+      screen.getByText("Couldn't load Arcane Signet. Try adding it from search."),
     ).toBeTruthy();
   });
 
@@ -343,7 +343,7 @@ describe("RecommendationsPanel — a saved deck (P3.2)", () => {
     fireEvent.click(screen.getByRole("button", { name: "≤ $5 a card" }));
     await flush();
     expect(
-      screen.getByText("No suggestions with a known price of $5 or less — try a wider budget."),
+      screen.getByText("No suggestions with a known price of $5 or less. Try a wider budget."),
     ).toBeTruthy();
   });
 
@@ -396,17 +396,17 @@ describe("RecommendationsPanel — goals (Y6a)", () => {
     render(<RecommendationsPanel {...saved({ goals: goals2, onChangeGoals })} />);
     await flush();
     const line = document.querySelector('[data-slot="goals-line"]')!;
-    expect(line.textContent).toBe("Your goals: Bracket 2 (Core) · ≤ $5 a card · Change");
+    expect(line.textContent).toBe("Your goals: Bracket 2 (Core), ≤ $5 a card Change");
     fireEvent.click(screen.getByRole("button", { name: "Change" }));
     expect(onChangeGoals).toHaveBeenCalledTimes(1);
   });
 
-  it("with no goals it is the door to a target (LATER row 175): No bracket target yet · Set one", async () => {
+  it("with no goals it is the door to a target (LATER row 175): No bracket target yet Set one", async () => {
     const onChangeGoals = vi.fn();
     const view = render(<RecommendationsPanel {...saved({ onChangeGoals })} />);
     await flush();
     expect(document.querySelector('[data-slot="goals-line"]')!.textContent).toBe(
-      "No bracket target yet · Set one",
+      "No bracket target yet Set one",
     );
     fireEvent.click(screen.getByRole("button", { name: "Set one" }));
     expect(onChangeGoals).toHaveBeenCalledTimes(1);
@@ -469,11 +469,11 @@ describe("RecommendationsPanel — goals (Y6a)", () => {
       hidden: [
         hiddenRec(
           "Rhystic Study",
-          "A Game Changer (Wizards' list) — your Bracket 2 target allows none",
+          "A Game Changer (Wizards' list). Your Bracket 2 target allows none",
         ),
         hiddenRec(
           "Cyclonic Rift",
-          "A Game Changer (Wizards' list) — your Bracket 2 target allows none",
+          "A Game Changer (Wizards' list). Your Bracket 2 target allows none",
         ),
       ],
       combosTruncated: false,
@@ -489,7 +489,7 @@ describe("RecommendationsPanel — goals (Y6a)", () => {
     expect(list.querySelectorAll('li[data-goals="hidden"]')).toHaveLength(2);
     expect(list.textContent).toContain("Rhystic Study");
     expect(list.textContent).toContain(
-      "A Game Changer (Wizards' list) — your Bracket 2 target allows none",
+      "A Game Changer (Wizards' list). Your Bracket 2 target allows none",
     );
     expect(screen.getByRole("button", { name: "Hide" }).getAttribute("aria-expanded")).toBe("true");
     // A hidden card can still be added — it's the owner's deck.
@@ -509,13 +509,13 @@ describe("RecommendationsPanel — goals (Y6a)", () => {
             {
               rule: "game-changers",
               source: "Wizards' Game Changers list (via Scryfall)",
-              why: "Would make this deck at least Bracket 3 — a Game Changer (Wizards' list)",
+              why: "Would make this deck at least Bracket 3: a Game Changer (Wizards' list)",
               severity: "flag",
             },
             {
               rule: "budget",
               source: "Card price",
-              why: "Costs $45.00 — over your ≤ $5 a card budget",
+              why: "Costs $45.00, over your ≤ $5 a card budget",
               severity: "flag",
             },
           ],
@@ -529,8 +529,8 @@ describe("RecommendationsPanel — goals (Y6a)", () => {
     const row = screen.getByText("Arcane Signet").closest("li")!;
     expect(row.getAttribute("data-goals")).toBe("flagged");
     expect([...row.querySelectorAll("[data-conflict]")].map((p) => p.textContent)).toEqual([
-      "Would make this deck at least Bracket 3 — a Game Changer (Wizards' list)",
-      "Costs $45.00 — over your ≤ $5 a card budget",
+      "Would make this deck at least Bracket 3: a Game Changer (Wizards' list)",
+      "Costs $45.00, over your ≤ $5 a card budget",
     ]);
     expect(screen.getByText(/Combo checks stopped at the most popular combos/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Show" })).toBeNull();
@@ -576,7 +576,7 @@ describe("RecommendationsPanel — goals (Y6a)", () => {
       hidden: [
         hiddenRec(
           "Rhystic Study",
-          "A Game Changer (Wizards' list) — your Bracket 2 target allows none",
+          "A Game Changer (Wizards' list). Your Bracket 2 target allows none",
         ),
       ],
       combosTruncated: false,

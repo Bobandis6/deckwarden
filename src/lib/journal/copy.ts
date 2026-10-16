@@ -70,10 +70,10 @@ export const JOURNAL_COPY = {
   signInWhy: "Your games are kept on your account, with the exact list you played.",
   /** The played allowance, disclosed up front (WAVE4 §F: 100 per deck). */
   keepsList: (allowance: number) =>
-    `Each game keeps the exact list you played — reused when you've saved or played that list before. History keeps up to ${allowance} played lists per deck; they never count against your saved versions.`,
+    `Each game keeps the exact list you played, reused when you've saved or played that list before. History keeps up to ${allowance} played lists per deck; they never count against your saved versions.`,
   /** At the allowance, before logging. */
   atAllowance: (allowance: number) =>
-    `This deck keeps ${allowance} played lists — the most it can. A game on a list it hasn't kept yet logs without one.`,
+    `This deck keeps ${allowance} played lists, the most it can. A game on a list it hasn't kept yet logs without one.`,
   /** The toast's line when a game logged without a list of its own. */
   capped: (allowance: number) =>
     `This deck already keeps ${allowance} played lists, so this game keeps no list of its own.`,
@@ -82,8 +82,8 @@ export const JOURNAL_COPY = {
   flushFailed: "Your latest changes didn't save, so the game wasn't logged. Try again.",
   turnRange: "The turn it ended is a whole number from 1 to 99.",
   logFailed: (status: number) => `Couldn't log the game (${status}). Try again.`,
-  offline: "Couldn't log the game — check your connection and try again.",
-  undoFailed: "Couldn't undo — the game is still logged.",
+  offline: "Couldn't log the game. Check your connection and try again.",
+  undoFailed: "Couldn't undo. The game is still logged.",
   loadFailed: (status: number) => `Couldn't load your games (${status}).`,
   /** The note a played snapshot carries in History. */
   playedNote: (playedOn: string) => `Played ${playedDateLabel(playedOn)}`,
@@ -140,15 +140,15 @@ export const JOURNAL_COPY = {
   /** The list never moves in an edit (PATCH changes the details only). */
   playedWith: (version: number | null) =>
     version !== null
-      ? `Played with v${version} — an edit never changes the list.`
-      : "Logged with no list kept — an edit never changes that.",
+      ? `Played with v${version}. An edit never changes the list.`
+      : "Logged with no list kept. An edit never changes that.",
   editFailed: (status: number) => `Couldn't save the changes (${status}). Try again.`,
   deleteFailed: (status: number) => `Couldn't delete the game (${status}). Try again.`,
-  editOffline: "Couldn't reach Deckwarden — check your connection and try again.",
+  editOffline: "Couldn't reach Deckwarden. Check your connection and try again.",
   /** Said under "Recent games" when an edit lands. */
   edited: "Saved the changes to that game.",
   deleted: "Deleted that game.",
-  /** One recent game: "Oct 10 · Won · 4 players · v12". */
+  /** One recent game: "Oct 10 · Won, 4 players, v12" (one dot a line: the rest as a comma list). */
   gameLine: (game: {
     playedOn: string;
     result: GameResult;
@@ -157,12 +157,12 @@ export const JOURNAL_COPY = {
     seatPhrase: string | null;
     version: number | null;
     onePod: boolean;
-  }) =>
-    [
-      playedDateLabel(game.playedOn, false),
-      RESULT_WORD[game.result],
+  }) => {
+    const rest = [
       ...(game.onePod ? [] : [`${game.podSize} players`]),
       ...(game.seatPhrase ? [game.seatPhrase] : []),
       game.version !== null ? `v${game.version}` : "no list kept",
-    ].join(" · "),
+    ];
+    return `${playedDateLabel(game.playedOn, false)} · ${RESULT_WORD[game.result]}, ${rest.join(", ")}`;
+  },
 } as const;

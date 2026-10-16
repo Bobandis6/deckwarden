@@ -69,8 +69,8 @@ export function PrivateShareGate({ deckId }: { deckId: string }) {
       ) : (
         <>
           <p className="max-w-md text-center">
-            This deck is private. Only the browser that built it — or the signed-in account that
-            owns it — can view it.
+            This deck is private. Only the browser that built it, or the signed-in account that owns
+            it, can view it.
           </p>
           <Button nativeButton={false} variant="outline" render={<Link href="/" />}>
             Back to Deckwarden

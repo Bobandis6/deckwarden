@@ -162,7 +162,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
           </div>
           <p className="text-muted-foreground mt-1">
             {adapter.display.subtitle(card)}
-            {statLine ? ` · ${statLine}` : ""}
+            {statLine ? <span className="block">{statLine}</span> : null}
           </p>
 
           <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
@@ -275,7 +275,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
                       <span className="font-semibold tabular-nums">
                         {ordinal(finish.placement)}
                       </span>{" "}
-                      <span className="text-muted-foreground">of {finish.playerCount}</span> —{" "}
+                      <span className="text-muted-foreground">of {finish.playerCount}</span> at{" "}
                       {/* W10: the event name goes to our event page; the external
                           source link stays on every row (attribution + smoke pin). */}
                       <Link
@@ -295,8 +295,10 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
                     </span>
                     <span className="text-muted-foreground block text-xs">
                       {eventDateLabel(finish.startDate)}
-                      {record && <span title="wins–losses–ties"> · {record}</span>}
-                      {finish.playerName && <> · by {finish.playerName}</>}
+                      {(record || finish.playerName) && " · "}
+                      {record && <span title="wins–losses–ties">{record}</span>}
+                      {record && finish.playerName && " "}
+                      {finish.playerName && `by ${finish.playerName}`}
                     </span>
                   </span>
                   {finish.decklistUrl && (
@@ -350,7 +352,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
       <p className="text-muted-foreground mt-12 text-xs">
         ©Eiichiro Oda/Shueisha, Toei Animation · ONE PIECE CARD GAME ©BANDAI. Deckwarden is
         unofficial fan content, not affiliated with or endorsed by Bandai, Shueisha, or Toei
-        Animation. No official card-data API exists for the One Piece Card Game —{" "}
+        Animation. No official card-data API exists for the One Piece Card Game:{" "}
         <Link href="/legal#one-piece" className="underline">
           how we source this data
         </Link>

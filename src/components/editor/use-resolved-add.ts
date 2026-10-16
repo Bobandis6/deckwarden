@@ -53,7 +53,7 @@ export function useResolvedAdd(
         const json: { results: { match: CardWire | null }[] } = await res.json();
         const match = json.results[0]?.match;
         if (!match || match.id !== target.cardId) {
-          throw new Error(`Couldn't load ${target.name} — try adding it from search.`);
+          throw new Error(`Couldn't load ${target.name}. Try adding it from search.`);
         }
         card = toEditorCard(match);
         cacheRef.current.set(target.cardId, card);
@@ -63,7 +63,7 @@ export function useResolvedAdd(
       else if (announce) setNotice({ text: `Added ${target.name}`, tone: "ok" });
     } catch (err) {
       setNotice({
-        text: err instanceof Error ? err.message : "Add failed — check your connection.",
+        text: err instanceof Error ? err.message : "Add failed. Check your connection.",
         tone: "err",
       });
     } finally {

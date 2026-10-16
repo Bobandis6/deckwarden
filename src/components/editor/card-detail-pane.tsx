@@ -474,7 +474,7 @@ function PrintingsList({
       </ul>
       {truncated && (
         <p className="text-muted-foreground mt-1 text-xs">
-          Showing {rows.length} of {total} printings — newest first
+          Showing {rows.length} of {total} printings, newest first
         </p>
       )}
       {printing && (

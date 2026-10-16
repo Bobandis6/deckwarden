@@ -158,7 +158,7 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
     // Y2b: the start doors' precon door (the W8b index, then a product's
     // "Start from this precon").
     preconBrowse: { href: "/precons", label: "Start from a precon" },
-    searchPlaceholder: "Add cards — try “4 Sol Ring”",
+    searchPlaceholder: "Add cards: try “4 Sol Ring”",
     importPlaceholder:
       "1 Sol Ring\n1 Arcane Signet (AFC) 95\n…paste from Moxfield, Arena, Archidekt, anywhere.",
   },
@@ -171,8 +171,8 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
   hub: {
     templateTitle: "A typical Commander deck",
     roles: [
-      { label: "Lands", count: 37, hint: "36–38 for most decks; fewer with cheap curves" },
-      { label: "Ramp", count: 10, hint: "mana rocks, dorks, land ramp — mostly 2–3 mana" },
+      { label: "Lands", count: 37, hint: "36 to 38 for most decks; fewer with cheap curves" },
+      { label: "Ramp", count: 10, hint: "mana rocks, dorks, land ramp, mostly 2 to 3 mana" },
       { label: "Card draw", count: 10, hint: "repeatable engines beat one-shot cantrips" },
       {
         label: "Targeted removal",

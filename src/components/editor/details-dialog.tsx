@@ -43,7 +43,7 @@ export function DetailsDialog({
   const confirmDelete = async () => {
     if (deleting) return;
     const label = deckName.trim() === "" ? "this deck" : `“${deckName.trim()}”`;
-    if (!window.confirm(`Delete ${label}? This is immediate and permanent — there is no undo.`)) {
+    if (!window.confirm(`Delete ${label}? This is immediate and permanent. There is no undo.`)) {
       return;
     }
     setDeleting(true);
@@ -68,7 +68,7 @@ export function DetailsDialog({
           onChange={(e) => onChange({ ...details, description: e.target.value })}
           rows={2}
           maxLength={4000}
-          placeholder="One or two sentences — this is what link previews and search results show."
+          placeholder="One or two sentences. This is what link previews and search results show."
           className="border-input focus-visible:ring-ring/50 mt-1 w-full resize-y rounded-md border bg-transparent px-2 py-1.5 text-sm outline-none focus-visible:ring-2"
         />
       </div>

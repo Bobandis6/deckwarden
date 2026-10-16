@@ -74,7 +74,7 @@ describe("/sets", () => {
     const html = renderToString(await SetsPage());
     expect(html).toContain('aria-current="page"');
     // React separates adjacent text nodes with an empty comment.
-    expect(html).toMatch(/One Piece(<!-- -->)? — soon/);
+    expect(html).toMatch(/One Piece(<!-- -->)? \(soon\)/);
     expect(html).toContain("One Piece sets are coming.");
     expect(html).not.toMatch(/href="[^"]*game=optcg/);
   });

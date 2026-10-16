@@ -84,35 +84,35 @@ describe("shellGoals — each card against the kept list and the picks so far", 
     expect(why(g, gcs[0])).toEqual([]);
     expect(why(g, gcs[2], gcs.slice(0, 2))).toEqual([]);
     expect(why(g, gcs[3], gcs.slice(0, 3))).toEqual([
-      "A fourth Game Changer (Wizards' list) — your Bracket 3 target allows up to three",
+      "A fourth Game Changer (Wizards' list). Your Bracket 3 target allows up to three",
     ]);
     // Two kept: one more fits, a second doesn't.
     const kept = gate(3, gcs.slice(0, 2));
     expect(why(kept, gcs[2])).toEqual([]);
     expect(why(kept, gcs[3], [gcs[2]])).toEqual([
-      "A fourth Game Changer (Wizards' list) — your Bracket 3 target allows up to three",
+      "A fourth Game Changer (Wizards' list). Your Bracket 3 target allows up to three",
     ]);
   });
 
   it("Game Changers at targets 1 and 2: none", () => {
     for (const t of [1, 2]) {
       expect(why(gate(t), gcs[0])).toEqual([
-        `A Game Changer (Wizards' list) — your Bracket ${t} target allows none`,
+        `A Game Changer (Wizards' list). Your Bracket ${t} target allows none`,
       ]);
     }
   });
 
   it("extra turns: none at 1; one at 2 and 3 — a kept one counts", () => {
     expect(why(gate(1), turns[0])).toEqual([
-      "An extra-turn card — Bracket 1 expects none (Scryfall Tagger)",
+      "An extra-turn card. Bracket 1 expects none (Scryfall Tagger)",
     ]);
     for (const t of [2, 3]) {
       expect(why(gate(t), turns[0])).toEqual([]);
       expect(why(gate(t), turns[1], [turns[0]])).toEqual([
-        "A second extra-turn card — Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
+        "A second extra-turn card. Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
       ]);
       expect(why(gate(t, [turns[0]]), turns[1])).toEqual([
-        "A second extra-turn card — Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
+        "A second extra-turn card. Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
       ]);
     }
   });
@@ -120,10 +120,10 @@ describe("shellGoals — each card against the kept list and the picks so far", 
   it("mass land denial at targets 1–3, clear or edge; nothing at 4", () => {
     for (const t of [1, 2, 3]) {
       expect(why(gate(t), armageddon)).toEqual([
-        "Mass land denial — Wizards expects none at Brackets 1–3 (Scryfall Tagger)",
+        "Mass land denial. Wizards expects none at Brackets 1 to 3 (Scryfall Tagger)",
       ]);
       expect(why(gate(t), liliana)).toEqual([
-        "Possible mass land denial, your call — Wizards expects none at Brackets 1–3 (Scryfall Tagger)",
+        "Possible mass land denial, your call. Wizards expects none at Brackets 1 to 3 (Scryfall Tagger)",
       ]);
     }
     expect(why(gate(4), armageddon)).toEqual([]);
@@ -133,7 +133,7 @@ describe("shellGoals — each card against the kept list and the picks so far", 
   it("two picks that complete a combo together: the second is caught, whichever comes first", () => {
     const g = gate(2);
     const line =
-      "Completes a two-card combo — Wizards expects none at Brackets 1 and 2 (Commander Spellbook)";
+      "Completes a two-card combo. Wizards expects none at Brackets 1 and 2 (Commander Spellbook)";
     expect(why(g, pieceB)).toEqual([]);
     expect(why(g, pieceB, [pieceA])).toEqual([line]);
     expect(why(g, pieceA, [pieceB])).toEqual([line]);

@@ -13,9 +13,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 const VISIBILITY_HINTS: Record<string, string> = {
-  public: "Public — on your profile",
-  unlisted: "Unlisted — link only",
-  private: "Private — only you",
+  public: "Public: on your profile",
+  unlisted: "Unlisted: link only",
+  private: "Private: only you",
 };
 
 export function FolderControls({
@@ -51,7 +51,7 @@ export function FolderControls({
       setRenaming(false);
       router.refresh();
     } catch {
-      setError("Couldn't update — try again.");
+      setError("Couldn't update. Try again.");
     } finally {
       setBusy(false);
     }
@@ -72,7 +72,7 @@ export function FolderControls({
       }
       router.refresh();
     } catch {
-      setError("Couldn't delete — try again.");
+      setError("Couldn't delete. Try again.");
     } finally {
       setBusy(false);
     }

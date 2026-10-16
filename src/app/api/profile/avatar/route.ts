@@ -46,7 +46,7 @@ export const AVATAR_ERRORS = {
   noArtist:
     "Scryfall lists no artist for this card's art, and art is only shown with its artist. Choose another card.",
   unreachable:
-    "Scryfall didn't answer, so the art couldn't be checked. Your picture hasn't changed — try again in a minute.",
+    "Scryfall didn't answer, so the art couldn't be checked. Your picture hasn't changed. Try again in a minute.",
 } as const;
 
 function refuse(error: string, status: number) {

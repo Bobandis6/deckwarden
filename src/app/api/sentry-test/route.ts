@@ -14,9 +14,9 @@ export function GET() {
   const dsn = process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN;
   if (!dsn) {
     return NextResponse.json(
-      { ok: false, reason: "Sentry DSN not configured — nothing to test." },
+      { ok: false, reason: "Sentry DSN not configured. Nothing to test." },
       { headers: { "Cache-Control": "no-store" } },
     );
   }
-  throw new Error("Deckwarden Sentry test event — everything is fine.");
+  throw new Error("Deckwarden Sentry test event. Everything is fine.");
 }

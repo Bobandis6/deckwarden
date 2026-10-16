@@ -35,8 +35,8 @@
  * blocks, and on each of Your call's questions the owner's answer when the
  * page shows it (a yes or a no the read used; goals.ts' tableGoals).
  *
- * Y6a: the owner's goals line under the lead ("Your goals: Bracket 2 (Core)
- * · ≤ $5 a card · Change" — the budget's only place in the sheet; Y8 adds
+ * Y6a: the owner's goals line under the lead ("Your goals: Bracket 2 (Core),
+ * ≤ $5 a card" and Change — the budget's only place in the sheet; Y8 adds
  * the total's running estimate, "est. $212 of your $150"), its
  * "Change" bringing Your target into view; and `openAt: "target"` (the goals
  * line in Suggestions) opens the sheet with focus on the target's choice.
@@ -560,7 +560,7 @@ function SourceLine({ source, href }: { source: string; href: string | null }) {
 function ComboDetails({ combo, externalUrl }: { combo: CompleteCombo; externalUrl?: ExternalUrl }) {
   return (
     <p className="text-muted-foreground mt-0.5 text-xs">
-      {[...combo.results, BRACKET_COPY.pieces(combo.cardPieces.length)].join(" · ")}
+      {[...combo.results, BRACKET_COPY.pieces(combo.cardPieces.length)].join(", ")}
       {externalUrl && (
         <>
           {" · "}

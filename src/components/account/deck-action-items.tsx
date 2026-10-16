@@ -118,7 +118,7 @@ export function DeckActionItems({
       <DropdownMenuItem onClick={copyShareLink}>
         <Link2Icon aria-hidden />
         {visibility === "private"
-          ? "Copy share link (private — only you can open it)"
+          ? "Copy share link (private, only you can open it)"
           : "Copy share link"}
       </DropdownMenuItem>
       {onLogGame && (

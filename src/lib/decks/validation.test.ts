@@ -99,7 +99,7 @@ describe("toWireIssues (Y2a)", () => {
         {
           code: "ZONE_SIZE",
           severity: "error",
-          message: "Commander must have 1–2 cards (has 0).",
+          message: "Commander must have 1 to 2 cards (has 0).",
           zone: "commander",
         },
         {

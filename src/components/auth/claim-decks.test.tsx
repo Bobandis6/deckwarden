@@ -117,7 +117,7 @@ describe("ClaimDecks with a return path (X1)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
 
     const status = screen.getByRole("status");
-    expect(status.textContent).toBe("Signed in — taking you back… Go now");
+    expect(status.textContent).toBe("Signed in. Taking you back… Go now");
     expect(screen.getByRole("link", { name: "Go now" }).getAttribute("href")).toBe(
       "/d/uwvrnv2pv4t6",
     );
@@ -133,7 +133,7 @@ describe("ClaimDecks with a return path (X1)", () => {
     // The claim is in flight: the visitor is still here, the line already says why.
     await settle();
     expect(router.replace).not.toHaveBeenCalled();
-    expect(screen.getByRole("status").textContent).toBe("Signed in — taking you back… Go now");
+    expect(screen.getByRole("status").textContent).toBe("Signed in. Taking you back… Go now");
 
     await act(async () => claim.claimed([DECK_A, DECK_B]));
     await waitFor(() => expect(router.replace).toHaveBeenCalledTimes(1));

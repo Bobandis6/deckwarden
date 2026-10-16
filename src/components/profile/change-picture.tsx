@@ -155,7 +155,7 @@ function ChangePictureDialog({
       router.refresh();
       onClose();
     } catch {
-      setError("Couldn't save — check your connection and try again.");
+      setError("Couldn't save. Check your connection and try again.");
       setBusy(false);
     }
   };
@@ -166,7 +166,7 @@ function ChangePictureDialog({
     const { error } = await authClient.signIn.social({ provider, callbackURL: "/account" });
     // On success the browser leaves for the provider; reaching here means it didn't.
     if (error) {
-      setError(error.message ?? "Sign-in failed — try again.");
+      setError(error.message ?? "Sign-in failed. Try again.");
       setBusy(false);
     }
   };

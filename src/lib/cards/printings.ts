@@ -72,9 +72,9 @@ export function rarityLabel(rarity: string | null): string | null {
   return rarity;
 }
 
-/** The D4 caption line: "CMM · #410 · Unc." — preview popups and the drawer. */
+/** The D4 caption line: "CMM #410 · Unc." (U9: one dot a line) — preview popups and the drawer. */
 export function printingCaption(p: GalleryPrinting): string {
-  const parts = [`${p.setCode.toUpperCase()} · #${p.collectorNumber}`];
+  const parts = [`${p.setCode.toUpperCase()} #${p.collectorNumber}`];
   const rarity = rarityLabel(p.rarity);
   if (rarity) parts.push(rarity);
   return parts.join(" · ");

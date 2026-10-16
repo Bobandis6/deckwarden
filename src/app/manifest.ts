@@ -22,7 +22,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Deckwarden",
     short_name: "Deckwarden",
     description:
-      "Build, analyze, and share Magic: The Gathering Commander and One Piece Card Game decks — no account needed.",
+      "Build, analyze, and share Magic: The Gathering Commander and One Piece Card Game decks. No account needed.",
     start_url: "/",
     display: "standalone",
     background_color: dark.background,

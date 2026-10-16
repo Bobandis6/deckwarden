@@ -113,7 +113,7 @@ const shell = {
     { id: "base", label: "Lands", picks: 12 },
     { id: "curve-2", label: "Mana value 2", picks: 1 },
   ],
-  notes: ["Filled 13 of 99 — too few candidates in Mana value 5."],
+  notes: ["Filled 13 of 99. Too few candidates in Mana value 5."],
   totals: { picks: 13, estUsd: 1.76, unpriced: 0 },
   issues: [{ code: "DECK_SIZE", severity: "warning", message: "Deck has 14 of 100 cards." }],
   cards: [leaderWire, tower, wastes, signet],
@@ -203,7 +203,7 @@ describe("AutofillSheet", () => {
     // One row per pick entry: the filler rides its quantity (D8 pin).
     expect(screen.getByRole("link", { name: "Wastes × 11" })).toBeTruthy();
     // Note + issue verbatim; evidence sentence with the REQUIRED source credit.
-    expect(screen.getByText("Filled 13 of 99 — too few candidates in Mana value 5.")).toBeTruthy();
+    expect(screen.getByText("Filled 13 of 99. Too few candidates in Mana value 5.")).toBeTruthy();
     expect(screen.getByText("Deck has 14 of 100 cards.")).toBeTruthy();
     const credit = screen.getByRole("link", { name: "Topdeck.gg" });
     expect(credit.getAttribute("href")).toBe("https://topdeck.gg");
@@ -287,7 +287,7 @@ describe("AutofillSheet", () => {
     }));
     render(sheet());
     expect(
-      await screen.findByText("Too many autofill requests — try again in 7 seconds."),
+      await screen.findByText("Too many autofill requests. Try again in 7 seconds."),
     ).toBeTruthy();
     const retry = screen.getByRole("button", { name: "Retry" });
     // Disabled with a reason (U1): focusable and hoverable, so the title shows.
@@ -327,7 +327,7 @@ describe("AutofillSheet", () => {
     expect(screen.getByRole("dialog", { name: "Build around this combo" })).toBeTruthy();
     expect(
       screen.getByText(
-        "Atraxa, Praetors' Voice + Zealous Conscripts. The rest comes from real decklists and tournament results — every pick shows why.",
+        "Atraxa, Praetors' Voice + Zealous Conscripts. The rest comes from real decklists and tournament results. Every pick shows why.",
       ),
     ).toBeTruthy();
     await screen.findByText("Lands · 12");
@@ -443,7 +443,7 @@ describe("AutofillSheet — the deck's goals (Y6b)", () => {
   it("the goals line reads above the controls — no Change (the Why sheet is another dialog), no Save", async () => {
     render(sheet({ goals: { v: 1, targetLevel: 2, budget: { perCardUsd: 5 } } }));
     await screen.findByText("Lands · 12");
-    expect(goalsLine()?.textContent).toBe("Your goals: Bracket 2 (Core) · ≤ $5 a card");
+    expect(goalsLine()?.textContent).toBe("Your goals: Bracket 2 (Core), ≤ $5 a card");
     expect(screen.queryByRole("button", { name: "Change" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Save as this deck's budget" })).toBeNull();
   });
@@ -478,16 +478,16 @@ describe("AutofillSheet — the deck's goals (Y6b)", () => {
         ...shell,
         notes: [
           ...shell.notes,
-          "Skipped 4 Game Changers — your Bracket 2 target allows none (Wizards' list)",
+          "Skipped 4 Game Changers. Your Bracket 2 target allows none (Wizards' list)",
         ],
       }),
     );
     render(sheet({ goals: { v: 1, targetLevel: 2 } }));
     expect(
       await screen.findByText(
-        "Skipped 4 Game Changers — your Bracket 2 target allows none (Wizards' list)",
+        "Skipped 4 Game Changers. Your Bracket 2 target allows none (Wizards' list)",
       ),
     ).toBeTruthy();
-    expect(screen.getByText("Filled 13 of 99 — too few candidates in Mana value 5.")).toBeTruthy();
+    expect(screen.getByText("Filled 13 of 99. Too few candidates in Mana value 5.")).toBeTruthy();
   });
 });

@@ -16,7 +16,7 @@ export const mtgSwap: SwapMeta = {
   roles: MTG_ROLES.map((r) => ({ key: r.key, label: r.label, href: taggerTagUrl(r.tag.slug) })),
   source: "scryfall_tagger",
   evidence: (labels) => ({
-    why: `Both: ${labels.join(" · ")} — community-tagged on Scryfall Tagger`,
+    why: `Both: ${labels.join(", ")}. Community-tagged on Scryfall Tagger`,
   }),
   // Lands swap for lands on color and count, which roles can't see — and a
   // land-for-spell swap changes the land count. Neither ships in Y7a.
@@ -35,6 +35,6 @@ export const mtgSwap: SwapMeta = {
   bucketName: (bucketLabel) => `mana value ${bucketLabel}`,
   unmatched: (card) =>
     card.primaryType === "Land"
-      ? "A land gets no suggested partner — which land to cut depends on its colors. Choose the card to cut."
-      : `${card.name} has no mana cost to match — choose the card to cut.`,
+      ? "A land gets no suggested partner. Which land to cut depends on its colors. Choose the card to cut."
+      : `${card.name} has no mana cost to match. Choose the card to cut.`,
 };

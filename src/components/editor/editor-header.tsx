@@ -181,7 +181,7 @@ export function EditorHeader({
         value={deckName}
         onChange={(e) => onNameChange(e.target.value)}
         aria-label="Deck name"
-        placeholder="Untitled — click to name your deck"
+        placeholder="Untitled: click to name your deck"
         maxLength={120}
         className="focus-visible:ring-ring/50 order-last min-w-[8rem] basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 max-md:col-start-2 max-md:row-start-1 max-md:w-full max-md:text-ellipsis max-md:pointer-coarse:min-h-11 lg:order-none lg:flex-1 lg:basis-auto"
       />

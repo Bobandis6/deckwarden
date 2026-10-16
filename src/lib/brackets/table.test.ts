@@ -273,7 +273,7 @@ describe("Copy for the table — D6's text", () => {
       tableText({
         deckName: "Sram — Budget Armory",
         formatLabel: COMMANDER.label,
-        line: "Bracket 1–2 · nothing here goes past Core",
+        line: "Bracket 1 to 2 · nothing here goes past Core",
         checkedAt: at,
         timeZone,
         lines: [],
@@ -283,9 +283,9 @@ describe("Copy for the table — D6's text", () => {
         url,
       }).split("\n")[1];
     expect(second("America/Chicago")).toBe(
-      "Bracket 1–2 · nothing here goes past Core · checked Oct 9, 2026",
+      "Bracket 1 to 2 · nothing here goes past Core (checked Oct 9, 2026)",
     );
-    expect(second()).toBe("Bracket 1–2 · nothing here goes past Core · checked Oct 10, 2026");
+    expect(second()).toBe("Bracket 1 to 2 · nothing here goes past Core (checked Oct 10, 2026)");
   });
 
   it("the fixture, line for line, every source named", () => {
@@ -296,8 +296,8 @@ describe("Copy for the table — D6's text", () => {
       answers: { rulesetVersion: v, play: { fast: "no" } },
     });
     expect(text.split("\n")).toEqual([
-      "Atraxa Superfriends — Commander",
-      "Played as Bracket 3 (Upgraded) · the cards say at least 3 · checked Oct 5, 2026",
+      "Atraxa Superfriends · Commander",
+      "Played as Bracket 3 (Upgraded) · the cards say at least 3 (checked Oct 5, 2026)",
       "Game Changers (Wizards' list): Cyclonic Rift, Rhystic Study",
       "Combos (Commander Spellbook): none found",
       "Land denial / extra turns (Scryfall Tagger): none",
@@ -311,8 +311,8 @@ describe("Copy for the table — D6's text", () => {
   it("no target, no answers, no exceptions: those lines are absent, never 'none'", () => {
     const text = copied(list([]), null);
     expect(text.split("\n")).toEqual([
-      "Atraxa Superfriends — Commander",
-      "Bracket 1–2 · nothing here goes past Core · checked Oct 5, 2026",
+      "Atraxa Superfriends · Commander",
+      "Bracket 1 to 2 · nothing here goes past Core (checked Oct 5, 2026)",
       "Game Changers (Wizards' list): none",
       "Combos (Commander Spellbook): none found",
       "Land denial / extra turns (Scryfall Tagger): none",
@@ -342,7 +342,7 @@ describe("Copy for the table — D6's text", () => {
       note: brackets.tableNote,
       url,
     }).split("\n");
-    expect(text[1]).toBe("Bracket 3 (Upgraded) — from the cards and the owner's answers");
+    expect(text[1]).toBe("Bracket 3 (Upgraded) · from the cards and the owner's answers");
     expect(text).toContain(
       "Combos (Commander Spellbook): Kiki-Jiki, Mirror Breaker + Zealous Conscripts",
     );
@@ -350,7 +350,7 @@ describe("Copy for the table — D6's text", () => {
       "Land denial / extra turns (Scryfall Tagger): Temporal Manipulation, Time Warp",
     );
     expect(text).toContain(
-      "Owner's call: Do these extra turns chain? No — Temporal Manipulation, Time Warp",
+      "Owner's call: Do these extra turns chain? No: Temporal Manipulation, Time Warp",
     );
     expect(text).toContain("Plan (owner): Copy creatures forever.");
     expect(text.join("\n")).not.toContain("Second paragraph");

@@ -54,14 +54,14 @@ export async function generateMetadata({
     return {
       title: "One Piece tournaments",
       description:
-        "Recent One Piece Card Game tournament results — top-16 finishes at 16+ player events, from Limitless.",
+        "Recent One Piece Card Game tournament results: top-16 finishes at 16+ player events, from Limitless.",
       alternates: { canonical: "/tournaments?game=optcg" },
     };
   }
   return {
     title: "Tournaments",
     description:
-      "Recent Commander tournament results — top-16 finishes at 16+ player events, from Topdeck.gg.",
+      "Recent Commander tournament results: top-16 finishes at 16+ player events, from Topdeck.gg.",
     alternates: { canonical: "/tournaments" },
   };
 }
@@ -157,7 +157,7 @@ export default async function TournamentsPage({ searchParams }: PageProps<"/tour
                         <span className="font-semibold tabular-nums">
                           {ordinal(finish.placement)}
                         </span>{" "}
-                        <span className="text-muted-foreground">of {finish.playerCount}</span> —{" "}
+                        <span className="text-muted-foreground">of {finish.playerCount}</span> at{" "}
                         <Link
                           href={`/tournaments/${finish.tournamentId}`}
                           className="font-medium underline-offset-2 hover:underline"
@@ -167,8 +167,10 @@ export default async function TournamentsPage({ searchParams }: PageProps<"/tour
                       </span>
                       <span className="text-muted-foreground block text-xs">
                         {eventDateLabel(finish.startDate)}
-                        {record && <span title="wins–losses–draws"> · {record}</span>}
-                        {finish.playerName && <> · by {finish.playerName}</>}
+                        {(record || finish.playerName) && " · "}
+                        {record && <span title="wins–losses–draws">{record}</span>}
+                        {record && finish.playerName && " "}
+                        {finish.playerName && `by ${finish.playerName}`}
                       </span>
                     </span>
                     {finish.decklistUrl && (

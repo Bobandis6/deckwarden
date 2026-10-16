@@ -125,7 +125,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
 
       {sessionUserId === user.id && (
         <p className="text-muted-foreground mt-4 rounded-lg border px-3 py-2 text-sm">
-          This is your public profile — only public decks and folders appear here. Manage them in{" "}
+          This is your public profile. Only public decks and folders appear here. Manage them in{" "}
           <Link href="/account" className="underline">
             your account
           </Link>

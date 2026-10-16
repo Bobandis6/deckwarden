@@ -117,16 +117,16 @@ export function journalIssue(meta: JournalMeta, game: GameFields): string | null
   if (game.podSize < pod.min || game.podSize > pod.max) {
     return pod.min === pod.max
       ? `A game here has ${pod.min} players`
-      : `A game here has ${pod.min}–${pod.max} players`;
+      : `A game here has ${pod.min} to ${pod.max} players`;
   }
   if (game.seat !== null && !meta.seats(game.podSize).some((s) => s.seat === game.seat)) {
-    return `Seat must be 1–${game.podSize}`;
+    return `Seat must be 1 to ${game.podSize}`;
   }
   if (game.tableLevel !== null) {
     if (!meta.tableLevel) return "This game has no table level";
     if (!meta.tableLevel.levels.some((l) => l.level === game.tableLevel)) {
       const levels = meta.tableLevel.levels;
-      return `The ${meta.tableLevel.noun} must be ${levels[0].level}–${levels[levels.length - 1].level}`;
+      return `The ${meta.tableLevel.noun} must be ${levels[0].level} to ${levels[levels.length - 1].level}`;
     }
   }
   if (game.opponents !== null) {

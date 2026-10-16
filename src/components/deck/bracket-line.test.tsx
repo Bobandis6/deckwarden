@@ -131,7 +131,7 @@ const scombo: CompleteCombo = {
 describe("Y4b — the target and the answers, rendered", () => {
   it("D5's 'Target below the cards' row, in plain words", () => {
     renderLine(spec([rhystic]), { targetLevel: 2 });
-    expect(lineText()).toBe("Your target: Bracket 2 · the cards say at least 3 · Why?");
+    expect(lineText()).toBe("Your target: Bracket 2 · the cards say at least 3 Why?");
   });
 
   it("with answers: settled, and with a call still open", () => {
@@ -139,7 +139,7 @@ describe("Y4b — the target and the answers, rendered", () => {
       combos: [scombo],
       answers: { rulesetVersion: 1, calls: { "combo:2552-3263": "yes" } },
     });
-    expect(lineText()).toBe("Bracket 4 (Optimized) — from the cards and your answers · Why?");
+    expect(lineText()).toBe("Bracket 4 (Optimized) · from the cards and your answers Why?");
   });
 
   it("answers from older rules ask for a second look before Why? — and still count", () => {
@@ -148,7 +148,7 @@ describe("Y4b — the target and the answers, rendered", () => {
       answers: { rulesetVersion: 0, calls: { "combo:2552-3263": "yes" } },
     });
     expect(lineText()).toBe(
-      "Bracket 4 (Optimized) — from the cards and your answers · Rules changed since you answered · Why?",
+      "Bracket 4 (Optimized) · from the cards and your answers. Rules changed since you answered Why?",
     );
   });
 
@@ -157,15 +157,15 @@ describe("Y4b — the target and the answers, rendered", () => {
     expect(lineText()).toBe("Bracket: add 60 more cards");
     unmount();
     renderLine(spec([], 40), { targetLevel: 2 });
-    expect(lineText()).toBe("Bracket: add 60 more cards · Why?");
+    expect(lineText()).toBe("Bracket: add 60 more cards Why?");
   });
 });
 
 describe("D5's line table, rendered", () => {
   it.each([
-    ["Nothing flagged", spec([]), "Bracket 1–2 · nothing here goes past Core · Why?"],
-    ["A minimum of 3", spec([rhystic]), "At least Bracket 3 (Upgraded) · Why?"],
-    ["A minimum of 4", spec([rhystic, ...gcs]), "At least Bracket 4 (Optimized) · Why?"],
+    ["Nothing flagged", spec([]), "Bracket 1 to 2 · nothing here goes past Core Why?"],
+    ["A minimum of 3", spec([rhystic]), "At least Bracket 3 (Upgraded) Why?"],
+    ["A minimum of 4", spec([rhystic, ...gcs]), "At least Bracket 4 (Optimized) Why?"],
   ])("%s", (_label, list, expected) => {
     renderLine(list);
     expect(lineText()).toBe(expected);
@@ -173,7 +173,7 @@ describe("D5's line table, rendered", () => {
 
   it("Your call pending", () => {
     renderLine(spec(pieces), { combos: [scombo] });
-    expect(lineText()).toBe("Bracket 3 or 4 — one combo is your call · Why?");
+    expect(lineText()).toBe("Bracket 3 or 4 · one combo is your call Why?");
   });
 
   it("Draft — while the facts land it is D5's line exactly; once they're in, Why? follows what it found", () => {
@@ -181,7 +181,7 @@ describe("D5's line table, rendered", () => {
     expect(lineText()).toBe("Bracket: add 34 more cards · 1 Game Changer so far");
     unmount();
     renderLine(spec([rhystic], 66));
-    expect(lineText()).toBe("Bracket: add 34 more cards · 1 Game Changer so far · Why?");
+    expect(lineText()).toBe("Bracket: add 34 more cards · 1 Game Changer so far Why?");
   });
 
   it("a draft that found nothing offers no Why? (there's nothing to explain yet)", () => {
@@ -206,7 +206,7 @@ describe("D5's line table, rendered", () => {
   it("Failure — Retry asks again", () => {
     const onRetry = vi.fn();
     renderLine(spec([rhystic]), { facts: "failed", combos: null, onRetry });
-    expect(lineText()).toBe("Couldn't check combos · Retry");
+    expect(lineText()).toBe("Couldn't check combos Retry");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
@@ -215,7 +215,7 @@ describe("D5's line table, rendered", () => {
 describe("the two lines Y4a adds", () => {
   it("a minimum of 2", () => {
     renderLine(spec([timeWarp]));
-    expect(lineText()).toBe("At least Bracket 2 (Core) · Why?");
+    expect(lineText()).toBe("At least Bracket 2 (Core) Why?");
   });
 
   it("a read that couldn't check everything: its floor, the gap, and Why? (Retry can't fix a stale feed)", () => {
@@ -239,13 +239,13 @@ describe("the two lines Y4a adds", () => {
         onRetry={() => {}}
       />,
     );
-    expect(lineText()).toBe("At least Bracket 3 (Upgraded) · Couldn't check extra turns · Why?");
+    expect(lineText()).toBe("At least Bracket 3 (Upgraded) · Couldn't check extra turns Why?");
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 
   it("too many cards to ask about: the read says it couldn't check combos, with Why?", () => {
     renderLine(spec([]), { facts: "over", combos: null });
-    expect(lineText()).toBe("Bracket read incomplete · Couldn't check combos · Why?");
+    expect(lineText()).toBe("Bracket read incomplete · Couldn't check combos Why?");
   });
 });
 
@@ -336,14 +336,14 @@ describe("the status slot (U3a, WAVE5 D4; the share page's too since U6)", () =>
     [
       "Nothing flagged",
       spec([]),
-      "Bracket 1–2",
-      "Bracket 1–2 · nothing here goes past Core · Why?",
+      "Bracket 1 to 2",
+      "Bracket 1 to 2 · nothing here goes past Core Why?",
     ],
     [
       "A minimum of 3",
       spec([rhystic]),
       "At least Bracket 3 (Upgraded)",
-      "At least Bracket 3 (Upgraded) · Why?",
+      "At least Bracket 3 (Upgraded) Why?",
     ],
   ])(
     "%s: the words are unchanged; the bracket number reads foreground medium, the rest muted",
@@ -364,18 +364,18 @@ describe("the status slot (U3a, WAVE5 D4; the share page's too since U6)", () =>
     expect(line().querySelector("span > span")).toBeNull();
     unmount();
     renderLine(spec([rhystic]), { facts: "failed", combos: null });
-    expect(lineText()).toBe("Couldn't check combos · Retry");
+    expect(lineText()).toBe("Couldn't check combos Retry");
     expect(line().querySelector("span > span")).toBeNull();
   });
 
-  it("Why? is a muted text button, no underline, forward on hover and focus; 44 px on touch without growing the line", () => {
+  it("Why? is a muted text button, underlined (U9: a control after a gap, never a dot), forward on hover and focus; 44 px on touch without growing the line", () => {
     const onWhy = vi.fn();
     renderLine(spec([rhystic]), { onWhy });
     const why = screen.getByRole("button", { name: "Why?" });
     expect(why.className).toContain("text-muted-foreground");
     expect(why.className).toContain("hover:text-foreground");
     expect(why.className).toContain("focus-visible:text-foreground");
-    expect(why.className.split(" ")).not.toContain("underline");
+    expect(why.className.split(" ")).toContain("underline");
     expect(why.className).toContain("pointer-coarse:min-h-11");
     expect(why.className).toContain("pointer-coarse:-my-[13px]");
     fireEvent.click(why);

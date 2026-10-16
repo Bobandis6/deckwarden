@@ -201,7 +201,7 @@ export async function loadLiveFrozen(executor: DbExecutor, deckId: string): Prom
 export class VersionCapError extends Error {
   constructor() {
     super(
-      `This deck already has ${MAX_VERSIONS_PER_DECK} versions — delete an old one to save another.`,
+      `This deck already has ${MAX_VERSIONS_PER_DECK} versions. Delete an old one to save another.`,
     );
     this.name = "VersionCapError";
   }

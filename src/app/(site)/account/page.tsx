@@ -256,7 +256,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
             {session.user.name}
           </h1>
           <p className="text-muted-foreground truncate text-sm">
-            {profile?.username ? `@${profile.username}` : "No username yet — pick one in Settings"}
+            {profile?.username ? `@${profile.username}` : "No username yet. Pick one in Settings"}
           </p>
           <AvatarCredit avatar={avatar} />
         </div>
@@ -293,7 +293,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
               </div>
               {inFolder.length === 0 ? (
                 <p className="text-muted-foreground rounded-lg border border-dashed px-3 py-2 text-xs">
-                  Empty — file a deck into it with the folder picker on any deck row.
+                  Empty. File a deck into it with the folder picker on any deck row.
                 </p>
               ) : (
                 <DeckTileGrid>
@@ -359,7 +359,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
                     <span className="block truncate text-sm font-medium">{b.name}</span>
                     <span className="text-muted-foreground block text-xs">
                       {formatLabel(b.gameId, b.formatId)}
-                      {b.authorUsername ? ` · by ${b.authorName}` : ""} · Updated{" "}
+                      {b.authorUsername ? `, by ${b.authorName}` : ""} · Updated{" "}
                       {updatedLabel(b.updatedAt)}
                     </span>
                   </Link>

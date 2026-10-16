@@ -200,7 +200,7 @@ describe("applyImport", () => {
     );
     const { entries, warnings } = applyImport([], items, OP_STANDARD, "replace");
     expect(entries.reduce((s, e) => s + e.qty, 0)).toBe(51);
-    expect(warnings).toEqual(["Deck is full — Extra puts it over"]);
+    expect(warnings).toEqual(["Deck is full: Extra puts it over"]);
   });
 
   it("collapses a multi-card spill into ONE grouped warning — the P2.8b wall fix", () => {
@@ -218,7 +218,7 @@ describe("applyImport", () => {
     expect(entries.filter((e) => e.zone === "commander")).toHaveLength(2);
     expect(entries.reduce((s, e) => s + e.qty, 0)).toBe(100);
     expect(warnings).toEqual([
-      "Commander is full — moved 78 cards to Main deck (Abandoned Air Temple, Airbending Lesson, Appa, Steadfast Guardian, …)",
+      "Commander is full: moved 78 cards to Main deck (Abandoned Air Temple, Airbending Lesson, Appa, Steadfast Guardian, …)",
     ]);
   });
 
@@ -238,8 +238,8 @@ describe("applyImport", () => {
     expect(entries).toEqual([]);
     expect(skipped).toHaveLength(2);
     expect(warnings).toEqual([
-      'Not found: "Not A Real Card" — skipped',
-      'No "sideboard" zone in Commander — skipped Sol Ring',
+      'Not found: "Not A Real Card", skipped',
+      'No "sideboard" zone in Commander: skipped Sol Ring',
     ]);
   });
 });

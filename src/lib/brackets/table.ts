@@ -174,7 +174,7 @@ export function tableSummary(
       id: `call:${q.id}`,
       label: BRACKET_COPY.ownersCall,
       items: [],
-      text: `${q.question} ${said}${cardNames.length > 0 ? ` — ${cardNames.join(join)}` : ""}`,
+      text: `${q.question} ${said}${cardNames.length > 0 ? `: ${cardNames.join(join)}` : ""}`,
     });
   }
   if (goals?.exceptions) {
@@ -261,8 +261,8 @@ export function tableText({
 }): string {
   const plain = planLine(plan);
   return [
-    `${deckName} — ${formatLabel}`,
-    checkedAt ? `${line} · ${BRACKET_COPY.checked(dateLabel(checkedAt, timeZone))}` : line,
+    `${deckName} · ${formatLabel}`,
+    checkedAt ? `${line} (${BRACKET_COPY.checked(dateLabel(checkedAt, timeZone))})` : line,
     ...lines.map((l) => `${l.label}: ${lineValue(l, names)}`),
     ...(plain ? [`${BRACKET_COPY.planOwner}: ${plain}`] : []),
     note,

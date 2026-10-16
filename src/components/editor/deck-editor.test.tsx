@@ -386,9 +386,9 @@ describe("DeckEditor (a loaded deck) — openCuts by tier", () => {
     return viewport;
   }
 
-  it("phone: 'Over by 1 — rank cuts' switches to the Tools pane on the Cuts tab, no sheet, no create", async () => {
+  it("phone: 'Over by 1: rank cuts' switches to the Tools pane on the Cuts tab, no sheet, no create", async () => {
     await renderLoaded(375);
-    fireEvent.click(screen.getByRole("button", { name: "Over by 1 — rank cuts" }));
+    fireEvent.click(screen.getByRole("button", { name: "Over by 1: rank cuts" }));
     expect(screen.getByRole("tab", { name: "Tools" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByRole("tab", { name: "Cuts" }).getAttribute("aria-selected")).toBe("true");
     expect(sheetPopup()).toBeNull();
@@ -399,7 +399,7 @@ describe("DeckEditor (a loaded deck) — openCuts by tier", () => {
   it("md: it opens the tools drawer on the Cuts tab", async () => {
     await renderLoaded(1024);
     expect(screen.queryByRole("dialog", { name: "Tools" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Over by 1 — rank cuts" }));
+    fireEvent.click(screen.getByRole("button", { name: "Over by 1: rank cuts" }));
     await act(async () => {});
     const drawer = screen.getByRole("dialog", { name: "Tools" });
     expect(within(drawer).getByRole("tab", { name: "Cuts" }).getAttribute("aria-selected")).toBe(
@@ -410,7 +410,7 @@ describe("DeckEditor (a loaded deck) — openCuts by tier", () => {
 
   it("wide: it flips the inline tab and opens nothing", async () => {
     await renderLoaded(1440);
-    fireEvent.click(screen.getByRole("button", { name: "Over by 1 — rank cuts" }));
+    fireEvent.click(screen.getByRole("button", { name: "Over by 1: rank cuts" }));
     expect(screen.getByRole("tab", { name: "Cuts" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(posts()).toBe(0);
@@ -609,7 +609,7 @@ describe("DeckEditor — a commander add returns the phone to the Deck pane (P2.
     expect(screen.getAllByRole("option")).toHaveLength(2);
   }
 
-  it("phone: the row's Commander button adds and switches to the Deck pane — one create", async () => {
+  it("phone: the row's Commander button adds and switches to the Deck pane · one create", async () => {
     await withResults(375);
     fireEvent.click(screen.getByRole("button", { name: "Add Sol Ring as Commander" }));
     expect(screen.getByRole("tab", { name: /^Deck/ }).getAttribute("aria-selected")).toBe("true");
@@ -690,7 +690,7 @@ describe("DeckEditor — the pane's Printings collapsible (W6, D5)", () => {
     expect(
       within(tools()).getByRole("button", { name: /Commander Masters/ }).textContent,
     ).toContain("In deck");
-    expect(within(tools()).getByText(/In deck: default printing · CMM · #410/)).toBeTruthy();
+    expect(within(tools()).getByText(/In deck: default printing · CMM #410/)).toBeTruthy();
 
     // Selecting a row previews it in the pane image — no edit, no save, and
     // the apply button arms only now (the selection differs from the deck).
@@ -728,7 +728,7 @@ describe("DeckEditor — the pane's Printings collapsible (W6, D5)", () => {
       { cardId: sol.id, zone: "main", qty: 1, tags: [], printingId: solAltPrinting.id },
     ]);
     // The pane now marks the chosen row and disables the (unchanged) selection.
-    expect(within(tools()).getByText(/In deck: SLD · #2783/)).toBeTruthy();
+    expect(within(tools()).getByText(/In deck: SLD #2783/)).toBeTruthy();
     expect(within(tools()).getByRole("button", { name: /Secret Lair Drop/ }).textContent).toContain(
       "In deck",
     );
@@ -1028,7 +1028,7 @@ describe("DeckEditor — Start from this precon (W8b)", () => {
       <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftFromSlug="nope" />,
     );
     await pollFor(() =>
-      screen.queryByText("Couldn't find that precon — starting an empty deck instead."),
+      screen.queryByText("Couldn't find that precon. Starting an empty deck instead."),
     );
     await settle(1500);
     expect(posts()).toBe(0);
@@ -1058,7 +1058,7 @@ describe("DeckEditor — Start from this precon (W8b)", () => {
       />,
     );
     await pollFor(() =>
-      screen.queryByText("Couldn't find that precon — starting an empty deck instead."),
+      screen.queryByText("Couldn't find that precon. Starting an empty deck instead."),
     );
     expect(screen.queryByText("Atraxa, Praetors' Voice")).toBeNull();
     expect(posts()).toBe(0);
@@ -1217,7 +1217,7 @@ describe("DeckEditor — Build around this combo (X3)", () => {
     expect(screen.getByRole("dialog", { name: "Build around this combo" })).toBeTruthy();
     expect(
       screen.getByText(
-        "Kiki-Jiki, Mirror Breaker + Zealous Conscripts. The rest comes from real decklists and tournament results — every pick shows why.",
+        "Kiki-Jiki, Mirror Breaker + Zealous Conscripts. The rest comes from real decklists and tournament results. Every pick shows why.",
       ),
     ).toBeTruthy();
     expect(screen.getByText("Combo pieces · 1")).toBeTruthy();
@@ -1310,7 +1310,7 @@ describe("DeckEditor — Build around this combo (X3)", () => {
     stubViewport(1440);
     render(comboDraft({ draftComboKey: "999-999", draftAutofill: true }));
     await pollFor(() =>
-      screen.queryByText("Couldn't find that combo — starting an empty deck instead."),
+      screen.queryByText("Couldn't find that combo. Starting an empty deck instead."),
     );
     await pollFor(() => screen.queryByText(/Set a commander first/));
     expect(autofillBodies()).toHaveLength(0);
@@ -1323,7 +1323,7 @@ describe("DeckEditor — Build around this combo (X3)", () => {
     stubViewport(1440);
     render(comboDraft({ draftLeaderKey: undefined }));
     await pollFor(() =>
-      screen.queryByText("That combo link names no commander — starting an empty deck instead."),
+      screen.queryByText("That combo link names no commander. Starting an empty deck instead."),
     );
     expect(comboSeedGets()).toHaveLength(0);
     expect(posts()).toBe(0);
@@ -1336,7 +1336,7 @@ describe("DeckEditor — Build around this combo (X3)", () => {
     render(comboDraft({ draftLeaderKey: conscripts.externalKey }));
     await pollFor(() =>
       screen.queryByText(
-        "That combo doesn't include that commander — starting an empty deck instead.",
+        "That combo doesn't include that commander. Starting an empty deck instead.",
       ),
     );
     expect(within(section("Deck list")).queryByText("Zealous Conscripts")).toBeNull();
@@ -1356,7 +1356,7 @@ describe("DeckEditor — Build around this combo (X3)", () => {
     stubViewport(1440);
     const { unmount } = render(comboDraft({ draftFromSlug: "nope" }));
     await pollFor(() =>
-      screen.queryByText("Couldn't find that precon — starting an empty deck instead."),
+      screen.queryByText("Couldn't find that precon. Starting an empty deck instead."),
     );
     unmount();
     render(comboDraft({ draftSurprise: true }));
@@ -1395,7 +1395,7 @@ describe("DeckEditor — Build around this combo (X3)", () => {
       stubViewport(1440);
       render(comboDraft());
       await pollFor(() =>
-        bracketLine()?.textContent === "Bracket: add 98 more cards · 1 combo so far · Why?"
+        bracketLine()?.textContent === "Bracket: add 98 more cards · 1 combo so far Why?"
           ? bracketLine()
           : null,
       );
@@ -1654,7 +1654,7 @@ describe("DeckEditor — Autofill review sheet + doors (W9b/W9c)", () => {
     expect(posts()).toBe(0);
   });
 
-  it("?autofill=1 with a leader seed: the sheet opens by itself AFTER the seed lands — one autofill POST, no create, never an auto-apply", async () => {
+  it("?autofill=1 with a leader seed: the sheet opens by itself AFTER the seed lands · one autofill POST, no create, never an auto-apply", async () => {
     fetchMock.mockImplementation(autofillRoute);
     stubViewport(1440);
     render(
@@ -2331,7 +2331,7 @@ describe("DeckEditor — start doors, draft Suggestions, the first approval (Y2b
       expect(screen.getByRole("button", { name: "Keep this deck" })).toBeTruthy();
     });
 
-    it("a typed name is something to say — one create carrying it; a name typed and erased inside the debounce is not", async () => {
+    it("a typed name is something to say · one create carrying it; a name typed and erased inside the debounce is not", async () => {
       stubViewport(1440);
       render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
       const name = screen.getByRole("textbox", { name: "Deck name" });
@@ -2406,7 +2406,7 @@ describe("DeckEditor — the bracket line and its Why sheet (Y4a)", () => {
     return route(input, init);
   }
   const line = () => document.querySelector<HTMLElement>("[data-slot=bracket-line]");
-  const NOTHING = "Bracket 1–2 · nothing here goes past Core · Why?";
+  const NOTHING = "Bracket 1 to 2 · nothing here goes past Core Why?";
 
   /** The last-describe pattern: findBy/waitFor hang under this file's faked setTimeout. */
   async function pollFor<T>(query: () => T | null): Promise<T> {
@@ -2469,7 +2469,7 @@ describe("DeckEditor — the bracket line and its Why sheet (Y4a)", () => {
     expect(document.activeElement).toBe(why);
     fireEvent.click(why); // Enter or Space on a native button
     const sheet = await pollFor(() => screen.queryByRole("dialog", { name: "Why this bracket?" }));
-    expect(within(sheet).getByText("Bracket 1–2 · nothing here goes past Core")).toBeTruthy();
+    expect(within(sheet).getByText("Bracket 1 to 2 · nothing here goes past Core")).toBeTruthy();
     expect(within(sheet).getByRole("region", { name: "What the cards show" })).toBeTruthy();
     expect(within(sheet).getByRole("region", { name: "What this read assumes" })).toBeTruthy();
     // "/" focuses the search box only while no dialog is open.
@@ -2507,7 +2507,7 @@ describe("DeckEditor — the bracket line and its Why sheet (Y4a)", () => {
     });
     stubViewport(1440);
     render(<DeckEditor deckId="deck-1" />);
-    await pollFor(() => (line()?.textContent === "Couldn't check combos · Retry" ? line() : null));
+    await pollFor(() => (line()?.textContent === "Couldn't check combos Retry" ? line() : null));
     await settle(2000);
     expect(factsGets()).toHaveLength(1);
     fail = false;
@@ -2695,12 +2695,12 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
   it("a saved deck: a target is ONE PATCH {goals} after the debounce — no PUT, no meta PATCH, no second facts GET; the line and the callout follow at once", async () => {
     stubViewport(1440);
     render(<DeckEditor deckId="deck-1" />);
-    await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+    await lineIs("Bracket 3 or 4 · one card is your call Why?");
     const dialog = await openSheet();
     fireEvent.click(targetButton(dialog, "2"));
 
     expect(line()!.textContent).toBe(
-      "Your target: Bracket 2 · the cards say 3 or 4 — one card is your call · Why?",
+      "Your target: Bracket 2 · the cards say 3 or 4, one card is your call Why?",
     );
     const callout = dialog.querySelector<HTMLElement>("[data-slot=bracket-conflicts]")!;
     expect(
@@ -2727,7 +2727,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
     };
     stubViewport(1440);
     render(<DeckEditor deckId="deck-1" />);
-    await lineIs("Your target: Bracket 2 · the cards and your answers say 4 · Why?");
+    await lineIs("Your target: Bracket 2 · the cards and your answers say 4 Why?");
     const dialog = await openSheet();
     const pressed = (group: HTMLElement) =>
       within(group)
@@ -2754,14 +2754,14 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
     stubViewport(1440);
     render(<DeckEditor deckId="deck-1" />);
     await lineIs(
-      "Bracket 4 (Optimized) — from the cards and your answers · Rules changed since you answered · Why?",
+      "Bracket 4 (Optimized) · from the cards and your answers. Rules changed since you answered Why?",
     );
     const dialog = await openSheet();
     const notice = dialog.querySelector<HTMLElement>("[data-slot=bracket-stale]")!;
     expect(within(notice).getByText("Rules changed since you answered")).toBeTruthy();
     fireEvent.click(within(notice).getByRole("button", { name: "Keep my answers" }));
     expect(line()!.textContent).toBe(
-      "Bracket 4 (Optimized) — from the cards and your answers · Why?",
+      "Bracket 4 (Optimized) · from the cards and your answers Why?",
     );
     await settle(1500);
     await act(async () => {});
@@ -2773,14 +2773,12 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
   it("answering a call is a goals PATCH too — and a burst of answers is one PATCH", async () => {
     stubViewport(1440);
     render(<DeckEditor deckId="deck-1" />);
-    await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+    await lineIs("Bracket 3 or 4 · one card is your call Why?");
     const dialog = await openSheet();
     const call = dialog.querySelector<HTMLElement>(`[data-question='${EDGE_CALL}']`)!;
     fireEvent.click(within(call).getByRole("button", { name: "Yes" }));
     fireEvent.click(within(call).getByRole("button", { name: "No" }));
-    expect(line()!.textContent).toBe(
-      "Bracket 3 (Upgraded) — from the cards and your answers · Why?",
-    );
+    expect(line()!.textContent).toBe("Bracket 3 (Upgraded) · from the cards and your answers Why?");
     await settle(1500);
     await act(async () => {});
     expect(patchBodies()).toEqual([
@@ -2792,7 +2790,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
   it("closing the tab inside the debounce sends the goals as ONE keepalive PATCH", async () => {
     stubViewport(1440);
     render(<DeckEditor deckId="deck-1" />);
-    await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+    await lineIs("Bracket 3 or 4 · one card is your call Why?");
     const dialog = await openSheet();
     fireEvent.click(targetButton(dialog, "4"));
     window.dispatchEvent(new Event("pagehide"));
@@ -2822,9 +2820,9 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       );
     }
 
-    it("a target set in a precon draft creates exactly ONE deck with the goals in its create — one POST + one PUT, no PATCH", async () => {
+    it("a target set in a precon draft creates exactly ONE deck with the goals in its create · one POST + one PUT, no PATCH", async () => {
       renderDraft();
-      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await lineIs("Bracket 3 or 4 · one card is your call Why?");
       await settle(1500);
       expect(posts()).toBe(0);
       expect(slot().hasAttribute("data-draft")).toBe(true);
@@ -2846,7 +2844,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
 
     it("an answer is something to say too: one create carrying it", async () => {
       renderDraft();
-      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await lineIs("Bracket 3 or 4 · one card is your call Why?");
       const dialog = await openSheet();
       fireEvent.click(within(dialog).getByRole("button", { name: "How it plays" }));
       fireEvent.click(
@@ -2871,7 +2869,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       async function targetThenCut(...targets: string[]) {
         stubViewport(1440);
         render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftSurprise />);
-        await lineIs("Bracket: add 99 more cards · 1 Game Changer so far · Why?");
+        await lineIs("Bracket: add 99 more cards · 1 Game Changer so far Why?");
         const dialog = await openSheet();
         for (const t of targets) fireEvent.click(targetButton(dialog, t));
         // The list sits under the open modal: no settle between, so the debounce never fires first.
@@ -2946,7 +2944,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
     it("an add from Suggestions toasts Added X · Undo; Undo is a real edit — the card leaves and the deck saves again", async () => {
       stubViewport(1440);
       render(<DeckEditor deckId="deck-1" />);
-      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await lineIs("Bracket 3 or 4 · one card is your call Why?");
       // Below the maximum an add is an add (at 100 it's "Swap in…", Y7b): one Wastes out first.
       fireEvent.click(screen.getByRole("button", { name: "One fewer Wastes" }));
       await settle(1500);
@@ -2975,7 +2973,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
     it("Y7b: at 100 / 100 the Suggestions Add reads Swap in… — the card comes in, a card of its mana value goes out, the tab stays put", async () => {
       stubViewport(1440);
       render(<DeckEditor deckId="deck-1" />);
-      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await lineIs("Bracket 3 or 4 · one card is your call Why?");
       await suggestions();
       const button = screen.getByRole("button", { name: "Swap in Sol Ring…" });
       expect(button.textContent).toBe("Swap in…");
@@ -2985,7 +2983,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       );
       // Mana Vault is the only other mana value 1 card, and it carries no signal data: no named partner.
       expect(
-        within(sheetEl).getByText("No suggested cut at mana value 1 — choose the card to cut."),
+        within(sheetEl).getByText("No suggested cut at mana value 1. Choose the card to cut."),
       ).toBeTruthy();
       expect(
         within(sheetEl).getByRole("region", { name: "Also at mana value 1" }).textContent,
@@ -3011,14 +3009,12 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       deckGoals = { v: 1, targetLevel: 3 };
       stubViewport(1440);
       render(<DeckEditor deckId="deck-1" />);
-      await lineIs("Your target: Bracket 3 · the cards say 3 or 4 — one card is your call · Why?");
+      await lineIs("Your target: Bracket 3 · the cards say 3 or 4, one card is your call Why?");
       await suggestions();
-      expect(goalsLine()!.textContent).toBe("Your goals: Bracket 3 (Upgraded) · Change");
+      expect(goalsLine()!.textContent).toBe("Your goals: Bracket 3 (Upgraded) Change");
       fireEvent.click(screen.getByRole("button", { name: "≤ $5 a card" }));
       fireEvent.click(screen.getByRole("button", { name: "Save as this deck's budget" }));
-      expect(goalsLine()!.textContent).toBe(
-        "Your goals: Bracket 3 (Upgraded) · ≤ $5 a card · Change",
-      );
+      expect(goalsLine()!.textContent).toBe("Your goals: Bracket 3 (Upgraded), ≤ $5 a card Change");
       await settle(1500);
       await act(async () => {});
       expect(patchBodies()).toEqual([
@@ -3047,7 +3043,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
           draftFromSlug="kozilek_c99"
         />,
       );
-      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await lineIs("Bracket 3 or 4 · one card is your call Why?");
       await suggestions();
       expect(posts()).toBe(0);
       fireEvent.click(screen.getByRole("button", { name: "≤ $1 a card" }));
@@ -3069,9 +3065,9 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
     it("the goals line's “Set one” opens the Why sheet with focus on Your target — before the list has found anything (LATER row 175)", async () => {
       stubViewport(1440);
       render(<DeckEditor deckId="deck-1" />);
-      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await lineIs("Bracket 3 or 4 · one card is your call Why?");
       await suggestions();
-      expect(goalsLine()!.textContent).toBe("No bracket target yet · Set one");
+      expect(goalsLine()!.textContent).toBe("No bracket target yet Set one");
       fireEvent.click(screen.getByRole("button", { name: "Set one" }));
       const dialog = await pollFor(sheet);
       await pollFor(() =>
@@ -3079,7 +3075,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       );
       fireEvent.click(targetButton(dialog, "2"));
       expect(line()!.textContent).toBe(
-        "Your target: Bracket 2 · the cards say 3 or 4 — one card is your call · Why?",
+        "Your target: Bracket 2 · the cards say 3 or 4, one card is your call Why?",
       );
       // Atop the sheet, the owner's goals line now reads the target too.
       expect(
@@ -3098,7 +3094,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       await lineIs("Bracket: add 99 more cards");
       expect(screen.queryByRole("button", { name: "Why?" })).toBeNull();
       await suggestions();
-      expect(goalsLine()!.textContent).toBe("No bracket target yet · Set one");
+      expect(goalsLine()!.textContent).toBe("No bracket target yet Set one");
       fireEvent.click(screen.getByRole("button", { name: "Set one" }));
       const dialog = await pollFor(sheet);
       fireEvent.click(targetButton(dialog, "2"));
@@ -3106,14 +3102,14 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       await act(async () => {});
       expect(posts()).toBe(1);
       expect(createBody().goals).toEqual({ v: 1, targetLevel: 2 });
-      expect(goalsLine()!.textContent).toBe("Your goals: Bracket 2 (Core) · Change");
+      expect(goalsLine()!.textContent).toBe("Your goals: Bracket 2 (Core) Change");
     });
 
     it("on a phone the same door opens the Drawer with focus on Your target; the sheet's own Change brings it back", async () => {
       deckGoals = { v: 1, targetLevel: 3, budget: { perCardUsd: 5 } };
       stubViewport(375);
       render(<DeckEditor deckId="deck-1" />);
-      await lineIs("Your target: Bracket 3 · the cards say 3 or 4 — one card is your call · Why?");
+      await lineIs("Your target: Bracket 3 · the cards say 3 or 4, one card is your call Why?");
       fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
       await suggestions();
       fireEvent.click(screen.getByRole("button", { name: "Change" }));
@@ -3121,7 +3117,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       expect(dialog.getAttribute("data-slot")).toBe("drawer-popup");
       await pollFor(() => (document.activeElement === targetButton(dialog, "3") ? true : null));
       const sheetLine = dialog.querySelector<HTMLElement>("[data-slot=goals-line]")!;
-      expect(sheetLine.textContent).toBe("Your goals: Bracket 3 (Upgraded) · ≤ $5 a card · Change");
+      expect(sheetLine.textContent).toBe("Your goals: Bracket 3 (Upgraded), ≤ $5 a card Change");
       within(dialog).getByRole("button", { name: "Close" }).focus();
       fireEvent.click(within(sheetLine).getByRole("button", { name: "Change" }));
       expect(document.activeElement).toBe(targetButton(dialog, "3"));
@@ -3162,7 +3158,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       seed: 1,
       picks: [],
       groups: [],
-      notes: ["Skipped 1 Game Changer — your Bracket 2 target allows none (Wizards' list)"],
+      notes: ["Skipped 1 Game Changer. Your Bracket 2 target allows none (Wizards' list)"],
       totals: { picks: 0, estUsd: null, unpriced: 0 },
       issues: [],
       cards: [],
@@ -3203,7 +3199,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
     it("LATER row 179: a Radar add toasts Added X · Undo — the live line stays quiet — and Undo is a real edit", async () => {
       stubViewport(1440);
       render(<DeckEditor deckId="deck-1" />);
-      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await lineIs("Bracket 3 or 4 · one card is your call Why?");
       // Below the maximum an add is an add (at 100 it's "Swap in…", Y7b): one Wastes out first.
       fireEvent.click(screen.getByRole("button", { name: "One fewer Wastes" }));
       await settle(1500);
@@ -3228,7 +3224,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
     it("Y7b: at 100 / 100 the Radar's one-card Add reads Swap in… and opens the sheet; a combo's pieces keep their add", async () => {
       stubViewport(1440);
       render(<DeckEditor deckId="deck-1" />);
-      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await lineIs("Bracket 3 or 4 · one card is your call Why?");
       await combosTab();
       expect(screen.getByRole("button", { name: "Add 2 pieces" })).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "Swap in Sol Ring…" }));
@@ -3240,7 +3236,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
     it("LATER row 179: a combo's pieces toast ONCE — Added 2 combo pieces — and ONE Undo takes both back", async () => {
       stubViewport(1440);
       render(<DeckEditor deckId="deck-1" />);
-      await lineIs("Bracket 3 or 4 — one card is your call · Why?");
+      await lineIs("Bracket 3 or 4 · one card is your call Why?");
       await combosTab();
       fireEvent.click(await pollFor(() => screen.queryByRole("button", { name: "Add 2 pieces" })));
       const toastEl = await toastOf("Added 2 combo pieces");
@@ -3265,13 +3261,13 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       deckGoals = { v: 1, targetLevel: 2 };
       stubViewport(1440);
       render(<DeckEditor deckId="deck-1" />);
-      await lineIs("Your target: Bracket 2 · the cards say 3 or 4 — one card is your call · Why?");
+      await lineIs("Your target: Bracket 2 · the cards say 3 or 4, one card is your call Why?");
       await combosTab();
       const badge = await pollFor(() =>
         document.querySelector<HTMLElement>("[data-slot=combo-badge]"),
       );
       expect(badge.textContent).toBe(
-        "A two-card combo alone makes a deck at least Bracket 4 — Commander Spellbook · above your target",
+        "A two-card combo alone makes a deck at least Bracket 4 (Commander Spellbook) · above your target",
       );
     });
 
@@ -3279,7 +3275,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       deckGoals = { v: 1, targetLevel: 2, budget: { perCardUsd: 5 }, exceptions: "ask me" };
       stubViewport(1440);
       render(<DeckEditor deckId="deck-1" />);
-      await lineIs("Your target: Bracket 2 · the cards say 3 or 4 — one card is your call · Why?");
+      await lineIs("Your target: Bracket 2 · the cards say 3 or 4, one card is your call Why?");
       const trigger = screen.getByRole("button", { name: "More" });
       fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
       fireEvent.mouseDown(trigger, { button: 0 });
@@ -3291,7 +3287,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       );
       await pollFor(() =>
         within(dialog).queryByText(
-          "Skipped 1 Game Changer — your Bracket 2 target allows none (Wizards' list)",
+          "Skipped 1 Game Changer. Your Bracket 2 target allows none (Wizards' list)",
         ),
       );
       const [, init] = fetchMock.mock.calls.find(
@@ -3301,7 +3297,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       expect(body.budgetUsd).toBe(5);
       expect(body.goals).toEqual({ v: 1, targetLevel: 2, budget: { perCardUsd: 5 } });
       expect(dialog.querySelector("[data-slot=goals-line]")?.textContent).toBe(
-        "Your goals: Bracket 2 (Core) · ≤ $5 a card",
+        "Your goals: Bracket 2 (Core), ≤ $5 a card",
       );
     });
   });
@@ -3334,7 +3330,7 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
               evidence: [
                 {
                   source: "scryfall_tagger",
-                  why: "Both: ramp · mana rock — community-tagged on Scryfall Tagger",
+                  why: "Both: ramp, mana rock. Community-tagged on Scryfall Tagger",
                   with: [],
                   howOften: null,
                   confidence: "medium",
@@ -3475,7 +3471,7 @@ describe("DeckEditor — the Card tab's Alternatives (Y7a, WAVE4 D8)", () => {
     evidence: [
       {
         source: "scryfall_tagger",
-        why: "Both: ramp · mana rock — community-tagged on Scryfall Tagger",
+        why: "Both: ramp, mana rock. Community-tagged on Scryfall Tagger",
         with: [],
         howOften: null,
         confidence: "medium",
@@ -3501,7 +3497,7 @@ describe("DeckEditor — the Card tab's Alternatives (Y7a, WAVE4 D8)", () => {
     tradeoff: [
       {
         source: "edhrec_rank",
-        why: "A Commander staple in EDHREC decklists — cutting it gives up a proven card",
+        why: "A Commander staple in EDHREC decklists. Cutting it gives up a proven card",
         with: [],
         howOften: "rank 1",
         confidence: "high",
@@ -3566,10 +3562,10 @@ describe("DeckEditor — the Card tab's Alternatives (Y7a, WAVE4 D8)", () => {
     const list = within(tools()).getByRole("list", { name: "Alternatives to Sol Ring" });
     expect(list.textContent).toContain("Mind Stone");
     expect(list.textContent).toContain(
-      "Both: ramp · mana rock — community-tagged on Scryfall Tagger",
+      "Both: ramp, mana rock. Community-tagged on Scryfall Tagger",
     );
     // The adapter's chips, then the price beside Sol Ring's ($1.00 → $1.29).
-    expect(list.textContent).toContain("Mana value 2 · $0.29 more");
+    expect(list.textContent).toContain("Mana value 2, $0.29 more");
     expect(
       within(list)
         .getByRole("link", { name: /mana rock/ })
@@ -3650,7 +3646,7 @@ describe("DeckEditor — the Card tab's Alternatives (Y7a, WAVE4 D8)", () => {
     fireEvent.click(within(tools()).getByRole("button", { name: /^Alternatives/ }));
     await act(async () => {});
     expect(
-      within(tools()).getByText("Add a Commander first — alternatives follow its color identity."),
+      within(tools()).getByText("Add a Commander first. Alternatives follow its color identity."),
     ).toBeTruthy();
     expect(altCalls()).toHaveLength(0);
   });
@@ -3802,7 +3798,7 @@ describe("DeckEditor — swap in place (Y7b, WAVE4 D8)", () => {
         evidence: [
           {
             source: "scryfall_tagger",
-            why: "Both: ramp · mana rock — community-tagged on Scryfall Tagger",
+            why: "Both: ramp, mana rock. Community-tagged on Scryfall Tagger",
             with: [],
             howOften: null,
             confidence: "medium",
@@ -3887,7 +3883,7 @@ describe("DeckEditor — swap in place (Y7b, WAVE4 D8)", () => {
       within(sheetEl).queryByRole("list", { name: "Alternatives to Sol Ring" }),
     );
     expect(list.textContent).toContain(
-      "Both: ramp · mana rock — community-tagged on Scryfall Tagger",
+      "Both: ramp, mana rock. Community-tagged on Scryfall Tagger",
     );
     expect(puts()).toBe(0);
 
@@ -3935,7 +3931,7 @@ describe("DeckEditor — swap in place (Y7b, WAVE4 D8)", () => {
       screen.queryByRole("dialog", { name: "Swap in Arcane Signet" }),
     );
     expect(sheetEl.textContent).toContain(
-      "Arcane Signet comes in and one card goes out — the deck stays at 100.",
+      "Arcane Signet comes in and one card goes out, so the deck stays at 100.",
     );
     // The combo facts are in, so no combo note.
     expect(sheetEl.textContent).not.toMatch(/combos/i);
@@ -4025,7 +4021,7 @@ describe("DeckEditor — swap in place (Y7b, WAVE4 D8)", () => {
     const sheetEl = await pollFor(() => screen.queryByRole("dialog", { name: "Swap in Wastes" }));
     expect(within(sheetEl).queryByRole("region", { name: "Suggested cut" })).toBeNull();
     expect(sheetEl.textContent).toContain(
-      "A land gets no suggested partner — which land to cut depends on its colors. Choose the card to cut.",
+      "A land gets no suggested partner. Which land to cut depends on its colors. Choose the card to cut.",
     );
     // Wastes itself is never its own partner.
     expect(
@@ -4272,7 +4268,7 @@ describe("DeckEditor — Fit my budget (Y8, WAVE4 D9)", () => {
     expect(patchBodies()).toEqual([]);
   });
 
-  it("a saved deck's total survives the reload: the goals line reads est. $118 of your $60 · Fit my budget, which opens the sheet at once — loading is no edit", async () => {
+  it("a saved deck's total survives the reload: the goals line reads est. $118 of your $60 Fit my budget, which opens the sheet at once — loading is no edit", async () => {
     deckGoals = { v: 1, budget: { totalUsd: 60 } };
     stubViewport(1440);
     render(<DeckEditor deckId="deck-1" />);
@@ -4280,9 +4276,7 @@ describe("DeckEditor — Fit my budget (Y8, WAVE4 D9)", () => {
     const goalsLine = await pollFor(() =>
       document.querySelector<HTMLElement>("[data-slot=goals-line]"),
     );
-    expect(goalsLine.textContent).toBe(
-      "Your goals: est. $118 of your $60 · Fit my budget · Change",
-    );
+    expect(goalsLine.textContent).toBe("Your goals: est. $118 of your $60 Fit my budget Change");
     fireEvent.click(within(goalsLine).getByRole("button", { name: "Fit my budget" }));
     const sheetEl = await pollFor(fitSheet);
     // A saved total: the plan starts without asking for one.
@@ -4335,7 +4329,7 @@ describe("DeckEditor — Fit my budget (Y8, WAVE4 D9)", () => {
     );
     await pollFor(() => screen.queryByText("Swapped 2 cards"));
     // Under the total now: the door is gone and focus lands on the line's Change.
-    expect(line()!.textContent).toBe("Your goals: est. $50 of your $60 · Change");
+    expect(line()!.textContent).toBe("Your goals: est. $50 of your $60 Change");
     await pollFor(() =>
       document.activeElement?.textContent === "Change" ? document.activeElement : null,
     );
@@ -4350,12 +4344,12 @@ describe("DeckEditor — Fit my budget (Y8, WAVE4 D9)", () => {
     const goalsLine = await pollFor(() =>
       document.querySelector<HTMLElement>("[data-slot=goals-line]"),
     );
-    expect(goalsLine.textContent).toBe("Your goals: est. $118 of your $200 · Change");
+    expect(goalsLine.textContent).toBe("Your goals: est. $118 of your $200 Change");
     openMenu(screen.getByRole("button", { name: "More" }));
     const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Fit my budget…" }));
     const sheetEl = await pollFor(fitSheet);
-    expect(sheetEl.textContent).toContain("Already within your budget — est. $118 of your $200.");
+    expect(sheetEl.textContent).toContain("Already within your budget: est. $118 of your $200.");
     fireEvent.click(within(sheetEl).getByRole("button", { name: "Change" }));
     fireEvent.click(within(sheetEl).getByRole("button", { name: "$150" }));
     fireEvent.click(

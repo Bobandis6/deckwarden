@@ -241,7 +241,7 @@ describe("POST /api/decks/autofill — goals (Y6b)", () => {
       ),
     );
     expect(body.notes[0]).toBe(
-      `Skipped ${gcFree} Game Changers — your Bracket 2 target allows none (Wizards' list)`,
+      `Skipped ${gcFree} Game Changers. Your Bracket 2 target allows none (Wizards' list)`,
     );
   });
 

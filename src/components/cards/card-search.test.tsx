@@ -253,7 +253,7 @@ describe("CardSearch — the Set group (X4a)", () => {
     await answer("/api/sets", { sets: SETS });
     expect(setChip()).toBe("Remove filter: Set Bloomburrow (BLB)");
     expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(
-      "Bloomburrow — the 102nd expansion set",
+      "Bloomburrow (the 102nd expansion set)",
     );
     expect(document.querySelector("[data-slot=set-header] p")!.textContent).toBe(
       "BLB · Released Aug 2, 2024",
@@ -347,7 +347,7 @@ describe("CardSearch — the Set group (X4a)", () => {
     expect(screen.queryByRole("region", { name: /Most popular/ })).toBeNull();
     expect(screen.getByText("2 cards")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(
-      "Bloomburrow — the 102nd expansion set",
+      "Bloomburrow (the 102nd expansion set)",
     );
   });
 

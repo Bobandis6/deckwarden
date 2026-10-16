@@ -159,7 +159,7 @@ describe("PATCH — the details, never the list", () => {
     answers = [[deckRow()], [gameRow()]];
     const res = await PATCH(patch({ podSize: 3 }), ctx());
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("Seat must be 1–3");
+    expect((await res.json()).error).toBe("Seat must be 1 to 3");
     // …clearing the seat with it is fine.
     statements = [];
     answers = [[deckRow()], [gameRow()], [gameRow({ podSize: 3, seat: null })]];

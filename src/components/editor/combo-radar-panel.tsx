@@ -265,7 +265,7 @@ export function ComboRadarPanel({
       // The id guard (useResolvedAdd's honesty check): a key that resolves
       // to a different card than shown fails instead of adding it.
       if (!match || match.id !== piece.id) {
-        throw new Error(`Couldn't load ${piece.name} — try adding it from search.`);
+        throw new Error(`Couldn't load ${piece.name}. Try adding it from search.`);
       }
       return toEditorCard(match);
     });
@@ -294,7 +294,7 @@ export function ComboRadarPanel({
       if (error) toast.add({ title: error, type: "error" });
     } catch (err) {
       toast.add({
-        title: err instanceof Error ? err.message : "Add failed — check your connection.",
+        title: err instanceof Error ? err.message : "Add failed. Check your connection.",
         type: "error",
       });
     } finally {
@@ -317,7 +317,7 @@ export function ComboRadarPanel({
           signal: controller.signal,
         });
         if (res.status === 429) {
-          throw new Error("Combo detection is rate-limited for a moment — try again shortly.");
+          throw new Error("Combo detection is rate-limited for a moment. Try again shortly.");
         }
         if (!res.ok) throw new Error(`Combos failed to load (${res.status}).`);
         const json: RadarData = await res.json();
@@ -339,7 +339,7 @@ export function ComboRadarPanel({
   if (!leader) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
-        Add a {adapter.display.leaderNoun} to scan for combos — detection runs inside its color
+        Add a {adapter.display.leaderNoun} to scan for combos. Detection runs inside its color
         identity.
       </div>
     );
@@ -433,7 +433,7 @@ export function ComboRadarPanel({
         <>
           {data.inDeck.length === 0 && data.oneAway.length === 0 ? (
             <p className="text-muted-foreground mt-2 text-sm">
-              No {combosMeta.sourceLabel}-listed combos in this deck yet — and none are one card
+              No {combosMeta.sourceLabel}-listed combos in this deck yet, and none are one card
               away.
             </p>
           ) : (
@@ -502,8 +502,8 @@ export function ComboRadarPanel({
             <a href={combosMeta.sourceHref} target="_blank" rel="noreferrer" className="underline">
               Combos and deck counts from {combosMeta.sourceLabel}
               <ArrowUpRightIcon aria-hidden className="ml-0.5 inline size-3.5 align-[-0.15em]" />
-            </a>{" "}
-            — detection covers combos with recorded play there, plus unranked new ones.
+            </a>
+            . Detection covers combos with recorded play there, plus unranked new ones.
             {data.truncated ? " Scan capped at the most popular matches for this deck." : ""}
           </p>
         </>
@@ -558,12 +558,12 @@ function ComboRowDetails({
     <>
       {needs && <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">{needs}</p>}
       {combo.results.length > 0 && (
-        <p className="text-muted-foreground mt-0.5 text-xs">{combo.results.join(" · ")}</p>
+        <p className="text-muted-foreground mt-0.5 text-xs">{combo.results.join(", ")}</p>
       )}
       <p className="text-muted-foreground mt-0.5 text-xs">
         {combo.popularity !== null
           ? `In ${fmt(combo.popularity)} decks`
-          : "Unranked — no tracked plays yet"}
+          : "Unranked: no tracked plays yet"}
         {" · "}
         <a
           href={externalUrl(combo.externalKey)}
@@ -593,7 +593,7 @@ function ComboBadgeLine({ row }: { row: RowBadge | null }) {
     >
       <GaugeIcon aria-hidden className="size-3.5 shrink-0 translate-y-[2px]" />
       <span>
-        {row.badge.words} — {row.badge.source}
+        {row.badge.words} ({row.badge.source})
         {row.aboveTarget && (
           <>
             {" · "}

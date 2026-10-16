@@ -824,7 +824,7 @@ export interface BracketsMeta<A = Record<string, unknown>> {
   assess(input: BracketInput<A>): BracketRead;
   /**
    * Pure: the read in one line (Y4a, WAVE4 D5) — "At least Bracket 3
-   * (Upgraded)", "Bracket 3 or 4 — one combo is your call", "Bracket: add 34
+   * (Upgraded)", "Bracket 3 or 4 · one combo is your call", "Bracket: add 34
    * more cards · 1 Game Changer so far". The adapter's words, like the read's
    * sentences; core adds "Why?" and its own lines while the combo facts load
    * or fail.

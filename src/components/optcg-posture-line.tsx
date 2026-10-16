@@ -12,7 +12,7 @@ export function OptcgPostureLine({ className }: { className?: string }) {
     <p className={className ?? "text-muted-foreground mt-12 text-xs"}>
       ©Eiichiro Oda/Shueisha, Toei Animation · ONE PIECE CARD GAME ©BANDAI. Deckwarden is unofficial
       fan content, not affiliated with or endorsed by Bandai, Shueisha, or Toei Animation. No
-      official card-data API exists for the One Piece Card Game —{" "}
+      official card-data API exists for the One Piece Card Game:{" "}
       <Link href="/legal#one-piece" className="underline">
         how we source this data
       </Link>

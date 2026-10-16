@@ -255,11 +255,11 @@ describe("SiteHeader", () => {
     const menu = await screen.findByRole("menu", { name: "Bobandis6" });
 
     open(within(menu).getByRole("menuitem", { name: "Sign out" }));
-    await screen.findByRole("menuitem", { name: "Couldn't sign out — try again" });
+    await screen.findByRole("menuitem", { name: "Couldn't sign out. Try again" });
     expect(screen.getByRole("menu", { name: "Bobandis6" })).toBeTruthy();
     expect(session.refresh).not.toHaveBeenCalled();
 
-    open(screen.getByRole("menuitem", { name: "Couldn't sign out — try again" }));
+    open(screen.getByRole("menuitem", { name: "Couldn't sign out. Try again" }));
     await waitFor(() => expect(session.refresh).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.queryByRole("menu", { name: "Bobandis6" })).toBeNull());
   });

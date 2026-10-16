@@ -164,7 +164,7 @@ describe("cut phrasing (P3.4 — the tradeoff in the deck's own terms)", () => {
       popularity: 6412,
     });
     expect(why).toContain("Part of Basalt Monolith + Rings of Brighthearth");
-    expect(why).toContain("cutting it breaks the combo");
+    expect(why).toContain("Cutting it breaks the combo");
     expect(why).toContain("Infinite colorless mana");
     expect(howOften).toBe("In 6,412 decks on Commander Spellbook");
     expect(
@@ -205,7 +205,7 @@ describe("cut phrasing (P3.4 — the tradeoff in the deck's own terms)", () => {
     expect(58 / 94).toBeGreaterThanOrEqual(TOURNAMENT_STAPLE_SHARE);
     expect(staple.side).toBe("keep");
     expect(staple.why).toBe(
-      "Played in 62% of competitive top-16 lists with Kinnan, Bonder Prodigy — cutting it gives up a measured staple",
+      "Played in 62% of competitive top-16 lists with Kinnan, Bonder Prodigy. Cutting it gives up a measured staple",
     );
     expect(staple.howOften).toBe(
       "58 of 94 top-16 lists at 16+ player events on Topdeck.gg, settled events since 2026-03; 17 placed top 4",

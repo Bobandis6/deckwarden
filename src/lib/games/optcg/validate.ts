@@ -87,7 +87,11 @@ export function validateOptcg(
     if (zone.countsTowardSize) deckSize += zoneQty;
     if (zoneQty < zone.min || (zone.max != null && zoneQty > zone.max)) {
       const bound =
-        zone.max === zone.min ? `exactly ${zone.min}` : `${zone.min}–${zone.max ?? "∞"}`;
+        zone.max === zone.min
+          ? `exactly ${zone.min}`
+          : zone.max == null
+            ? `at least ${zone.min}`
+            : `${zone.min} to ${zone.max}`;
       issues.push({
         code: "ZONE_SIZE",
         severity: "error",
@@ -200,7 +204,7 @@ export function validateOptcg(
     NOT_LEGAL: { severity: "error", msg: (n) => `${n} card(s) are not legal in ${format.label}.` },
     NOT_RELEASED: {
       severity: "warning",
-      msg: (n) => `${n} preview card(s) — not legal until release.`,
+      msg: (n) => `${n} preview card(s): not legal until release.`,
     },
   };
   for (const [code, cardIds] of byCode) {

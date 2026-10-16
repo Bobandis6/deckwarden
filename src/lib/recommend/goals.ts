@@ -93,8 +93,8 @@ export function budgetConflict(
     severity: "flag",
     why:
       usd === null || !Number.isFinite(usd)
-        ? `No known price — your budget is ${label}`
-        : `Costs $${usd.toFixed(2)} — over your ${label} budget`,
+        ? `No known price. Your budget is ${label}`
+        : `Costs $${usd.toFixed(2)}, over your ${label} budget`,
   };
 }
 

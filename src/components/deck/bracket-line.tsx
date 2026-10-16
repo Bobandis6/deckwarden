@@ -3,7 +3,8 @@
 /**
  * The bracket line (Y4a, WAVE4 D5): the deck's read in one line on the
  * legality line, directly after the ValidationPanel — "At least Bracket 3
- * (Upgraded) · Why?". Adapter-gated: a game without `brackets` (One Piece)
+ * (Upgraded)" and its Why? (U9: a control follows after a gap, never a
+ * dot). Adapter-gated: a game without `brackets` (One Piece)
  * renders nothing, and no apology. The words are the adapter's
  * (`brackets.line`), the order of core's own lines is bracketLineView's,
  * and "Why?" opens the Why sheet (the editor's "bracket" dialog).
@@ -46,7 +47,7 @@ const ICON_CLASS = "size-4 shrink-0 translate-y-[3px]";
  * 18 px line, so the target grows and the line doesn't.
  */
 const ACTION_CLASS =
-  "text-muted-foreground hover:text-foreground focus-visible:text-foreground cursor-pointer font-medium transition-colors pointer-coarse:-my-[13px] pointer-coarse:min-h-11 pointer-coarse:min-w-11";
+  "text-muted-foreground hover:text-foreground focus-visible:text-foreground ml-1 cursor-pointer font-medium underline underline-offset-4 transition-colors pointer-coarse:-my-[13px] pointer-coarse:min-h-11 pointer-coarse:min-w-11";
 
 export function BracketLine({
   adapter,
@@ -104,7 +105,7 @@ export function BracketLine({
         )}
         {view.action && (
           <>
-            {" · "}
+            {" "}
             <button
               type="button"
               aria-haspopup={view.action === "why" ? "dialog" : undefined}

@@ -45,7 +45,7 @@ export function checkUsername(raw: string): UsernameCheck {
   if (username.length < USERNAME_MIN || username.length > USERNAME_MAX) {
     return {
       ok: false,
-      error: `Usernames are ${USERNAME_MIN}–${USERNAME_MAX} characters.`,
+      error: `Usernames are ${USERNAME_MIN} to ${USERNAME_MAX} characters.`,
     };
   }
   if (!USERNAME_REGEX.test(username)) {

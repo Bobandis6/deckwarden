@@ -389,13 +389,13 @@ describe("WAVE4 E's acceptance: a target-2 shell reads within its target", () =>
   // Extra-turn cards left out: one would be allowed at 2 and read "at least 2".
   const noTurns = recs.filter((r) => !isTurn(byId.get(r.cardId)!));
 
-  it("the same seed without goals reads above Bracket 2; with a target of 2 it reads Bracket 1–2", () => {
+  it("the same seed without goals reads above Bracket 2; with a target of 2 it reads Bracket 1 to 2", () => {
     for (const seed of SEEDS.slice(0, 10)) {
       const free = picksOf(shellInput({ seed, pool: noTurns }));
       expect(lineOf(free, null).read.minimum).toBeGreaterThan(2);
 
       const held = picksOf(shellInput({ seed, pool: noTurns, goals: goalsFor(2) }));
-      expect(lineOf(held, null).line).toBe("Bracket 1–2 · nothing here goes past Core");
+      expect(lineOf(held, null).line).toBe("Bracket 1 to 2 · nothing here goes past Core");
       expect(lineOf(held, 2).line).toBe("Your target: Bracket 2 · nothing here goes past Core");
     }
   });

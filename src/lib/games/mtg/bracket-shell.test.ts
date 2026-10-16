@@ -28,22 +28,22 @@ const FRESH: BracketFreshness = {
 describe("mtgShellNotes — what the target kept out, one line per rule", () => {
   it("each rule's line, exact, at the targets it can fire", () => {
     expect(mtgShellNotes({ "game-changers": 4 }, 2)).toEqual([
-      "Skipped 4 Game Changers — your Bracket 2 target allows none (Wizards' list)",
+      "Skipped 4 Game Changers. Your Bracket 2 target allows none (Wizards' list)",
     ]);
     expect(mtgShellNotes({ "game-changers": 1 }, 1)).toEqual([
-      "Skipped 1 Game Changer — your Bracket 1 target allows none (Wizards' list)",
+      "Skipped 1 Game Changer. Your Bracket 1 target allows none (Wizards' list)",
     ]);
     expect(mtgShellNotes({ "game-changers": 2 }, 3)).toEqual([
-      "Skipped 2 Game Changers — your Bracket 3 target allows up to three (Wizards' list)",
+      "Skipped 2 Game Changers. Your Bracket 3 target allows up to three (Wizards' list)",
     ]);
     expect(mtgShellNotes({ "land-denial": 1 }, 3)).toEqual([
-      "Skipped 1 land-denial card — Wizards expects no mass land denial at Brackets 1–3 (Scryfall Tagger)",
+      "Skipped 1 land-denial card. Wizards expects no mass land denial at Brackets 1 to 3 (Scryfall Tagger)",
     ]);
     expect(mtgShellNotes({ "extra-turns": 2 }, 1)).toEqual([
-      "Skipped 2 extra-turn cards — Bracket 1 expects none (Scryfall Tagger)",
+      "Skipped 2 extra-turn cards. Bracket 1 expects none (Scryfall Tagger)",
     ]);
     expect(mtgShellNotes({ "extra-turns": 1 }, 2)).toEqual([
-      "Skipped 1 more extra-turn card — Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
+      "Skipped 1 more extra-turn card. Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
     ]);
     expect(mtgShellNotes({ combo: 3 }, 2)).toEqual([
       "Skipped 3 cards that would complete a combo above your Bracket 2 target (Commander Spellbook)",
@@ -54,9 +54,9 @@ describe("mtgShellNotes — what the target kept out, one line per rule", () => 
     expect(
       mtgShellNotes({ combo: 1, "extra-turns": 1, "land-denial": 2, "game-changers": 3 }, 2),
     ).toEqual([
-      "Skipped 3 Game Changers — your Bracket 2 target allows none (Wizards' list)",
-      "Skipped 2 land-denial cards — Wizards expects no mass land denial at Brackets 1–3 (Scryfall Tagger)",
-      "Skipped 1 more extra-turn card — Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
+      "Skipped 3 Game Changers. Your Bracket 2 target allows none (Wizards' list)",
+      "Skipped 2 land-denial cards. Wizards expects no mass land denial at Brackets 1 to 3 (Scryfall Tagger)",
+      "Skipped 1 more extra-turn card. Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
       "Skipped 1 card that would complete a combo above your Bracket 2 target (Commander Spellbook)",
     ]);
     expect(mtgShellNotes({}, 2)).toEqual([]);
@@ -117,12 +117,12 @@ const CASES: { name: string; combo: CompleteCombo; words: string | null }[] = [
   {
     name: "S — 3, and 4 is your call",
     combo: combo("s", [a, b, c], { tag: "S", relevant: false }),
-    words: "This combo alone makes a deck Bracket 3 or 4 — your call",
+    words: "This combo alone makes a deck Bracket 3 or 4, your call",
   },
   {
     name: "O — 2, and 3 is your call",
     combo: combo("o", [a, b, c], { tag: "O", relevant: false }),
-    words: "This combo alone makes a deck Bracket 2 or 3 — your call",
+    words: "This combo alone makes a deck Bracket 2 or 3, your call",
   },
   {
     name: "C — at least 2",
@@ -137,7 +137,7 @@ const CASES: { name: string; combo: CompleteCombo; words: string | null }[] = [
   {
     name: "a template combo — only a call",
     combo: combo("tpl", [a, b], { tag: "P", templates: ["A creature with power 5+"] }),
-    words: "This combo could make a deck Bracket 3 — your call",
+    words: "This combo could make a deck Bracket 3, your call",
   },
   {
     name: "E, not relevant — nothing to say",
@@ -151,7 +151,7 @@ const CASES: { name: string; combo: CompleteCombo; words: string | null }[] = [
   },
 ];
 
-describe("mtgComboBadge — one combo on its own, as the list's read reads it", () => {
+describe("mtgComboBadge · one combo on its own, as the list's read reads it", () => {
   it.each(CASES)("$name", ({ combo: k, words }) => {
     const badge = mtgComboBadge(k, new Set());
     expect(badge?.words ?? null).toBe(words);
@@ -169,7 +169,7 @@ describe("mtgComboBadge — one combo on its own, as the list's read reads it", 
     expect(mtgComboBadge(k, COMMANDER)).toEqual({
       level: 3,
       callLevel: 4,
-      words: "A two-card combo with your commander alone makes a deck Bracket 3 or 4 — your call",
+      words: "A two-card combo with your commander alone makes a deck Bracket 3 or 4, your call",
       source: "Commander Spellbook",
     });
     // Without knowing the commander it's a three-card combo rated E: nothing.
@@ -189,7 +189,7 @@ describe("mtgComboBadge — one combo on its own, as the list's read reads it", 
       "This combo alone makes a deck at least Bracket 4",
     );
     expect(mtgComboBadge(k, new Set(), answers("unsure"))?.words).toBe(
-      "This combo alone makes a deck Bracket 3 or 4 — your call",
+      "This combo alone makes a deck Bracket 3 or 4, your call",
     );
     const tpl = combo("tpl", [a, b], { tag: "P", templates: ["A creature with power 5+"] });
     expect(mtgComboBadge(tpl, new Set(), { rulesetVersion: 1, calls: { "combo:tpl": "no" } })).toBe(

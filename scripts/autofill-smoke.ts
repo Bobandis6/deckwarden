@@ -255,10 +255,10 @@ async function main() {
   );
   const gcFree = flagged(a1.json, "game_changer").length;
   check(
-    `target 2: "Skipped ${gcFree} Game Changers — your Bracket 2 target allows none (Wizards' list)"`,
+    `target 2: "Skipped ${gcFree} Game Changers. Your Bracket 2 target allows none (Wizards' list)"`,
     gcFree > 0 &&
       g2.json.notes.includes(
-        `Skipped ${gcFree} Game Changer${gcFree === 1 ? "" : "s"} — your Bracket 2 target allows none (Wizards' list)`,
+        `Skipped ${gcFree} Game Changer${gcFree === 1 ? "" : "s"}. Your Bracket 2 target allows none (Wizards' list)`,
       ),
     g2.json.notes,
   );

@@ -25,7 +25,7 @@ export async function RecentPublicDecks() {
       <h2 className="type-section">Recent public decks</h2>
       {rows.length === 0 ? (
         <p className="text-muted-foreground text-sm">
-          No public decks yet —{" "}
+          No public decks yet:{" "}
           <Link href="/decks/new" className="underline">
             build one
           </Link>{" "}

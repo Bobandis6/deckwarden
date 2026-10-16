@@ -256,24 +256,24 @@ const whys = (c: Case, target: number) => impact(c, target).map((x) => x.why);
 describe("against a target — D7's lines, in plain words", () => {
   it("a Game Changer: none at 1 and 2; a fourth at 3; nothing from 4", () => {
     expect(whys({ spec: list([]), add: gc[0] }, 2)).toEqual([
-      "A Game Changer (Wizards' list) — your Bracket 2 target allows none",
+      "A Game Changer (Wizards' list). Your Bracket 2 target allows none",
     ]);
     expect(whys({ spec: list([]), add: gc[0] }, 1)).toEqual([
-      "A Game Changer (Wizards' list) — your Bracket 1 target allows none",
+      "A Game Changer (Wizards' list). Your Bracket 1 target allows none",
     ]);
     expect(whys({ spec: list(gc.slice(0, 2)), add: gc[2] }, 3)).toEqual([]);
     expect(whys({ spec: list(gc.slice(0, 3)), add: gc[3] }, 3)).toEqual([
-      "A fourth Game Changer (Wizards' list) — your Bracket 3 target allows up to three",
+      "A fourth Game Changer (Wizards' list). Your Bracket 3 target allows up to three",
     ]);
     expect(whys({ spec: list(gc), add: fifthGc }, 4)).toEqual([]);
   });
 
   it("mass land denial at 1–3, a possible one as the player's call", () => {
     expect(whys({ spec: list([]), add: armageddon }, 3)).toEqual([
-      "Mass land denial — Wizards expects none at Brackets 1–3 (Scryfall Tagger)",
+      "Mass land denial. Wizards expects none at Brackets 1 to 3 (Scryfall Tagger)",
     ]);
     expect(whys({ spec: list([]), add: liliana }, 2)).toEqual([
-      "Possible mass land denial, your call — Wizards expects none at Brackets 1–3 (Scryfall Tagger)",
+      "Possible mass land denial, your call. Wizards expects none at Brackets 1 to 3 (Scryfall Tagger)",
     ]);
     // Judged on the card, not the list: a list already over its target still hides it.
     expect(whys({ spec: list(gc), add: liliana }, 2)).toHaveLength(1);
@@ -282,18 +282,18 @@ describe("against a target — D7's lines, in plain words", () => {
 
   it("extra turns: none at 1; a second card at 2–3 (chaining is the call); any at 4", () => {
     expect(whys({ spec: list([]), add: turns[0] }, 1)).toEqual([
-      "An extra-turn card — Bracket 1 expects none (Scryfall Tagger)",
+      "An extra-turn card. Bracket 1 expects none (Scryfall Tagger)",
     ]);
     expect(whys({ spec: list([]), add: turns[0] }, 2)).toEqual([]);
     expect(whys({ spec: list(turns.slice(0, 1)), add: turns[1] }, 2)).toEqual([
-      "A second extra-turn card — Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
+      "A second extra-turn card. Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
     ]);
     expect(whys({ spec: list(turns.slice(0, 2)), add: turns[2] }, 3)).toEqual([
-      "A third extra-turn card — Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
+      "A third extra-turn card. Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)",
     ]);
     // At 1 the firm reason leads: the cards prove it.
     expect(whys({ spec: list(turns.slice(0, 1)), add: turns[1] }, 1)).toEqual([
-      "An extra-turn card — Bracket 1 expects none (Scryfall Tagger)",
+      "An extra-turn card. Bracket 1 expects none (Scryfall Tagger)",
     ]);
     expect(whys({ spec: list(turns.slice(0, 2)), add: turns[2] }, 4)).toEqual([]);
   });
@@ -302,7 +302,7 @@ describe("against a target — D7's lines, in plain words", () => {
     const at = (completes: CompleteCombo[], target: number) =>
       whys({ spec: list([pieceA, pieceB]), add: plain, completes }, target);
     expect(at([twoCard], 2)).toEqual([
-      "Completes a two-card combo — Wizards expects none at Brackets 1 and 2 (Commander Spellbook)",
+      "Completes a two-card combo. Wizards expects none at Brackets 1 and 2 (Commander Spellbook)",
     ]);
     expect(at([twoCard], 3)).toEqual([]);
     expect(at([ruthless], 3)).toEqual([
@@ -310,16 +310,16 @@ describe("against a target — D7's lines, in plain words", () => {
     ]);
     // S reads "3 or 4": at 3 the open 4 is the call; at 2 the firm 3 leads.
     expect(at([spicy], 3)).toEqual([
-      "Completes a combo that may make a deck Bracket 4 — your call (Commander Spellbook)",
+      "Completes a combo that may make a deck Bracket 4, your call (Commander Spellbook)",
     ]);
     expect(at([spicy], 2)).toEqual([
       "Completes a combo that alone makes a deck at least Bracket 3 (Commander Spellbook)",
     ]);
     expect(at([withCommander], 3)).toEqual([
-      "Completes a combo that may make a deck Bracket 4 — your call (Commander Spellbook)",
+      "Completes a combo that may make a deck Bracket 4, your call (Commander Spellbook)",
     ]);
     expect(at([template], 2)).toEqual([
-      "Completes a combo that may make a deck Bracket 4 — your call (Commander Spellbook)",
+      "Completes a combo that may make a deck Bracket 4, your call (Commander Spellbook)",
     ]);
     expect(at([exhibition], 1)).toEqual([]);
     expect(at([landCombo], 3)).toEqual([
@@ -330,7 +330,7 @@ describe("against a target — D7's lines, in plain words", () => {
   it("firm before a question within a rule, whichever combo comes first", () => {
     const c: Case = { spec: list([pieceA, pieceB]), add: plain, completes: [template, twoCard] };
     expect(whys(c, 2)).toEqual([
-      "Completes a two-card combo — Wizards expects none at Brackets 1 and 2 (Commander Spellbook)",
+      "Completes a two-card combo. Wizards expects none at Brackets 1 and 2 (Commander Spellbook)",
     ]);
     expect(whys({ ...c, completes: [twoCard, template] }, 2)).toEqual(whys(c, 2));
   });
@@ -352,7 +352,7 @@ describe("against a target — D7's lines, in plain words", () => {
     const id = `land-denial:${liliana.externalKey}`;
     expect(whys({ ...edge, answers: { rulesetVersion: 1, calls: { [id]: "no" } } }, 2)).toEqual([]);
     expect(whys({ ...edge, answers: { rulesetVersion: 1, calls: { [id]: "yes" } } }, 2)).toEqual([
-      "Mass land denial — Wizards expects none at Brackets 1–3 (Scryfall Tagger)",
+      "Mass land denial. Wizards expects none at Brackets 1 to 3 (Scryfall Tagger)",
     ]);
     const chain = `extra-turns:${[turns[0].externalKey, turns[1].externalKey].sort().join("+")}`;
     expect(
@@ -371,22 +371,22 @@ describe("against a target — D7's lines, in plain words", () => {
 describe("without a target — only what would raise the line", () => {
   it("names the level it would make the deck, and the call when it's the player's", () => {
     expect(impact({ spec: list([]), add: gc[0] }).map((x) => x.why)).toEqual([
-      "Would make this deck at least Bracket 3 — a Game Changer (Wizards' list)",
+      "Would make this deck at least Bracket 3: a Game Changer (Wizards' list)",
     ]);
     expect(impact({ spec: list(gc.slice(0, 1)), add: gc[1] })).toEqual([]);
     expect(impact({ spec: list(gc.slice(0, 3)), add: gc[3] }).map((x) => x.why)).toEqual([
-      "Would make this deck at least Bracket 4 — a fourth Game Changer (Wizards' list)",
+      "Would make this deck at least Bracket 4: a fourth Game Changer (Wizards' list)",
     ]);
     expect(impact({ spec: list(turns.slice(0, 1)), add: turns[1] }).map((x) => x.why)).toEqual([
-      "Could make this deck Bracket 4 — a second extra-turn card, if these turns chain (Scryfall Tagger)",
+      "Could make this deck Bracket 4: a second extra-turn card, if these turns chain (Scryfall Tagger)",
     ]);
     expect(
       impact({ spec: list([pieceA, pieceB]), add: plain, completes: [twoCard] }).map((x) => x.why),
     ).toEqual([
-      "Would make this deck at least Bracket 3 — completes a two-card combo (Commander Spellbook)",
+      "Would make this deck at least Bracket 3: completes a two-card combo (Commander Spellbook)",
     ]);
     expect(impact({ spec: list([]), add: liliana }).map((x) => x.why)).toEqual([
-      "Could make this deck Bracket 4 — possible mass land denial, your call (Scryfall Tagger)",
+      "Could make this deck Bracket 4: possible mass land denial, your call (Scryfall Tagger)",
     ]);
   });
 });

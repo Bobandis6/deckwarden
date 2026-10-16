@@ -75,7 +75,7 @@ export function ClaimDecks({ next = null }: { next?: string | null }) {
   if (returnTo !== null) {
     return (
       <p className="rounded-lg border px-3 py-2 text-sm" role="status">
-        Signed in — taking you back…{" "}
+        Signed in. Taking you back…{" "}
         <Link href={returnTo} replace className="underline underline-offset-4">
           Go now
         </Link>

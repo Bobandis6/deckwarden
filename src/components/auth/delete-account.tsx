@@ -88,7 +88,7 @@ export function DeleteAccount() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete account</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes your account and everything in it — all your decks (including
+              This permanently deletes your account and everything in it: all your decks (including
               public ones, with their versions and logged games), folders, likes, bookmarks, and
               your imported collection. There is no undo and no grace period.
             </AlertDialogDescription>

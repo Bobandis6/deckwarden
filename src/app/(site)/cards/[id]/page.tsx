@@ -162,7 +162,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
             </p>
             {identity.isPreview && (
               <p className="mt-2 inline-block rounded-md bg-amber-500/15 px-2 py-1 text-sm text-amber-800 dark:text-amber-400">
-                Preview card — not legal until release
+                Preview card: not legal until release
               </p>
             )}
             <div className="mt-4 whitespace-pre-wrap text-[0.95rem] leading-relaxed">

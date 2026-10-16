@@ -272,7 +272,7 @@ export async function enforceRateLimit(limits: RateLimit[]): Promise<NextRespons
     }
     if (blocked !== null) {
       return NextResponse.json(
-        { error: "Too many requests — try again shortly." },
+        { error: "Too many requests. Try again shortly." },
         {
           status: 429,
           headers: { "Retry-After": String(blocked), "Cache-Control": "no-store" },

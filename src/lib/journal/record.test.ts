@@ -37,8 +37,8 @@ const CELLS: RecordCell[] = [
 ];
 /** The GET described two of the three lists played (as if RECORD_LISTS were 2). */
 const LISTS: PlayedList[] = [
-  { version: 5, since: 2, change: "+1 · -1" },
-  { version: 8, since: 5, change: "+2 · -2" },
+  { version: 5, since: 2, change: "+1, -1" },
+  { version: 8, since: 5, change: "+2, -2" },
 ];
 
 describe("summarizeRecord", () => {
@@ -63,8 +63,8 @@ describe("summarizeRecord", () => {
   it("by list, newest first with its diff line; then the games with no list kept; older lists counted", () => {
     const r = summarizeRecord(CELLS, LISTS);
     expect(r.lists).toEqual([
-      { version: 8, since: 5, change: "+2 · -2", games: 7, win: 3, loss: 4, draw: 0 },
-      { version: 5, since: 2, change: "+1 · -1", games: 3, win: 2, loss: 1, draw: 0 },
+      { version: 8, since: 5, change: "+2, -2", games: 7, win: 3, loss: 4, draw: 0 },
+      { version: 5, since: 2, change: "+1, -1", games: 3, win: 2, loss: 1, draw: 0 },
       { version: null, since: null, change: null, games: 2, win: 0, loss: 2, draw: 0 },
     ]);
     // v2 was played (1 game) but isn't described: "and 1 earlier list".

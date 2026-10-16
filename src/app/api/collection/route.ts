@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json(
       {
-        error: `Invalid body — rows must be 1–${COLLECTION_LIMITS.rowsPerImport.toLocaleString("en-US")} parsed collection lines`,
+        error: `Invalid body: rows must be 1 to ${COLLECTION_LIMITS.rowsPerImport.toLocaleString("en-US")} parsed collection lines`,
         issues: parsed.error.issues.slice(0, 20),
       },
       { status: 400, headers: NO_STORE },

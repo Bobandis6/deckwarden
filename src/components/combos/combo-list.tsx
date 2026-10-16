@@ -59,7 +59,7 @@ export function ComboList({
             ))}
           </p>
           {combo.results.length > 0 && (
-            <p className="text-muted-foreground mt-1 text-xs">{combo.results.join(" · ")}</p>
+            <p className="text-muted-foreground mt-1 text-xs">{combo.results.join(", ")}</p>
           )}
           <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
             <p className="text-xs">

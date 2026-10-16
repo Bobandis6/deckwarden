@@ -65,7 +65,7 @@ describe("EditorHeader", () => {
     expect(screen.queryByRole("link", { name: "Back to home" })).toBeNull();
     expect(screen.getByText("Magic: The Gathering · Commander")).toBeTruthy();
     const name = screen.getByRole("textbox", { name: "Deck name" });
-    expect(name.getAttribute("placeholder")).toBe("Untitled — click to name your deck");
+    expect(name.getAttribute("placeholder")).toBe("Untitled: click to name your deck");
     expect(name.getAttribute("maxlength")).toBe("120");
     expect(screen.getAllByRole("button", { name: "Appearance" })).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Browse" })).toBeNull();

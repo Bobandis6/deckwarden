@@ -57,7 +57,7 @@ export async function POST(
       case "cap":
         return NextResponse.json(
           {
-            error: `Restoring saves a safety version first, and this deck already has ${MAX_VERSIONS_PER_DECK} — delete an old version, then restore.`,
+            error: `Restoring saves a safety version first, and this deck already has ${MAX_VERSIONS_PER_DECK}. Delete an old version, then restore.`,
             cap: MAX_VERSIONS_PER_DECK,
           },
           { status: 409, headers: NO_STORE },

@@ -37,7 +37,7 @@ export function SignInButtons({ next = null }: { next?: string | null }) {
     });
     // On success the browser navigates away; reaching here means it didn't.
     if (error) {
-      setError(error.message ?? "Sign-in failed — try again.");
+      setError(error.message ?? "Sign-in failed. Try again.");
       setPending(null);
     }
   };

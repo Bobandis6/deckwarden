@@ -41,7 +41,7 @@
  *
  * Y5 (WAVE4 D6): the bracket line after the Warden line (the editor's
  * order), in the table's voice — "Played as Bracket 2 (Core) · the cards
- * say at least 3 · Why?" — over the same read the editor computes
+ * say at least 3" and its Why? — over the same read the editor computes
  * (src/lib/brackets/table.ts), its "Why?" opening the Why sheet read-only;
  * "At the table" under it; and the owner's row (Open in editor · Copy ▾ ·
  * Share… · Buy) for the owner — the server's `isOwner`, or this browser's

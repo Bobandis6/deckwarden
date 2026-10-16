@@ -256,7 +256,7 @@ describe("SearchPane", () => {
     fetchMock.mockRejectedValueOnce(new Error("boom"));
     type(input, "sol");
     await settle();
-    expect(screen.getByText("Search failed — check your connection.")).toBeTruthy();
+    expect(screen.getByText("Search failed. Check your connection.")).toBeTruthy();
     respond([sol]);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await settle();

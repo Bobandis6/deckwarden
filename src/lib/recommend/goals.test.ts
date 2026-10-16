@@ -189,14 +189,14 @@ describe("the budget (the deck's own per-card tier)", () => {
       rule: "budget",
       source: "Card price",
       severity: "flag",
-      why: "Costs $45.10 — over your ≤ $5 a card budget",
+      why: "Costs $45.10, over your ≤ $5 a card budget",
     });
     expect(budgetConflict({ cheapestUsd: "5.00" }, 5)).toBeNull();
     expect(budgetConflict({ cheapestUsd: "1.01" }, 1)?.why).toBe(
-      "Costs $1.01 — over your ≤ $1 a card budget",
+      "Costs $1.01, over your ≤ $1 a card budget",
     );
     expect(budgetConflict({ cheapestUsd: null }, 5)?.why).toBe(
-      "No known price — your budget is ≤ $5 a card",
+      "No known price. Your budget is ≤ $5 a card",
     );
     expect(budgetConflict({ cheapestUsd: "45.10" }, undefined)).toBeNull();
   });
@@ -327,15 +327,15 @@ describe("WAVE4 E's acceptance — budget All, target 2 (the Magic adapter)", ()
     ]);
     expect(out.kept.map((r) => r.name)).toEqual(staples.map((s) => s.name));
     expect(out.hidden.map((r) => r.conflicts.map((c) => c.why))).toEqual([
-      ["A Game Changer (Wizards' list) — your Bracket 2 target allows none"],
-      ["Mass land denial — Wizards expects none at Brackets 1–3 (Scryfall Tagger)"],
-      ["A second extra-turn card — Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)"],
-      ["A Game Changer (Wizards' list) — your Bracket 2 target allows none"],
+      ["A Game Changer (Wizards' list). Your Bracket 2 target allows none"],
+      ["Mass land denial. Wizards expects none at Brackets 1 to 3 (Scryfall Tagger)"],
+      ["A second extra-turn card. Brackets 2 and 3 avoid chaining extra turns (Scryfall Tagger)"],
+      ["A Game Changer (Wizards' list). Your Bracket 2 target allows none"],
       [
-        "Completes a two-card combo — Wizards expects none at Brackets 1 and 2 (Commander Spellbook)",
+        "Completes a two-card combo. Wizards expects none at Brackets 1 and 2 (Commander Spellbook)",
       ],
       [
-        "Possible mass land denial, your call — Wizards expects none at Brackets 1–3 (Scryfall Tagger)",
+        "Possible mass land denial, your call. Wizards expects none at Brackets 1 to 3 (Scryfall Tagger)",
       ],
       ["Completes a combo that alone makes a deck at least Bracket 4 (Commander Spellbook)"],
     ]);
@@ -350,7 +350,7 @@ describe("WAVE4 E's acceptance — budget All, target 2 (the Magic adapter)", ()
       {
         rule: "game-changers",
         source: "Wizards' Game Changers list (via Scryfall)",
-        why: "Would make this deck at least Bracket 3 — a Game Changer (Wizards' list)",
+        why: "Would make this deck at least Bracket 3: a Game Changer (Wizards' list)",
         severity: "flag",
       },
     ]);

@@ -120,7 +120,7 @@ export function ShareDialog({
       <CopyStatus
         copy={copy}
         copied="Link copied"
-        failed="Couldn't copy — select the link and copy it."
+        failed="Couldn't copy. Select the link and copy it."
         className="-mt-2 min-h-4"
       />
       {visibility === "private" && (

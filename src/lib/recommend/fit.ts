@@ -324,7 +324,7 @@ export const FIT_COPY = {
   /** The door — More's item adds the ellipsis. */
   door: "Fit my budget",
   title: "Fit my budget",
-  lead: "Swaps your priciest cards for cheaper ones that share a job — check the swaps you want.",
+  lead: "Swaps your priciest cards for cheaper ones that share a job. Check the swaps you want.",
   totalLabel: "Deck total",
   fit: "Fit",
   change: "Change",
@@ -336,21 +336,21 @@ export const FIT_COPY = {
     (estimate.unpriced > 0
       ? ` · ${plural(estimate.unpriced, "card")} without a price not counted`
       : ""),
-  within: (phrase: string) => `Already within your budget — ${phrase}.`,
+  within: (phrase: string) => `Already within your budget: ${phrase}.`,
   saveTotal: (totalUsd: number) => `Save ${formatUsd(totalUsd)} as this deck's total`,
   removeTotal: "Remove this deck's total",
   /** D9, word for word: nothing to swap down. */
   nothing: "No suitable alternative under your goals.",
   asking: (n: number) => `Finding cheaper cards for ${plural(n, "more card")}…`,
-  limited: "Alternatives are rate-limited for a moment — try again shortly.",
+  limited: "Alternatives are rate-limited for a moment. Try again shortly.",
   failed: "Couldn't check some cards.",
   retry: "Try again",
   /** Asked, answered, nothing cheaper inside the goals. */
   noneFor: (names: readonly string[]) =>
     `No cheaper alternative under your goals for ${names.join(", ")}.`,
   owned: "Cards you own count as $0 and stay.",
-  combosUnknown: "Couldn't check combos — combo pieces aren't kept out of these swaps.",
-  combosChecking: "Checking combos — combo pieces aren't kept out of these swaps yet.",
+  combosUnknown: "Couldn't check combos. Combo pieces aren't kept out of these swaps.",
+  combosChecking: "Checking combos. Combo pieces aren't kept out of these swaps yet.",
   pickedFor: (name: string) => `picked for ${name}`,
   /** The plan fell back to each card's cheapest option (`prefer: "price"`). */
   cheapest:
@@ -359,7 +359,7 @@ export const FIT_COPY = {
   apply: (n: number) => `Swap ${plural(n, "card")}`,
   /** The apply's toast; its Undo restores the whole list. */
   toast: (n: number) => `Swapped ${plural(n, "card")}`,
-  noLeader: (noun: string) => `Add a ${noun} first — alternatives follow its color identity.`,
+  noLeader: (noun: string) => `Add a ${noun} first. Alternatives follow its color identity.`,
 } as const;
 
 /** "Not looked at: Serra Ascendant (no community roles yet), …" — why a pricey card isn't offered. */

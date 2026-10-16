@@ -36,7 +36,7 @@ const RECORD_WORDS: Record<string, () => string[]> = {
   score: () => [JOURNAL_COPY.score(T(5, 6, 1)), JOURNAL_COPY.score(T(2, 1, 0))],
   scoreWords: () => [JOURNAL_COPY.scoreWords(T(5, 6, 1)), JOURNAL_COPY.scoreWords(T(1, 1, 0))],
   wonOf: () => [JOURNAL_COPY.wonOf(3, 7, null), JOURNAL_COPY.wonOf(6, 12, 50)],
-  listLabel: () => [JOURNAL_COPY.listLabel(8, 7, "+2 · -2"), JOURNAL_COPY.listLabel(3, null, null)],
+  listLabel: () => [JOURNAL_COPY.listLabel(8, 7, "+2, -2"), JOURNAL_COPY.listLabel(3, null, null)],
   playedRow: () => [JOURNAL_COPY.playedRow(T(2, 1, 0)), JOURNAL_COPY.playedRow(T(2, 1, 1))],
   playedRowWords: () => [JOURNAL_COPY.playedRowWords(T(2, 1, 0))],
   vsLine: () => [JOURNAL_COPY.vsLine([["Atraxa, Praetors' Voice"], ["Kraum", "Tymna"]])],
@@ -112,7 +112,7 @@ describe("JOURNAL_COPY", () => {
         version: 12,
         onePod: false,
       }),
-    ).toBe("Oct 10 · Won · 4 players · went 1st · v12");
+    ).toBe("Oct 10 · Won, 4 players, went 1st, v12");
     // One Piece is always 1v1: no player count; no seat picked, no seat.
     expect(
       JOURNAL_COPY.gameLine({
@@ -123,7 +123,7 @@ describe("JOURNAL_COPY", () => {
         version: null,
         onePod: true,
       }),
-    ).toBe("Oct 9 · Lost · no list kept");
+    ).toBe("Oct 9 · Lost, no list kept");
   });
 
   it("the sign-in sentence the guest dialog and the routes share", () => {
@@ -167,7 +167,7 @@ describe("JOURNAL_COPY", () => {
   });
 
   it("Y10 — a list row is diffSummary's own line since the list played before; the first is its number", () => {
-    expect(JOURNAL_COPY.listLabel(8, 7, "+2 · -2")).toBe("v8, since v7: +2 · -2");
+    expect(JOURNAL_COPY.listLabel(8, 7, "+2, -2")).toBe("v8, since v7: +2, -2");
     expect(JOURNAL_COPY.listLabel(3, null, null)).toBe("v3");
     // A since without its summary (a snapshot that wouldn't read) is just the number.
     expect(JOURNAL_COPY.listLabel(5, 3, null)).toBe("v5");
@@ -187,9 +187,9 @@ describe("JOURNAL_COPY", () => {
       "vs Atraxa, Praetors' Voice; Kraum + Tymna",
     );
     expect(JOURNAL_COPY.editGame("2026-10-09")).toBe("Edit the game of Oct 9");
-    expect(JOURNAL_COPY.playedWith(7)).toBe("Played with v7 — an edit never changes the list.");
+    expect(JOURNAL_COPY.playedWith(7)).toBe("Played with v7. An edit never changes the list.");
     expect(JOURNAL_COPY.playedWith(null)).toBe(
-      "Logged with no list kept — an edit never changes that.",
+      "Logged with no list kept. An edit never changes that.",
     );
   });
 });

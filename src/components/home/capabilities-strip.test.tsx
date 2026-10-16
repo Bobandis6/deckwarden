@@ -33,7 +33,7 @@ describe("CapabilitiesStrip", () => {
     expect(bodies).toHaveLength(5);
     // R5a's bodies, unchanged until U9.
     expect(bodies[0]).toBe(
-      "Format legality, color identity, copy limits, and banned cards validated as you build — every flag comes with the reason, not just an ✗.",
+      "Format legality, color identity, copy limits, and banned cards validated as you build. Every flag comes with the reason, not just an ✗.",
     );
     expect(bodies[4]).toBe(
       "Commander hubs carry recent Top 16 results from Topdeck.gg; One Piece leader pages carry theirs from Limitless.",

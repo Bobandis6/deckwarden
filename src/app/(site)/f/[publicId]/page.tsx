@@ -128,7 +128,7 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
               ? "Only you can see this folder."
               : folder.visibility === "unlisted"
                 ? "Anyone with this link can view it. "
-                : "This folder is public — it appears on your profile. "}
+                : "This folder is public. It appears on your profile. "}
             Organize it from{" "}
             <Link href="/account" className="underline">
               your account

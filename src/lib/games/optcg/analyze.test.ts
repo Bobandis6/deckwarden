@@ -277,11 +277,11 @@ describe("analyzeOptcg", () => {
     for (const x of blocks) expect(["histogram", "breakdown", "stat", "table"]).toContain(x.kind);
   });
 
-  it("buckets the DON!! curve with '–' for alt-cost events and 8+ folded", () => {
+  it("buckets the DON!! curve with '0' for alt-cost events (U9: no en dash) and 8+ folded", () => {
     const curve = block(blocks, "don-curve");
     if (curve.kind !== "histogram") throw new Error("wrong kind");
     expect(curve.buckets.map((x) => x.label)).toEqual([
-      "–",
+      "0",
       "1",
       "2",
       "3",
@@ -291,7 +291,7 @@ describe("analyzeOptcg", () => {
       "7",
       "8+",
     ]);
-    // "–": 2× Gum-Gum Rain; 1: 4×a + Carrot; 2: 2×b; 3: stage; 8+: Usopp(8) + Uta(10).
+    // "0": 2× Gum-Gum Rain; 1: 4×a + Carrot; 2: 2×b; 3: stage; 8+: Usopp(8) + Uta(10).
     expect(curve.buckets.map((x) => x.value)).toEqual([2, 5, 2, 1, 0, 0, 0, 0, 2]);
   });
 

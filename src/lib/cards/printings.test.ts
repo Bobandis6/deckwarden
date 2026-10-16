@@ -1,7 +1,7 @@
 /**
  * The gallery's wire shape (W5): slim rows carry no URLs (imageOverride only
  * when non-null — the lean-rows rule), prices flatten to usd/usd_foil, and
- * the caption reads like the D4 sketch ("CMM · #410 · Unc.").
+ * the caption reads like the D4 sketch ("CMM #410 · Unc.").
  */
 import { describe, expect, it } from "vitest";
 
@@ -75,8 +75,8 @@ describe("rarityLabel / printingCaption", () => {
   });
 
   it("reads like the D4 sketch", () => {
-    expect(printingCaption(toGalleryPrinting(row))).toBe("CMM · #410 · Unc.");
-    expect(printingCaption(toGalleryPrinting({ ...row, rarity: null }))).toBe("CMM · #410");
+    expect(printingCaption(toGalleryPrinting(row))).toBe("CMM #410 · Unc.");
+    expect(printingCaption(toGalleryPrinting({ ...row, rarity: null }))).toBe("CMM #410");
   });
 });
 

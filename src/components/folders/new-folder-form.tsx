@@ -36,7 +36,7 @@ export function NewFolderForm() {
       setOpen(false);
       router.refresh();
     } catch {
-      setError("Couldn't create — check your connection and try again.");
+      setError("Couldn't create. Check your connection and try again.");
     } finally {
       setBusy(false);
     }

@@ -90,7 +90,7 @@ describe("ShareDialog (Y1)", () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
     });
     expect(screen.getByRole("status").textContent).toBe(
-      "Couldn't copy — select the link and copy it.",
+      "Couldn't copy. Select the link and copy it.",
     );
   });
 });

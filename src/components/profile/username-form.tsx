@@ -47,7 +47,7 @@ export function UsernameForm({ current }: { current: string | null }) {
       await refetch({ query: { disableCookieCache: true } });
       router.refresh();
     } catch {
-      setError("Couldn't save — check your connection and try again.");
+      setError("Couldn't save. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -63,7 +63,7 @@ export function UsernameForm({ current }: { current: string | null }) {
     >
       <label htmlFor="profile-username" className="text-muted-foreground block text-xs">
         {current
-          ? "Username — your public profile lives at /u/" + current
+          ? "Username: your public profile lives at /u/" + current
           : "Choose a username to publish a profile with your public decks"}
       </label>
       <div className="flex items-center gap-2">
@@ -92,7 +92,7 @@ export function UsernameForm({ current }: { current: string | null }) {
       )}
       {saved && !error && (
         <p aria-live="polite" className="text-muted-foreground text-xs">
-          Saved — your profile is live.
+          Saved. Your profile is live.
         </p>
       )}
     </form>

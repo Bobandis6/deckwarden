@@ -1,7 +1,7 @@
 // @vitest-environment node
 /**
  * POST /api/decks and goals (Y4b, WAVE4 D5): a draft whose first real edit
- * is a target or an answer carries its goals in the create — one request —
+ * is a target or an answer carries its goals in the create · one request —
  * checked against the game's adapter. Through the REAL drizzle builders
  * over a fake postgres.js client (the X5 pattern); the session and the
  * limiter are mocked at their module seams.

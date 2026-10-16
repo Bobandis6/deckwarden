@@ -32,7 +32,7 @@ export const revalidate = 86400;
 export const metadata: Metadata = {
   title: "Sets",
   description:
-    "Every released Magic: The Gathering set, newest first — expansions, Commander decks, reprint sets and more. Pick a set to see every card in it.",
+    "Every released Magic: The Gathering set, newest first. Expansions, Commander decks, reprint sets and more. Pick a set to see every card in it.",
   alternates: { canonical: "/sets" },
 };
 
@@ -57,7 +57,7 @@ export default async function SetsPage() {
           aria-disabled="true"
           className="text-muted-foreground inline-flex items-center rounded-md border border-dashed px-2 py-1 text-sm pointer-coarse:min-h-11 pointer-coarse:px-3"
         >
-          {GAME_SWITCH_LABELS.optcg} — soon
+          {GAME_SWITCH_LABELS.optcg} (soon)
         </span>
         <span className="text-muted-foreground text-xs">One Piece sets are coming.</span>
       </div>

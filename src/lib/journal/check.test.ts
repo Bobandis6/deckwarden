@@ -80,22 +80,22 @@ describe("journalIssue — the adapter's checks over a whole game", () => {
   });
 
   it("the pod's range — a One Piece game is 1v1", () => {
-    expect(journalIssue(mtg, game({ podSize: 1 }))).toBe("A game here has 2–8 players");
-    expect(journalIssue(mtg, game({ podSize: 9 }))).toBe("A game here has 2–8 players");
+    expect(journalIssue(mtg, game({ podSize: 1 }))).toBe("A game here has 2 to 8 players");
+    expect(journalIssue(mtg, game({ podSize: 9 }))).toBe("A game here has 2 to 8 players");
     expect(journalIssue(optcg, game({ podSize: 4 }))).toBe("A game here has 2 players");
   });
 
   it("a seat inside the table", () => {
-    expect(journalIssue(mtg, game({ podSize: 3, seat: 4 }))).toBe("Seat must be 1–3");
-    expect(journalIssue(optcg, game({ podSize: 2, seat: 3 }))).toBe("Seat must be 1–2");
+    expect(journalIssue(mtg, game({ podSize: 3, seat: 4 }))).toBe("Seat must be 1 to 3");
+    expect(journalIssue(optcg, game({ podSize: 2, seat: 3 }))).toBe("Seat must be 1 to 2");
   });
 
   it("a table level only where declared, and inside its levels", () => {
     expect(journalIssue(optcg, game({ podSize: 2, tableLevel: 3 }))).toBe(
       "This game has no table level",
     );
-    expect(journalIssue(mtg, game({ tableLevel: 6 }))).toBe("The bracket must be 1–5");
-    expect(journalIssue(mtg, game({ tableLevel: 0 }))).toBe("The bracket must be 1–5");
+    expect(journalIssue(mtg, game({ tableLevel: 6 }))).toBe("The bracket must be 1 to 5");
+    expect(journalIssue(mtg, game({ tableLevel: 0 }))).toBe("The bracket must be 1 to 5");
   });
 
   it("opponents: at most pod − 1, and the game's leader count each", () => {

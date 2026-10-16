@@ -379,11 +379,11 @@ export function HistoryDialog({
                 <span className="min-w-0 flex-1">
                   <span className="text-sm font-medium break-words">{versionLabel(v)}</span>
                   <span className="text-muted-foreground block text-xs">
-                    v{v.version} · {dateLabel(v.createdAt)} ·{" "}
+                    v{v.version} ({dateLabel(v.createdAt)}) ·{" "}
                     <span className="tabular-nums">{v.cardCount}</span> cards
                     {v.record && (
                       <>
-                        {" · "}
+                        {", "}
                         <span data-slot="history-played" aria-hidden className="tabular-nums">
                           {JOURNAL_COPY.playedRow(v.record)}
                         </span>

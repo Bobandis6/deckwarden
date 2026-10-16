@@ -42,7 +42,7 @@ function pane(issues: ValidationIssue[], bracket?: React.ReactNode) {
   );
 }
 
-const slot = <p data-testid="bracket">At least Bracket 3 (Upgraded) · Why?</p>;
+const slot = <p data-testid="bracket">At least Bracket 3 (Upgraded) Why?</p>;
 
 beforeEach(() => {
   window.localStorage.clear();

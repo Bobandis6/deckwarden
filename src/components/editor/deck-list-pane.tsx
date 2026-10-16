@@ -316,7 +316,7 @@ export function DeckListPane({
               onClick={onOpenCuts}
               className="text-destructive shrink-0 cursor-pointer text-xs font-medium whitespace-nowrap hover:underline max-md:pointer-coarse:min-h-11"
             >
-              Over by {total - max} — rank cuts
+              Over by {total - max}: rank cuts
             </button>
           )}
           {/* Collection line (P3.7): only for owners with an imported

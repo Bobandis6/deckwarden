@@ -30,7 +30,7 @@ describe("diffDeckLists", () => {
     expect(diff.qtyChanged).toEqual([{ cardId: "plains", zone: "main", from: 3, to: 5 }]);
     expect(diff.moved).toEqual([]);
     expect(diff.unchanged).toBe(1);
-    expect(diffSummary(diff)).toBe("+1 · -1 · 1 qty");
+    expect(diffSummary(diff)).toBe("+1, -1, 1 qty");
   });
 
   it("pairs a same-quantity zone change into one move", () => {

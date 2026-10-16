@@ -39,8 +39,8 @@
  * Goals (Y6a, WAVE4 D7): the deck's target and per-card budget, checked by
  * the server (rank all → goals → slice, recommend/goals.ts) — this panel
  * shows what came back:
- * - one goals line on top ("Your goals: Bracket 2 (Core) · ≤ $5 a card ·
- *   Change"; with none, "No bracket target yet · Set one" — LATER row 175's
+ * - one goals line on top ("Your goals: Bracket 2 (Core), ≤ $5 a card" and
+ *   Change; with none, "No bracket target yet" and "Set one" — LATER row 175's
  *   door); its action opens the Why sheet at Your target;
  * - the budget control starts from the deck's own per-card budget; picking
  *   another tier shows "Save as this deck's budget", which saves it as a
@@ -200,7 +200,7 @@ export function RecommendationsPanel({
           });
         }
         if (res.status === 429) {
-          throw new Error("Suggestions are rate-limited for a moment — try again shortly.");
+          throw new Error("Suggestions are rate-limited for a moment. Try again shortly.");
         }
         if (!res.ok) throw new Error(`Suggestions failed to load (${res.status}).`);
         const json: {
@@ -235,7 +235,7 @@ export function RecommendationsPanel({
   if (!leader) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
-        Add a {adapter.display.leaderNoun} to get suggestions — they’re built on its color identity.
+        Add a {adapter.display.leaderNoun} to get suggestions. They’re built on its color identity.
       </div>
     );
   }
@@ -314,8 +314,8 @@ export function RecommendationsPanel({
             ? "Updating…"
             : wantOwned && ownedMeta?.requested && !ownedMeta.applied
               ? ownedMeta.reason === "signed-out"
-                ? "Sign in to filter by your collection — showing all suggestions."
-                : "No collection found on this account — showing all suggestions."
+                ? "Sign in to filter by your collection. Showing all suggestions."
+                : "No collection found on this account. Showing all suggestions."
               : wantOwned && ownedMeta?.applied
                 ? "Showing only cards in your collection."
                 : "")}
@@ -381,12 +381,12 @@ export function RecommendationsPanel({
       ) : recs.length === 0 ? (
         <p className="text-muted-foreground mt-2 text-sm">
           {ownedMeta?.applied
-            ? "Nothing you own fits this deck right now — untick “Only cards I own” for the full list."
+            ? "Nothing you own fits this deck right now. Untick “Only cards I own” for the full list."
             : hidden.length > 0
               ? "Nothing else fits your goals right now."
               : budget === "all"
                 ? "No suggestions right now."
-                : `No suggestions with a known price of $${budget} or less — try a wider budget.`}
+                : `No suggestions with a known price of $${budget} or less. Try a wider budget.`}
         </p>
       ) : (
         <ul className="mt-1 space-y-1.5">
@@ -491,7 +491,7 @@ function SuggestionRow({
       {/* Strongest evidence leads even collapsed — never a bare "add this". */}
       <p className={`mt-1 text-xs leading-relaxed ${expanded ? "" : "line-clamp-2"}`}>{top.why}</p>
       <p className="text-muted-foreground mt-0.5 text-xs">
-        {sourceLabels.join(" · ")}
+        {sourceLabels.join(", ")}
         {price ? ` · ${price}` : ""}
       </p>
       {/* Goals (Y6a): beside the evidence, never part of it — each line names its source. */}

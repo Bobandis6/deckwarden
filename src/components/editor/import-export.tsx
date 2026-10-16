@@ -50,7 +50,7 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
     setError(null);
     const { lines, warnings } = adapter.parseDecklist(text);
     if (lines.length === 0) {
-      setError(warnings[0] ?? "Nothing to import — paste a decklist first.");
+      setError(warnings[0] ?? "Nothing to import. Paste a decklist first.");
       return;
     }
     setBusy(true);
@@ -147,7 +147,7 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
 
         {unresolved.length > 0 && (
           <div>
-            <h3 className="text-xs font-medium">Not found — pick a match or leave to skip:</h3>
+            <h3 className="text-xs font-medium">Not found. Pick a match or leave to skip:</h3>
             <ul className="mt-1 space-y-1.5">
               {state.items.map((item, index) =>
                 item.card ? null : (
@@ -176,7 +176,7 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
                         })}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground"> — no close matches</span>
+                      <span className="text-muted-foreground">: no close matches</span>
                     )}
                   </li>
                 ),
@@ -190,7 +190,7 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
         {guessed.length > 0 && (
           <p className="text-xs">
             <span className="font-medium">{adapter.display.leaderNoun}:</span>{" "}
-            {guessed.map((i) => i.card!.name).join(", ")} — from the first line
+            {guessed.map((i) => i.card!.name).join(", ")}, from the first line
             {guessed.length > 1 ? "s" : ""} of the list
           </p>
         )}
@@ -257,7 +257,7 @@ export function ExportDialog({ text, onClose }: { text: string; onClose: () => v
       <div className="flex items-center justify-end gap-2">
         <CopyStatus
           copy={copy}
-          failed="Couldn't copy — select the list and copy it."
+          failed="Couldn't copy. Select the list and copy it."
           className="min-h-4"
         />
         <Button size="sm" onClick={() => copy.copy(text)}>

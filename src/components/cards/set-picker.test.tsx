@@ -191,7 +191,7 @@ describe("SetPicker", () => {
     press(box());
     await act(async () => {});
     expect(options()).toHaveLength(2 * SET_ROWS_PER_GROUP);
-    expect(screen.getByText("Showing 100 of 120 — keep typing to narrow.")).toBeTruthy();
+    expect(screen.getByText("Showing 100 of 120. Keep typing to narrow.")).toBeTruthy();
     expect(status()).toBe("120 sets");
   });
 });

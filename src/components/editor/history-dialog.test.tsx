@@ -138,7 +138,7 @@ describe("HistoryDialog — loading", () => {
     await loaded(dialog, "post-FNM");
     const [first, second] = rows(dialog);
     expect(first.textContent).toContain("post-FNM");
-    expect(first.textContent).toContain("v2 ·");
+    expect(first.textContent).toContain("v2 (");
     expect(first.textContent).toContain("100 cards");
     // An unnamed version reads by its number.
     expect(second.textContent).toContain("Version 1");
@@ -180,12 +180,12 @@ describe("HistoryDialog — Save version", () => {
   it("the route's 409 is said in its own words", async () => {
     routes[`POST /api/decks/${DECK}/versions`] = () =>
       reply(409, {
-        error: "This deck already has 50 versions — delete an old one to save another.",
+        error: "This deck already has 50 versions. Delete an old one to save another.",
       });
     const { dialog } = renderHistory({ versions: [version(1, "saved", null)] });
     await loaded(dialog, "1 / 50");
     fireEvent.click(within(dialog).getByRole("button", { name: "Save version" }));
-    await loaded(dialog, "This deck already has 50 versions — delete an old one to save another.");
+    await loaded(dialog, "This deck already has 50 versions. Delete an old one to save another.");
   });
 });
 
@@ -202,7 +202,7 @@ describe("HistoryDialog — Compare, Restore, Delete", () => {
     const compare = within(dialog).getByRole("button", { name: "Compare" });
     fireEvent.click(compare);
     await loaded(dialog, "first build → now");
-    expect(dialog.textContent).toContain("+1 · 1 qty");
+    expect(dialog.textContent).toContain("+1, 1 qty");
     expect(dialog.textContent).toContain("Sol Ring");
     expect(compare.getAttribute("aria-pressed")).toBe("true");
   });

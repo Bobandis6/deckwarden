@@ -82,7 +82,7 @@ async function copyAndOpen(href: Extract<MassEntryHref, { kind: "copy" }>) {
     return;
   }
   window.open(href.bareUrl, "_blank", "noopener");
-  toast.add({ title: "List copied — paste it into Mass Entry", type: "success", timeout: 4000 });
+  toast.add({ title: "List copied. Paste it into Mass Entry", type: "success", timeout: 4000 });
 }
 
 /** "sponsored" only on the affiliate day — the ternary folds away while unset. */
@@ -98,7 +98,7 @@ function BuyFooter({ vendor, className }: { vendor: string; className?: string }
       </p>
       {process.env.NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE && (
         <p className={`text-muted-foreground text-xs ${className ?? ""}`}>
-          Affiliate links — Deckwarden may earn a commission.
+          Affiliate links. Deckwarden may earn a commission.
         </p>
       )}
     </>

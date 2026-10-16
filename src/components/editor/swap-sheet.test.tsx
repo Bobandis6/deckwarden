@@ -87,7 +87,7 @@ describe("SwapInSheet", () => {
   it("without facts nothing is protected — and the sheet says so, in the Cut Coach's terms", () => {
     const checking = renderSheet({ combos: null, factsState: "checking" });
     expect(checking.sheet.textContent).toContain(
-      "Checking combos — this suggestion doesn’t protect them yet.",
+      "Checking combos. This suggestion doesn’t protect them yet.",
     );
     // The fringier combo piece is named: honest about what it couldn't see.
     expect(
@@ -98,21 +98,21 @@ describe("SwapInSheet", () => {
   it("a failed check, or no commander, says so too", () => {
     renderSheet({ combos: null, factsState: "failed" });
     expect(screen.getByRole("dialog").textContent).toContain(
-      "Couldn’t check combos — this suggestion doesn’t protect them.",
+      "Couldn’t check combos. This suggestion doesn’t protect them.",
     );
   });
 
   it("no commander: combo warnings need one", () => {
     renderSheet({ entries: ENTRIES.slice(1), combos: null, factsState: "off" });
     expect(screen.getByRole("dialog").textContent).toContain(
-      "Combo warnings need a Commander — this suggestion doesn’t protect combos yet.",
+      "Combo warnings need a Commander. This suggestion doesn’t protect combos yet.",
     );
   });
 
   it("“4 Arcane Signet” at the maximum: one copy comes in, and the sheet says so", () => {
     const { sheet } = renderSheet({ qty: 4 });
     expect(sheet.textContent).toContain(
-      "Arcane Signet comes in and one card goes out — the deck stays at 100. One copy at a time while the deck is full.",
+      "Arcane Signet comes in and one card goes out, so the deck stays at 100. One copy at a time while the deck is full.",
     );
   });
 
@@ -134,7 +134,7 @@ describe("SwapInSheet", () => {
     );
     const sheet = screen.getByRole("dialog", { name: "Swap in Fringe Two" });
     expect(sheet.querySelector("[data-slot=swap-in-already]")?.textContent).toBe(
-      "Fringe Two is already in the deck (×1) — this adds another copy.",
+      "Fringe Two is already in the deck (×1). This adds another copy.",
     );
     expect(
       within(sheet).queryByRole("button", { name: "Swap Fringe Two for Fringe Two" }),

@@ -670,7 +670,7 @@ function FitRowView({
                 </span>
               </label>
               <p className="text-muted-foreground pl-6 text-xs">
-                Both: {o.shared.map((k) => labels.get(k) ?? k).join(" · ")}
+                Both: {o.shared.map((k) => labels.get(k) ?? k).join(", ")}
               </p>
               {flags.map((c) => (
                 <p

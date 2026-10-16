@@ -256,11 +256,11 @@ const NUMBER_WORDS = [
 ];
 const numberWord = (n: number) => NUMBER_WORDS[n] ?? String(n);
 
-/** [1, 2] → "Brackets 1 and 2"; [1, 2, 3] → "Brackets 1–3"; [1] → "Bracket 1". */
+/** [1, 2] → "Brackets 1 and 2"; [1, 2, 3] → "Brackets 1 to 3"; [1] → "Bracket 1". */
 function bracketsPhrase(levels: readonly number[]): string {
   if (levels.length === 1) return `Bracket ${levels[0]}`;
   if (levels.length === 2) return `Brackets ${levels[0]} and ${levels[1]}`;
-  return `Brackets ${levels[0]}–${levels[levels.length - 1]}`;
+  return `Brackets ${levels[0]} to ${levels[levels.length - 1]}`;
 }
 /** "Bracket 1 expects" / "Brackets 1 and 2 expect" — the verb agrees with however many there are. */
 function bracketsVerb(levels: readonly number[], one: string, many: string): string {
@@ -323,10 +323,10 @@ function assumptionsFor(gameChangersAsOf: string | null): string[] {
   const timed = LEVELS.filter((l) => l.turns !== null);
   const turns = joinAnd(timed.map((l) => String(l.turns)));
   return [
-    `Reads the card list only — it can't see how fast your deck wins. Wizards expects games to last at least ${turns} turns at Brackets ${timed[0].level}–${timed[timed.length - 1].level}.`,
+    `Reads the card list only. It can't see how fast your deck wins. Wizards expects games to last at least ${turns} turns at Brackets ${timed[0].level} to ${timed[timed.length - 1].level}.`,
     `A combo counts as fast when it needs ${FAST_COMBO_MANA} mana or less to assemble (Commander Spellbook).`,
     "Your commander counts as always available.",
-    "Tutors and fast mana don't change the read — Wizards dropped tutor limits in October 2025.",
+    "Tutors and fast mana don't change the read. Wizards dropped tutor limits in October 2025.",
     "Land-denial and extra-turn lists are Scryfall community tags, not Wizards lists.",
     "Combos no EDHREC deck has played aren't checked.",
     gameChangersAsOf
@@ -475,7 +475,7 @@ function readCombo(
   if (tag === "R")
     rules.push({
       level: TAG_LEVEL.R,
-      words: `${twoCard ? "A fast one — " : ""}Commander Spellbook rates it Bracket ${TAG_LEVEL.R}.`,
+      words: `${twoCard ? "A fast one. " : ""}Commander Spellbook rates it Bracket ${TAG_LEVEL.R}.`,
       source: BRACKET_SOURCES.spellbook,
     });
   if (twoCard)
@@ -513,7 +513,7 @@ function readCombo(
   if (commanderMayRaise && TAG_LEVEL.R > firm) {
     raisesTo = TAG_LEVEL.R;
     because.push(
-      `${because.length > 0 ? "It" : "Commander Spellbook"} rates combos without knowing your commander — with yours always there, it may be faster.`,
+      `${because.length > 0 ? "It" : "Commander Spellbook"} rates combos without knowing your commander. With yours always there, it may be faster.`,
     );
   }
 
@@ -523,7 +523,7 @@ function readCombo(
     factor: top
       ? {
           ...base,
-          sentence: `${twoCard ? (usesCommander ? "Two-card combo with your commander" : "Two-card combo") : "Combo"}: ${label}${top.what ? ` — ${top.what}` : ""}. ${top.words}`,
+          sentence: `${twoCard ? (usesCommander ? "Two-card combo with your commander" : "Two-card combo") : "Combo"}: ${label}${top.what ? ` (${top.what})` : ""}. ${top.words}`,
           source: top.source,
           atLeast: top.level,
           change:
@@ -880,32 +880,32 @@ function overTargetWords(e: Effect, target: number): string {
     case "game-changers": {
       const allowance = levelOf(target).gameChangers ?? 0;
       return allowance === 0
-        ? `A Game Changer (${SOURCE_SHORT.gameChangers}) — your Bracket ${target} target allows none`
-        : `A ${ordinal(e.nth ?? 1)} Game Changer (${SOURCE_SHORT.gameChangers}) — your Bracket ${target} target allows up to ${numberWord(allowance)}`;
+        ? `A Game Changer (${SOURCE_SHORT.gameChangers}). Your Bracket ${target} target allows none`
+        : `A ${ordinal(e.nth ?? 1)} Game Changer (${SOURCE_SHORT.gameChangers}). Your Bracket ${target} target allows up to ${numberWord(allowance)}`;
     }
     case "land-denial": {
       const where = bracketsPhrase(levelsWhere((l) => !l.landDenial));
       return e.call
-        ? `Possible mass land denial, your call — Wizards expects none at ${where} (${SOURCE_SHORT.tagger})`
-        : `Mass land denial — Wizards expects none at ${where} (${SOURCE_SHORT.tagger})`;
+        ? `Possible mass land denial, your call. Wizards expects none at ${where} (${SOURCE_SHORT.tagger})`
+        : `Mass land denial. Wizards expects none at ${where} (${SOURCE_SHORT.tagger})`;
     }
     case "extra-turns":
       return e.level >= CHAINED_TURNS_LEVEL
-        ? `A ${ordinal(e.nth ?? 2)} extra-turn card — ${bracketsVerb(
+        ? `A ${ordinal(e.nth ?? 2)} extra-turn card. ${bracketsVerb(
             levelsWhere((l) => l.extraTurns === "few"),
             "avoids",
             "avoid",
           )} chaining extra turns (${SOURCE_SHORT.tagger})`
-        : `An extra-turn card — ${bracketsVerb(
+        : `An extra-turn card. ${bracketsVerb(
             levelsWhere((l) => l.extraTurns === "none"),
             "expects",
             "expect",
           )} none (${SOURCE_SHORT.tagger})`;
     case "combo":
       if (e.call)
-        return `Completes a combo that may make a deck Bracket ${e.level} — your call (${SOURCE_SHORT.spellbook})`;
+        return `Completes a combo that may make a deck Bracket ${e.level}, your call (${SOURCE_SHORT.spellbook})`;
       return e.twoCard
-        ? `Completes a two-card combo — Wizards expects none at ${bracketsPhrase(
+        ? `Completes a two-card combo. Wizards expects none at ${bracketsPhrase(
             levelsWhere((l) => l.twoCardCombos === "none"),
           )} (${SOURCE_SHORT.spellbook})`
         : `Completes a combo that alone makes a deck at least Bracket ${e.level} (${SOURCE_SHORT.spellbook})`;
@@ -919,15 +919,15 @@ function raiseWords(e: Effect): string {
     : `Would make this deck at least Bracket ${e.level}`;
   switch (e.rule) {
     case "game-changers":
-      return `${head} — ${(e.nth ?? 1) > 1 ? `a ${ordinal(e.nth!)}` : "a"} Game Changer (${SOURCE_SHORT.gameChangers})`;
+      return `${head}: ${(e.nth ?? 1) > 1 ? `a ${ordinal(e.nth!)}` : "a"} Game Changer (${SOURCE_SHORT.gameChangers})`;
     case "land-denial":
-      return `${head} — ${e.call ? "possible mass land denial, your call" : "mass land denial"} (${SOURCE_SHORT.tagger})`;
+      return `${head}: ${e.call ? "possible mass land denial, your call" : "mass land denial"} (${SOURCE_SHORT.tagger})`;
     case "extra-turns":
       return e.level >= CHAINED_TURNS_LEVEL
-        ? `${head} — a ${ordinal(e.nth ?? 2)} extra-turn card, if these turns chain (${SOURCE_SHORT.tagger})`
-        : `${head} — an extra-turn card (${SOURCE_SHORT.tagger})`;
+        ? `${head}: a ${ordinal(e.nth ?? 2)} extra-turn card, if these turns chain (${SOURCE_SHORT.tagger})`
+        : `${head}: an extra-turn card (${SOURCE_SHORT.tagger})`;
     case "combo":
-      return `${head} — completes a ${e.twoCard ? "two-card combo" : "combo"}${e.call ? ", your call" : ""} (${SOURCE_SHORT.spellbook})`;
+      return `${head}: completes a ${e.twoCard ? "two-card combo" : "combo"}${e.call ? ", your call" : ""} (${SOURCE_SHORT.spellbook})`;
   }
 }
 
@@ -1086,7 +1086,7 @@ export function mtgShellNotes(skipped: Readonly<Record<string, number>>, target:
   if (gameChangers > 0) {
     const allowance = levelOf(target).gameChangers;
     notes.push(
-      `Skipped ${gameChangers} ${plural(gameChangers, "Game Changer", "Game Changers")} — your Bracket ${target} target allows ${
+      `Skipped ${gameChangers} ${plural(gameChangers, "Game Changer", "Game Changers")}. Your Bracket ${target} target allows ${
         allowance === null
           ? "any number"
           : allowance === 0
@@ -1098,7 +1098,7 @@ export function mtgShellNotes(skipped: Readonly<Record<string, number>>, target:
   const landDenial = count("land-denial");
   if (landDenial > 0) {
     notes.push(
-      `Skipped ${landDenial} land-denial ${plural(landDenial, "card", "cards")} — Wizards expects no mass land denial at ${bracketsPhrase(
+      `Skipped ${landDenial} land-denial ${plural(landDenial, "card", "cards")}. Wizards expects no mass land denial at ${bracketsPhrase(
         levelsWhere((l) => !l.landDenial),
       )} (${SOURCE_SHORT.tagger})`,
     );
@@ -1108,12 +1108,12 @@ export function mtgShellNotes(skipped: Readonly<Record<string, number>>, target:
     const cards = plural(extraTurns, "card", "cards");
     notes.push(
       target < EXTRA_TURN_LEVEL
-        ? `Skipped ${extraTurns} extra-turn ${cards} — ${bracketsVerb(
+        ? `Skipped ${extraTurns} extra-turn ${cards}. ${bracketsVerb(
             levelsWhere((l) => l.extraTurns === "none"),
             "expects",
             "expect",
           )} none (${SOURCE_SHORT.tagger})`
-        : `Skipped ${extraTurns} more extra-turn ${cards} — ${bracketsVerb(
+        : `Skipped ${extraTurns} more extra-turn ${cards}. ${bracketsVerb(
             levelsWhere((l) => l.extraTurns === "few"),
             "avoids",
             "avoid",
@@ -1190,8 +1190,8 @@ export function mtgComboBadge(
     callLevel === null
       ? `${head} alone makes a deck at least Bracket ${level}`
       : level <= 1
-        ? `${head} could make a deck Bracket ${callLevel} — your call`
-        : `${head} alone makes a deck Bracket ${level} or ${callLevel} — your call`;
+        ? `${head} could make a deck Bracket ${callLevel}, your call`
+        : `${head} alone makes a deck Bracket ${level} or ${callLevel}, your call`;
   return { level, callLevel, words, source };
 }
 

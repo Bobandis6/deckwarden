@@ -95,7 +95,7 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
       <h1 className="type-title">Commanders</h1>
       <p className="text-muted-foreground mt-1 text-sm">
         Ranked by EDHREC decklist popularity via Scryfall: how many published decklists include each
-        card, as commander or in the 99 — not how often it&apos;s played.
+        card, as commander or in the 99, not how often it&apos;s played.
       </p>
 
       {/* Contextual game switch (R1b, REDESIGN.md §2): the One Piece index is one pill away. */}

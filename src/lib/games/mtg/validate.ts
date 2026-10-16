@@ -147,7 +147,7 @@ export function validateMtg(
     }
     if (zone.countsTowardSize) deckSize += zoneQty;
     if (zoneQty < zone.min || (zone.max != null && zoneQty > zone.max)) {
-      const bound = zone.max == null ? `at least ${zone.min}` : `${zone.min}–${zone.max}`;
+      const bound = zone.max == null ? `at least ${zone.min}` : `${zone.min} to ${zone.max}`;
       issues.push({
         code: "ZONE_SIZE",
         severity: "error",
@@ -175,7 +175,9 @@ export function validateMtg(
     const want =
       format.deckSize.max === format.deckSize.min
         ? `exactly ${format.deckSize.min}`
-        : `${format.deckSize.min}–${format.deckSize.max ?? "∞"}`;
+        : format.deckSize.max == null
+          ? `at least ${format.deckSize.min}`
+          : `${format.deckSize.min} to ${format.deckSize.max}`;
     issues.push({
       code: "DECK_SIZE",
       severity: "error",
@@ -260,7 +262,7 @@ export function validateMtg(
     NOT_LEGAL: { severity: "error", msg: (n) => `${n} card(s) are not legal in ${format.label}.` },
     NOT_RELEASED: {
       severity: "warning",
-      msg: (n) => `${n} preview card(s) — not legal until release.`,
+      msg: (n) => `${n} preview card(s): not legal until release.`,
     },
   };
   for (const [code, cardIds] of byCode) {

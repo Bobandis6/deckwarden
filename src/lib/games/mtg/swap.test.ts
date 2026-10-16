@@ -28,7 +28,7 @@ const card = (attrs: Record<string, unknown>, costValue: number | null = 2): Car
 describe("mtgSwap", () => {
   it("credits Scryfall Tagger in plain words, without notation or claims of sameness", () => {
     const { why } = mtgSwap.evidence(["ramp", "mana rock"]);
-    expect(why).toBe("Both: ramp · mana rock — community-tagged on Scryfall Tagger");
+    expect(why).toBe("Both: ramp, mana rock. Community-tagged on Scryfall Tagger");
     for (const r of MTG_ROLES) {
       const line = mtgSwap.evidence([r.label]).why;
       expect(line).not.toMatch(/\b(same|identical|equivalent|replaces|approve)/i);
@@ -71,10 +71,10 @@ describe("mtgSwap", () => {
     expect(mtgSwap.bucketName("3")).toBe("mana value 3");
     expect(mtgSwap.bucketName("7+")).toBe("mana value 7+");
     expect(mtgSwap.unmatched({ name: "Command Tower", primaryType: "Land", costValue: 0 })).toBe(
-      "A land gets no suggested partner — which land to cut depends on its colors. Choose the card to cut.",
+      "A land gets no suggested partner. Which land to cut depends on its colors. Choose the card to cut.",
     );
     expect(mtgSwap.unmatched({ name: "Living End", primaryType: "Sorcery", costValue: null })).toBe(
-      "Living End has no mana cost to match — choose the card to cut.",
+      "Living End has no mana cost to match. Choose the card to cut.",
     );
   });
 });

@@ -147,5 +147,5 @@ export function diffSummary(diff: DeckDiff): string {
   if (minus > 0) parts.push(`-${minus}`);
   if (diff.qtyChanged.length > 0) parts.push(`${diff.qtyChanged.length} qty`);
   if (diff.moved.length > 0) parts.push(`${diff.moved.length} moved`);
-  return parts.join(" · ");
+  return parts.join(", ");
 }

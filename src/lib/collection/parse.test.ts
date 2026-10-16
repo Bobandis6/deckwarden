@@ -186,7 +186,7 @@ describe("parseCollectionCsv — ManaBox", () => {
     expect(out.result.rows[0].scryfallId).toBeUndefined();
     expect(out.result.unknownFinishes).toEqual({ count: 1, examples: ["glossy"] });
     expect(out.result.lineCount).toBe(5);
-    expect(formatRejects(out.result.rejects).split("\n")[0]).toMatch(/^line 2 — no card name: /);
+    expect(formatRejects(out.result.rejects).split("\n")[0]).toMatch(/^line 2, no card name: /);
   });
 
   it("clamps absurd quantities and counts it", () => {

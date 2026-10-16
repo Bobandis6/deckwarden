@@ -5,14 +5,14 @@
  * line, and D0's copy guard reads it (bracket-line.test.ts). Plain words,
  * bracket numbers first, never notation. Core adds "Why?", its own lines
  * while the combo facts load or fail ("Checking combos…", "Couldn't check
- * combos · Retry"), and a draft's progress phrase ("add 34 more cards" —
+ * combos" and Retry), and a draft's progress phrase ("add 34 more cards" —
  * src/lib/decks/progress.ts owns it).
  *
  * D5's table, word for word where it speaks:
- * - nothing flagged — "Bracket 1–2 · nothing here goes past Core"
+ * - nothing flagged — "Bracket 1 to 2 · nothing here goes past Core"
  * - a minimum — "At least Bracket 3 (Upgraded)", "At least Bracket 4 (Optimized)"
- * - a call pending — "Bracket 3 or 4 — one combo is your call"
- * - with answers — "Bracket 4 (Optimized) — from the cards and your answers"
+ * - a call pending — "Bracket 3 or 4 · one combo is your call"
+ * - with answers — "Bracket 4 (Optimized) · from the cards and your answers"
  * - a draft — "Bracket: add 34 more cards · 1 Game Changer so far"
  * - a banned card — "Bracket read needs a legal list · 1 banned card"
  *
@@ -34,8 +34,8 @@
  *   cards say at least 2", "… · nothing here goes past Core"), so the
  *   target never hides the read (D11). A draft's and a blocked list's lines
  *   don't change: the sheet shows the target there;
- * - answers with a call still open say both — "Bracket 3 or 4 — from the
- *   cards and your answers · one combo is your call".
+ * - answers with a call still open say both — "Bracket 3 or 4 · from the
+ *   cards and your answers, one combo is your call".
  *
  * Y5 adds the share page's voice (`ctx.voice: "table"` — REDESIGN "Y5
  * decisions"), the same read said to the pod: the target leads as "Played
@@ -82,7 +82,7 @@ const UNFLAGGED = LEVELS.filter(
 );
 const UNFLAGGED_LOW = UNFLAGGED[0];
 const UNFLAGGED_TOP = UNFLAGGED[UNFLAGGED.length - 1];
-const UNFLAGGED_RANGE = `${UNFLAGGED_LOW.level}–${UNFLAGGED_TOP.level}`;
+const UNFLAGGED_RANGE = `${UNFLAGGED_LOW.level} to ${UNFLAGGED_TOP.level}`;
 
 const NUMBER_WORDS = [
   "zero",
@@ -187,7 +187,7 @@ function yourCall(open: readonly BracketQuestion[], voice: Voice): string {
 
 /**
  * The brackets a pending call leaves open: "3 or 4", "2, 3 or 4", and the
- * unflagged pair as one ("1–2 or 4") unless its top is an outcome itself.
+ * unflagged pair as one ("1 to 2 or 4") unless its top is an outcome itself.
  */
 function outcomes(levels: readonly number[]): string {
   const sorted = [...new Set(levels)].sort((a, b) => a - b);
@@ -225,7 +225,7 @@ function openCalls(read: BracketRead, settled: number): BracketQuestion[] {
 
 /**
  * The read beside a declared target (Y4b): "the cards say at least 3",
- * "the cards and your answers say 4", "the cards say 3 or 4 — one combo is
+ * "the cards and your answers say 4", "the cards say 3 or 4, one combo is
  * your call", "nothing here goes past Core", or what couldn't be checked.
  */
 function cardsSay(read: BracketRead, voice: Voice): string {
@@ -234,14 +234,14 @@ function cardsSay(read: BracketRead, voice: Voice): string {
     const parts: string[] = [];
     if (read.minimum > UNFLAGGED_LOW.level) parts.push(`the cards say at least ${read.minimum}`);
     if (missed.length > 0) parts.push(`Couldn't check ${joinList(missed, "and")}`);
-    return parts.length > 0 ? parts.join(" · ") : `${NOUN} read incomplete`;
+    return parts.length > 0 ? parts.join(". ") : `${NOUN} read incomplete`;
   }
   const answered = read.suggested !== null;
   const say = answered ? `the cards and ${WHOSE[voice].answers} say` : "the cards say";
   const settled = read.suggested ?? read.minimum;
   const open = openCalls(read, settled);
   if (open.length > 0) {
-    return `${say} ${outcomes([settled, ...open.map((q) => q.raisesTo)])} — ${yourCall(open, voice)}`;
+    return `${say} ${outcomes([settled, ...open.map((q) => q.raisesTo)])}, ${yourCall(open, voice)}`;
   }
   if (answered) return `${say} ${settled}`;
   if (read.minimum <= UNFLAGGED_LOW.level) {
@@ -277,11 +277,11 @@ export function mtgBracketLine(read: BracketRead, ctx: BracketLineContext<MtgAtt
   if (open.length > 0) {
     const range = `${NOUN} ${outcomes([settled, ...open.map((q) => q.raisesTo)])}`;
     return read.suggested !== null
-      ? `${range} — from the cards and ${WHOSE[voice].answers} · ${yourCall(open, voice)}`
-      : `${range} — ${yourCall(open, voice)}`;
+      ? `${range} · from the cards and ${WHOSE[voice].answers}, ${yourCall(open, voice)}`
+      : `${range} · ${yourCall(open, voice)}`;
   }
   if (read.suggested !== null) {
-    return `${named(read.suggested)} — from the cards and ${WHOSE[voice].answers}`;
+    return `${named(read.suggested)} · from the cards and ${WHOSE[voice].answers}`;
   }
   if (read.minimum <= UNFLAGGED_LOW.level) {
     return `${NOUN} ${UNFLAGGED_RANGE} · nothing here goes past ${UNFLAGGED_TOP.name}`;

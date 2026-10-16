@@ -233,16 +233,23 @@ export function SearchPane({
         />
         <p
           data-slot="search-hints"
-          className="text-muted-foreground mt-1.5 text-xs leading-5 pointer-coarse:hidden"
+          className="text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 text-xs leading-5 pointer-coarse:hidden"
         >
-          <Kbd>↑</Kbd> <Kbd>↓</Kbd> select · <Kbd>Enter</Kbd> {swapping ? "swap in" : "add"}
+          <span>
+            <Kbd>↑</Kbd> <Kbd>↓</Kbd> select
+          </span>
+          <span>
+            <Kbd>Enter</Kbd> {swapping ? "swap in" : "add"}
+          </span>
           {leaderZone && (
-            <>
-              {" "}
-              · <Kbd>{isMac ? "⌘" : "Ctrl"}</Kbd>+<Kbd>Enter</Kbd> add as {leaderNoun}
-            </>
-          )}{" "}
-          · “4 Name” sets quantity · <Kbd>?</Kbd> shortcuts
+            <span>
+              <Kbd>{isMac ? "⌘" : "Ctrl"}</Kbd>+<Kbd>Enter</Kbd> add as {leaderNoun}
+            </span>
+          )}
+          <span>“4 Name” sets quantity</span>
+          <span>
+            <Kbd>?</Kbd> shortcuts
+          </span>
         </p>
         <p
           aria-live="polite"
@@ -354,7 +361,7 @@ export function SearchPane({
       )}
       {status === "failed" && (
         <div className="flex flex-wrap items-center gap-2 px-3 pb-3 text-sm">
-          <p className="text-destructive">Search failed — check your connection.</p>
+          <p className="text-destructive">Search failed. Check your connection.</p>
           <Button variant="outline" size="xs" onClick={() => dispatch({ type: "retry" })}>
             <RotateCwIcon aria-hidden />
             Retry

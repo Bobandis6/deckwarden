@@ -230,7 +230,7 @@ describe("/c/[slug] (U7b: the hub openings)", () => {
     expect(lens.indexOf("<table")).toBeGreaterThan(lens.indexOf("</h2>"));
     const lensLine = lens.indexOf("ranked by lists played");
     expect(lensLine).toBeGreaterThan(lens.indexOf("</table>"));
-    expect(words(lens.slice(lensLine))).toContain("top-4 counts shown for context. Results from");
+    expect(words(lens.slice(lensLine))).toContain("Top-4 counts shown for context. Results from");
     expect(words(lens)).toContain(
       "The 1 most-played cards in 42 settled top-16 lists running Atraxa",
     );
@@ -250,6 +250,14 @@ describe("/c/[slug] (U7b: the hub openings)", () => {
     expect(floor).toBeGreaterThan(finishes.indexOf("</ul>"));
     expect(finishes.indexOf("All 3 finishes →")).toBeGreaterThan(floor);
     expect(finishes).toContain("Topdeck.gg");
+    // U9 (WAVE5 D9): "1st of 32 at Big Event", no dash before the event; the second line keeps one
+    // dot (the record, then "by Pat" after a space; partners after a comma).
+    const row = finishes.slice(finishes.indexOf("<li"), finishes.indexOf("</li>"));
+    expect(row).toContain("of 32</span> at");
+    expect(row).toContain("Big Event");
+    expect(row).toContain("4–1–0</span> by Pat");
+    expect(row).not.toContain(" — ");
+    expect((row.match(/·/g) ?? []).length).toBe(1);
     expect(html).toContain("https://topdeck.gg/event/");
   });
 

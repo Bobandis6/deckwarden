@@ -184,7 +184,7 @@ export function applyImport(
         // No different zone to spill into — add anyway and say so honestly;
         // validation renders the over-size verdict with reasons.
         warnings.push(
-          `${zoneLabel.get(item.zone) ?? item.zone} is full — ${item.card.name} puts it over`,
+          `${zoneLabel.get(item.zone) ?? item.zone} is full: ${item.card.name} puts it over`,
         );
         merge(item.zone, item.card, item.line.qty);
         continue;
@@ -203,8 +203,8 @@ export function applyImport(
     const to = zoneLabel.get(fallback) ?? fallback;
     warnings.push(
       moved.length === 1
-        ? `${from} is full — moved ${moved[0]} to ${to}`
-        : `${from} is full — moved ${moved.length} cards to ${to} (${moved
+        ? `${from} is full: moved ${moved[0]} to ${to}`
+        : `${from} is full: moved ${moved.length} cards to ${to} (${moved
             .slice(0, 3)
             .join(", ")}${moved.length > 3 ? ", …" : ""})`,
     );
@@ -213,8 +213,8 @@ export function applyImport(
   for (const item of skipped) {
     warnings.push(
       item.card
-        ? `No "${item.line.zoneHint}" zone in ${format.label} — skipped ${item.card.name}`
-        : `Not found: "${item.line.rawName}" — skipped`,
+        ? `No "${item.line.zoneHint}" zone in ${format.label}: skipped ${item.card.name}`
+        : `Not found: "${item.line.rawName}", skipped`,
     );
   }
 

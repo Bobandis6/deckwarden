@@ -211,3 +211,21 @@ describe("DeckTile — the declared chip (Y5)", () => {
     expect(plain.querySelector(".max-md\\:hidden")).toBeNull();
   });
 });
+
+describe("DeckTile — the meta on two lines (U9, WAVE5 D9)", () => {
+  it("the format and the visibility on the first line, the date and the price on the second: one dot a line", () => {
+    const tile = { ...queza, visibility: "unlisted" as const, priceLabel: "≈ $41" };
+    const { container } = render(
+      <DeckTileGrid>
+        <DeckTile tile={tile} />
+      </DeckTileGrid>,
+    );
+    const metas = [...container.querySelectorAll("[data-slot=deck-tile] p")].map((p) =>
+      (p.textContent ?? "").replace(/\s+/g, " ").trim(),
+    );
+    expect(metas[0]).toMatch(/· unlisted$/);
+    expect(metas[0]).not.toContain("Updated");
+    expect(metas[1]).toMatch(/^Updated Sep 9\s?· ≈ \$41$/);
+    for (const line of metas) expect((line.match(/·/g) ?? []).length).toBeLessThanOrEqual(1);
+  });
+});

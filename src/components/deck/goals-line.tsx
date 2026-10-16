@@ -2,9 +2,10 @@
 
 /**
  * The goals line (Y6a, WAVE4 D7) — what the deck aims at, in one quiet line
- * atop Suggestions and the Why sheet: "Your goals: Bracket 2 (Core) · ≤ $5
- * a card · Change". With no target and no budget it is LATER row 175's
- * door — "No bracket target yet · Set one" — so a target can be declared
+ * atop Suggestions and the Why sheet: "Your goals: Bracket 2 (Core), ≤ $5
+ * a card" and Change (U9: one dot a line, a control after a gap). With no
+ * target and no budget it is LATER row 175's door — "No bracket target
+ * yet" and "Set one" — so a target can be declared
  * before the list has found anything (the bracket line offers no "Why?"
  * until it has). The action opens Your target; without one the line only
  * reads. A game without `brackets` shows its budget, or nothing — never a
@@ -27,7 +28,7 @@ export const budgetLabel = (perCardUsd: number) =>
   BUDGET_OPTIONS.find((o) => o.value === tierOf(perCardUsd))?.label ?? `≤ $${perCardUsd} a card`;
 
 const ACTION =
-  "text-foreground cursor-pointer font-medium underline underline-offset-4 hover:no-underline pointer-coarse:min-h-11 pointer-coarse:min-w-11";
+  "text-foreground ml-1 cursor-pointer font-medium underline underline-offset-4 hover:no-underline pointer-coarse:min-h-11 pointer-coarse:min-w-11";
 
 export function GoalsLine({
   brackets,
@@ -61,11 +62,11 @@ export function GoalsLine({
   return (
     <p data-slot="goals-line" className={cn("text-muted-foreground text-xs", className)}>
       {parts.length > 0
-        ? `${BRACKET_COPY.goalsLead} ${parts.join(" · ")}`
+        ? `${BRACKET_COPY.goalsLead} ${parts.join(", ")}`
         : BRACKET_COPY.noTarget(brackets!.noun)}
       {onFit && over && (
         <>
-          {" · "}
+          {" "}
           <button type="button" onClick={onFit} className={ACTION}>
             {FIT_COPY.door}
           </button>
@@ -73,7 +74,7 @@ export function GoalsLine({
       )}
       {action && (
         <>
-          {" · "}
+          {" "}
           <button type="button" onClick={onChange} className={ACTION}>
             {action}
           </button>

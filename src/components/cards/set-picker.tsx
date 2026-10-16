@@ -204,7 +204,7 @@ export function SetPicker({
         </AutocompleteList>
         {shown < matched && (
           <p className="text-muted-foreground border-t px-1.5 pt-1.5 pb-1 text-xs">
-            Showing {shown} of {matched.toLocaleString()} — keep typing to narrow.
+            Showing {shown} of {matched.toLocaleString()}. Keep typing to narrow.
           </p>
         )}
       </AutocompleteContent>

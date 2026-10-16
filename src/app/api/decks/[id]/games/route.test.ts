@@ -496,7 +496,7 @@ describe("GET — the recent games and the allowance's numerator", () => {
       { version: 8, since: 5, change: diffSummary(diffDeckLists(OTHER, LIVE)) },
       { version: 5, since: null, change: null },
     ]);
-    expect(json.lists[0].change).toBe("+1 · 1 qty");
+    expect(json.lists[0].change).toBe("+1, 1 qty");
     expect(json.names).toEqual({
       [ATRAXA]: "Atraxa, Praetors' Voice",
       [KRAUM]: "Kraum, Ludevic's Opus",

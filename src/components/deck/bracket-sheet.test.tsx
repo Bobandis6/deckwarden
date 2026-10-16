@@ -145,7 +145,9 @@ describe("the Why sheet — What the cards show", () => {
     const cardsShow = block("What the cards show");
 
     const land = cardsShow.querySelector<HTMLElement>("[data-factor=land-denial]")!;
-    expect(land.textContent).toContain("Mass land denial: Armageddon. Brackets 1–3 expect none.");
+    expect(land.textContent).toContain(
+      "Mass land denial: Armageddon. Brackets 1 to 3 expect none.",
+    );
     expect(land.textContent).toContain("Remove Armageddon to fit Bracket 3.");
     const tagger = within(land).getByRole("link", { name: /Community-tagged on Scryfall Tagger/ });
     expect(tagger.getAttribute("href")).toBe(
@@ -167,7 +169,7 @@ describe("the Why sheet — What the cards show", () => {
     sheet(spec([conscripts], 2));
     expect(within(dialog()).getByText("Bracket: add 98 more cards · 1 combo so far")).toBeTruthy();
     expect(
-      within(dialog()).getByText("The list isn't finished — this is what the cards show so far."),
+      within(dialog()).getByText("The list isn't finished. This is what the cards show so far."),
     ).toBeTruthy();
     const row = block("What the cards show").querySelector<HTMLElement>(
       "[data-factor='combo:618-1537']",
@@ -176,7 +178,7 @@ describe("the Why sheet — What the cards show", () => {
       "Two-card combo with your commander: Kiki-Jiki, Mirror Breaker + Zealous Conscripts. Brackets 1 and 2 expect none.",
     );
     expect(row.textContent).toContain(
-      "Infinite creature tokens with haste · Infinite death triggers · 2 cards · How it works",
+      "Infinite creature tokens with haste, Infinite death triggers, 2 cards · How it works",
     );
     expect(
       within(row)
@@ -198,7 +200,7 @@ describe("the Why sheet — What the cards show", () => {
     const cardsShow = block("What the cards show");
     expect(within(cardsShow).getByText("Your call")).toBeTruthy();
     expect(
-      within(cardsShow).getByText("The list can't answer these — you and your table can."),
+      within(cardsShow).getByText("The list can't answer these. You and your table can."),
     ).toBeTruthy();
     const chain = cardsShow.querySelector<HTMLElement>("[data-question^='extra-turns:']")!;
     expect(within(chain).getByText("Do these extra turns chain?")).toBeTruthy();
@@ -297,7 +299,7 @@ describe("Y4b — the player's side of the sheet", () => {
       onGoalsChange: vi.fn(),
     });
     expect(dialog().querySelector("[data-slot=goals-line]")?.textContent).toBe(
-      "Your goals: est. $212 of your $150 (+2 unpriced) · Change",
+      "Your goals: est. $212 of your $150 (+2 unpriced) Change",
     );
     cleanup();
     // The share page's sheet (no onGoalsChange) never shows a budget.
@@ -452,7 +454,7 @@ describe("Y4b — the player's side of the sheet", () => {
     ).toEqual(["No"]);
     // "Not theme first" alone already says past Exhibition.
     expect(
-      within(dialog()).getByText("Bracket 2 (Core) — from the cards and your answers"),
+      within(dialog()).getByText("Bracket 2 (Core) · from the cards and your answers"),
     ).toBeTruthy();
   });
 
@@ -483,7 +485,7 @@ describe("Y4b — the player's side of the sheet", () => {
       onGoalsChange: vi.fn(),
     });
     expect(
-      within(dialog()).getByText("Bracket 4 (Optimized) — from the cards and your answers"),
+      within(dialog()).getByText("Bracket 4 (Optimized) · from the cards and your answers"),
     ).toBeTruthy();
     const land = document.querySelector<HTMLElement>(`[data-question='${liliKey}']`)!;
     expect(pressed(within(land).getByRole("group"))).toEqual(["Yes"]);

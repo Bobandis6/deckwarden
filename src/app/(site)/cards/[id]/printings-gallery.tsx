@@ -384,7 +384,7 @@ export function PrintingsHero() {
           <p className="font-medium">{pinnedRow.setName}</p>
           <p className="text-muted-foreground">
             {printingCaption(pinnedRow)}
-            {pinnedRow.year ? ` · ${pinnedRow.year}` : ""}
+            {pinnedRow.year ? ` (${pinnedRow.year})` : ""}
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             {pinnedRow.isDefault ? (
@@ -525,12 +525,12 @@ export function PrintingsTable() {
             {tailStatus === "loading" ? "Loading…" : `Show all ${total} printings`}
           </Button>
           {tailStatus === "error" && (
-            <span className="text-destructive text-xs">Couldn’t load — try again</span>
+            <span className="text-destructive text-xs">Couldn’t load. Try again</span>
           )}
         </div>
       ) : tailStatus === "done" && truncated ? (
         <p className="text-muted-foreground mt-2 text-xs">
-          Showing {rows.length} of {total} printings — newest first
+          Showing {rows.length} of {total} printings, newest first
         </p>
       ) : null}
     </>
@@ -644,7 +644,7 @@ function PrintingDrawer({
               <DrawerTitle>{row.setName}</DrawerTitle>
               <DrawerDescription>
                 {printingCaption(row)}
-                {row.year ? ` · ${row.year}` : ""}
+                {row.year ? ` (${row.year})` : ""}
               </DrawerDescription>
             </DrawerHeader>
             <div className="flex justify-center px-4 pt-3">

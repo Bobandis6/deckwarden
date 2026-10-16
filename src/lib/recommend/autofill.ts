@@ -37,7 +37,7 @@ export const COMBO_PICK_CAP = 6;
 export const SAMPLE_WINDOW = 2;
 
 /** The notes[] vocabulary — W9b renders these verbatim (pinned in tests). */
-export const FULL_NOTE = "The deck is already full — nothing to add.";
+export const FULL_NOTE = "The deck is already full. Nothing to add.";
 export function shortfallNote(
   picked: number,
   slots: number,
@@ -46,8 +46,8 @@ export function shortfallNote(
 ): string {
   const where = labels.join(", ");
   return budgetUsd !== undefined
-    ? `Filled ${picked} of ${slots} — the $${budgetUsd}-a-card budget leaves too few candidates in ${where}.`
-    : `Filled ${picked} of ${slots} — too few candidates in ${where}.`;
+    ? `Filled ${picked} of ${slots}. The $${budgetUsd}-a-card budget leaves too few candidates in ${where}.`
+    : `Filled ${picked} of ${slots}. Too few candidates in ${where}.`;
 }
 
 export type PickTier = "locked" | "combo" | "sampled" | "filler";

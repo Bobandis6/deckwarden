@@ -280,10 +280,10 @@ describe("buildShell", () => {
 describe("finishShell notes (the W9b-rendered vocabulary — exact strings)", () => {
   it("pins the shortfall wording, with and without a budget", () => {
     expect(shortfallNote(71, 87, ["Mana value 5", "Mana value 7+"], 1)).toBe(
-      "Filled 71 of 87 — the $1-a-card budget leaves too few candidates in Mana value 5, Mana value 7+.",
+      "Filled 71 of 87. The $1-a-card budget leaves too few candidates in Mana value 5, Mana value 7+.",
     );
-    expect(shortfallNote(93, 99, ["Lands"])).toBe("Filled 93 of 99 — too few candidates in Lands.");
-    expect(FULL_NOTE).toBe("The deck is already full — nothing to add.");
+    expect(shortfallNote(93, 99, ["Lands"])).toBe("Filled 93 of 99. Too few candidates in Lands.");
+    expect(FULL_NOTE).toBe("The deck is already full. Nothing to add.");
   });
 
   it("reports a real shortfall with the short groups named", () => {
@@ -294,7 +294,7 @@ describe("finishShell notes (the W9b-rendered vocabulary — exact strings)", ()
     });
     expect(shell.totals.picks).toBe(0);
     expect(shell.notes).toHaveLength(1);
-    expect(shell.notes[0]).toContain("Filled 0 of 10 — the $1-a-card budget");
+    expect(shell.notes[0]).toContain("Filled 0 of 10. The $1-a-card budget");
     expect(shell.notes[0]).toContain("Lands");
   });
 

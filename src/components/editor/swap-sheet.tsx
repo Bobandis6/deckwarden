@@ -164,12 +164,12 @@ export function SwapInSheet({
   const comboNote = !recommend?.combos
     ? null
     : !hasLeader
-      ? `Combo warnings need a ${adapter.display.leaderNoun} — this suggestion doesn’t protect combos yet.`
+      ? `Combo warnings need a ${adapter.display.leaderNoun}. This suggestion doesn’t protect combos yet.`
       : combos !== null
         ? null
         : factsState === "checking"
-          ? "Checking combos — this suggestion doesn’t protect them yet."
-          : "Couldn’t check combos — this suggestion doesn’t protect them.";
+          ? "Checking combos. This suggestion doesn’t protect them yet."
+          : "Couldn’t check combos. This suggestion doesn’t protect them.";
   const pick = (outId: string) => setSwapError(onSwap(outId) ?? null);
   const rowProps = { adapter, incomingName: incoming.name, onPick: pick };
   // The rest of the list waits behind a toggle only while the bucket has something to show.
@@ -186,12 +186,12 @@ export function SwapInSheet({
       <div data-slot="swap-in-sheet" className="space-y-3">
         <p className="text-sm">
           {incoming.name} comes in and one card goes out
-          {max !== null ? ` — the deck stays at ${max}` : ""}.
+          {max !== null ? `, so the deck stays at ${max}` : ""}.
           {qty > 1 ? " One copy at a time while the deck is full." : ""}
         </p>
         {alreadyQty > 0 && (
           <p data-slot="swap-in-already" className="text-muted-foreground text-xs">
-            {incoming.name} is already in the deck (×{alreadyQty}) — this adds another copy.
+            {incoming.name} is already in the deck (×{alreadyQty}). This adds another copy.
           </p>
         )}
         {comboNote && <p className="text-muted-foreground text-xs">{comboNote}</p>}
@@ -209,7 +209,7 @@ export function SwapInSheet({
           <p data-slot="swap-no-partner" className="text-muted-foreground text-xs">
             {bucketName === null
               ? meta.unmatched(incoming)
-              : `No suggested cut at ${bucketName} — choose the card to cut.`}
+              : `No suggested cut at ${bucketName}. Choose the card to cut.`}
           </p>
         )}
 
@@ -328,7 +328,7 @@ function PartnerRow({
           >
             {top.why}
           </p>
-          <p className="text-muted-foreground mt-0.5 text-xs">{sources.join(" · ")}</p>
+          <p className="text-muted-foreground mt-0.5 text-xs">{sources.join(", ")}</p>
         </>
       ) : (
         <p className="text-muted-foreground mt-0.5 text-xs">No signal data</p>

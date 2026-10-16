@@ -496,7 +496,7 @@ export function DeckEditor({
       window.history.replaceState(null, "", `/decks/${json.deck.id}/edit`);
       if (json.claimToken && !setDeckToken(json.deck.id, json.claimToken)) {
         throw new Error(
-          "Couldn't store this deck's edit key — enable browser storage and try again.",
+          "Couldn't store this deck's edit key. Enable browser storage and try again.",
         );
       }
       return json.deck.id;
@@ -586,7 +586,7 @@ export function DeckEditor({
     if (!json.deck.isOwner) {
       throw new Error(
         "You don't have edit access to this deck on this browser. " +
-          "The edit key lives where the deck was created — and if you've " +
+          "The edit key lives where the deck was created, and if you've " +
           "claimed it into an account, sign in from the Account page first.",
       );
     }
@@ -728,7 +728,7 @@ export function DeckEditor({
     if (!leaderZone) return;
     const sayNoRoll = () =>
       toast.add({
-        title: `Couldn't pick a random ${adapter.display.leaderNoun} — try again.`,
+        title: `Couldn't pick a random ${adapter.display.leaderNoun}. Try again.`,
         type: "error",
         timeout: TOAST_MS,
       });
@@ -786,7 +786,7 @@ export function DeckEditor({
     const { adapter, format } = load;
     const sayMissing = () =>
       toast.add({
-        title: "Couldn't find that precon — starting an empty deck instead.",
+        title: "Couldn't find that precon. Starting an empty deck instead.",
         type: "error",
         timeout: TOAST_MS,
       });
@@ -865,11 +865,11 @@ export function DeckEditor({
     const mainZone = format.zones.find((z) => !z.isLeaderZone && z.countsTowardSize);
     const noun = adapter.display.leaderNoun.toLowerCase();
     const say = (title: string) => toast.add({ title, type: "error", timeout: TOAST_MS });
-    const sayMissing = () => say("Couldn't find that combo — starting an empty deck instead.");
+    const sayMissing = () => say("Couldn't find that combo. Starting an empty deck instead.");
     void (async () => {
       try {
         if (!draftLeaderKey) {
-          say(`That combo link names no ${noun} — starting an empty deck instead.`);
+          say(`That combo link names no ${noun}. Starting an empty deck instead.`);
           return;
         }
         const res = await fetch(`/api/combos/${encodeURIComponent(draftComboKey)}`);
@@ -880,7 +880,7 @@ export function DeckEditor({
         const json: { combo: ComboView; cards: CardWire[] } = await res.json();
         const leader = json.cards.find((c) => c.externalKey === draftLeaderKey);
         if (!leader || !leader.isLeaderCandidate || !leaderZone || !mainZone) {
-          say(`That combo doesn't include that ${noun} — starting an empty deck instead.`);
+          say(`That combo doesn't include that ${noun}. Starting an empty deck instead.`);
           return;
         }
         // Late-response guard: never clobber what the user built meanwhile.
@@ -1254,7 +1254,7 @@ export function DeckEditor({
     void (async () => {
       if (entriesRef.current.some((e) => e.zone === leaderZone.id)) {
         searchRef.current?.announce(
-          `This deck already has a ${leaderZone.label.toLowerCase()} — the browsed pick was not applied.`,
+          `This deck already has a ${leaderZone.label.toLowerCase()}. The browsed pick was not applied.`,
         );
         return;
       }
@@ -1446,7 +1446,7 @@ export function DeckEditor({
       notify(`Removed ${removed.qty > 1 ? `${removed.qty}× ` : ""}${name}`, () => {
         const error = applyEdit(restoreEntry(entriesRef.current, format, removed, index));
         if (error) {
-          toast.add({ title: `Couldn't undo — ${error}.`, type: "error", timeout: TOAST_MS });
+          toast.add({ title: `Couldn't undo: ${error}.`, type: "error", timeout: TOAST_MS });
         }
       });
     },
@@ -1694,7 +1694,7 @@ export function DeckEditor({
       });
       if (!res.ok && res.status !== 204) return `Couldn't delete the deck (${res.status}).`;
     } catch {
-      return "Couldn't delete — check your connection and try again.";
+      return "Couldn't delete. Check your connection and try again.";
     }
     removeDeckToken(deckId);
     router.replace(token !== null ? "/" : "/account");

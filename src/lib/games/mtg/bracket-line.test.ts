@@ -132,7 +132,7 @@ const lineOf = (spec: Spec, combos?: CompleteCombo[] | null, over?: ReadOptions)
 
 describe("D5's line table, word for word", () => {
   it("nothing flagged", () => {
-    expect(lineOf(list([]))).toBe("Bracket 1–2 · nothing here goes past Core");
+    expect(lineOf(list([]))).toBe("Bracket 1 to 2 · nothing here goes past Core");
   });
 
   it("a minimum of 3", () => {
@@ -148,7 +148,7 @@ describe("D5's line table, word for word", () => {
     const s = combo("2552-3263", [pieceA, pieceB, pieceC], { tag: "S", relevant: false });
     const r = read(spec, [s]);
     expect(r.status).toBe("review");
-    expect(line(spec, r)).toBe("Bracket 3 or 4 — one combo is your call");
+    expect(line(spec, r)).toBe("Bracket 3 or 4 · one combo is your call");
   });
 
   it("with answers — the call answered yes", () => {
@@ -158,7 +158,7 @@ describe("D5's line table, word for word", () => {
       answers: { rulesetVersion: BRACKET_RULESET.version, calls: { "combo:2552-3263": "yes" } },
     });
     expect(r).toMatchObject({ status: "read", suggested: 4 });
-    expect(line(spec, r)).toBe("Bracket 4 (Optimized) — from the cards and your answers");
+    expect(line(spec, r)).toBe("Bracket 4 (Optimized) · from the cards and your answers");
   });
 
   it("draft — what the card data proves so far, with core's progress phrase", () => {
@@ -202,11 +202,11 @@ describe("Y4b — the target beside the read, and answers with a call still open
   it("a call still open is still named, every outcome listed", () => {
     const spec = list([pieceA, pieceB, pieceC]);
     expect(line(spec, read(spec, [s1]), 2)).toBe(
-      "Your target: Bracket 2 · the cards say 3 or 4 — one combo is your call",
+      "Your target: Bracket 2 · the cards say 3 or 4, one combo is your call",
     );
     const edge = list([liliana]);
     expect(line(edge, read(edge), 2)).toBe(
-      "Your target: Bracket 2 · the cards say 1–2 or 4 — one card is your call",
+      "Your target: Bracket 2 · the cards say 1 to 2 or 4, one card is your call",
     );
   });
 
@@ -219,7 +219,7 @@ describe("Y4b — the target beside the read, and answers with a call still open
       answers: { rulesetVersion: v, calls: { "combo:s1": "no" } },
     });
     expect(line(two, half, 3)).toBe(
-      "Your target: Bracket 3 · the cards and your answers say 3 or 4 — one combo is your call",
+      "Your target: Bracket 3 · the cards and your answers say 3 or 4, one combo is your call",
     );
   });
 
@@ -230,7 +230,7 @@ describe("Y4b — the target beside the read, and answers with a call still open
     };
     const spec = list([rhystic]);
     expect(line(spec, read(spec, [], { freshness: stale }), 2)).toBe(
-      "Your target: Bracket 2 · the cards say at least 3 · Couldn't check extra turns",
+      "Your target: Bracket 2 · the cards say at least 3. Couldn't check extra turns",
     );
     const plain = list([]);
     expect(line(plain, read(plain, null), 3)).toBe(
@@ -252,12 +252,12 @@ describe("Y4b — the target beside the read, and answers with a call still open
     });
     expect(half).toMatchObject({ status: "review", minimum: 3, suggested: 3 });
     expect(line(two, half)).toBe(
-      "Bracket 3 or 4 — from the cards and your answers · one combo is your call",
+      "Bracket 3 or 4 · from the cards and your answers, one combo is your call",
     );
     const edge = list([liliana]);
     const quality = read(edge, [], { answers: { rulesetVersion: v, play: { quality: "yes" } } });
     expect(line(edge, quality)).toBe(
-      "Bracket 3 or 4 — from the cards and your answers · one card is your call",
+      "Bracket 3 or 4 · from the cards and your answers, one card is your call",
     );
   });
 
@@ -267,7 +267,7 @@ describe("Y4b — the target beside the read, and answers with a call still open
       answers: { rulesetVersion: v, calls: { "combo:s1": "unsure" } },
     });
     expect(unsure.suggested).toBeNull();
-    expect(line(spec, unsure)).toBe("Bracket 3 or 4 — one combo is your call");
+    expect(line(spec, unsure)).toBe("Bracket 3 or 4 · one combo is your call");
   });
 });
 
@@ -288,14 +288,14 @@ describe("Y5 — the same read said to the pod (the share page's voice)", () => 
   it("the owner's answers and the owner's call — never 'your' to a visitor", () => {
     const spec = list([pieceA, pieceB, pieceC]);
     expect(line(spec, read(spec, [s1]), null, "table")).toBe(
-      "Bracket 3 or 4 — one combo is the owner's call",
+      "Bracket 3 or 4 · one combo is the owner's call",
     );
     expect(line(spec, read(spec, [s1]), 2, "table")).toBe(
-      "Played as Bracket 2 (Core) · the cards say 3 or 4 — one combo is the owner's call",
+      "Played as Bracket 2 (Core) · the cards say 3 or 4, one combo is the owner's call",
     );
     const yes = read(spec, [s1], { answers: { rulesetVersion: v, calls: { "combo:s1": "yes" } } });
     expect(line(spec, yes, null, "table")).toBe(
-      "Bracket 4 (Optimized) — from the cards and the owner's answers",
+      "Bracket 4 (Optimized) · from the cards and the owner's answers",
     );
     expect(line(spec, yes, 3, "table")).toBe(
       "Played as Bracket 3 (Upgraded) · the cards and the owner's answers say 4",
@@ -334,7 +334,7 @@ describe("Y5 — At the table's rows", () => {
 });
 
 describe("the lines D5 leaves out", () => {
-  it("a minimum of 2 — one extra-turn card", () => {
+  it("a minimum of 2 · one extra-turn card", () => {
     expect(lineOf(list([timeWarp]))).toBe("At least Bracket 2 (Core)");
   });
 
@@ -399,13 +399,13 @@ describe("the lines D5 leaves out", () => {
 
 describe("the shapes of a pending call", () => {
   it("edge land denial with nothing else flagged: the unflagged pair, or 4", () => {
-    expect(lineOf(list([liliana]))).toBe("Bracket 1–2 or 4 — one card is your call");
-    expect(lineOf(list([liliana, magus]))).toBe("Bracket 1–2 or 4 — two cards are your call");
+    expect(lineOf(list([liliana]))).toBe("Bracket 1 to 2 or 4 · one card is your call");
+    expect(lineOf(list([liliana, magus]))).toBe("Bracket 1 to 2 or 4 · two cards are your call");
   });
 
   it("two extra-turn cards: chaining is the call", () => {
     expect(lineOf(list([timeWarp, temporal]))).toBe(
-      "Bracket 2 or 4 — chaining extra turns is your call",
+      "Bracket 2 or 4 · chaining extra turns is your call",
     );
   });
 
@@ -413,7 +413,7 @@ describe("the shapes of a pending call", () => {
     const spec = list([liliana, pieceA, pieceB, pieceC]);
     const o = combo("o", [pieceA, pieceB, pieceC], { tag: "O", relevant: false });
     // O: firm 2, "or 3"; Liliana: a yes means 4.
-    expect(lineOf(spec, [o])).toBe("Bracket 2, 3 or 4 — one combo and one card are your call");
+    expect(lineOf(spec, [o])).toBe("Bracket 2, 3 or 4 · one combo and one card are your call");
   });
 
   it("the unflagged pair splits when 2 is an outcome itself", () => {
@@ -423,7 +423,7 @@ describe("the shapes of a pending call", () => {
       relevant: false,
       templates: ["A creature with power 5 or greater"],
     });
-    expect(lineOf(spec, [tpl])).toBe("Bracket 1 or 2 — one combo is your call");
+    expect(lineOf(spec, [tpl])).toBe("Bracket 1 or 2 · one combo is your call");
   });
 });
 

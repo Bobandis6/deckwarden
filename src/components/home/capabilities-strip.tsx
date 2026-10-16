@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 const CAPABILITIES: Array<{ title: string; body: string }> = [
   {
     title: "Legality checks",
-    body: "Format legality, color identity, copy limits, and banned cards validated as you build — every flag comes with the reason, not just an ✗.",
+    body: "Format legality, color identity, copy limits, and banned cards validated as you build. Every flag comes with the reason, not just an ✗.",
   },
   {
     title: "Combos",
@@ -22,11 +22,11 @@ const CAPABILITIES: Array<{ title: string; body: string }> = [
   },
   {
     title: "Share pages",
-    body: "Every deck gets a fast mobile-friendly page with curve, prices, and a share image that unfurls in Discord — with the commander's art for Magic.",
+    body: "Every deck gets a fast mobile-friendly page with curve, prices, and a share image that unfurls in Discord, with the commander's art for Magic.",
   },
   {
     title: "Sample hands",
-    body: "Deal an opening hand in the builder or on any share page — seven cards for Magic, five for One Piece — and mulligan until it reads right.",
+    body: "Deal an opening hand in the builder or on any share page, then mulligan until it reads right. Seven cards for Magic, five for One Piece.",
   },
   {
     title: "Tournament finishes",

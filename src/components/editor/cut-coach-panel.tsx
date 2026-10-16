@@ -111,7 +111,7 @@ export function CutCoachPanel({
           signal: controller.signal,
         });
         if (res.status === 429) {
-          throw new Error("The combo check is rate-limited for a moment — try again shortly.");
+          throw new Error("The combo check is rate-limited for a moment. Try again shortly.");
         }
         if (!res.ok) throw new Error(`The combo check failed (${res.status}).`);
         const json: { inDeck: DeckComboView[]; tournaments?: TournamentCutSignals } =
@@ -163,7 +163,7 @@ export function CutCoachPanel({
   if (max === null) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
-        {format.label} has no maximum deck size — nothing to cut down to.
+        {format.label} has no maximum deck size. Nothing to cut down to.
       </div>
     );
   }
@@ -171,14 +171,14 @@ export function CutCoachPanel({
   if (overBy <= 0) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
-        {total} of {max} — nothing needs cutting.
+        {total} of {max}. Nothing needs cutting.
       </div>
     );
   }
 
   // The combo signal's honest status — one line, only while it's not live.
   const comboNote = !leader
-    ? `Combo warnings need a ${adapter.display.leaderNoun} — rankings don't include combo protection yet.`
+    ? `Combo warnings need a ${adapter.display.leaderNoun}. Rankings don't include combo protection yet.`
     : fetchError
       ? null // rendered with its retry button below
       : combosInDeck === null
@@ -192,7 +192,7 @@ export function CutCoachPanel({
   return (
     <div className="p-3">
       <p className="text-sm font-medium">
-        Over by {overBy} — cut {overBy} card{overBy === 1 ? "" : "s"} to reach {max}.
+        Over by {overBy}. Cut {overBy} card{overBy === 1 ? "" : "s"} to reach {max}.
       </p>
       <p className="text-muted-foreground mt-0.5 text-xs">
         Each cut removes one copy. Ranked by what cutting costs the deck, cheapest tradeoff first.
@@ -216,7 +216,7 @@ export function CutCoachPanel({
 
       {ranking && ranking.cuts.length === 0 ? (
         <p className="text-muted-foreground mt-2 text-sm">
-          No signal data for these cards — nothing honest to rank. Cut from the deck list instead.
+          No signal data for these cards: nothing honest to rank. Cut from the deck list instead.
         </p>
       ) : (
         ranking && (
@@ -309,7 +309,7 @@ function CutRow({
         {top.why}
       </p>
       <p className="text-muted-foreground mt-0.5 text-xs">
-        {sourceLabels.join(" · ")}
+        {sourceLabels.join(", ")}
         {price ? ` · ${price}` : ""}
       </p>
 

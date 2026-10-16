@@ -141,7 +141,9 @@ export function DeckTile({
             <span className={compact ? "max-md:hidden" : undefined}>{tile.formatLabel}</span>
           )}
           {tile.visibility && <span>· {tile.visibility}</span>}
-          <span>· {tile.dateLabel ?? `Updated ${tile.updatedLabel}`}</span>
+        </p>
+        <p className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
+          <span>{tile.dateLabel ?? `Updated ${tile.updatedLabel}`}</span>
           {tile.priceLabel && <span className="tabular-nums">· {tile.priceLabel}</span>}
         </p>
         {(tile.author || tile.likesCount > 0) && (

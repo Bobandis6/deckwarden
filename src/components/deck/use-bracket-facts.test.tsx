@@ -74,7 +74,7 @@ describe("useBracketFacts", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("the first answer is asked for at once — one GET, the canonical URL, no POST", async () => {
+  it("the first answer is asked for at once · one GET, the canonical URL, no POST", async () => {
     const { result } = hook({ ids: [A, B] });
     expect(result.current.state).toBe("checking");
     expect(urls()).toEqual([pathFor([A, B])]);
@@ -85,7 +85,7 @@ describe("useBracketFacts", () => {
     expect(result.current.freshness).toEqual(freshness);
   });
 
-  it("a changed set says checking at once and asks after the debounce — one GET for a burst", async () => {
+  it("a changed set says checking at once and asks after the debounce · one GET for a burst", async () => {
     const { result, rerender } = hook({ ids: [A] });
     await flush();
     rerender({ enabled: true, ids: [A, B] });

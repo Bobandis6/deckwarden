@@ -9,7 +9,7 @@
  * Y4b adds the player's side: Your target, the conflict callout, the table
  * exceptions, How it plays, the answers, and "Rules changed since you
  * answered". Y6a adds goals in Suggestions: the goals line ("Your goals:
- * Bracket 2 (Core) · ≤ $5 a card · Change"), the hidden count, the saved
+ * Bracket 2 (Core), ≤ $5 a card" and Change), the hidden count, the saved
  * budget. Y6b adds the Combo Radar's "above your target".
  */
 import type { BracketsMeta } from "@/lib/games/types";
@@ -24,10 +24,10 @@ export const BRACKET_COPY = {
   sheetTitle: (noun: string) => `Why this ${noun}?`,
   cardsShow: "What the cards show",
   readAssumes: "What this read assumes",
-  draftNote: "The list isn't finished — this is what the cards show so far.",
+  draftNote: "The list isn't finished. This is what the cards show so far.",
   nothingFound: (noun: string) => `Nothing in this list raises the ${noun}.`,
   yourCall: "Your call",
-  yourCallLead: "The list can't answer these — you and your table can.",
+  yourCallLead: "The list can't answer these. You and your table can.",
   /** A question's "yes", in the level's own words: "If yes, it's at least Bracket 4 (Optimized)." */
   ifYes: (level: string) => `If yes, it's at least ${level}.`,
   couldntCheck: "Couldn't check",
@@ -49,7 +49,7 @@ export const BRACKET_COPY = {
   /** What visitors will see of the target block (the deck wire's public goals; the share page from Y5). */
   shownOnSharePage: "Shown on your share page.",
   howItPlays: "How it plays",
-  howItPlaysLead: "Optional — answer what you know. An answer can only raise the read.",
+  howItPlaysLead: "Optional: answer what you know. An answer can only raise the read.",
   /** "2 answered" — beside the collapsed How it plays. */
   answered: (n: number) => `${n} answered`,
   yourAnswer: "Your answer",
@@ -79,11 +79,11 @@ export const BRACKET_COPY = {
   checked: (date: string) => `checked ${date}`,
 
   // Y6a (WAVE4 D7) — goals in Suggestions and atop the Why sheet.
-  /** Before the goals: "Your goals: Bracket 2 (Core) · ≤ $5 a card". */
+  /** Before the goals: "Your goals: Bracket 2 (Core), ≤ $5 a card". */
   goalsLead: "Your goals:",
   /** The goals line's action — the Why sheet at Your target. */
   changeGoals: "Change",
-  /** No target and no budget (LATER row 175's door): "No bracket target yet · Set one". */
+  /** No target and no budget (LATER row 175's door): "No bracket target yet" and "Set one". */
   noTarget: (noun: string) => `No ${noun} target yet`,
   setTarget: "Set one",
   /** "3 hidden by your goals" — the cards the goals took out of the list. */
@@ -93,7 +93,7 @@ export const BRACKET_COPY = {
   saveBudget: "Save as this deck's budget",
   /** The one-away combo scan stopped at its cap, so the goals didn't see every combo. */
   combosCapped:
-    "Combo checks stopped at the most popular combos near this deck — rarer ones weren't checked against your goals.",
+    "Combo checks stopped at the most popular combos near this deck. Rarer ones weren't checked against your goals.",
 
   // Y6b (WAVE4 D7) — the Combo Radar's badges, beside the adapter's words.
   /** After a combo's badge when either of its levels is above the deck's target. */

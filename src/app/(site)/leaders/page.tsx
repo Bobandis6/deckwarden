@@ -50,7 +50,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "One Piece Leaders",
   description:
-    "Browse every One Piece Card Game leader by color — life, traits, and effect text, with a hub page for each leader.",
+    "Browse every One Piece Card Game leader by color: life, traits, and effect text, with a hub page for each leader.",
   // Filter variants (?colors=) canonicalize to the bare index, same call as
   // /commanders (P2.6): hubs are the landing pages, faceted lists shouldn't split.
   alternates: { canonical: "/leaders" },
@@ -112,7 +112,7 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
         </Button>
       </div>
       <p className="text-muted-foreground mt-1 text-sm">
-        Every leader in the game, A to Z. The same name can lead very different decks — each card is
+        Every leader in the game, A to Z. The same name can lead very different decks: each card is
         its own archetype, so each gets its own page.
       </p>
 
@@ -208,7 +208,7 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
       <p className="text-muted-foreground mt-12 text-xs">
         ©Eiichiro Oda/Shueisha, Toei Animation · ONE PIECE CARD GAME ©BANDAI. Deckwarden is
         unofficial fan content, not affiliated with or endorsed by Bandai, Shueisha, or Toei
-        Animation. No official card-data API exists for the One Piece Card Game —{" "}
+        Animation. No official card-data API exists for the One Piece Card Game:{" "}
         <Link href="/legal#one-piece" className="underline">
           how we source this data
         </Link>

@@ -75,7 +75,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         {card.typeLine && <OgSubtitle>{card.typeLine}</OgSubtitle>}
       </div>
       <OgFooter
-        stats={[isMtg ? "Printings · prices · legality" : "Card text · printings · legality"]}
+        stats={[isMtg ? "Printings, prices, legality" : "Card text, printings, legality"]}
         accent={accent}
       />
     </OgFrame>,

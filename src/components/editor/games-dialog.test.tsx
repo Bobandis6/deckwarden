@@ -351,7 +351,7 @@ describe("GamesDialog — the journal around the log", () => {
     const full = renderDialog();
     await waitFor(() =>
       expect(full.dialog.textContent).toContain(
-        "This deck keeps 100 played lists — the most it can. A game on a list it hasn't kept yet logs without one.",
+        "This deck keeps 100 played lists, the most it can. A game on a list it hasn't kept yet logs without one.",
       ),
     );
   });
@@ -375,10 +375,7 @@ describe("GamesDialog — the journal around the log", () => {
     });
     expect(
       [...recent.querySelectorAll("[data-slot=game-line]")].map((line) => line.textContent),
-    ).toEqual([
-      "Oct 9 · Won · 4 players · went 1st · v7",
-      "Oct 2 · Lost · 4 players · no list kept",
-    ]);
+    ).toEqual(["Oct 9 · Won, 4 players, went 1st, v7", "Oct 2 · Lost, 4 players, no list kept"]);
     expect(fetchMock.mock.calls[0][0]).toBe(`/api/decks/${DECK}/games`);
   });
 
@@ -613,8 +610,8 @@ const RECORD = [
   cell(2, 4, "win", 1),
 ];
 const LISTS = [
-  { version: 8, since: 5, change: "+2 · -2" },
-  { version: 5, since: 2, change: "+1 · -1" },
+  { version: 8, since: 5, change: "+2, -2" },
+  { version: 5, since: 2, change: "+1, -1" },
 ];
 async function record(dialog: HTMLElement) {
   return waitFor(() => {
@@ -645,8 +642,8 @@ describe("GamesDialog — the record (Y10)", () => {
       [...li.children].map((c) => c.textContent),
     );
     expect(rows).toEqual([
-      ["v8, since v5: +2 · -2", "won 3 of 7"],
-      ["v5, since v2: +1 · -1", "won 2 of 3", "Too few games to compare"],
+      ["v8, since v5: +2, -2", "won 3 of 7"],
+      ["v5, since v2: +1, -1", "won 2 of 3", "Too few games to compare"],
       ["No list kept", "won 0 of 2", "Too few games to compare"],
     ]);
     expect(section.textContent).toContain("and 1 earlier list");
@@ -757,7 +754,7 @@ describe("GamesDialog — the recent games, named and editable (Y10)", () => {
     // The Edit button is described by its game's line.
     const edit = within(dialog).getAllByRole("button", { name: "Edit" })[0];
     expect(document.getElementById(edit.getAttribute("aria-describedby")!)!.textContent).toContain(
-      "Oct 9 · Won · 4 players · went 2nd · v7",
+      "Oct 9 · Won, 4 players, went 2nd, v7",
     );
   });
 
@@ -782,7 +779,7 @@ describe("GamesDialog — the recent games, named and editable (Y10)", () => {
     const { view } = await openEdit(dialog);
     expect(view.querySelector("h3")!.textContent).toBe("Edit the game of Oct 9");
     expect(document.activeElement).toBe(view.querySelector("h3"));
-    expect(view.textContent).toContain("Played with v7 — an edit never changes the list.");
+    expect(view.textContent).toContain("Played with v7. An edit never changes the list.");
     const pressed = (name: string) =>
       within(within(view).getByRole("group", { name })).getByRole("button", { pressed: true })
         .textContent;
@@ -868,12 +865,12 @@ describe("GamesDialog — the recent games, named and editable (Y10)", () => {
 
   it("a refused edit stays open with the route's words", async () => {
     getAnswer = reply(200, list({ total: 1, games: [FULL], names: NAMES }));
-    patchAnswer = reply(400, { error: "Seat must be 1–4" });
+    patchAnswer = reply(400, { error: "Seat must be 1 to 4" });
     const { dialog } = renderDialog();
     const { view } = await openEdit(dialog);
     fireEvent.change(view.querySelector("input[type=number]")!, { target: { value: "12" } });
     fireEvent.click(within(view).getByRole("button", { name: "Save changes" }));
-    await waitFor(() => expect(view.textContent).toContain("Seat must be 1–4"));
+    await waitFor(() => expect(view.textContent).toContain("Seat must be 1 to 4"));
     expect(dialog.querySelector("[data-slot=game-edit]")).not.toBeNull();
     expect(gets()).toHaveLength(1);
   });
@@ -950,7 +947,7 @@ describe("GamesDialog — the recent games, named and editable (Y10)", () => {
     getAnswer = reply(200, list({ total: 1, games: [game({ version: null })] }));
     const { dialog } = renderDialog();
     const { view } = await openEdit(dialog);
-    expect(view.textContent).toContain("Logged with no list kept — an edit never changes that.");
+    expect(view.textContent).toContain("Logged with no list kept. An edit never changes that.");
   });
 
   it("a 401 during an edit reads the sign-in sentence", async () => {

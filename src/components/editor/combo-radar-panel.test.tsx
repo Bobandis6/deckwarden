@@ -378,9 +378,9 @@ describe("ComboRadarPanel — badges (Y6b)", () => {
     renderPanel({ deckId: DECK });
     await screen.findByRole("heading", { name: "One card away" });
     expect(badges()).toEqual([
-      "This combo alone makes a deck at least Bracket 4 — Commander Spellbook",
-      "This combo alone makes a deck Bracket 3 or 4 — your call — Commander Spellbook",
-      "A two-card combo with your commander alone makes a deck at least Bracket 4 — Commander Spellbook",
+      "This combo alone makes a deck at least Bracket 4 (Commander Spellbook)",
+      "This combo alone makes a deck Bracket 3 or 4, your call (Commander Spellbook)",
+      "A two-card combo with your commander alone makes a deck at least Bracket 4 (Commander Spellbook)",
     ]);
     // No target: nothing is "above" anything.
     expect(document.querySelector("[data-above-target]")).toBeNull();
@@ -401,9 +401,9 @@ describe("ComboRadarPanel — badges (Y6b)", () => {
     await screen.findByRole("heading", { name: "One card away" });
     expect(rowsText()).toEqual(without);
     expect(badges()).toEqual([
-      "This combo alone makes a deck at least Bracket 4 — Commander Spellbook · above your target",
-      "This combo alone makes a deck Bracket 3 or 4 — your call — Commander Spellbook · above your target",
-      "A two-card combo with your commander alone makes a deck at least Bracket 4 — Commander Spellbook · above your target",
+      "This combo alone makes a deck at least Bracket 4 (Commander Spellbook) · above your target",
+      "This combo alone makes a deck Bracket 3 or 4, your call (Commander Spellbook) · above your target",
+      "A two-card combo with your commander alone makes a deck at least Bracket 4 (Commander Spellbook) · above your target",
     ]);
     expect(document.querySelectorAll("[data-above-target]")).toHaveLength(3);
   });
@@ -416,7 +416,7 @@ describe("ComboRadarPanel — badges (Y6b)", () => {
     await screen.findByRole("heading", { name: "One card away" });
     expect(document.querySelector("[data-above-target]")).toBeNull();
     expect(badges()[1]).toBe(
-      "This combo alone makes a deck at least Bracket 3 — Commander Spellbook",
+      "This combo alone makes a deck at least Bracket 3 (Commander Spellbook)",
     );
   });
 

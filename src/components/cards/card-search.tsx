@@ -477,7 +477,7 @@ export function CardSearch({
             <>
               <h2 className="font-display text-xl font-semibold tracking-tight">
                 {chosenSet.name}{" "}
-                <span className="text-muted-foreground font-normal">— {setPlace(chosenSet)}</span>
+                <span className="text-muted-foreground font-normal">({setPlace(chosenSet)})</span>
               </h2>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 {setCode.toUpperCase()} · Released {eventDateLabel(chosenSet.releasedAt)}
