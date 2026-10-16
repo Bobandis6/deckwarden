@@ -31,13 +31,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { chipClass, ColorChipLink } from "@/components/color-chip";
+import { ColorChipLink } from "@/components/color-chip";
 import { EmptyState } from "@/components/empty-state";
 import { GameSwitch } from "@/components/game-switch";
 import { LeaderIndexView, type IndexLeader } from "@/components/hub/leader-index-view";
 import { LeaderPickBanner } from "@/components/hub/leader-pick-banner";
 import { NameSuggest } from "@/components/search/name-suggest";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { leaderTileImage } from "@/lib/decks/tiles";
 import { loadOpLeaderIndex } from "@/lib/hub/queries";
@@ -150,13 +151,13 @@ export default async function LeadersPage({ searchParams }: PageProps<"/leaders"
           )}
         </form>
         <nav aria-label="Color filter" className="flex flex-wrap gap-1.5">
-          <Link
-            href={filterHref("", rawQ)}
+          <Chip
+            render={<Link href={filterHref("", rawQ)} />}
             aria-current={colorsMask === null ? "page" : undefined}
-            className={chipClass(colorsMask === null)}
+            pressed={colorsMask === null}
           >
             All
-          </Link>
+          </Chip>
           {OPTCG_COLORS.map((c) => {
             const active = activeLetters.includes(c.maskLetter);
             const next = active

@@ -32,6 +32,7 @@ import {
 } from "@/components/editor/alternatives-section";
 import { sourceMeta } from "@/components/editor/recommendations-panel";
 import { SheetShell, type SheetFinalFocus } from "@/components/editor/sheet-shell";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { BracketFactsState } from "@/lib/brackets/facts";
@@ -304,9 +305,12 @@ function PartnerRow({
           )}
         </span>
         {option.cut?.inCompleteCombo && (
-          <span className="shrink-0 rounded-full border border-amber-600/40 px-1.5 text-xs leading-4 text-amber-700 dark:text-amber-400">
+          <Badge
+            variant="outline"
+            className="border-amber-600/40 font-normal text-amber-700 dark:text-amber-400"
+          >
             in combo
-          </span>
+          </Badge>
         )}
         <Button
           ref={buttonRef}

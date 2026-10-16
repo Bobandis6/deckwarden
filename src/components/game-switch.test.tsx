@@ -20,6 +20,18 @@ describe("GameSwitch", () => {
     expect(mtg.getAttribute("aria-current")).toBeNull();
   });
 
+  it("the pills are filter Chips; the current game takes the pressed look (U10b)", () => {
+    render(<GameSwitch active="mtg" />);
+    const mtg = screen.getByRole("link", { name: "Magic: The Gathering" });
+    const op = screen.getByRole("link", { name: "One Piece" });
+    expect(mtg.dataset.slot).toBe("chip");
+    expect(mtg.dataset.shape).toBe("filter");
+    expect(mtg.className).toContain("ring-accent-game");
+    expect(mtg.className).not.toContain("bg-foreground");
+    expect(op.className).not.toContain("ring-accent-game");
+    expect(op.className).toContain("border-(--border-control)");
+  });
+
   it("takes /cards' own hrefs", () => {
     render(<GameSwitch active="mtg" hrefs={{ mtg: "/cards", optcg: "/cards?game=optcg" }} />);
     expect(screen.getByRole("link", { name: "One Piece" }).getAttribute("href")).toBe(

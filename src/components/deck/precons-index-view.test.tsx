@@ -113,8 +113,14 @@ describe("PreconsIndexView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Colorless" }));
     expect(tileNames()).toEqual(["Eldrazi Unbound"]);
 
+    expect(screen.getByRole("button", { name: "All" }).getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(screen.getByRole("button", { name: "All" }));
     expect(tileNames()).toHaveLength(5);
+    // U10b: "All" is a filter Chip that says it is pressed, like the color chips beside it.
+    const all = screen.getByRole("button", { name: "All" });
+    expect(all.getAttribute("aria-pressed")).toBe("true");
+    expect(all.dataset.slot).toBe("chip");
+    expect(all.className).toContain("ring-accent-game");
   });
 
   it("year select narrows to one group", () => {

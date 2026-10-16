@@ -81,7 +81,11 @@ describe("SwapInSheet", () => {
     fireEvent.click(within(sheet).getByRole("button", { name: "Choose another card" }));
     const same = within(sheet).getByRole("region", { name: "Also at mana value 2" });
     expect(same.textContent).toContain("Combo Two");
-    expect(within(same).getByText("in combo")).toBeTruthy();
+    // U10b: a status word is a label, so a Badge, not a chip.
+    const mark = within(same).getByText("in combo");
+    expect(mark.dataset.slot).toBe("badge");
+    expect(mark.className).toContain("rounded-4xl");
+    expect(mark.className).toContain("text-amber-700");
   });
 
   it("without facts nothing is protected — and the sheet says so, in the Cut Coach's terms", () => {

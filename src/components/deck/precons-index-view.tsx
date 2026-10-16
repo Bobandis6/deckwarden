@@ -30,10 +30,11 @@
  */
 import { useMemo, useState } from "react";
 
-import { ColorChipButton, chipClass } from "@/components/color-chip";
+import { ColorChipButton } from "@/components/color-chip";
 import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import type { DeckTileData } from "@/lib/decks/tiles";
@@ -169,13 +170,14 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
           />
         </div>
         <div role="group" aria-label="Color identity filter" className="flex flex-wrap gap-1.5">
-          <button
-            type="button"
+          <Chip
+            render={<button type="button" />}
             onClick={() => setLetters("")}
-            className={chipClass(letters === "")}
+            aria-pressed={letters === ""}
+            pressed={letters === ""}
           >
             All
-          </button>
+          </Chip>
           {COLOR_ORDER.map((c) => (
             <ColorChipButton
               key={c}
@@ -226,13 +228,9 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
           className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0"
         >
           {strip.map((label) => (
-            <a
-              key={label}
-              href={`#${preconYearId(label)}`}
-              className={chipClass(false, "shrink-0")}
-            >
+            <Chip key={label} render={<a href={`#${preconYearId(label)}`} />}>
               {label}
-            </a>
+            </Chip>
           ))}
         </nav>
       )}

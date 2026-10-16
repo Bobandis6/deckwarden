@@ -19,10 +19,15 @@
  *
  * Keys are the shared-mask letters both games' colorset grammar uses
  * (W U B R G C), so the pages' existing toggling code keeps working.
+ *
+ * U10b (WAVE5 D10): the two interactive shapes are the filter `Chip`
+ * (`ui/chip.tsx`) — its edge token, its press, its pressed look — and the
+ * old `chipClass` is gone; the filters' "All" pills are Chips too.
  */
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { Chip } from "@/components/ui/chip";
 import { COLOR_BIT, COLOR_ORDER, maskToLetters, type ColorLetter } from "@/lib/games/colors";
 import { OPTCG_COLORS } from "@/lib/games/optcg/colors";
 import { cn } from "@/lib/utils";
@@ -117,16 +122,6 @@ export function ColorSwatch({
   );
 }
 
-/** The interactive chip shell — shared with the filters' "All" pill so the row reads as one control set. */
-export function chipClass(active: boolean, className?: string): string {
-  return cn(
-    "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm leading-none whitespace-nowrap outline-none pointer-coarse:min-h-11 pointer-coarse:px-3",
-    "focus-visible:outline-accent-game focus-visible:outline-2 focus-visible:outline-offset-2",
-    active ? "bg-muted ring-accent-game font-medium ring-2" : "hover:bg-muted",
-    className,
-  );
-}
-
 function ChipBody({
   game,
   def,
@@ -208,13 +203,14 @@ export function ColorChipLink({
   const def = colorChipDef(game, color);
   if (!def) return null;
   return (
-    <Link
-      href={href}
+    <Chip
+      render={<Link href={href} />}
       aria-current={active ? "page" : undefined}
-      className={chipClass(active, className)}
+      pressed={active}
+      className={className}
     >
       <ChipBody game={game} def={def} showLabel={showLabel} />
-    </Link>
+    </Chip>
   );
 }
 
@@ -237,13 +233,14 @@ export function ColorChipButton({
   const def = colorChipDef(game, color);
   if (!def) return null;
   return (
-    <button
-      type="button"
+    <Chip
+      render={<button type="button" />}
       aria-pressed={pressed}
       onClick={onClick}
-      className={chipClass(pressed, className)}
+      pressed={pressed}
+      className={className}
     >
       <ChipBody game={game} def={def} showLabel={showLabel} />
-    </button>
+    </Chip>
   );
 }

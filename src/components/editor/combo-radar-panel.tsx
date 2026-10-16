@@ -55,6 +55,7 @@ import { ArrowUpRightIcon, GaugeIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useResolvedAdd } from "@/components/editor/use-resolved-add";
 import { toast } from "@/components/ui/toast";
@@ -678,15 +679,16 @@ function InDeckComboRow({
         <p className="min-w-0 text-sm leading-relaxed font-medium">
           <PieceNames pieces={combo.inDeckPieces} />
         </p>
-        <span
-          className={`mt-0.5 shrink-0 rounded-full border px-1.5 text-xs leading-4 ${
+        <Badge
+          variant="outline"
+          className={`mt-0.5 font-normal ${
             complete
               ? "border-emerald-600/40 text-emerald-700 dark:text-emerald-400"
               : "border-amber-600/40 text-amber-700 dark:text-amber-400"
           }`}
         >
           {complete ? "complete" : "incomplete"}
-        </span>
+        </Badge>
       </div>
       <ComboBadgeLine row={badge} />
       <ComboRowDetails combo={combo} externalUrl={externalUrl} />

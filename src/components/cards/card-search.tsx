@@ -69,6 +69,7 @@ import { SetPicker } from "@/components/cards/set-picker";
 import { ColorChipButton, colorChipDef, colorChipDefs } from "@/components/color-chip";
 import { NameSuggest } from "@/components/search/name-suggest";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAdapter } from "@/lib/games/registry";
@@ -460,15 +461,16 @@ export function CardSearch({
           <ul aria-label="Active filters" className="contents">
             {active.map((f) => (
               <li key={f.key}>
-                <button
-                  type="button"
+                <Chip
+                  render={<button type="button" />}
+                  variant="muted"
+                  size="sm"
                   aria-label={`Remove filter: ${f.group} ${f.value}`}
                   onClick={f.clear}
-                  className="bg-muted hover:bg-muted/70 focus-visible:ring-ring/50 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs outline-none focus-visible:ring-2 pointer-coarse:min-h-11 pointer-coarse:px-3"
                 >
                   <span className="text-muted-foreground">{f.group}:</span> {f.value}
-                  <XIcon aria-hidden className="size-3" />
-                </button>
+                  <XIcon aria-hidden />
+                </Chip>
               </li>
             ))}
           </ul>

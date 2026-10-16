@@ -5,9 +5,14 @@
  * aria-current on the active game: the markup /cards has carried since
  * P4.4, now in one place. Links, not a client control — the game is a page,
  * not a state.
+ *
+ * U10b (WAVE5 D10): the pills are filter Chips, so the current game reads
+ * like every other pressed filter (the muted fill and the accent ring, where
+ * it was an inverted fill beside the color chips' ring) at the chips' 24 px.
  */
 import Link from "next/link";
 
+import { Chip } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
 
 /** The two games with browse indexes today — GameId also declares azuki, which has none. */
@@ -36,14 +41,14 @@ export function GameSwitch({
       {ORDER.map((game) => {
         const isActive = game === active;
         return (
-          <Link
+          <Chip
             key={game}
-            href={hrefs[game]}
+            render={<Link href={hrefs[game]} />}
             aria-current={isActive ? "page" : undefined}
-            className={`inline-flex items-center rounded-md border px-2 py-1 text-sm pointer-coarse:min-h-11 pointer-coarse:px-3 ${isActive ? "bg-foreground text-background" : "hover:underline"}`}
+            pressed={isActive}
           >
             {GAME_SWITCH_LABELS[game]}
-          </Link>
+          </Chip>
         );
       })}
     </nav>

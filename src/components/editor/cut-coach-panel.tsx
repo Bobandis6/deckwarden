@@ -40,6 +40,7 @@ import { ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfidenceChip, sourceMeta } from "@/components/editor/recommendations-panel";
 import type { DeckComboView } from "@/lib/combos/queries";
@@ -284,9 +285,12 @@ function CutRow({
             {cut.qty > 1 && <span className="text-muted-foreground font-normal"> ×{cut.qty}</span>}
           </span>
           {cut.inCompleteCombo && (
-            <span className="shrink-0 rounded-full border border-amber-600/40 px-1.5 text-xs leading-4 text-amber-700 dark:text-amber-400">
+            <Badge
+              variant="outline"
+              className="border-amber-600/40 font-normal text-amber-700 dark:text-amber-400"
+            >
               in combo
-            </span>
+            </Badge>
           )}
           <ConfidenceChip level={cut.confidence} />
         </button>

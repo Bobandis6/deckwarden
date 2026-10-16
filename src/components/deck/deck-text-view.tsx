@@ -51,6 +51,12 @@
  * to its row on a coarse pointer, so the name is a 44 px target like the
  * steppers; the row and the look are unchanged, and the share page's rows
  * (no `onSetQty`) keep theirs.
+ *
+ * U10b (WAVE5 D10): an editable row's stepper is one `ButtonGroup` (minus,
+ * the count as `ButtonGroupText`, plus), so its corners are the group's: a
+ * hovered minus or plus tints with its inner corners square, the outer two
+ * keep the 9.6 px radius. The buttons still reveal one by one (the count
+ * never hides, R3) at 24 px, 44 on touch (D1); the count keeps `data-slot="qty"`.
  */
 import { ArrowLeftRightIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
@@ -59,6 +65,7 @@ import { CHROME_CLASS } from "@/components/chrome-material";
 import { CardNamePreview } from "@/components/deck/card-name-preview";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import type { DeckGroup } from "@/lib/decks/view-model";
 import type { GameAdapter } from "@/lib/games/types";
@@ -283,7 +290,7 @@ export function DeckTextView({
                   )}
                 >
                   {onSetQty ? (
-                    <span className="flex shrink-0 items-center">
+                    <ButtonGroup className="shrink-0">
                       <Button
                         variant="ghost"
                         size="icon-xs"
@@ -293,16 +300,16 @@ export function DeckTextView({
                       >
                         −
                       </Button>
-                      <span
+                      <ButtonGroupText
                         key={popping ? pop.nonce : "qty"}
                         data-slot="qty"
                         className={cn(
-                          "w-6 text-center text-sm font-medium tabular-nums",
+                          "w-6",
                           popping && "motion-safe:animate-dw-in [--dw-opacity:1] [--dw-scale:0.5]",
                         )}
                       >
                         {entry.qty}
-                      </span>
+                      </ButtonGroupText>
                       <Button
                         variant="ghost"
                         size="icon-xs"
@@ -312,7 +319,7 @@ export function DeckTextView({
                       >
                         +
                       </Button>
-                    </span>
+                    </ButtonGroup>
                   ) : (
                     <span
                       data-slot="qty"

@@ -38,6 +38,7 @@ import { CardImage } from "@/components/cards/card-image";
 import { chipsForMask, ColorChip } from "@/components/color-chip";
 import { HubBuildCta } from "@/components/hub/hub-build-cta";
 import { HERO_CARD_SHADOW, SurfaceHeader } from "@/components/surface-header";
+import { Chip } from "@/components/ui/chip";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
 import { resolveCardArt } from "@/lib/cards/art";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
@@ -213,21 +214,17 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
           </p>
           <ul className="mt-2 flex flex-wrap gap-2 text-sm">
             <li>
-              <Link
-                href={`/cards?game=optcg&color=within:${colorLetters}`}
-                className="rounded-md border px-2 py-1 underline-offset-2 hover:underline"
-              >
+              <Chip render={<Link href={`/cards?game=optcg&color=within:${colorLetters}`} />}>
                 Browse {colorNames.join("/")} cards
-              </Link>
+              </Chip>
             </li>
             {traits.map((trait) => (
               <li key={trait}>
-                <Link
-                  href={`/cards?game=optcg&traits=${encodeURIComponent(trait)}`}
-                  className="rounded-md border px-2 py-1 underline-offset-2 hover:underline"
+                <Chip
+                  render={<Link href={`/cards?game=optcg&traits=${encodeURIComponent(trait)}`} />}
                 >
                   {trait} cards
-                </Link>
+                </Chip>
               </li>
             ))}
           </ul>
@@ -238,14 +235,11 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
               <ul className="mt-2 flex flex-wrap gap-2 text-sm">
                 {siblings.map((s) => (
                   <li key={s.id}>
-                    <Link
-                      href={`/l/${s.slug}`}
-                      className="rounded-md border px-2 py-1 underline-offset-2 hover:underline"
-                    >
+                    <Chip render={<Link href={`/l/${s.slug}`} />}>
                       <span className="tabular-nums uppercase">{s.externalKey}</span>
                       {" · "}
                       {maskToOptcgColorNames(s.colorsMask).join("/")}
-                    </Link>
+                    </Chip>
                   </li>
                 ))}
               </ul>

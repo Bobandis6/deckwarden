@@ -61,6 +61,7 @@ import { ArrowRightIcon, ArrowUpRightIcon, GaugeIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -417,7 +418,9 @@ export function RecommendationsPanel({
 }
 
 /** Confidence exactly as the engine reports it — text, not just color.
- *  Exported for the Cut Coach panel (P3.4) — one confidence rendering. */
+ *  Exported for the Cut Coach panel (P3.4) — one confidence rendering.
+ *  U10b (WAVE5 D10): a label, not a chip, so it is a Badge (outline, at its
+ *  12 px weight 400), its tone on the line and the word. */
 export function ConfidenceChip({ level }: { level: Confidence }) {
   const tone =
     level === "high"
@@ -426,7 +429,9 @@ export function ConfidenceChip({ level }: { level: Confidence }) {
         ? "border-amber-600/40 text-amber-700 dark:text-amber-400"
         : "border-border text-muted-foreground";
   return (
-    <span className={`shrink-0 rounded-full border px-1.5 text-xs leading-4 ${tone}`}>{level}</span>
+    <Badge variant="outline" className={`font-normal ${tone}`}>
+      {level}
+    </Badge>
   );
 }
 

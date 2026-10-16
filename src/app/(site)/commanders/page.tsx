@@ -22,12 +22,13 @@ import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { chipClass, ColorChipLink } from "@/components/color-chip";
+import { ColorChipLink } from "@/components/color-chip";
 import { EmptyState } from "@/components/empty-state";
 import { GameSwitch } from "@/components/game-switch";
 import { LeaderIndexView, type IndexLeader } from "@/components/hub/leader-index-view";
 import { LeaderPickBanner } from "@/components/hub/leader-pick-banner";
 import { NameSuggest } from "@/components/search/name-suggest";
+import { Chip } from "@/components/ui/chip";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { leaderTileImage } from "@/lib/decks/tiles";
 import { COLOR_ORDER, lettersToMask, maskToLetters } from "@/lib/games/colors";
@@ -137,13 +138,13 @@ export default async function CommandersPage({ searchParams }: PageProps<"/comma
           )}
         </form>
         <nav aria-label="Color identity filter" className="flex flex-wrap gap-1.5">
-          <Link
-            href={filterHref("", 1, rawQ)}
+          <Chip
+            render={<Link href={filterHref("", 1, rawQ)} />}
             aria-current={ciMask === null ? "page" : undefined}
-            className={chipClass(ciMask === null)}
+            pressed={ciMask === null}
           >
             All
-          </Link>
+          </Chip>
           {COLOR_ORDER.map((c) => {
             // Toggle the letter within the current exact-identity selection.
             const next =

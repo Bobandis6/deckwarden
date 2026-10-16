@@ -18,6 +18,7 @@ import type { Metadata } from "next";
 
 import { PreconsIndexView, type PreconItem } from "@/components/deck/precons-index-view";
 import { GAME_SWITCH_LABELS } from "@/components/game-switch";
+import { Chip } from "@/components/ui/chip";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { releasedLabel } from "@/lib/decks/precon-info";
 import { loadPreconIndex } from "@/lib/decks/precons";
@@ -74,18 +75,10 @@ export default async function PreconsPage() {
           second page to switch to. role="group" (U7b, LATER row 136): ARIA
           ignores a label on a generic element, so the name needs the role. */}
       <div role="group" aria-label="Game" className="mt-4 flex flex-wrap items-center gap-1.5">
-        <span
-          aria-current="page"
-          className="bg-foreground text-background inline-flex items-center rounded-md border px-2 py-1 text-sm pointer-coarse:min-h-11 pointer-coarse:px-3"
-        >
+        <Chip aria-current="page" pressed>
           {GAME_SWITCH_LABELS.mtg}
-        </span>
-        <span
-          aria-disabled="true"
-          className="text-muted-foreground inline-flex items-center rounded-md border border-dashed px-2 py-1 text-sm pointer-coarse:min-h-11 pointer-coarse:px-3"
-        >
-          {GAME_SWITCH_LABELS.optcg} (soon)
-        </span>
+        </Chip>
+        <Chip aria-disabled="true">{GAME_SWITCH_LABELS.optcg} (soon)</Chip>
         <span className="text-muted-foreground text-xs">One Piece starter decks are coming.</span>
       </div>
 

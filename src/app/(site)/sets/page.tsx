@@ -24,6 +24,7 @@ import type { Metadata } from "next";
 
 import { GAME_SWITCH_LABELS } from "@/components/game-switch";
 import { SetsIndexView } from "@/components/sets/sets-index-view";
+import { Chip } from "@/components/ui/chip";
 import { GAME_ID } from "@/db/seed-data";
 import { loadReleasedSets } from "@/lib/sets/queries";
 
@@ -47,18 +48,10 @@ export default async function SetsPage() {
       </p>
 
       <div role="group" aria-label="Game" className="mt-4 flex flex-wrap items-center gap-1.5">
-        <span
-          aria-current="page"
-          className="bg-foreground text-background inline-flex items-center rounded-md border px-2 py-1 text-sm pointer-coarse:min-h-11 pointer-coarse:px-3"
-        >
+        <Chip aria-current="page" pressed>
           {GAME_SWITCH_LABELS.mtg}
-        </span>
-        <span
-          aria-disabled="true"
-          className="text-muted-foreground inline-flex items-center rounded-md border border-dashed px-2 py-1 text-sm pointer-coarse:min-h-11 pointer-coarse:px-3"
-        >
-          {GAME_SWITCH_LABELS.optcg} (soon)
-        </span>
+        </Chip>
+        <Chip aria-disabled="true">{GAME_SWITCH_LABELS.optcg} (soon)</Chip>
         <span className="text-muted-foreground text-xs">One Piece sets are coming.</span>
       </div>
 

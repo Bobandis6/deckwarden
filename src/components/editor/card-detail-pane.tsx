@@ -39,7 +39,7 @@
  * clipping) keeps the column shorter than the sheet below full, so a drag
  * up on it moves the sheet instead of scrolling the column.
  */
-import { ArrowRightIcon, ArrowUpRightIcon, ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
+import { ArrowRightIcon, ArrowUpRightIcon, ChevronDownIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useRef, useState, type ReactNode } from "react";
 
@@ -48,6 +48,7 @@ import { AlternativesSection, type SwapEditing } from "@/components/editor/alter
 import type { SheetPoint } from "@/components/editor/editor-layout";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
+import { Chip, ChipRemove } from "@/components/ui/chip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { withPartner } from "@/lib/buy/links";
@@ -532,23 +533,21 @@ function TagEditor({ adapter, tagging }: { adapter: GameAdapter; tagging: TagEdi
       <ul className="mt-1.5 flex flex-wrap gap-1">
         {tags.map((tag) => (
           <li key={tag}>
-            <span className="bg-muted inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs pointer-coarse:min-h-11 pointer-coarse:pr-0">
+            <Chip shape="tag" size="sm" variant="muted">
               {tag}
-              <button
-                type="button"
+              <ChipRemove
                 aria-label={`Remove tag ${tag}`}
                 onClick={() => onSetTags(tags.filter((t) => t !== tag))}
-                className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center justify-center pointer-coarse:size-11"
-              >
-                <XIcon aria-hidden className="size-3" />
-              </button>
-            </span>
+              />
+            </Chip>
           </li>
         ))}
         {tags.length < MAX_TAGS && (
           <li>
-            {/* U10a (WAVE5.md D10): the Input primitive in the tag pill's shape
-                (U10b's Chip may take it over, LATER); the edge token's dashed line. */}
+            {/* U10a (WAVE5.md D10): the Input primitive in the tag pill's shape, the
+                edge token's dashed line. U10b: it stays an Input (a text box keeps
+                Input's focus ring, 16 px phone text and 44 px floor) at the tag
+                Chip's 24 px, so the row is one height. */}
             <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -563,7 +562,7 @@ function TagEditor({ adapter, tagging }: { adapter: GameAdapter; tagging: TagEdi
               aria-label="Add tag"
               maxLength={MAX_TAG_LENGTH}
               size={8}
-              className="h-auto w-auto rounded-full border-dashed px-2 py-0.5 text-xs md:text-xs dark:bg-transparent pointer-coarse:px-3"
+              className="h-6 w-auto rounded-full border-dashed px-2 py-0 text-xs md:text-xs dark:bg-transparent pointer-coarse:px-3"
             />
           </li>
         )}
@@ -571,14 +570,16 @@ function TagEditor({ adapter, tagging }: { adapter: GameAdapter; tagging: TagEdi
       {presets.length > 0 && tags.length < MAX_TAGS && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {presets.map((label) => (
-            <button
+            <Chip
               key={label}
-              type="button"
+              render={<button type="button" />}
+              shape="tag"
+              size="sm"
               onClick={() => add(label)}
-              className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center rounded-full border px-2 py-0.5 text-xs pointer-coarse:min-h-11 pointer-coarse:px-3"
+              className="text-muted-foreground hover:text-foreground"
             >
               + {label}
-            </button>
+            </Chip>
           ))}
         </div>
       )}

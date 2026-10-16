@@ -90,6 +90,35 @@ describe("DeckTextView", () => {
     expect(document.querySelectorAll('[data-slot="pips"]')).toHaveLength(2);
   });
 
+  it("editor rows: the stepper is one ButtonGroup (minus, the count, plus) whose corners are the group's (U10b)", () => {
+    render(
+      <DeckTextView
+        adapter={mtg}
+        groups={group([{ card: sol, qty: 4 }])}
+        severity={new Map()}
+        onSetQty={() => {}}
+        onRemove={() => {}}
+        onPreview={() => {}}
+      />,
+    );
+    const fewer = screen.getByRole("button", { name: "One fewer Sol Ring" });
+    const stepper = fewer.closest("[data-slot=button-group]") as HTMLElement;
+    expect(stepper.getAttribute("role")).toBe("group");
+    expect(
+      [...stepper.children].map((c) => c.getAttribute("aria-label") ?? c.getAttribute("data-slot")),
+    ).toEqual(["One fewer Sol Ring", "qty", "One more Sol Ring"]);
+    expect(stepper.className).toContain("[&>*:not(:first-child)]:rounded-l-none");
+    const qty = stepper.querySelector<HTMLElement>("[data-slot=qty]")!;
+    expect(qty.textContent).toBe("4");
+    expect(qty.className).toContain("w-6");
+    expect(qty.className).not.toContain("opacity-0");
+    // The buttons keep their 24 px mouse size and reveal; the remove button stays outside the group.
+    expect(fewer.className).toContain("size-6");
+    expect(
+      screen.getByRole("button", { name: "Remove Sol Ring" }).closest("[data-slot=button-group]"),
+    ).toBeNull();
+  });
+
   it("share rows: no steppers, no remove, plain headers", () => {
     render(
       <DeckTextView

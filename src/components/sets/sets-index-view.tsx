@@ -42,10 +42,10 @@
 import Link from "next/link";
 import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
 
-import { chipClass } from "@/components/color-chip";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Chip } from "@/components/ui/chip";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { matchSets, setPlaceShort, type ReleasedSet } from "@/lib/sets/lines";
@@ -243,9 +243,9 @@ export function SetsIndexView({ sets }: { sets: ReleasedSet[] }) {
           className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0"
         >
           {strip.map(({ year }) => (
-            <a key={year} href={`#${setYearId(year)}`} className={chipClass(false, "shrink-0")}>
+            <Chip key={year} render={<a href={`#${setYearId(year)}`} />}>
               {year}
-            </a>
+            </Chip>
           ))}
         </nav>
       )}

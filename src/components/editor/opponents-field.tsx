@@ -28,10 +28,9 @@
  *   into the box after the pick's own handler, and the guarded updater
  *   drops that late write instead of leaving the name in the next box.
  */
-import { XIcon } from "lucide-react";
 
 import { NameSuggest } from "@/components/search/name-suggest";
-import { Button } from "@/components/ui/button";
+import { Chip, ChipRemove } from "@/components/ui/chip";
 import { JOURNAL_COPY } from "@/lib/journal/copy";
 import type { SuggestRow } from "@/lib/search/suggest";
 
@@ -159,22 +158,19 @@ export function OpponentsField({
                   </span>
                 )}
                 {opponent.map((leader, l) => (
-                  <span
+                  <Chip
                     key={leader.key}
                     data-slot="opponent-chip"
-                    className="bg-muted inline-flex max-w-full items-center gap-0.5 rounded-full py-0.5 pr-0.5 pl-2.5 text-sm"
+                    shape="tag"
+                    variant="muted"
+                    className="max-w-full"
                   >
                     <span className="min-w-0 truncate">{leader.name}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      className="rounded-full"
+                    <ChipRemove
                       aria-label={JOURNAL_COPY.removeLeader(leader.name)}
                       onClick={() => remove(o, l)}
-                    >
-                      <XIcon aria-hidden />
-                    </Button>
-                  </span>
+                    />
+                  </Chip>
                 ))}
                 {opponent.length < leadersPerOpponent && boxes.secondFor !== o && (
                   <button
