@@ -83,6 +83,7 @@ import { useCountUp } from "@/components/editor/use-count-up";
 import { EmptyState } from "@/components/empty-state";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Spinner } from "@/components/ui/spinner";
 import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
 import {
   deckSizeCount,
@@ -488,6 +489,14 @@ export function DeckListPane({
                       aria-busy={rolling || undefined}
                       onClick={onSurprise}
                     >
+                      {rolling && (
+                        <Spinner
+                          aria-hidden
+                          role={undefined}
+                          aria-label={undefined}
+                          className="size-3.5"
+                        />
+                      )}
                       {door.label}
                     </Button>
                   ) : null,

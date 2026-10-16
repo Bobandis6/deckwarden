@@ -52,6 +52,7 @@ import { CardImage } from "@/components/cards/card-image";
 import { CHROME_CLASS } from "@/components/chrome-material";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useIsMac } from "@/components/use-is-mac";
 import { Kbd } from "@/components/ui/kbd";
 import { thumbnailUrl } from "@/lib/cards/images";
@@ -214,7 +215,9 @@ export function SearchPane({
       {/* Sticky (C12): the box, the keycap hint and the live line stay put
           while the results scroll under them inside the search section. */}
       <div className={cn(CHROME_CLASS, "sticky top-0 z-10 px-3 pt-3 pb-1")}>
-        <input
+        {/* U10a (WAVE5.md D10): the Input primitive at the pane's 36 px; the
+            combobox wiring passes through untouched (search-pane.test pins it). */}
+        <Input
           ref={inputRef}
           type="text"
           value={raw}
@@ -229,7 +232,7 @@ export function SearchPane({
           aria-controls="quick-add-results"
           aria-activedescendant={results.length > 0 ? `search-result-${sel}` : undefined}
           aria-label="Card search"
-          className="border-input bg-background focus-visible:ring-ring/50 h-9 w-full shrink-0 rounded-lg border px-3 text-sm outline-none focus-visible:ring-3"
+          className="h-9 shrink-0 px-3"
         />
         <p
           data-slot="search-hints"

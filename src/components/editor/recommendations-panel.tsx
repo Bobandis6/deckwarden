@@ -62,6 +62,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { GoalsLine } from "@/components/deck/goals-line";
 import { Segmented } from "@/components/deck/segmented";
 import { useResolvedAdd } from "@/components/editor/use-resolved-add";
@@ -279,31 +281,36 @@ export function RecommendationsPanel({
         </button>
       )}
 
-      <label
-        className={`mt-1.5 flex items-center gap-2 text-xs ${ownedAvailable ? "" : "text-muted-foreground"}`}
+      {/* U10a (WAVE5.md D10, D1): the toggle is a Checkbox in a horizontal
+          Field; without a collection the Field is disabled and the reason the
+          `title` carried on hover is a FieldDescription under it, on every
+          pointer, with the Account link inside the sentence. */}
+      <Field
+        orientation="horizontal"
+        disabled={!ownedAvailable}
+        className="mt-1.5 flex-wrap gap-y-0.5 text-xs"
         title={
           ownedAvailable
             ? "Restrict suggestions to cards you own any printing of"
             : "Sign in and import a collection on your Account page to filter by cards you own"
         }
       >
-        <input
-          type="checkbox"
+        <Checkbox
           checked={wantOwned}
-          disabled={!ownedAvailable}
-          onChange={(e) => setOnlyOwned(e.target.checked)}
+          onCheckedChange={(next) => setOnlyOwned(next)}
           data-testid="only-owned-toggle"
         />
-        Only cards I own
+        <FieldLabel>Only cards I own</FieldLabel>
         {!ownedAvailable && (
-          <span className="text-muted-foreground">
-            ·{" "}
+          <FieldDescription className="basis-full">
+            Sign in and{" "}
             <Link href="/account" className="underline">
               import a collection
-            </Link>
-          </span>
+            </Link>{" "}
+            on your Account page to filter by cards you own
+          </FieldDescription>
         )}
-      </label>
+      </Field>
 
       <p
         aria-live="polite"

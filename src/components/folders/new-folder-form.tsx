@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export function NewFolderForm() {
   const router = useRouter();
@@ -58,13 +59,14 @@ export function NewFolderForm() {
       }}
       className="flex flex-wrap items-center gap-2"
     >
-      <input
+      <Input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Folder name"
+        aria-label="Folder name"
         maxLength={80}
         autoFocus
-        className="border-input min-w-0 rounded-md border bg-transparent px-2 py-1 text-sm outline-none"
+        className="w-auto min-w-0"
       />
       <Button size="sm" type="submit" disabled={busy || name.trim() === ""}>
         {busy ? "Creating…" : "Create"}

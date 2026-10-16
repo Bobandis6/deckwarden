@@ -16,7 +16,9 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
+import { Textarea } from "@/components/ui/textarea";
 
 export interface DeckDetails {
   description: string;
@@ -58,34 +60,29 @@ export function DetailsDialog({
 
   return (
     <Modal label="Deck details" onClose={onClose}>
-      <div>
-        <label className="text-muted-foreground text-xs font-medium" htmlFor="deck-description">
-          Short description
-        </label>
-        <textarea
-          id="deck-description"
+      {/* U10a (WAVE5.md D10): two Fields, the Textarea primitive; the Field wires the labels. */}
+      <Field>
+        <FieldLabel>Short description</FieldLabel>
+        <Textarea
           value={details.description}
           onChange={(e) => onChange({ ...details, description: e.target.value })}
           rows={2}
           maxLength={4000}
           placeholder="One or two sentences. This is what link previews and search results show."
-          className="border-input focus-visible:ring-ring/50 mt-1 w-full resize-y rounded-md border bg-transparent px-2 py-1.5 text-sm outline-none focus-visible:ring-2"
+          className="resize-y"
         />
-      </div>
-      <div>
-        <label className="text-muted-foreground text-xs font-medium" htmlFor="deck-notes">
-          Notes
-        </label>
-        <textarea
-          id="deck-notes"
+      </Field>
+      <Field>
+        <FieldLabel>Notes</FieldLabel>
+        <Textarea
           value={details.notes}
           onChange={(e) => onChange({ ...details, notes: e.target.value })}
           rows={10}
           maxLength={20000}
           placeholder="The long version: game plan, mulligan guide, why these cards. Shows on the share page."
-          className="border-input focus-visible:ring-ring/50 mt-1 w-full resize-y rounded-md border bg-transparent px-2 py-1.5 text-sm outline-none focus-visible:ring-2"
+          className="resize-y"
         />
-      </div>
+      </Field>
       <div className="flex items-center justify-between gap-2">
         <p className="text-muted-foreground text-xs">Saved automatically, like your cards.</p>
         <Button size="sm" onClick={onClose}>

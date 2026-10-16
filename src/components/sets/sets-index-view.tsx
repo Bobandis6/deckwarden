@@ -45,6 +45,8 @@ import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
 import { chipClass } from "@/components/color-chip";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { matchSets, setPlaceShort, type ReleasedSet } from "@/lib/sets/lines";
 import { eventDateLabel } from "@/lib/tournaments/format";
@@ -216,15 +218,16 @@ export function SetsIndexView({ sets }: { sets: ReleasedSet[] }) {
             spellCheck={false}
           />
         </div>
-        <label className="flex items-center gap-2 text-sm pointer-coarse:min-h-11">
-          <input
-            type="checkbox"
+        {/* U10a (WAVE5.md D10): the Checkbox primitive in a horizontal Field;
+            explicit ids so the server HTML carries the association. */}
+        <Field orientation="horizontal" className="w-auto pointer-coarse:min-h-11">
+          <Checkbox
+            id="sets-main-only"
             checked={mainOnly}
-            onChange={(e) => setMainOnly(e.target.checked)}
-            className="accent-primary size-4"
+            onCheckedChange={(next) => setMainOnly(next)}
           />
-          Main sets only
-        </label>
+          <FieldLabel htmlFor="sets-main-only">Main sets only</FieldLabel>
+        </Field>
         <p role="status" className="text-muted-foreground text-xs sm:ml-auto">
           {shown.size === sets.length
             ? `Showing all ${count(sets.length, "set", "sets")}`

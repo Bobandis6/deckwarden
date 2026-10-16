@@ -69,6 +69,7 @@ import { SetPicker } from "@/components/cards/set-picker";
 import { ColorChipButton, colorChipDef, colorChipDefs } from "@/components/color-chip";
 import { NameSuggest } from "@/components/search/name-suggest";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAdapter } from "@/lib/games/registry";
 import { setFieldKey, setPlace, type ReleasedSet } from "@/lib/sets/lines";
@@ -82,8 +83,14 @@ export const MOST_PLAYED = 12;
 
 const GRID_CLASS = "mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
 const LEGEND_CLASS = "text-muted-foreground mb-1 text-xs font-medium";
+/**
+ * The page's 36 px field look, shared by the name box and the Set picker
+ * (unstyled Autocomplete inputs) and the Type select: ui/input.tsx's recipe
+ * at `h-9` — the edge token, the dark fill, 16 px text on phones (U10a,
+ * WAVE5.md D10; the Traits box is an `<Input>` at the same height).
+ */
 const FIELD_CLASS =
-  "border-input bg-background focus-visible:ring-ring/50 h-9 rounded-lg border px-3 text-sm outline-none focus-visible:ring-3 pointer-coarse:min-h-11";
+  "h-9 rounded-lg border border-(--border-control) bg-transparent px-3 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30 pointer-coarse:min-h-11";
 
 interface SearchResult {
   id: string;
@@ -417,14 +424,14 @@ export function CardSearch({
         {distinctField && (
           <fieldset className="min-w-0">
             <legend className={LEGEND_CLASS}>Traits</legend>
-            <input
+            <Input
               type="text"
               value={distinct}
               onChange={(e) => setDistinct(e.target.value)}
               placeholder="e.g. Straw Hat Crew"
               aria-label="Trait"
               list="card-search-distinct-options"
-              className={`${FIELD_CLASS} w-full max-w-52`}
+              className="h-9 max-w-52 px-3"
             />
             <datalist id="card-search-distinct-options">
               {distinctOptions.map((o) => (

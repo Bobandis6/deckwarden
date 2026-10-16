@@ -187,10 +187,11 @@ describe("FitSheet — the total and the asks", () => {
     expect(after()).toBe("est. $232 of your $250");
     const rows = sheet.querySelectorAll("[data-fit-row]");
     expect(rows).toHaveLength(3);
-    expect(within(sheet).getByRole("checkbox", { name: /Swap Pricey C/ })).toHaveProperty(
-      "checked",
-      false,
-    );
+    expect(
+      within(sheet)
+        .getByRole("checkbox", { name: /Swap Pricey C/ })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
     expect(within(sheet).getByRole("button", { name: "Swap 2 cards" })).toBeTruthy();
   });
 
@@ -393,10 +394,11 @@ describe("FitSheet — the review", () => {
     fireEvent.click(within(sheet).getByRole("checkbox", { name: /Swap Pricey A/ }));
     // 300 − 29 − 24 = 247: Pricey B and C now carry it.
     expect(after()).toBe("est. $247 of your $250");
-    expect(within(sheet).getByRole("checkbox", { name: /Swap Pricey C/ })).toHaveProperty(
-      "checked",
-      true,
-    );
+    expect(
+      within(sheet)
+        .getByRole("checkbox", { name: /Swap Pricey C/ })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
     // Checked again, it takes its best-ranked option back.
     fireEvent.click(within(sheet).getByRole("checkbox", { name: /Swap Pricey A/ }));
     const a = within(sheet).getByRole("radiogroup", { name: "Instead of Pricey A" });

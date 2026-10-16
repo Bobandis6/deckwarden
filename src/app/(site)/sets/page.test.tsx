@@ -66,7 +66,8 @@ describe("/sets", () => {
     expect(html).toMatch(/<h1[^>]*>Sets<\/h1>/);
     expect(html).toContain("Every released Magic set, newest first. Pick one to see its cards.");
     expect(html).toContain("71st expansion set");
-    expect(html).toMatch(/<input type="checkbox"[^>]*checked=""/);
+    // U10a: the Checkbox primitive is a button with role=checkbox; its checked state is aria-checked.
+    expect(html).toMatch(/role="checkbox" aria-checked="true"/);
     expect(html).toContain("Showing 2 of 3 sets");
   });
 

@@ -24,6 +24,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { DELETE_CONFIRM_PHRASE } from "@/lib/profile/delete-account-phrase";
 
 export function DeleteAccount() {
@@ -93,22 +95,20 @@ export function DeleteAccount() {
               your imported collection. There is no undo and no grace period.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="space-y-1.5">
-            <label className="text-muted-foreground block text-xs" htmlFor="delete-account-confirm">
+          <Field>
+            <FieldLabel>
               Type <span className="text-foreground font-mono">{DELETE_CONFIRM_PHRASE}</span> to
               confirm:
-            </label>
-            <input
-              id="delete-account-confirm"
+            </FieldLabel>
+            <Input
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
               disabled={busy}
               autoComplete="off"
               spellCheck={false}
-              className="bg-background w-full rounded-md border px-2 py-1.5 text-sm"
             />
-            {error && <p className="text-destructive text-sm">{error}</p>}
-          </div>
+            <FieldError>{error}</FieldError>
+          </Field>
           <AlertDialogFooter>
             <AlertDialogCancel size="sm" disabled={busy}>
               Cancel

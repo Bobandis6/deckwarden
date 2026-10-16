@@ -9,35 +9,44 @@
  */
 import Link from "next/link";
 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { shareLabel, type MetaLensRow } from "@/lib/hub/meta-lens";
 
 export function MetaLensTable({ rows, totalLists }: { rows: MetaLensRow[]; totalLists: number }) {
   return (
-    <div className="mt-3 overflow-x-auto">
-      <table className="w-full min-w-[28rem] text-sm">
-        <thead>
-          <tr className="text-muted-foreground border-b text-left">
-            <th className="py-1.5 pr-3 font-medium">#</th>
-            <th className="py-1.5 pr-3 font-medium">Card</th>
-            <th className="py-1.5 pr-3 font-medium">Played in</th>
-            <th className="py-1.5 font-medium">Top 4</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className="mt-3">
+      {/* U10a (WAVE5.md D10): the Table primitive, the staples table's sibling on the same page. */}
+      <Table className="min-w-[28rem]">
+        <TableHeader>
+          <TableRow>
+            <TableHead>#</TableHead>
+            <TableHead>Card</TableHead>
+            <TableHead>Played in</TableHead>
+            <TableHead>Top 4</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((r, i) => (
-            <tr key={r.id} className="border-b last:border-0">
-              <td className="text-muted-foreground py-1.5 pr-3 text-xs tabular-nums">{i + 1}</td>
-              <td className="py-1.5 pr-3">
+            <TableRow key={r.id}>
+              <TableCell className="text-muted-foreground text-xs tabular-nums">{i + 1}</TableCell>
+              <TableCell>
                 <Link href={`/cards/${r.id}`} className="font-medium hover:underline">
                   {r.name}
                 </Link>
-              </td>
-              <td className="py-1.5 pr-3 tabular-nums">{shareLabel(r.lists, totalLists)}</td>
-              <td className="text-muted-foreground py-1.5 tabular-nums">{r.top4}</td>
-            </tr>
+              </TableCell>
+              <TableCell className="tabular-nums">{shareLabel(r.lists, totalLists)}</TableCell>
+              <TableCell className="text-muted-foreground tabular-nums">{r.top4}</TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

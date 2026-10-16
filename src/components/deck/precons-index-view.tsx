@@ -70,9 +70,9 @@ export function preconYearId(label: string): string {
 
 const count = (n: number) => `${n} ${n === 1 ? "precon" : "precons"}`;
 
-/** Native select styled like Input — one control, no popup machinery to stall in a hidden pane. */
+/** Native select styled like Input (the edge token, U10a) — one control, no popup machinery to stall in a hidden pane. */
 const SELECT_CLASS =
-  "border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 rounded-md border px-2 text-sm shadow-xs outline-none focus-visible:ring-[3px] pointer-coarse:min-h-11";
+  "h-9 rounded-lg border border-(--border-control) bg-transparent px-2 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30 pointer-coarse:min-h-11";
 
 export function PreconsIndexView({ items }: { items: PreconItem[] }) {
   const [q, setQ] = useState("");

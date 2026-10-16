@@ -51,6 +51,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { embeddablePrintingImageUrl, thumbnailUrl, type ImageFace } from "@/lib/cards/images";
 import { printingCaption, type GalleryPrinting } from "@/lib/cards/printings";
 import { cn } from "@/lib/utils";
@@ -522,7 +523,14 @@ export function PrintingsTable() {
             disabled={tailStatus === "loading"}
             aria-busy={tailStatus === "loading"}
           >
-            {tailStatus === "loading" ? "Loading…" : `Show all ${total} printings`}
+            {tailStatus === "loading" ? (
+              <>
+                <Spinner aria-hidden role={undefined} aria-label={undefined} className="size-3.5" />
+                Loading…
+              </>
+            ) : (
+              `Show all ${total} printings`
+            )}
           </Button>
           {tailStatus === "error" && (
             <span className="text-destructive text-xs">Couldn’t load. Try again</span>

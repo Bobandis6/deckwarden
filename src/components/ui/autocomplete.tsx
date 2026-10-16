@@ -35,8 +35,12 @@ const Autocomplete = AutocompletePrimitive.Root;
 /**
  * The input, with ui/input.tsx's look copied verbatim (the precedent of
  * copying, not importing, a sibling's class string) so a box that was an
- * `<Input>` looks exactly as it did. `unstyled`: the caller brings the whole
- * look — /cards keeps the field class its Type and Traits controls share.
+ * `<Input>` looks exactly as it did. U10a (WAVE5.md D10): the copy follows
+ * Input onto the edge token (`--border-control`; U1 moved Input alone, and
+ * the name boxes on /commanders, /leaders and /cards measured 1.47:1 until
+ * now) and takes the 44 px coarse-pointer floor with it. `unstyled`: the
+ * caller brings the whole look — /cards keeps the field class its Type
+ * control and Set picker share.
  */
 function AutocompleteInput({
   className,
@@ -50,7 +54,7 @@ function AutocompleteInput({
         unstyled
           ? className
           : cn(
-              "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+              "h-8 w-full min-w-0 rounded-lg border border-(--border-control) bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 pointer-coarse:min-h-11",
               className,
             )
       }

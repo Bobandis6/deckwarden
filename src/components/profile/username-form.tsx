@@ -13,6 +13,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { USERNAME_MAX } from "@/lib/profile/username";
 
@@ -61,40 +63,37 @@ export function UsernameForm({ current }: { current: string | null }) {
       }}
       className="space-y-1.5"
     >
-      <label htmlFor="profile-username" className="text-muted-foreground block text-xs">
-        {current
-          ? "Username: your public profile lives at /u/" + current
-          : "Choose a username to publish a profile with your public decks"}
-      </label>
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground font-mono text-xs">deckwarden.gg/u/</span>
-        <input
-          id="profile-username"
-          value={value}
-          maxLength={USERNAME_MAX}
-          onChange={(e) => {
-            setValue(e.target.value);
-            setSaved(false);
-          }}
-          placeholder="username"
-          autoComplete="off"
-          spellCheck={false}
-          className="border-input min-w-0 flex-1 rounded-md border bg-transparent px-2 py-1 font-mono text-sm outline-none"
-        />
-        <Button size="sm" type="submit" disabled={busy || !dirty || value.trim() === ""}>
-          {busy ? "Saving…" : "Save"}
-        </Button>
-      </div>
-      {error && (
-        <p aria-live="polite" className="text-destructive text-xs">
-          {error}
-        </p>
-      )}
-      {saved && !error && (
-        <p aria-live="polite" className="text-muted-foreground text-xs">
-          Saved. Your profile is live.
-        </p>
-      )}
+      {/* U10a (WAVE5.md D10): one Field — the label, the row, the error or the
+          saved line under it, every line in the input's aria-describedby. */}
+      <Field className="gap-1.5">
+        <FieldLabel>
+          {current
+            ? "Username: your public profile lives at /u/" + current
+            : "Choose a username to publish a profile with your public decks"}
+        </FieldLabel>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground font-mono text-xs">deckwarden.gg/u/</span>
+          <Input
+            value={value}
+            maxLength={USERNAME_MAX}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setSaved(false);
+            }}
+            placeholder="username"
+            autoComplete="off"
+            spellCheck={false}
+            className="min-w-0 flex-1 font-mono"
+          />
+          <Button size="sm" type="submit" disabled={busy || !dirty || value.trim() === ""}>
+            {busy ? "Saving…" : "Save"}
+          </Button>
+        </div>
+        <FieldError>{error}</FieldError>
+        {saved && !error && (
+          <FieldDescription aria-live="polite">Saved. Your profile is live.</FieldDescription>
+        )}
+      </Field>
     </form>
   );
 }

@@ -49,6 +49,7 @@ import type { SheetPoint } from "@/components/editor/editor-layout";
 import { CostPips } from "@/components/deck/cost-pips";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
 import { withPartner } from "@/lib/buy/links";
 import { embeddablePrintingImageUrl, thumbnailUrl } from "@/lib/cards/images";
 import { printingCaption, type GalleryPrinting } from "@/lib/cards/printings";
@@ -546,7 +547,9 @@ function TagEditor({ adapter, tagging }: { adapter: GameAdapter; tagging: TagEdi
         ))}
         {tags.length < MAX_TAGS && (
           <li>
-            <input
+            {/* U10a (WAVE5.md D10): the Input primitive in the tag pill's shape
+                (U10b's Chip may take it over, LATER); the edge token's dashed line. */}
+            <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
@@ -560,7 +563,7 @@ function TagEditor({ adapter, tagging }: { adapter: GameAdapter; tagging: TagEdi
               aria-label="Add tag"
               maxLength={MAX_TAG_LENGTH}
               size={8}
-              className="focus-visible:ring-ring/50 rounded-full border border-dashed px-2 py-0.5 text-xs outline-none focus-visible:ring-2 pointer-coarse:min-h-11 pointer-coarse:px-3"
+              className="h-auto w-auto rounded-full border-dashed px-2 py-0.5 text-xs md:text-xs dark:bg-transparent pointer-coarse:px-3"
             />
           </li>
         )}

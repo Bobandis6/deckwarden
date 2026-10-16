@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const VISIBILITY_HINTS: Record<string, string> = {
   public: "Public: on your profile",
@@ -92,13 +93,13 @@ export function FolderControls({
           }}
           className="flex items-center gap-1.5"
         >
-          <input
+          <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             maxLength={80}
             autoFocus
             aria-label={`Rename folder ${name}`}
-            className="border-input w-36 rounded-md border bg-transparent px-2 py-0.5 text-xs outline-none"
+            className="w-36"
           />
           <Button size="sm" type="submit" disabled={busy}>
             Save
@@ -123,7 +124,7 @@ export function FolderControls({
             disabled={busy}
             aria-label={`Visibility of folder ${name}`}
             onChange={(e) => void patch({ visibility: e.target.value })}
-            className="border-input rounded-md border bg-transparent px-1.5 py-0.5 text-xs outline-none"
+            className="h-7 rounded-md border border-(--border-control) bg-transparent px-1.5 text-xs transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 pointer-coarse:min-h-11"
           >
             {Object.entries(VISIBILITY_HINTS).map(([value, label]) => (
               <option key={value} value={value}>

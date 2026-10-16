@@ -31,6 +31,7 @@ import { useCallback, useEffect, useState } from "react";
 import { DeckDiffView } from "@/components/deck/deck-diff-view";
 import { ForkCreditLine } from "@/components/deck/fork-button";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { diffDeckLists, type DeckDiff, type FrozenCard } from "@/lib/decks/diff";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
@@ -320,14 +321,14 @@ export function HistoryDialog({
           void saveVersion();
         }}
       >
-        <input
+        <Input
           value={note}
           onChange={(e) => setNote(e.target.value)}
           maxLength={200}
           disabled={busy || atCap}
           aria-label="Version note"
           placeholder="Note for this version (e.g. “post-FNM cuts”)"
-          className="border-input focus-visible:ring-ring/50 min-w-0 flex-1 rounded-md border bg-transparent px-2 py-1 text-sm outline-none focus-visible:ring-2"
+          className="min-w-0 flex-1"
         />
         <Button type="submit" size="sm" disabled={busy || atCap || list === null}>
           Save version

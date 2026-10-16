@@ -63,7 +63,7 @@ describe("SetsIndexView", () => {
         /^(\/cards\?set=|#sets-)/.test(a.getAttribute("href") ?? ""),
       ),
     ).toBe(true);
-    expect((mainOnly() as HTMLInputElement).checked).toBe(true);
+    expect(mainOnly().getAttribute("aria-checked")).toBe("true");
     expect(shownNames(container)).toEqual([
       "The Hobbit",
       "Bloomburrow",
@@ -158,7 +158,7 @@ describe("SetsIndexView", () => {
     type("tokens");
     expect(screen.getByText("No main sets match")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Show 1 other product" }));
-    expect((mainOnly() as HTMLInputElement).checked).toBe(false);
+    expect(mainOnly().getAttribute("aria-checked")).toBe("false");
     expect(shownNames(container)).toEqual(["Bloomburrow Tokens"]);
   });
 

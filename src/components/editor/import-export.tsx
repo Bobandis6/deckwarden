@@ -11,7 +11,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { CopyStatus, useCopyToClipboard } from "@/components/copy-status";
 import { Button } from "@/components/ui/button";
+import { Field, FieldError } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
+import { Textarea } from "@/components/ui/textarea";
 import type { CardWire, EditorEntry } from "@/lib/decks/editor-state";
 import {
   applyImport,
@@ -217,20 +219,20 @@ export function ImportDialog({ adapter, format, entries, onApply, onClose }: Imp
 
   return (
     <Modal label="Import decklist" onClose={onClose}>
-      <textarea
-        ref={textareaRef}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={12}
-        placeholder={adapter.display.importPlaceholder}
-        aria-label="Decklist text"
-        className="border-input focus-visible:ring-ring/50 w-full resize-y rounded-md border bg-transparent p-2 font-mono text-xs outline-none focus-visible:ring-2"
-      />
-      {error && (
-        <p aria-live="polite" className="text-destructive text-xs">
-          {error}
-        </p>
-      )}
+      {/* U10a (WAVE5.md D10): the paste area is a Textarea in a Field, so the
+          parse error under it describes it (`aria-describedby`). */}
+      <Field>
+        <Textarea
+          ref={textareaRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={12}
+          placeholder={adapter.display.importPlaceholder}
+          aria-label="Decklist text"
+          className="resize-y font-mono text-xs md:text-xs"
+        />
+        <FieldError>{error}</FieldError>
+      </Field>
       <div className="flex justify-end">
         <Button size="sm" disabled={busy || text.trim() === ""} onClick={() => void parse()}>
           {busy ? "Looking up cards…" : "Next"}
@@ -246,13 +248,13 @@ export function ExportDialog({ text, onClose }: { text: string; onClose: () => v
   const copy = useCopyToClipboard();
   return (
     <Modal label="Export decklist" onClose={onClose}>
-      <textarea
+      <Textarea
         readOnly
         value={text}
         rows={16}
         aria-label="Exported decklist"
         onFocus={(e) => e.currentTarget.select()}
-        className="border-input w-full resize-y rounded-md border bg-transparent p-2 font-mono text-xs outline-none"
+        className="resize-y font-mono text-xs md:text-xs"
       />
       <div className="flex items-center justify-end gap-2">
         <CopyStatus

@@ -304,7 +304,8 @@ async function main() {
       const hiddenRows = setsHtml.match(/<li hidden=""><a /g)?.length ?? 0;
       check(
         `"Main sets only" is on in the server HTML: the ${others} other products are hidden, not dropped`,
-        hiddenRows === others && /<input type="checkbox"[^>]*checked=""/.test(setsHtml),
+        // U10a: the box is the Checkbox primitive (a button with role=checkbox); checked is aria-checked.
+        hiddenRows === others && /role="checkbox"[^>]*aria-checked="true"/.test(setsHtml),
         { hidden: hiddenRows, others },
       );
       const years = [...setsHtml.matchAll(/<h2[^>]*>(\d{4})<\/h2>/g)].map((m) => m[1]);

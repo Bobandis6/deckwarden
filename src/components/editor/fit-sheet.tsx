@@ -57,6 +57,7 @@ import type {
 } from "@/components/editor/alternatives-section";
 import { sourceMeta } from "@/components/editor/recommendations-panel";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
@@ -620,12 +621,10 @@ function FitRowView({
   return (
     <li data-fit-row={card.id} className="rounded-md border px-2.5 py-2">
       <label className="flex items-center gap-2 text-sm pointer-coarse:min-h-11">
-        <input
-          type="checkbox"
-          className="accent-primary size-4 shrink-0"
+        <Checkbox
           checked={chosen !== null}
           disabled={chosen === null && !free}
-          onChange={() => onPick(card.id, chosen !== null ? null : (free?.cardId ?? null))}
+          onCheckedChange={() => onPick(card.id, chosen !== null ? null : (free?.cardId ?? null))}
         />
         <span className="min-w-0 flex-1 truncate font-medium">
           Swap{" "}

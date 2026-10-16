@@ -15,6 +15,7 @@ import { useState } from "react";
 
 import { CopyStatus, useCopyToClipboard } from "@/components/copy-status";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 
 export type DeckVisibility = "public" | "unlisted" | "private";
@@ -106,12 +107,12 @@ export function ShareDialog({
       )}
 
       <div className="flex items-center gap-2">
-        <input
+        <Input
           readOnly
           value={shareUrl}
           aria-label="Share link"
           onFocus={(e) => e.currentTarget.select()}
-          className="border-input min-w-0 flex-1 rounded-md border bg-transparent px-2 py-1 font-mono text-xs outline-none"
+          className="min-w-0 flex-1 font-mono"
         />
         <Button size="sm" onClick={() => copy.copy(shareUrl)}>
           Copy link

@@ -35,6 +35,14 @@
 import { ChevronDownIcon } from "lucide-react";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { AnalyticsBlock } from "@/lib/games/types";
 import { cn } from "@/lib/utils";
 
@@ -237,32 +245,34 @@ function DataTable({ block }: { block: Extract<AnalyticsBlock, { kind: "table" }
   return (
     <div>
       <h3 className="text-muted-foreground text-xs font-medium">{block.title}</h3>
-      <div className="mt-1 overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-muted-foreground border-border border-b text-left">
+      {/* U10a (WAVE5.md D10): the Table primitive at this block's density
+          (12 px, 2 px rows); numbers right-aligned and tabular as before. */}
+      <div className="mt-1">
+        <Table className="text-xs">
+          <TableHeader>
+            <TableRow className="border-border">
               {block.columns.map((col, i) => (
-                <th key={col} className={`py-0.5 pr-2 font-medium ${i > 0 ? "text-right" : ""}`}>
+                <TableHead key={col} className={`py-0.5 pr-2 ${i > 0 ? "text-right" : ""}`}>
                   {col}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {block.rows.map((row, r) => (
-              <tr key={r} className="border-border/50 border-b last:border-b-0">
+              <TableRow key={r} className="border-border/50">
                 {row.map((cell, c) => (
-                  <td
+                  <TableCell
                     key={c}
                     className={`py-0.5 pr-2 ${typeof cell === "number" ? "text-right tabular-nums" : ""}`}
                   >
                     {cell}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {block.hint && <p className="type-micro text-muted-foreground mt-1">{block.hint}</p>}
     </div>

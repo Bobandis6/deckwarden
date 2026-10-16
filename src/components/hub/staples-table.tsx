@@ -24,6 +24,14 @@ import { useMemo, useState } from "react";
 
 import { Segmented } from "@/components/deck/segmented";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { BUDGET_OPTIONS, type BudgetTier, withinBudget } from "@/lib/recommend/budget";
 
 /** Rows shown before "Show all {n}" (U7b). */
@@ -71,41 +79,39 @@ export function StaplesTable({ staples }: { staples: StapleItem[] }) {
         </p>
       ) : (
         <>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[28rem] text-sm">
-              <thead>
-                <tr className="text-muted-foreground border-b text-left">
-                  <th className="py-1.5 pr-3 font-medium">#</th>
-                  <th className="py-1.5 pr-3 font-medium">Card</th>
-                  <th className="py-1.5 pr-3 font-medium">Type</th>
-                  <th className="py-1.5 pr-3 font-medium">MV</th>
-                  <th className="py-1.5 font-medium">Price</th>
-                </tr>
-              </thead>
-              <tbody>
+          {/* U10a (WAVE5.md D10): the Table primitive; the fold's `hidden` rows
+              and the tabular cells as before. */}
+          <div className="mt-3">
+            <Table className="min-w-[28rem]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>#</TableHead>
+                  <TableHead>Card</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>MV</TableHead>
+                  <TableHead>Price</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {shown.map((s, i) => (
-                  <tr
-                    key={s.id}
-                    hidden={folded && i >= STAPLES_FOLD}
-                    className="border-b last:border-0"
-                  >
-                    <td className="text-muted-foreground py-1.5 pr-3 text-xs tabular-nums">
+                  <TableRow key={s.id} hidden={folded && i >= STAPLES_FOLD}>
+                    <TableCell className="text-muted-foreground text-xs tabular-nums">
                       {i + 1}
-                    </td>
-                    <td className="py-1.5 pr-3">
+                    </TableCell>
+                    <TableCell>
                       <Link href={`/cards/${s.id}`} className="font-medium hover:underline">
                         {s.name}
                       </Link>
-                    </td>
-                    <td className="text-muted-foreground py-1.5 pr-3">{s.primaryType ?? "—"}</td>
-                    <td className="py-1.5 pr-3 tabular-nums">{s.costValue ?? "—"}</td>
-                    <td className="py-1.5 tabular-nums">
-                      {s.cheapestUsd !== null ? `$${s.cheapestUsd}` : "—"}
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{s.primaryType ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums">{s.costValue ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {s.cheapestUsd !== null ? `${s.cheapestUsd}` : "—"}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
           {folded && (
             <div className="mt-3">

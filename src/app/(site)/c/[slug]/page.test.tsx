@@ -265,7 +265,8 @@ describe("/c/[slug] (U7b: the hub openings)", () => {
     const html = await renderHub();
     const staples = section(html, "Staples");
     expect(staples.match(/<tr[ >]/g)).toHaveLength(101); // the header row and all 100
-    expect(staples.match(/<tr hidden=""/g)).toHaveLength(75);
+    // U10a: the rows are TableRow (data-slot, class first); `hidden` still rides every folded one.
+    expect(staples.match(/<tr [^>]*hidden=""/g)).toHaveLength(75);
     expect(staples.match(/href="\/cards\/[0-9a-f-]+"/g)).toHaveLength(100);
     expect(staples).toMatch(/<button[^>]*>Show all <!-- -->100<\/button>/);
     expect(html).toMatch(

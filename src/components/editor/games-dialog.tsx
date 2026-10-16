@@ -57,6 +57,9 @@ import {
 import { SheetShell } from "@/components/editor/sheet-shell";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import type { GameResult } from "@/db/schema";
 import { accountHref } from "@/lib/auth/next-path";
 import type { GameAdapter, JournalMeta } from "@/lib/games/types";
@@ -131,15 +134,14 @@ function Choice({
     );
   }
   return (
-    <div className="space-y-1">
-      <label htmlFor={id} className="text-muted-foreground block text-xs">
-        {label}
-      </label>
+    <Field className="w-auto">
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      {/* A native select in Input's look (U10a): the edge token, 32 px beside the date box. */}
       <select
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="border-input focus-visible:ring-ring/50 bg-background rounded-md border px-2 py-1 text-sm outline-none focus-visible:ring-2 pointer-coarse:min-h-11"
+        className="h-8 rounded-lg border border-(--border-control) bg-transparent px-2 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30 pointer-coarse:min-h-11"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -147,7 +149,7 @@ function Choice({
           </option>
         ))}
       </select>
-    </div>
+    </Field>
   );
 }
 
@@ -284,30 +286,30 @@ function DetailsFields({
   const set = (patch: Partial<GameForm>) => onChange((prev) => ({ ...prev, ...patch }));
   return (
     <>
+      {/* U10a (WAVE5.md D10): Field + Input; the two fields keep their row. */}
       <div className="flex flex-wrap gap-3">
-        <label className="space-y-1">
-          <span className="text-muted-foreground block text-xs">{JOURNAL_COPY.date}</span>
-          <input
+        <Field className="w-auto">
+          <FieldLabel>{JOURNAL_COPY.date}</FieldLabel>
+          <Input
             type="date"
             value={form.playedOn}
             max={maxDay}
             required
             onChange={(e) => set({ playedOn: e.target.value || fallbackDay })}
-            className="border-input focus-visible:ring-ring/50 bg-background rounded-md border px-2 py-1 text-sm outline-none focus-visible:ring-2 pointer-coarse:min-h-11"
           />
-        </label>
-        <label className="space-y-1">
-          <span className="text-muted-foreground block text-xs">{JOURNAL_COPY.endTurn}</span>
-          <input
+        </Field>
+        <Field className="w-auto">
+          <FieldLabel>{JOURNAL_COPY.endTurn}</FieldLabel>
+          <Input
             type="number"
             inputMode="numeric"
             min={1}
             max={99}
             value={form.endTurn}
             onChange={(e) => set({ endTurn: e.target.value })}
-            className="border-input focus-visible:ring-ring/50 bg-background w-20 rounded-md border px-2 py-1 text-sm outline-none focus-visible:ring-2 pointer-coarse:min-h-11"
+            className="w-20"
           />
-        </label>
+        </Field>
       </div>
       {levelOptions && journal.tableLevel && (
         <Choice
@@ -339,16 +341,15 @@ function DetailsFields({
           }
         />
       )}
-      <label className="block space-y-1">
-        <span className="text-muted-foreground block text-xs">{JOURNAL_COPY.notes}</span>
-        <textarea
+      <Field>
+        <FieldLabel>{JOURNAL_COPY.notes}</FieldLabel>
+        <Textarea
           value={form.notes}
           maxLength={500}
           rows={2}
           onChange={(e) => set({ notes: e.target.value })}
-          className="border-input focus-visible:ring-ring/50 bg-background w-full rounded-md border px-2 py-1 text-sm outline-none focus-visible:ring-2"
         />
-      </label>
+      </Field>
     </>
   );
 }
