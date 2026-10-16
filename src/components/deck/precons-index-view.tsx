@@ -16,16 +16,29 @@
  * Tiles group by release year (newest group first; Oldest inverts the
  * group order) except under Name sort, where one flat A–Z list reads
  * better than years interleaved.
+ *
+ * U7b (WAVE5.md D8, "Long lists on phones"): a year jump strip under the
+ * filters — plain in-page anchors to each year's section, not filter state
+ * (a hash is a scroll position; the island never reads it); below `md` the
+ * year groups after the first two are collapsed under a "Show {year}" row
+ * until asked, CSS alone, so every tile stays in the server HTML and from
+ * `md` every group shows as before; and the tiles are DeckTile's compact
+ * rows below `md`. A filter opens everything (narrowing the list is the
+ * ask); Oldest keeps the two groups at the top open, the ones a reader
+ * sorted to see first; Name sort is one flat group with nothing to fold.
+ * The count beside "Show {year}" says how many rows the row hides.
  */
 import { useMemo, useState } from "react";
 
 import { ColorChipButton, chipClass } from "@/components/color-chip";
 import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
 import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import type { DeckTileData } from "@/lib/decks/tiles";
 import { COLOR_ORDER, lettersToMask, type ColorLetter } from "@/lib/games/colors";
+import { cn } from "@/lib/utils";
 
 export interface PreconItem {
   publicId: string;
@@ -47,6 +60,16 @@ export const PRECON_SORT_OPTIONS: { value: PreconSort; label: string }[] = [
   { value: "name", label: "Name" },
 ];
 
+/** Year groups open below `md` before a "Show {year}" row (U7b): the two at the top of the list. */
+export const OPEN_YEAR_GROUPS = 2;
+
+/** A year group's anchor id, the strip's target (new with U7b; no existing id moved). */
+export function preconYearId(label: string): string {
+  return `precons-${label.toLowerCase()}`;
+}
+
+const count = (n: number) => `${n} ${n === 1 ? "precon" : "precons"}`;
+
 /** Native select styled like Input — one control, no popup machinery to stall in a hidden pane. */
 const SELECT_CLASS =
   "border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 rounded-md border px-2 text-sm shadow-xs outline-none focus-visible:ring-[3px] pointer-coarse:min-h-11";
@@ -56,6 +79,8 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
   const [letters, setLetters] = useState("");
   const [year, setYear] = useState<"all" | number>("all");
   const [sort, setSort] = useState<PreconSort>("newest");
+  /** Year groups a reader opened with "Show {year}" (U7b); one-way, like the folds. */
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
 
   const years = useMemo(
     () =>
@@ -104,6 +129,10 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
     }));
   }, [filtered, sort]);
 
+  // The fold applies to the whole list only (U7b): any filter opens every group.
+  const unfiltered = q === "" && ciMask === null && year === "all";
+  const strip = groups.length > 1 ? groups.flatMap((g) => (g.label === null ? [] : [g.label])) : [];
+
   const toggleLetter = (c: ColorLetter) => {
     setLetters((current) =>
       c === "C"
@@ -139,7 +168,7 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
             spellCheck={false}
           />
         </div>
-        <div aria-label="Color identity filter" className="flex flex-wrap gap-1.5">
+        <div role="group" aria-label="Color identity filter" className="flex flex-wrap gap-1.5">
           <button
             type="button"
             onClick={() => setLetters("")}
@@ -189,6 +218,25 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
         </label>
       </div>
 
+      {/* The year jump strip (U7b): in-page anchors, a rail that scrolls
+          sideways below `md` and wraps from it; one chip per group shown. */}
+      {strip.length > 0 && (
+        <nav
+          aria-label="Jump to year"
+          className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0"
+        >
+          {strip.map((label) => (
+            <a
+              key={label}
+              href={`#${preconYearId(label)}`}
+              className={chipClass(false, "shrink-0")}
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
+      )}
+
       {groups.length === 0 ? (
         <EmptyState
           mark
@@ -201,18 +249,46 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
           }
         />
       ) : (
-        groups.map((group) => (
-          <section key={group.label ?? "flat"} className="mt-6">
-            {group.label && (
-              <h2 className="type-small text-muted-foreground border-b pb-1">{group.label}</h2>
-            )}
-            <DeckTileGrid className="mt-3 lg:grid-cols-2 xl:grid-cols-3">
-              {group.rows.map((item) => (
-                <DeckTile key={item.publicId} tile={item.tile} badge="Precon" />
-              ))}
-            </DeckTileGrid>
-          </section>
-        ))
+        groups.map((group, index) => {
+          const label = group.label;
+          const collapsed =
+            unfiltered && label !== null && index >= OPEN_YEAR_GROUPS && !opened.has(label);
+          return (
+            <section
+              key={label ?? "flat"}
+              id={label === null ? undefined : preconYearId(label)}
+              className={cn("mt-6", collapsed && "max-md:mt-3")}
+            >
+              {label && (
+                <div className="flex items-baseline justify-between gap-3 border-b pb-1">
+                  <h2 className="type-small text-muted-foreground">{label}</h2>
+                  {collapsed && (
+                    <span className="flex items-baseline gap-3 md:hidden">
+                      <span className="text-muted-foreground type-meta">
+                        {count(group.rows.length)}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setOpened((prev) => new Set(prev).add(label))}
+                      >
+                        Show {label}
+                      </Button>
+                    </span>
+                  )}
+                </div>
+              )}
+              <DeckTileGrid
+                className={cn("mt-3 lg:grid-cols-2 xl:grid-cols-3", collapsed && "max-md:hidden")}
+              >
+                {group.rows.map((item) => (
+                  <DeckTile key={item.publicId} tile={item.tile} badge="Precon" compact />
+                ))}
+              </DeckTileGrid>
+            </section>
+          );
+        })
       )}
     </div>
   );

@@ -223,6 +223,60 @@ describe("the tail", () => {
   });
 });
 
+describe("the fold (U7b, WAVE5 D8)", () => {
+  const thirty = Array.from({ length: 30 }, (_, i) =>
+    printing(i + 10, i === 0 ? { isDefault: true } : {}),
+  );
+  const bodyRows = (container: HTMLElement) => [
+    ...container.querySelectorAll<HTMLTableRowElement>("tbody tr"),
+  ];
+  const hiddenRows = (container: HTMLElement) => bodyRows(container).filter((r) => r.hidden);
+
+  it("shows 24 rows, keeps the rest in the markup hidden, and one click opens them with no fetch", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { container } = renderGallery({ printings: thirty, total: 30 });
+    expect(bodyRows(container)).toHaveLength(30);
+    expect(hiddenRows(container)).toHaveLength(6);
+    expect(screen.getAllByRole("row")).toHaveLength(25); // header + 24
+    fireEvent.click(screen.getByRole("button", { name: "Show all 30 printings" }));
+    expect(hiddenRows(container)).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+  });
+
+  it("past the inline rows the same click opens the fold and fetches the tail once", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ printings: [printing(99)], total: 31, truncated: false }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { container } = renderGallery({ printings: thirty, total: 31 });
+    expect(hiddenRows(container)).toHaveLength(6);
+    fireEvent.click(screen.getByRole("button", { name: "Show all 31 printings" }));
+    await waitFor(() => expect(bodyRows(container)).toHaveLength(31));
+    expect(hiddenRows(container)).toHaveLength(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+  });
+
+  it("a set filter shows its matches whole; a deep link past the fold opens it", () => {
+    const first = renderGallery({ printings: thirty, total: 30 });
+    fireEvent.change(screen.getByPlaceholderText("Filter sets…"), { target: { value: "set 3" } });
+    // "Set 30" to "Set 39": ten rows, none hidden, no button.
+    expect(bodyRows(first.container).filter((r) => !r.hidden)).toHaveLength(10);
+    expect(hiddenRows(first.container)).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+    first.unmount();
+
+    window.history.replaceState(null, "", `/cards/abc?printing=${thirty[28].id}`);
+    const second = renderGallery({ printings: thirty, total: 30 });
+    expect(hiddenRows(second.container)).toHaveLength(0);
+    expect(rowButton(/Set 38/).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+  });
+});
+
 describe("filter", () => {
   it("appears only above 12 printings and filters by set name or code", () => {
     const { unmount } = renderGallery();

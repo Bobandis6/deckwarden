@@ -23,6 +23,15 @@
  * X3 (WAVE3.md D3): each combo row gains "Build around this combo" — the
  * same seam plus `combo` and the autofill latch — under the build CTA's
  * own gate. The CTA island itself is untouched (its anchors are pinned).
+ *
+ * U7b (WAVE5.md D8): every section opens with its serif h2 standing alone;
+ * the one explainer sits under the first data section (the staples). The
+ * lines that carry a count, a floor or a source (the Meta Lens, the combos,
+ * the finishes) keep their words byte-identical — the smokes read them —
+ * and sit under their block as a source line; the lines that restated their
+ * heading (the template, the precons, the decks) are gone. The staples fold
+ * at 25 inside StaplesTable, every row still in this HTML. The finishes
+ * shelf reads the shared tournament formatters (LATER row 107).
  */
 import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import type { Metadata } from "next";
@@ -60,27 +69,8 @@ import {
   STAPLES_LIMIT,
 } from "@/lib/hub/queries";
 import { breadcrumbJsonLd, JsonLd } from "@/lib/seo/jsonld";
+import { eventDateLabel, ordinal } from "@/lib/tournaments/format";
 import { loadTopFinishes, TOP_FINISHES_SHOWN } from "@/lib/tournaments/queries";
-
-/** 1 → "1st", 12 → "12th" — placements only ever hit 1..16. */
-function ordinal(n: number): string {
-  const rem10 = n % 10;
-  const rem100 = n % 100;
-  if (rem10 === 1 && rem100 !== 11) return `${n}st`;
-  if (rem10 === 2 && rem100 !== 12) return `${n}nd`;
-  if (rem10 === 3 && rem100 !== 13) return `${n}rd`;
-  return `${n}th`;
-}
-
-/** "2026-08-30" → "Aug 30, 2026", pinned to UTC so the date column never shifts a day. */
-function eventDateLabel(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 export const revalidate = 3600;
 
@@ -233,9 +223,6 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           {adapter.hub && (
             <section aria-label="Deck template" className="mt-8">
               <h2 className="type-section">{adapter.hub.templateTitle}</h2>
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                A starting template, not a rule — counts to fill in around the commander.
-              </p>
               <ul className="mt-2 grid gap-2 sm:grid-cols-2">
                 {adapter.hub.roles.map((role) => (
                   <li key={role.label} className="rounded-lg border px-3 py-2">
@@ -256,7 +243,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
 
       <section aria-label="Staples" className="mt-10">
         <h2 className="type-section">Staples in these colors</h2>
-        <p className="text-muted-foreground mt-0.5 text-xs">
+        <p className="text-muted-foreground type-meta-multiline mt-0.5">
           The {STAPLES_LIMIT} cards that fit this color identity in the most EDHREC decklists
           (EDHREC rank via Scryfall).
         </p>
@@ -293,7 +280,10 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       {tournamentsMeta && metaLens && (
         <section aria-label="Most played with this commander" className="mt-10">
           <h2 className="type-section">Most played with {leader.name}</h2>
-          <p className="text-muted-foreground mt-0.5 text-xs">
+          <MetaLensTable rows={metaLens.rows} totalLists={metaLens.totalLists} />
+          {/* The source line (U7b): the words are byte-identical (hubs-smoke
+              reads "ranked by lists played"); it now closes the block. */}
+          <p className="text-muted-foreground type-meta-multiline mt-2">
             The {metaLens.rows.length} most-played cards in {metaLens.totalLists} settled top-
             {TOP_PLACEMENT} lists running {leader.name}
             {metaLens.setCount > 1 ? " (any pairing)" : ""} at {MIN_EVENT_PLAYERS}+ player events
@@ -309,7 +299,6 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
             </a>
             .
           </p>
-          <MetaLensTable rows={metaLens.rows} totalLists={metaLens.totalLists} />
         </section>
       )}
 
@@ -317,13 +306,6 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       {adapter.capabilities.combos && combosData.total > 0 && (
         <section aria-label="Combos" className="mt-10">
           <h2 className="type-section">Combos with {leader.name}</h2>
-          <p className="text-muted-foreground mt-0.5 text-xs">
-            {combosData.total > COMBOS_SHOWN
-              ? `The ${combosData.combos.length} most popular of ${combosData.total} combos (by EDHREC decklist count)`
-              : `${combosData.total === 1 ? "One combo" : `${combosData.total} combos`}`}{" "}
-            using this commander that fit its color identity, from{" "}
-            {adapter.capabilities.combos.sourceLabel}.
-          </p>
           <ComboList
             combos={combosData.combos}
             combosMeta={adapter.capabilities.combos}
@@ -337,30 +319,21 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
                 : undefined
             }
           />
+          {/* The source line (U7b): byte-identical words (combos-smoke reads
+              "most popular of N combos"), closing the block. */}
+          <p className="text-muted-foreground type-meta-multiline mt-2">
+            {combosData.total > COMBOS_SHOWN
+              ? `The ${combosData.combos.length} most popular of ${combosData.total} combos (by EDHREC decklist count)`
+              : `${combosData.total === 1 ? "One combo" : `${combosData.total} combos`}`}{" "}
+            using this commander that fit its color identity, from{" "}
+            {adapter.capabilities.combos.sourceLabel}.
+          </p>
         </section>
       )}
 
       {tournamentsMeta && topFinishes.total > 0 && (
         <section aria-label="Top finishes" className="mt-10 max-w-2xl">
           <h2 className="type-section">Top finishes</h2>
-          <p className="text-muted-foreground mt-0.5 text-xs">
-            {topFinishes.total > TOP_FINISHES_SHOWN
-              ? `The ${TOP_FINISHES_SHOWN} most recent of ${topFinishes.total} finishes`
-              : topFinishes.total === 1
-                ? "One finish"
-                : `${topFinishes.total} finishes`}{" "}
-            placing top {TOP_PLACEMENT} at {MIN_EVENT_PLAYERS}+ player events with this commander.
-            Results from{" "}
-            <a
-              href={tournamentsMeta.sourceHref}
-              className="underline"
-              rel="noreferrer"
-              target="_blank"
-            >
-              {tournamentsMeta.sourceLabel}
-            </a>
-            .
-          </p>
           <ul className="mt-2 divide-y rounded-lg border">
             {topFinishes.finishes.map((finish) => {
               const partners = finish.leaderNames.filter((name) => name !== leader.name);
@@ -421,6 +394,25 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
               );
             })}
           </ul>
+          {/* The source line (U7b): the count, the floor and the source, byte-identical, under the list. */}
+          <p className="text-muted-foreground type-meta-multiline mt-2">
+            {topFinishes.total > TOP_FINISHES_SHOWN
+              ? `The ${TOP_FINISHES_SHOWN} most recent of ${topFinishes.total} finishes`
+              : topFinishes.total === 1
+                ? "One finish"
+                : `${topFinishes.total} finishes`}{" "}
+            placing top {TOP_PLACEMENT} at {MIN_EVENT_PLAYERS}+ player events with this commander.
+            Results from{" "}
+            <a
+              href={tournamentsMeta.sourceHref}
+              className="underline"
+              rel="noreferrer"
+              target="_blank"
+            >
+              {tournamentsMeta.sourceLabel}
+            </a>
+            .
+          </p>
           <p className="mt-2 text-sm">
             <Link href={`/tournaments?leader=${slug}`} className="underline underline-offset-2">
               All {topFinishes.total} {topFinishes.total === 1 ? "finish" : "finishes"} →
@@ -436,9 +428,6 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       {hubPrecons.length > 0 && (
         <section aria-label={`Precons led by ${leader.name}`} className="mt-10 max-w-2xl">
           <h2 className="type-section">Precons led by {leader.name}</h2>
-          <p className="text-muted-foreground mt-0.5 text-xs">
-            Official preconstructed decks with {leader.name} at the helm.
-          </p>
           <DeckTileGrid className="mt-2">
             {hubPrecons.map((deck) => (
               <DeckTile
@@ -458,9 +447,6 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       {hubDecks.length > 0 && (
         <section aria-label="Decks with this commander" className="mt-10 max-w-2xl">
           <h2 className="type-section">Decks with this commander</h2>
-          <p className="text-muted-foreground mt-0.5 text-xs">
-            Public Deckwarden decks running {leader.name}.
-          </p>
           {/* R5a: the shared DeckTile (G5/G8) — no per-viewer state, so the hub stays ISR. */}
           <DeckTileGrid className="mt-2">
             {hubDecks.map((deck) => (

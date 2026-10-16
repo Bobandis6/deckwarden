@@ -38,6 +38,7 @@ export function DeckTile({
   linkTitle,
   actions,
   badge,
+  compact = false,
   className,
   ...rest
 }: {
@@ -51,6 +52,13 @@ export function DeckTile({
    * (Y5, "Bracket 3 (declared)") takes the slot.
    */
   badge?: string;
+  /**
+   * U7b (WAVE5.md D8, the long lists): the compact row below `md` — the
+   * card at the search rows' 26 px, tighter padding, the game chip and the
+   * format hidden (one game and one format on the page that asks for it);
+   * from `md` the tile as everywhere. /precons alone passes it.
+   */
+  compact?: boolean;
   className?: string;
 } & ComponentProps<"li">) {
   return (
@@ -64,6 +72,7 @@ export function DeckTile({
       className={cn(
         "bg-card hover:bg-muted/40 relative flex gap-3 overflow-hidden rounded-lg border p-3 pt-4 motion-safe:transition-[background-color,translate] motion-safe:hover:-translate-y-0.5",
         "has-[[data-slot=tile-link]:focus-visible]:ring-ring/50 has-[[data-slot=tile-link]:focus-visible]:ring-2",
+        compact && "max-md:gap-2 max-md:p-2 max-md:pt-2.5",
         className,
       )}
     >
@@ -76,7 +85,10 @@ export function DeckTile({
       <span
         aria-hidden
         data-slot="tile-art"
-        className="bg-muted relative w-24 shrink-0 overflow-hidden rounded-[4.75%/3.5%]"
+        className={cn(
+          "bg-muted relative w-24 shrink-0 overflow-hidden rounded-[4.75%/3.5%]",
+          compact && "max-md:w-[1.625rem] max-md:self-start",
+        )}
         style={{ aspectRatio: `${TILE_IMAGE.width} / ${TILE_IMAGE.height}` }}
       >
         {tile.leaderImage ? (
@@ -108,7 +120,11 @@ export function DeckTile({
           {tile.gameLabel && (
             <span
               aria-hidden
-              className={cn(badgeVariants({ variant: "outline" }), "h-4 px-1.5 text-[10px]")}
+              className={cn(
+                badgeVariants({ variant: "outline" }),
+                "h-4 px-1.5 text-[10px]",
+                compact && "max-md:hidden",
+              )}
             >
               {tile.gameLabel}
             </span>
@@ -121,7 +137,9 @@ export function DeckTile({
               {badge ?? tile.declared}
             </span>
           )}
-          {tile.formatLabel && <span>{tile.formatLabel}</span>}
+          {tile.formatLabel && (
+            <span className={compact ? "max-md:hidden" : undefined}>{tile.formatLabel}</span>
+          )}
           {tile.visibility && <span>· {tile.visibility}</span>}
           <span>· {tile.dateLabel ?? `Updated ${tile.updatedLabel}`}</span>
           {tile.priceLabel && <span className="tabular-nums">· {tile.priceLabel}</span>}

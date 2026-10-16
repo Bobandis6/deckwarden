@@ -48,27 +48,10 @@ import { maskToOptcgColorNames, maskToOptcgLetters } from "@/lib/games/optcg/col
 import { MIN_EVENT_PLAYERS, TOP_PLACEMENT } from "@/lib/games/optcg/limitless-map";
 import { loadDefaultPrinting, loadLeaderStatus, loadOpLeaderSiblings } from "@/lib/hub/queries";
 import { breadcrumbJsonLd, JsonLd } from "@/lib/seo/jsonld";
+// U7b (LATER row 107): the finishes shelf reads the shared formatters the
+// /tournaments pages and the set places use; the local mirrors are gone.
+import { eventDateLabel, ordinal } from "@/lib/tournaments/format";
 import { loadTopFinishes, TOP_FINISHES_SHOWN } from "@/lib/tournaments/queries";
-
-/** 1 → "1st", 12 → "12th" — placements only ever hit 1..16 (the /c/ helper, mirrored). */
-function ordinal(n: number): string {
-  const rem10 = n % 10;
-  const rem100 = n % 100;
-  if (rem10 === 1 && rem100 !== 11) return `${n}st`;
-  if (rem10 === 2 && rem100 !== 12) return `${n}nd`;
-  if (rem10 === 3 && rem100 !== 13) return `${n}rd`;
-  return `${n}th`;
-}
-
-/** "2026-08-30" → "Aug 30, 2026", pinned to UTC so the date column never shifts a day. */
-function eventDateLabel(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 export const revalidate = 3600;
 
@@ -222,8 +205,10 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
             </Link>
           </div>
 
+          {/* U7b (WAVE5.md D8): the hub's one explainer, under its first data
+              section, on the ladder's meta step; the other h2s stand alone. */}
           <h2 className="type-section mt-8">Find cards for this deck</h2>
-          <p className="text-muted-foreground mt-0.5 text-sm">
+          <p className="text-muted-foreground type-meta-multiline mt-0.5">
             A {colorNames.join("/")} leader builds from {colorNames.join(" and ")} cards.
           </p>
           <ul className="mt-2 flex flex-wrap gap-2 text-sm">
@@ -250,9 +235,6 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
           {siblings.length > 0 && (
             <section aria-label={`Other ${leader.name} leaders`} className="mt-8">
               <h2 className="type-section">Other {leader.name} leaders</h2>
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                Same character, different card — each is its own archetype.
-              </p>
               <ul className="mt-2 flex flex-wrap gap-2 text-sm">
                 {siblings.map((s) => (
                   <li key={s.id}>
@@ -276,24 +258,6 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
       {tournamentsMeta && topFinishes.total > 0 && (
         <section aria-label="Top finishes" className="mt-10 max-w-2xl">
           <h2 className="type-section">Top finishes</h2>
-          <p className="text-muted-foreground mt-0.5 text-xs">
-            {topFinishes.total > TOP_FINISHES_SHOWN
-              ? `The ${TOP_FINISHES_SHOWN} most recent of ${topFinishes.total} finishes`
-              : topFinishes.total === 1
-                ? "One finish"
-                : `${topFinishes.total} finishes`}{" "}
-            placing top {TOP_PLACEMENT} at {MIN_EVENT_PLAYERS}+ player events with this leader.
-            Results from{" "}
-            <a
-              href={tournamentsMeta.sourceHref}
-              className="underline"
-              rel="noreferrer"
-              target="_blank"
-            >
-              {tournamentsMeta.sourceLabel}
-            </a>
-            .
-          </p>
           <ul className="mt-2 divide-y rounded-lg border">
             {topFinishes.finishes.map((finish) => {
               // draws stores the source's `ties` — OP terminology on an OP shelf.
@@ -353,6 +317,25 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
               );
             })}
           </ul>
+          {/* The source line (U7b): the count, the floor and the source, byte-identical, under the list. */}
+          <p className="text-muted-foreground type-meta-multiline mt-2">
+            {topFinishes.total > TOP_FINISHES_SHOWN
+              ? `The ${TOP_FINISHES_SHOWN} most recent of ${topFinishes.total} finishes`
+              : topFinishes.total === 1
+                ? "One finish"
+                : `${topFinishes.total} finishes`}{" "}
+            placing top {TOP_PLACEMENT} at {MIN_EVENT_PLAYERS}+ player events with this leader.
+            Results from{" "}
+            <a
+              href={tournamentsMeta.sourceHref}
+              className="underline"
+              rel="noreferrer"
+              target="_blank"
+            >
+              {tournamentsMeta.sourceLabel}
+            </a>
+            .
+          </p>
           <p className="mt-2 text-sm">
             <Link
               href={`/tournaments?game=optcg&leader=${slug}`}

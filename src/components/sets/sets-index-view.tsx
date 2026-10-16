@@ -27,18 +27,40 @@
  * deferred and the rows memoized: the box answers each keystroke at once,
  * and the list re-decides `hidden` on its items in a render the next
  * keystroke may interrupt, re-rendering no row.
+ *
+ * U7b (WAVE5.md D8, "Long lists on phones"): a year jump strip under the
+ * filters — plain in-page anchors, one per year with a row to show, not
+ * filter state (a hash is a scroll position; the island never reads it) —
+ * and, below `md`, the years after the first two with a row to show are
+ * collapsed under a "Show {year}" row until asked, CSS alone: the `li`
+ * `hidden` flags and the section flags are the filter's as before, so the
+ * server HTML, the smoke's hidden-row count and every link are unchanged,
+ * and from `md` every year shows. Typing in the box opens everything (the
+ * matches are the ask); "Main sets only" keeps the fold either way. The
+ * count beside "Show {year}" says how many rows the row hides.
  */
 import Link from "next/link";
-import { memo, useDeferredValue, useMemo, useState } from "react";
+import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
 
+import { chipClass } from "@/components/color-chip";
 import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { matchSets, setPlaceShort, type ReleasedSet } from "@/lib/sets/lines";
 import { eventDateLabel } from "@/lib/tournaments/format";
+import { cn } from "@/lib/utils";
 
 export interface SetYear {
   year: string;
   sets: ReleasedSet[];
+}
+
+/** Years open below `md` before a "Show {year}" row (U7b): the first two with a row to show. */
+export const OPEN_YEARS = 2;
+
+/** A year's anchor id, the strip's target (new with U7b; no existing id moved). */
+export function setYearId(year: string): string {
+  return `sets-${year}`;
 }
 
 /** Release years, newest first; inside a year, the list's own order (a day's sets by line). */
@@ -100,31 +122,71 @@ const SetRow = memo(function SetRow({ set }: { set: ReleasedSet }) {
   );
 });
 
-/** The year groups; re-renders only when what shows changes (`shown` is memoized upstream). */
+/**
+ * The year groups; re-renders only when what shows or what is opened
+ * changes (`shown` is memoized upstream, `opened` is replaced, never
+ * mutated). `folded` is false while the box has text.
+ */
 const SetYears = memo(function SetYears({
   years,
   shown,
+  folded,
+  opened,
+  onOpen,
 }: {
   years: SetYear[];
   shown: Set<string>;
+  folded: boolean;
+  opened: ReadonlySet<string>;
+  onOpen: (year: string) => void;
 }) {
-  return years.map(({ year, sets }) => (
-    <section key={year} hidden={!sets.some((set) => shown.has(set.code))} className="mt-6">
-      <h2 className="type-small text-muted-foreground border-b pb-1">{year}</h2>
-      <ul className="-mx-2 mt-1">
-        {sets.map((set) => (
-          <li key={set.code} hidden={!shown.has(set.code)}>
-            <SetRow set={set} />
-          </li>
-        ))}
-      </ul>
-    </section>
-  ));
+  // The fold counts the years with a row to show, in page order: the first
+  // OPEN_YEARS stay open, the rest collapse until asked.
+  let position = 0;
+  return years.map(({ year, sets }) => {
+    const visible = sets.filter((set) => shown.has(set.code)).length;
+    const hidden = visible === 0;
+    const collapsed = folded && !hidden && position++ >= OPEN_YEARS && !opened.has(year);
+    return (
+      <section
+        key={year}
+        id={setYearId(year)}
+        hidden={hidden}
+        className={cn("mt-6", collapsed && "max-md:mt-3")}
+      >
+        <div className="flex items-baseline justify-between gap-3 border-b pb-1">
+          <h2 className="type-small text-muted-foreground">{year}</h2>
+          {collapsed && (
+            <span className="flex items-baseline gap-3 md:hidden">
+              <span className="text-muted-foreground type-meta">
+                {count(visible, "set", "sets")}
+              </span>
+              <Button type="button" variant="outline" size="sm" onClick={() => onOpen(year)}>
+                Show {year}
+              </Button>
+            </span>
+          )}
+        </div>
+        <ul className={cn("-mx-2 mt-1", collapsed && "max-md:hidden")}>
+          {sets.map((set) => (
+            <li key={set.code} hidden={!shown.has(set.code)}>
+              <SetRow set={set} />
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  });
 });
 
 export function SetsIndexView({ sets }: { sets: ReleasedSet[] }) {
   const [q, setQ] = useState("");
   const [mainOnly, setMainOnly] = useState(true);
+  /** Years a reader opened with "Show {year}" (U7b); one-way, like the folds. */
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
+  const onOpen = useCallback((year: string) => {
+    setOpened((prev) => new Set(prev).add(year));
+  }, []);
 
   const years = useMemo(() => groupSetsByYear(sets), [sets]);
   // The box shows each keystroke at once; the ~706 rows follow in a render
@@ -134,6 +196,8 @@ export function SetsIndexView({ sets }: { sets: ReleasedSet[] }) {
     () => filterSets(sets, query, mainOnly),
     [sets, query, mainOnly],
   );
+  const folded = query.trim() === "";
+  const strip = years.filter(({ sets: rows }) => rows.some((set) => shown.has(set.code)));
 
   return (
     <div className="mt-4">
@@ -168,6 +232,21 @@ export function SetsIndexView({ sets }: { sets: ReleasedSet[] }) {
         </p>
       </div>
 
+      {/* The year jump strip (U7b): in-page anchors, a rail that scrolls
+          sideways below `md` and wraps from it; one chip per year shown. */}
+      {strip.length > 1 && (
+        <nav
+          aria-label="Jump to year"
+          className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0"
+        >
+          {strip.map(({ year }) => (
+            <a key={year} href={`#${setYearId(year)}`} className={chipClass(false, "shrink-0")}>
+              {year}
+            </a>
+          ))}
+        </nav>
+      )}
+
       {shown.size === 0 && (
         <EmptyState
           mark
@@ -187,7 +266,7 @@ export function SetsIndexView({ sets }: { sets: ReleasedSet[] }) {
         />
       )}
 
-      <SetYears years={years} shown={shown} />
+      <SetYears years={years} shown={shown} folded={folded} opened={opened} onOpen={onOpen} />
     </div>
   );
 }

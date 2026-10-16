@@ -136,6 +136,8 @@ describe("PreconsIndexView", () => {
   it("filtering never touches the URL (the W8b ephemeral-state decision)", () => {
     render(<PreconsIndexView items={ITEMS} />);
     const before = window.location.href;
+    // Opening a collapsed year (U7b) is a button, not a hash: the URL holds.
+    fireEvent.click(screen.getByRole("button", { name: "Show 2016" }));
     fireEvent.change(screen.getByLabelText("Search decks or commanders"), {
       target: { value: "atraxa" },
     });
@@ -143,5 +145,76 @@ describe("PreconsIndexView", () => {
     fireEvent.change(screen.getByLabelText(/Year/), { target: { value: "2016" } });
     fireEvent.change(screen.getByLabelText(/Sort/), { target: { value: "name" } });
     expect(window.location.href).toBe(before);
+  });
+});
+
+/** Whether each year group's grid is collapsed below `md` (U7b), in page order. */
+const collapsedGrids = (container: HTMLElement) =>
+  [...container.querySelectorAll("section ul")].map((ul) => ul.classList.contains("max-md:hidden"));
+
+describe("PreconsIndexView — the long list on phones (U7b, WAVE5 D8)", () => {
+  it("names the color filter as a group; the strip jumps by anchor to each year's section", () => {
+    const { container } = render(<PreconsIndexView items={ITEMS} />);
+    expect(screen.getByRole("group", { name: "Color identity filter" })).toBeTruthy();
+    const strip = screen.getByRole("navigation", { name: "Jump to year" });
+    expect(
+      [...strip.querySelectorAll("a")].map((a) => [a.textContent, a.getAttribute("href")]),
+    ).toEqual([
+      ["2026", "#precons-2026"],
+      ["2023", "#precons-2023"],
+      ["2018", "#precons-2018"],
+      ["2016", "#precons-2016"],
+      ["2011", "#precons-2011"],
+    ]);
+    expect([...container.querySelectorAll("section[id]")].map((s) => s.id)).toEqual([
+      "precons-2026",
+      "precons-2023",
+      "precons-2018",
+      "precons-2016",
+      "precons-2011",
+    ]);
+    // Name sort is one flat group: nothing to jump to.
+    fireEvent.change(screen.getByLabelText(/Sort/), { target: { value: "name" } });
+    expect(screen.queryByRole("navigation", { name: "Jump to year" })).toBeNull();
+  });
+
+  it("collapses the groups after the first two below md until Show {year}; every tile stays in the DOM", () => {
+    const { container } = render(<PreconsIndexView items={ITEMS} />);
+    expect(collapsedGrids(container)).toEqual([false, false, true, true, true]);
+    expect(tileNames()).toHaveLength(5);
+    expect(
+      screen.getAllByRole("button", { name: /^Show \d{4}$/ }).map((b) => b.textContent),
+    ).toEqual(["Show 2018", "Show 2016", "Show 2011"]);
+    expect(screen.getAllByText("1 precon")).toHaveLength(3);
+    // The year headings are untouched by the row beside them.
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "2026",
+      "2023",
+      "2018",
+      "2016",
+      "2011",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show 2016" }));
+    expect(collapsedGrids(container)).toEqual([false, false, true, false, true]);
+    expect(screen.queryByRole("button", { name: "Show 2016" })).toBeNull();
+
+    // Oldest: the two groups at the top of the list are the open ones.
+    fireEvent.change(screen.getByLabelText(/Sort/), { target: { value: "oldest" } });
+    expect(collapsedGrids(container)).toEqual([false, false, true, true, true]);
+
+    // A filter opens everything: narrowing the list is the ask.
+    fireEvent.change(screen.getByLabelText("Search decks or commanders"), {
+      target: { value: "e" },
+    });
+    expect(collapsedGrids(container).some(Boolean)).toBe(false);
+    expect(screen.queryByRole("button", { name: /^Show \d{4}$/ })).toBeNull();
+  });
+
+  it("renders the tiles as DeckTile's compact rows below md", () => {
+    render(<PreconsIndexView items={ITEMS} />);
+    const tile = document.querySelector("[data-slot=deck-tile]")!;
+    expect(tile.className).toContain("max-md:p-2");
+    expect(tile.querySelector("[data-slot=tile-art]")!.className).toContain("max-md:w-[1.625rem]");
   });
 });

@@ -181,4 +181,33 @@ describe("DeckTile — the declared chip (Y5)", () => {
     expect(classes).toContain("hover:bg-muted/40");
     expect(tile.className).not.toContain("transition-colors");
   });
+
+  it("compact (U7b): the phone row below md and the tile from it; nothing without the prop", () => {
+    const { container } = render(
+      <DeckTileGrid>
+        <DeckTile tile={queza} compact />
+        <DeckTile tile={enel} />
+      </DeckTileGrid>,
+    );
+    const [compact, plain] = [...container.querySelectorAll("[data-slot=deck-tile]")].map(
+      (el) => el as HTMLElement,
+    );
+    for (const cls of ["max-md:gap-2", "max-md:p-2", "max-md:pt-2.5"]) {
+      expect(compact.className.split(" ")).toContain(cls);
+    }
+    // The card at the search rows' 26 px below md, the 96 px box from md.
+    const art = compact.querySelector("[data-slot=tile-art]") as HTMLElement;
+    expect(art.className.split(" ")).toContain("max-md:w-[1.625rem]");
+    // The card keeps its ratio beside a taller text column: no stretch, so no cropped artist line (D0).
+    expect(art.className.split(" ")).toContain("max-md:self-start");
+    expect(art.className.split(" ")).toContain("w-24");
+    // The game chip and the format step aside below md; the name, the date and the link stay.
+    expect([...compact.querySelectorAll(".max-md\\:hidden")].map((el) => el.textContent)).toEqual([
+      "Magic",
+      "Commander",
+    ]);
+    expect(screen.getByRole("link", { name: "Queza — The Agony Engine" })).toBeTruthy();
+    expect(plain.className).not.toContain("max-md:");
+    expect(plain.querySelector(".max-md\\:hidden")).toBeNull();
+  });
 });

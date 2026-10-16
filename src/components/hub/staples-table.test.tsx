@@ -42,3 +42,56 @@ describe("StaplesTable budget pills (Y1)", () => {
     expect(screen.queryByText("Unpriced")).toBeNull();
   });
 });
+
+/** A hundred staples: `cheap` at $0.50, then `mid` at $3.00, the rest at $9.00. */
+const hundred = (cheap: number, mid: number): StapleItem[] =>
+  Array.from({ length: 100 }, (_, i) =>
+    staple(`Card ${i + 1}`, i < cheap ? "0.50" : i < cheap + mid ? "3.00" : "9.00"),
+  );
+
+const bodyRows = (container: HTMLElement) => [
+  ...container.querySelectorAll<HTMLTableRowElement>("tbody tr"),
+];
+const hiddenRows = (container: HTMLElement) => bodyRows(container).filter((r) => r.hidden);
+
+describe("StaplesTable fold (U7b, WAVE5 D8)", () => {
+  it("renders every row, hides the ones past 25, and opens them all on Show all 100", () => {
+    const { container } = render(<StaplesTable staples={hundred(30, 30)} />);
+    expect(bodyRows(container)).toHaveLength(100);
+    expect(hiddenRows(container)).toHaveLength(75);
+    expect(
+      bodyRows(container)
+        .slice(0, 25)
+        .every((r) => !r.hidden),
+    ).toBe(true);
+    expect(bodyRows(container)[24].textContent).toContain("Card 25");
+    // Every link is in the markup for a crawler; the hidden rows leave the a11y tree.
+    expect(container.querySelectorAll('tbody a[href^="/cards/"]')).toHaveLength(100);
+    expect(screen.getAllByRole("row")).toHaveLength(26);
+    fireEvent.click(screen.getByRole("button", { name: "Show all 100" }));
+    expect(hiddenRows(container)).toHaveLength(0);
+    expect(screen.getAllByRole("row")).toHaveLength(101);
+    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+  });
+
+  it("folds the tier, not the hundred: Show all 60 under ≤ $5; nothing to fold under ≤ $1 at 20", () => {
+    const { container } = render(<StaplesTable staples={hundred(20, 40)} />);
+    fireEvent.click(screen.getByRole("button", { name: "≤ $5 a card" }));
+    expect(bodyRows(container)).toHaveLength(60);
+    expect(hiddenRows(container)).toHaveLength(35);
+    expect(screen.getByRole("button", { name: "Show all 60" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "≤ $1 a card" }));
+    expect(bodyRows(container)).toHaveLength(20);
+    expect(hiddenRows(container)).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+  });
+
+  it("stays open across tiers once asked", () => {
+    const { container } = render(<StaplesTable staples={hundred(30, 30)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show all 100" }));
+    fireEvent.click(screen.getByRole("button", { name: "≤ $5 a card" }));
+    expect(bodyRows(container)).toHaveLength(60);
+    expect(hiddenRows(container)).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+  });
+});

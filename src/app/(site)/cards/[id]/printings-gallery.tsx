@@ -59,6 +59,15 @@ import { usePrintingParam, writePrintingParam } from "./printing-param";
 
 /** "Filter sets…" appears only above this many printings (D4). */
 export const FILTER_MIN_PRINTINGS = 12;
+/**
+ * Rows shown before "Show all {total} printings" (U7b, WAVE5.md D8): the
+ * rest of the inline rows render `hidden` (every one stays in the ISR HTML)
+ * until the one button opens them — the same button that fetches the tail
+ * past the inline 100, so one click shows everything the card has. A set
+ * filter shows its matches whole, and a pinned row past the fold (a deep
+ * link) opens it, so "Shown" is never a hidden row.
+ */
+export const PRINTINGS_FOLD = 24;
 
 interface PrintingsResponse {
   printings: GalleryPrinting[];
@@ -431,11 +440,21 @@ export function PrintingsTable() {
     loadAll,
   } = useGallery();
   const [filter, setFilter] = useState("");
+  const [expanded, setExpanded] = useState(false);
 
   const needle = filter.trim().toLowerCase();
   const visibleRows = needle
     ? rows.filter((p) => `${p.setName} ${p.setCode}`.toLowerCase().includes(needle))
     : rows;
+  // The fold (U7b): derived, never stored — a filter or a pinned row past
+  // the fold opens the rows without a click, and nothing runs in an effect.
+  const pinnedIndex = pinnedId ? visibleRows.findIndex((p) => p.id === pinnedId) : -1;
+  const open = expanded || needle !== "" || pinnedIndex >= PRINTINGS_FOLD;
+  const folded = !open && visibleRows.length > PRINTINGS_FOLD;
+  const showAll = () => {
+    setExpanded(true);
+    if (rows.length < total) loadAll();
+  };
 
   return (
     <>
@@ -472,13 +491,14 @@ export function PrintingsTable() {
             </tr>
           </thead>
           <tbody>
-            {visibleRows.map((p) => (
+            {visibleRows.map((p, i) => (
               <PrintingRow
                 key={p.id}
                 printing={p}
                 cardName={cardName}
                 hasPrices={hasPrices}
                 pinned={p.id === pinnedId}
+                hidden={folded && i >= PRINTINGS_FOLD}
                 onActivate={activateRow}
               />
             ))}
@@ -490,16 +510,15 @@ export function PrintingsTable() {
           </p>
         )}
       </div>
-      {tailStatus === "done" && truncated ? (
-        <p className="text-muted-foreground mt-2 text-xs">
-          Showing {rows.length} of {total} printings — newest first
-        </p>
-      ) : rows.length < total ? (
+      {/* One button for the fold and the tail (U7b): while rows are folded it
+          shows (even after a capped tail, so a reader can always open what
+          is loaded); otherwise it stays only while the tail is still to come. */}
+      {folded || (rows.length < total && !(tailStatus === "done" && truncated)) ? (
         <div className="mt-2 flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={loadAll}
+            onClick={showAll}
             disabled={tailStatus === "loading"}
             aria-busy={tailStatus === "loading"}
           >
@@ -509,6 +528,10 @@ export function PrintingsTable() {
             <span className="text-destructive text-xs">Couldn’t load — try again</span>
           )}
         </div>
+      ) : tailStatus === "done" && truncated ? (
+        <p className="text-muted-foreground mt-2 text-xs">
+          Showing {rows.length} of {total} printings — newest first
+        </p>
       ) : null}
     </>
   );
@@ -519,12 +542,15 @@ function PrintingRow({
   cardName,
   hasPrices,
   pinned,
+  hidden,
   onActivate,
 }: {
   printing: GalleryPrinting;
   cardName: string;
   hasPrices: boolean;
   pinned: boolean;
+  /** Folded away (U7b): rendered, in the HTML, not shown. */
+  hidden: boolean;
   onActivate: (row: GalleryPrinting) => void;
 }) {
   const image = embeddablePrintingImageUrl(printing, "normal");
@@ -534,6 +560,7 @@ function PrintingRow({
 
   return (
     <tr
+      hidden={hidden}
       className={cn(
         "hover:bg-accent relative border-b transition-colors duration-[120ms] last:border-0",
         pinned && "bg-muted",

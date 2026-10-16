@@ -53,8 +53,16 @@ function shownNames(container: HTMLElement): string[] {
 describe("SetsIndexView", () => {
   it("renders every set as a link and shows the main sets by default", () => {
     const { container } = render(<SetsIndexView sets={SETS} />);
-    const links = [...container.querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    // Every set row is a link (the strip's anchors, U7b, are the page's own: href="#…").
+    const links = [...container.querySelectorAll('a[href^="/cards?set="]')].map((a) =>
+      a.getAttribute("href"),
+    );
     expect(links).toEqual(SETS.map((s) => `/cards?set=${s.code}`));
+    expect(
+      [...container.querySelectorAll("a")].every((a) =>
+        /^(\/cards\?set=|#sets-)/.test(a.getAttribute("href") ?? ""),
+      ),
+    ).toBe(true);
     expect((mainOnly() as HTMLInputElement).checked).toBe(true);
     expect(shownNames(container)).toEqual([
       "The Hobbit",
@@ -157,11 +165,62 @@ describe("SetsIndexView", () => {
   it("filtering never touches the URL (the /precons ephemeral-state decision)", () => {
     render(<SetsIndexView sets={SETS} />);
     const before = window.location.href;
+    // Opening a collapsed year (U7b) is a button, not a hash: the URL holds.
+    fireEvent.click(screen.getByRole("button", { name: "Show 2016" }));
     type("blo");
     fireEvent.click(mainOnly());
     type("zzzq");
     fireEvent.click(screen.getByRole("button", { name: "Clear filter" }));
     expect(window.location.href).toBe(before);
+  });
+
+  it("the strip jumps by anchor to the years with a row to show; the years after the first two collapse below md until Show {year} (U7b)", () => {
+    const { container } = render(<SetsIndexView sets={SETS} />);
+    const stripHrefs = () =>
+      [...screen.getByRole("navigation", { name: "Jump to year" }).querySelectorAll("a")].map((a) =>
+        a.getAttribute("href"),
+      );
+    // 1996 has only an other product: no row to show, no chip, no fold slot.
+    expect(stripHrefs()).toEqual([
+      "#sets-2026",
+      "#sets-2024",
+      "#sets-2019",
+      "#sets-2016",
+      "#sets-1993",
+    ]);
+    expect([...container.querySelectorAll("section")].map((s) => s.id)).toEqual([
+      "sets-2026",
+      "sets-2024",
+      "sets-2019",
+      "sets-2016",
+      "sets-1996",
+      "sets-1993",
+    ]);
+    const collapsed = () =>
+      [...container.querySelectorAll("section ul")].map((ul) =>
+        ul.classList.contains("max-md:hidden"),
+      );
+    expect(collapsed()).toEqual([false, false, true, true, false, true]);
+    expect(
+      screen.getAllByRole("button", { name: /^Show \d{4}$/ }).map((b) => b.textContent),
+    ).toEqual(["Show 2019", "Show 2016", "Show 1993"]);
+    expect(screen.getAllByText("1 set")).toHaveLength(3);
+    // The li flags are the filter's alone: the fold hides nothing from the markup or the smoke's count.
+    expect(container.querySelectorAll("li[hidden]")).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show 2016" }));
+    expect(collapsed()).toEqual([false, false, true, false, false, true]);
+    expect(screen.queryByRole("button", { name: "Show 2016" })).toBeNull();
+
+    // Every set: 1996 joins the list and the fold counts the years shown.
+    fireEvent.click(mainOnly());
+    expect(stripHrefs()).toHaveLength(6);
+    expect(collapsed()).toEqual([false, false, true, false, true, true]);
+
+    // Typing opens everything: the matches are the ask.
+    type("b");
+    expect(collapsed().some(Boolean)).toBe(false);
+    expect(screen.queryByRole("button", { name: /^Show \d{4}$/ })).toBeNull();
   });
 });
 

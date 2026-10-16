@@ -71,8 +71,9 @@ export default async function PreconsPage() {
       {/* D7's game pills: One Piece has no starter-deck data yet (LATER.md,
           "One Piece starter decks") — the pill is disabled with the hint,
           never a dead link. Static markup, not GameSwitch: there is no
-          second page to switch to. */}
-      <div className="mt-4 flex flex-wrap items-center gap-1.5" aria-label="Game">
+          second page to switch to. role="group" (U7b, LATER row 136): ARIA
+          ignores a label on a generic element, so the name needs the role. */}
+      <div role="group" aria-label="Game" className="mt-4 flex flex-wrap items-center gap-1.5">
         <span
           aria-current="page"
           className="bg-foreground text-background inline-flex items-center rounded-md border px-2 py-1 text-sm pointer-coarse:min-h-11 pointer-coarse:px-3"
