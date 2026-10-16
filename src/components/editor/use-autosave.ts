@@ -24,7 +24,7 @@ export interface Autosave {
   status: SaveStatus;
   markDirty: () => void;
   flush: () => Promise<void>;
-  /** True while unsaved edits exist (for pagehide/unmount keepalive saves). Stable. */
+  /** True while unsaved edits exist (the game journal's flush-first check). Stable. */
   isDirty: () => boolean;
 }
 

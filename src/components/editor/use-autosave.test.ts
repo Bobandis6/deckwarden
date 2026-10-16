@@ -1,9 +1,9 @@
 /**
  * useAutosave (P1.2): its three callbacks keep their identity across renders
- * — the editor's pagehide/unmount keepalive effect depends on `isDirty`, and
- * a fresh arrow per render re-ran that effect's cleanup (a keepalive PUT) on
- * every render while dirty (LATER row 161) — and two marks inside the delay
- * are one save, a full delay after the last.
+ * — the editor's pagehide/unmount keepalive effect once depended on
+ * `isDirty`, and a fresh arrow per render re-ran that effect's cleanup (a
+ * keepalive PUT) on every render while dirty (LATER row 161) — and two marks
+ * inside the delay are one save, a full delay after the last.
  */
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

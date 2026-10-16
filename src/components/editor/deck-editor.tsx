@@ -14,8 +14,8 @@
  * this). Ownership proof is the claim token from localStorage when this
  * browser holds one, else the Better Auth session cookie (claimed/account
  * decks, P2.1) that rides along automatically. Reload hydrates from GET
- * /api/decks/[id]; pagehide/unmount flush with keepalive fetch so no edit is
- * lost mid-navigation.
+ * /api/decks/[id]; a hidden tab, pagehide and unmount flush with keepalive
+ * fetch so no edit is lost mid-navigation or to a discarded tab.
  *
  * R3 (REDESIGN.md §2 "Desktop builder"): the editor's own header
  * (EditorHeader — mark, game/format chip, name, the fixed-width save slot,
@@ -238,6 +238,13 @@ type RightTab = "card" | "suggest" | "combos" | "cuts" | "analytics" | "hand";
 const TOKEN_HEADER = "x-deck-token";
 /** Add-toast lifetime (F3): long enough to reach Undo, short enough to never stack up. */
 const TOAST_MS = 5000;
+/**
+ * How long a save waits on keepalive copies still in flight (LATER row 163):
+ * long enough for a slow write to answer, short enough that a copy whose
+ * answer never comes back (sent as the page froze or left) can't hold the
+ * autosave for good.
+ */
+const KEEPALIVE_WAIT_MS = 10_000;
 
 /**
  * The phone's Tools strip (U4b): one row of six at 360 px. The list spans
@@ -441,6 +448,9 @@ export function DeckEditor({
   // must see the fresh id without re-subscribing.
   const deckIdRef = useRef<string | null>(initialDeckId);
   const createChainRef = useRef<Promise<string> | null>(null);
+  // Keepalive copies still in flight (LATER row 163), settled or not: the
+  // next save waits for their answers before it diffs.
+  const keepaliveRef = useRef<Promise<void> | null>(null);
 
   /**
    * Draft mode's whole point (P2.8 follow-up): the deck row is created by the
@@ -529,6 +539,22 @@ export function DeckEditor({
     // reads "Draft" again and the draft-only doors stay.
     if (isBlankDraft()) return;
     const deckId = await ensureDeck();
+    // A keepalive copy still in flight (a hidden tab, LATER row 163) answers
+    // first: a newer list never races an older copy to the server, and a
+    // copy that failed leaves its diff for this save. Bounded, and waited
+    // out once: a copy whose answer never comes can't wedge the autosave.
+    const pending = keepaliveRef.current;
+    if (pending) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        pending,
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, KEEPALIVE_WAIT_MS);
+        }),
+      ]);
+      clearTimeout(timer);
+      if (keepaliveRef.current === pending) keepaliveRef.current = null;
+    }
     const headers = writeHeaders(deckId);
     const cardsBody = JSON.stringify({ cards: toSavePayload(entriesRef.current) });
     if (cardsBody !== lastSavedRef.current.cards) {
@@ -755,10 +781,16 @@ export function DeckEditor({
       const card = toEditorCard(wire);
       setCards((prev) => new Map(prev).set(wire.id, card));
       setPreview(card);
+      // A roll that lands on a deck row is an edit (LATER row 167): the door
+      // stays until a create answers, so a roll clicked while a typed name's
+      // create was in flight can land after it, and state only it would sit
+      // under "Saved" and leave with the tab. On a draft it stays state only;
+      // a roll that lands mid-create rides that save (it reads the refs).
+      if (deckIdRef.current !== null) markDirty();
     } catch {
       sayNoRoll();
     }
-  }, [load]);
+  }, [load, markDirty]);
   const seededSurpriseRef = useRef(false);
   useEffect(() => {
     if (draftSeed !== "surprise" || seededSurpriseRef.current) return;
@@ -961,57 +993,75 @@ export function DeckEditor({
     return () => controller.abort();
   }, [initialDeckId, hydrate]);
 
-  // Flush pending edits when the tab closes (pagehide) or the component
-  // unmounts on client-side navigation. keepalive lets the request outlive
-  // the page; the await-less send is the best a closing tab allows. A draft
-  // whose deck doesn't exist yet has nothing persisted to protect — leaving
-  // inside the first debounce window drops that sliver of input rather than
-  // minting the empty deck this feature exists to prevent. The deps must
-  // stay stable (useAutosave's isDirty is): the cleanup's flush then runs on
-  // unmount only. A dep that changed per render sent every edit at once
-  // through an unchecked keepalive PUT, bypassing the debounce (LATER row 161).
+  // Flush pending edits when the tab goes hidden or closes (pagehide), or
+  // the component unmounts on client-side navigation. keepalive lets the
+  // request outlive the page; the await-less send is the best a closing tab
+  // allows. Hidden is the Page Lifecycle's last reliable event on a phone:
+  // an OS that discards a backgrounded tab, or a crash, sends no pagehide
+  // (LATER row 163). A draft whose deck doesn't exist yet has nothing
+  // persisted to protect — leaving inside the first debounce window drops
+  // that sliver of input rather than minting the empty deck this feature
+  // exists to prevent.
+  //
+  // The gate is the body diff alone, and a baseline moves only when its copy
+  // is answered OK (row 163): a list the debounced save has in flight goes
+  // again (flush cleared the dirty flag first, and a full replace is
+  // idempotent), and a copy that failed — the page back from the
+  // back/forward cache, or a hidden tab gone offline — leaves its diff for
+  // the next save instead of a silent "Saved". save() waits on the copies.
+  //
+  // The deps must stay empty: the cleanup's flush then runs on unmount only.
+  // A dep that changed per render sent every edit at once through an
+  // unchecked keepalive PUT, bypassing the debounce (LATER row 161).
   useEffect(() => {
     const flushKeepalive = () => {
       const deckId = deckIdRef.current;
-      if (!deckId || !isDirty()) return;
+      if (!deckId) return;
       const headers = writeHeaders(deckId);
-      const cardsBody = JSON.stringify({ cards: toSavePayload(entriesRef.current) });
-      if (cardsBody !== lastSavedRef.current.cards) {
-        lastSavedRef.current.cards = cardsBody;
-        void fetch(`/api/decks/${deckId}/cards`, {
-          method: "PUT",
-          headers,
-          body: cardsBody,
-          keepalive: true,
-        });
-      }
-      const metaBody = metaPatchBody(metaRef.current);
-      if (metaBody !== lastSavedRef.current.meta) {
-        lastSavedRef.current.meta = metaBody;
-        void fetch(`/api/decks/${deckId}`, {
-          method: "PATCH",
-          headers,
-          body: metaBody,
-          keepalive: true,
-        });
-      }
-      const goalsBody = goalsPatchBody(goalsRef.current);
-      if (goalsBody !== lastSavedRef.current.goals) {
-        lastSavedRef.current.goals = goalsBody;
-        void fetch(`/api/decks/${deckId}`, {
-          method: "PATCH",
-          headers,
-          body: goalsBody,
-          keepalive: true,
-        });
-      }
+      const copies: Promise<void>[] = [];
+      const send = (
+        field: "cards" | "meta" | "goals",
+        url: string,
+        method: "PUT" | "PATCH",
+        body: string,
+      ) => {
+        if (body === lastSavedRef.current[field]) return;
+        copies.push(
+          (async () => {
+            try {
+              const res = await fetch(url, { method, headers, body, keepalive: true });
+              if (res.ok) lastSavedRef.current[field] = body;
+            } catch {
+              // Lost to the network: the diff stays for the next save.
+            }
+          })(),
+        );
+      };
+      send(
+        "cards",
+        `/api/decks/${deckId}/cards`,
+        "PUT",
+        JSON.stringify({ cards: toSavePayload(entriesRef.current) }),
+      );
+      send("meta", `/api/decks/${deckId}`, "PATCH", metaPatchBody(metaRef.current));
+      send("goals", `/api/decks/${deckId}`, "PATCH", goalsPatchBody(goalsRef.current));
+      if (copies.length === 0) return;
+      const settled: Promise<void> = Promise.all([keepaliveRef.current, ...copies]).then(() => {
+        if (keepaliveRef.current === settled) keepaliveRef.current = null;
+      });
+      keepaliveRef.current = settled;
     };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushKeepalive();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", flushKeepalive);
     return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", flushKeepalive);
       flushKeepalive();
     };
-  }, [isDirty]);
+  }, []);
 
   /** Apply a pure edit result; returns the error (if any) for pane-local display. */
   const applyEdit = useCallback(

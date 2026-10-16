@@ -179,6 +179,15 @@ async function settle(ms = 250) {
   });
 }
 
+/** A gate a mocked request waits on until the test opens it. */
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   // Only the two the debounces need: RTL's findBy* and Base UI's frames stay real.
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -2011,6 +2020,165 @@ describe("DeckEditor — autosave on a saved deck (LATER row 161)", () => {
     await settle(1100);
     expect(puts()).toBe(1);
   });
+
+  // ---------------------------------------------------- LATER row 163
+  describe("a page that dies without pagehide, a save in flight, a failed copy (LATER row 163)", () => {
+    afterEach(() => {
+      Reflect.deleteProperty(document, "visibilityState");
+    });
+    /** The Page Lifecycle's last reliable event on a phone: the tab goes hidden. */
+    function setVisibility(state: "hidden" | "visible") {
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+    }
+    /** renderSaved's routes, with the PUTs answered by `put` instead. */
+    async function renderWithPuts(put: (init: RequestInit) => unknown) {
+      const view = await renderSaved();
+      const base = fetchMock.getMockImplementation()!;
+      fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) =>
+        init?.method === "PUT" ? put(init) : base(input, init),
+      );
+      return view;
+    }
+    const solQty = (i: number) =>
+      (
+        JSON.parse(writes("PUT")[i].body as string) as { cards: { cardId: string; qty: number }[] }
+      ).cards.find((e) => e.cardId === sol.id)?.qty;
+    const failed = { ok: false, status: 503, json: async () => ({}) };
+
+    it("hiding the tab mid-debounce sends ONE keepalive PUT; the debounce then has nothing left to send", async () => {
+      await renderSaved();
+      fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+      expect(puts()).toBe(0);
+      setVisibility("hidden");
+      // Before the fix: nothing — a phone OS discarding the hidden tab lost it.
+      expect(puts()).toBe(1);
+      expect(writes("PUT")[0].keepalive).toBe(true);
+      expect(solQty(0)).toBe(2);
+      setVisibility("visible");
+      await settle(1100);
+      await act(async () => {});
+      expect(puts()).toBe(1);
+      expect(saveStatus()).toBe("saved");
+    });
+
+    it("hiding or showing an untouched deck sends nothing", async () => {
+      await renderSaved();
+      const reads = fetchMock.mock.calls.length;
+      setVisibility("hidden");
+      setVisibility("visible");
+      setVisibility("hidden");
+      await settle(1100);
+      expect(fetchMock.mock.calls.length).toBe(reads);
+      expect(saveStatus()).toBe("saved");
+    });
+
+    it("a tab closed while the debounced PUT is in flight sends a keepalive copy of that list", async () => {
+      const inFlight = deferred();
+      await renderWithPuts((init) =>
+        init.keepalive ? ok({}) : inFlight.promise.then(() => ok({})),
+      );
+      fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+      await settle(1100);
+      expect(puts()).toBe(1);
+      expect(saveStatus()).toBe("saving");
+      act(() => {
+        window.dispatchEvent(new Event("pagehide"));
+      });
+      // Before the fix: flush had cleared the dirty flag, so the request in
+      // flight was the only copy.
+      expect(puts()).toBe(2);
+      expect(writes("PUT")[1].keepalive).toBe(true);
+      expect(writes("PUT")[1].body).toBe(writes("PUT")[0].body);
+      await act(async () => {
+        inFlight.resolve();
+      });
+      await settle(1100);
+      expect(puts()).toBe(2);
+      expect(saveStatus()).toBe("saved");
+    });
+
+    it("a failed pagehide copy is not silent: back from the back/forward cache, the debounce sends the list again", async () => {
+      await renderWithPuts((init) => (init.keepalive ? failed : ok({})));
+      fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+      act(() => {
+        window.dispatchEvent(new Event("pagehide"));
+      });
+      expect(puts()).toBe(1);
+      await act(async () => {});
+      // The page comes back (pageshow, persisted) and its timers run on.
+      await settle(1100);
+      await act(async () => {});
+      // Before the fix: the baseline had moved before the 503, so the
+      // debounce saw nothing to send and the slot said "Saved".
+      expect(puts()).toBe(2);
+      expect(writes("PUT")[1].keepalive).toBeUndefined();
+      expect(solQty(1)).toBe(2);
+      expect(saveStatus()).toBe("saved");
+    });
+
+    it("a hidden copy lost to the network leaves its diff for the next save", async () => {
+      await renderWithPuts((init) =>
+        init.keepalive ? Promise.reject(new TypeError("Failed to fetch")) : ok({}),
+      );
+      fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+      setVisibility("hidden");
+      expect(puts()).toBe(1);
+      setVisibility("visible");
+      await settle(1100);
+      await act(async () => {});
+      expect(puts()).toBe(2);
+      expect(writes("PUT")[1].keepalive).toBeUndefined();
+      expect(saveStatus()).toBe("saved");
+    });
+
+    it("a save after a hidden copy waits for its answer, so a newer list never races an older copy", async () => {
+      const kept = deferred();
+      await renderWithPuts((init) => (init.keepalive ? kept.promise.then(() => ok({})) : ok({})));
+      fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+      setVisibility("hidden");
+      setVisibility("visible");
+      fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+      await settle(1100);
+      await act(async () => {});
+      expect(puts()).toBe(1); // the debounce fired, and waits on the copy
+      expect(saveStatus()).toBe("saving");
+      await act(async () => {
+        kept.resolve();
+      });
+      await act(async () => {});
+      expect(puts()).toBe(2);
+      expect(writes("PUT")[1].keepalive).toBeUndefined();
+      expect([solQty(0), solQty(1)]).toEqual([2, 3]);
+      expect(saveStatus()).toBe("saved");
+    });
+
+    it("…but never forever: a copy that never answers holds the next save 10 s at most", async () => {
+      await renderWithPuts((init) => (init.keepalive ? new Promise(() => {}) : ok({})));
+      fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+      setVisibility("hidden");
+      setVisibility("visible");
+      fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+      await settle(1000); // the debounce fires; its save starts to wait
+      expect(saveStatus()).toBe("saving");
+      await settle(9900);
+      expect(puts()).toBe(1);
+      await settle(100);
+      await act(async () => {});
+      expect(puts()).toBe(2);
+      expect(writes("PUT")[1].keepalive).toBeUndefined();
+      expect(solQty(1)).toBe(3);
+      expect(saveStatus()).toBe("saved");
+      // Waited out once: the next edit saves a plain debounce later.
+      fireEvent.click(within(list()).getByRole("button", { name: "One more Sol Ring" }));
+      await settle(1000);
+      await act(async () => {});
+      expect(puts()).toBe(3);
+      expect(solQty(2)).toBe(4);
+    });
+  });
 });
 
 // ------------------------------------------------------------------- Y2b
@@ -2353,6 +2521,88 @@ describe("DeckEditor — start doors, draft Suggestions, the first approval (Y2b
         name: "Eldrazi",
       });
       expect(slot().hasAttribute("data-draft")).toBe(false);
+    });
+  });
+
+  // ------------------------------------------------------ LATER row 167
+  describe("a roll that lands on a deck row is an edit (LATER row 167)", () => {
+    /**
+     * A typed name's create in flight with Surprise me clicked: the door
+     * stays until the create answers, so the roll and the create race. The
+     * create's POST and the roll's GET answer when the test says so.
+     */
+    function renderRace() {
+      const create = deferred();
+      const roll = deferred();
+      fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/decks" && init?.method === "POST") {
+          return create.promise.then(() => y2bRoute(input, init));
+        }
+        if (url.startsWith("/api/leaders/random")) {
+          return roll.promise.then(() => y2bRoute(input, init));
+        }
+        return y2bRoute(input, init);
+      });
+      stubViewport(1440);
+      render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+      return { create, roll };
+    }
+    async function nameThenSurprise() {
+      fireEvent.change(screen.getByRole("textbox", { name: "Deck name" }), {
+        target: { value: "Eldrazi" },
+      });
+      await settle(1100);
+      expect(posts()).toBe(1); // the name's create is in flight
+      fireEvent.click(list().getByRole("button", { name: "Surprise me" }));
+    }
+    const answer = async (d: { resolve: () => void }) => {
+      await act(async () => {
+        d.resolve();
+      });
+      await act(async () => {});
+    };
+    const deckWrites = () =>
+      fetchMock.mock.calls
+        .filter(([, init]) => ["POST", "PUT", "PATCH"].includes(init?.method ?? "GET"))
+        .map(([url, init]) => `${(init as RequestInit).method} ${String(url)}`);
+
+    it("the create answers first: the roll lands dirty on the row, and ONE PUT a debounce later carries the commander", async () => {
+      const { create, roll } = renderRace();
+      await nameThenSurprise();
+      await answer(create);
+      expect(window.location.pathname).toBe("/decks/deck-1/edit");
+      await answer(roll);
+      expect(list().getAllByText("Kozilek, the Great Distortion").length).toBeGreaterThan(0);
+      // Before the fix: "saved", and no PUT ever (the probe's calls were the
+      // create, the roll's GET and the name's PATCH).
+      expect(saveStatus()).toBe("dirty");
+      await settle(1100);
+      await act(async () => {});
+      expect(deckWrites()).toEqual([
+        "POST /api/decks",
+        "PATCH /api/decks/deck-1",
+        "PUT /api/decks/deck-1/cards",
+      ]);
+      expect(lastPutEntries().map((e) => e.cardId)).toEqual([kozilek.id]);
+      expect(saveStatus()).toBe("saved");
+    });
+
+    it("the roll lands first: it rides the save in flight — one create, one PUT, nothing more", async () => {
+      const { create, roll } = renderRace();
+      await nameThenSurprise();
+      await answer(roll);
+      expect(saveStatus()).toBe("saving");
+      await answer(create);
+      await settle(1100);
+      await act(async () => {});
+      expect(deckWrites()).toEqual([
+        "POST /api/decks",
+        "PUT /api/decks/deck-1/cards",
+        "PATCH /api/decks/deck-1",
+      ]);
+      expect(lastPutEntries().map((e) => e.cardId)).toEqual([kozilek.id]);
+      expect(saveStatus()).toBe("saved");
     });
   });
 });
