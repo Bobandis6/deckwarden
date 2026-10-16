@@ -747,3 +747,64 @@
     rotate: 8deg;
   }
 }
+
+/* A sideways-scrolling row's cue (LATER row 244: the phone's Tools strip,
+   whose scrollbar is hidden): the edge with more past it fades, 1.5rem of
+   mask on that side and none on a side already at its end. Each width
+   follows the row's own scroll (scroll-driven animations on
+   `scroll(self inline)`): the start fade grows over the first 1.5rem
+   scrolled, the end fade shrinks over the last, so at the start only the
+   end fades, at the end only the start. A row that fits has no scroll
+   range, so its timeline is inactive and nothing fades; a browser without
+   scroll-driven animations keeps the plain row (the @supports). Not motion:
+   the fade tracks the finger, so reduced motion keeps it (the backstop's
+   0.01 ms duration still fills each range). Not shadcn's `scroll-fade-x`
+   (shadcn/tailwind.css): without scroll-driven animations it fades both
+   edges for good, a row that fits included, and its 96 px reveal range
+   leaves a 9 px fade on the strip's 32 px of scroll at 320 px. */
+@property --scroll-cue-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-cue-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes scroll-cue-start {
+  from {
+    --scroll-cue-start: 0px;
+  }
+  to {
+    --scroll-cue-start: 1.5rem;
+  }
+}
+@keyframes scroll-cue-end {
+  from {
+    --scroll-cue-end: 1.5rem;
+  }
+  to {
+    --scroll-cue-end: 0px;
+  }
+}
+@layer components {
+  @supports (animation-timeline: scroll()) {
+    .scroll-cue-x {
+      mask-image: linear-gradient(
+        to right,
+        transparent,
+        #000 var(--scroll-cue-start),
+        #000 calc(100% - var(--scroll-cue-end)),
+        transparent
+      );
+      animation:
+        scroll-cue-start linear both,
+        scroll-cue-end linear both;
+      animation-timeline: scroll(self inline), scroll(self inline);
+      animation-range:
+        0 1.5rem,
+        calc(100% - 1.5rem) 100%;
+    }
+  }
+}

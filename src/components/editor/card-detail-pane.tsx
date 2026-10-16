@@ -105,6 +105,15 @@ export interface CardSheet {
 /** A sheet action: 32 px, 44 on touch. */
 const SHEET_ACTION_CLASS = "pointer-coarse:h-11 pointer-coarse:px-4";
 
+/**
+ * The footer's two links (Buy, Card page): text links, 44 px targets on
+ * touch in every layout — the sheet's since U4b, the md drawer's and the
+ * wide pane's (a tablet at md) since LATER row 245, when the short Buy
+ * (37 px of text) also took a 44 px width.
+ */
+const FOOTER_LINK_CLASS =
+  "hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:items-center pointer-coarse:justify-center";
+
 export function CardDetailPane({
   adapter,
   card,
@@ -184,12 +193,6 @@ export function CardDetailPane({
   const printings = printingsByCard.get(card.id) ?? null;
   const printingsOpen = openFor === card.id;
 
-  // In the sheet the footer's two links are 44 px targets on touch (U4b);
-  // the pane keeps its text links.
-  const footerLinkClass = sheet
-    ? "hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
-    : "hover:underline";
-
   // Everything after the name and the type line, in both layouts: the pane
   // stacks it under them, the sheet shows it at the full point.
   const details = (
@@ -209,7 +212,7 @@ export function CardDetailPane({
           {adapter.capabilities.buy && (
             <a
               href={withPartner(adapter.capabilities.buy.cardUrl(card))}
-              className={footerLinkClass}
+              className={FOOTER_LINK_CLASS}
               target="_blank"
               rel={
                 process.env.NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE ? "sponsored noopener" : "noopener"
@@ -219,7 +222,7 @@ export function CardDetailPane({
               <ArrowUpRightIcon aria-hidden className="ml-0.5 inline size-3.5 align-[-0.15em]" />
             </a>
           )}
-          <Link href={`/cards/${card.id}`} className={footerLinkClass} target="_blank">
+          <Link href={`/cards/${card.id}`} className={FOOTER_LINK_CLASS} target="_blank">
             Card page
             <ArrowRightIcon aria-hidden className="ml-1 inline size-3.5 align-[-0.15em]" />
           </Link>

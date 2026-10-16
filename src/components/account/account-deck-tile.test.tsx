@@ -100,6 +100,12 @@ describe("AccountDeckTile", () => {
     const more = screen.getByRole("button", { name: "Deck actions for Krenko — Mob Rule" });
     const share = screen.getByRole("link", { name: "Share page" });
     expect(more.compareDocumentPosition(share) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // LATER row 248: Share page is a 44 px target on touch, level with ⋯ (icon-xs, 44 on touch).
+    expect(share.className).toContain(
+      "pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center",
+    );
+    expect(share.className).toContain("shrink-0");
+    expect(more.className).toContain("pointer-coarse:size-11");
 
     const menu = await openActionsMenu();
     const links = within(menu)

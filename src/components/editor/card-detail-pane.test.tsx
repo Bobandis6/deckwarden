@@ -4,7 +4,8 @@
  * Close at its end); the actions at the peek, each only where the editor
  * hands one over; the card from the half; the text, the tags, the footer
  * line (44 px links on touch) and Printings at the full point. Without
- * `sheet` the pane keeps its own layout, image first.
+ * `sheet` the pane keeps its own layout, image first, its footer links 44 px
+ * on touch too (LATER row 245: the md drawer and the wide pane on a tablet).
  */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -120,7 +121,19 @@ describe("CardDetailPane without a sheet", () => {
     expect(root.firstElementChild?.tagName).toBe("IMG");
     expect(screen.getByRole("heading", { level: 2, name: "Sol Ring" })).toBeTruthy();
     expect(screen.getByText("{T}: Add {C}{C}.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Card page/ }).className).toBe("hover:underline");
     expect(document.querySelector("[data-slot=sheet-actions]")).toBeNull();
+  });
+
+  it("the footer's Buy and Card page are 44 × 44 targets on touch, as the sheet's are; a mouse keeps the text links (LATER row 245)", () => {
+    render(<CardDetailPane adapter={adapter} card={sol} tagging={tagging} />);
+    const links = [
+      screen.getByRole("link", { name: /^Buy/ }),
+      screen.getByRole("link", { name: /Card page/ }),
+    ];
+    for (const link of links) {
+      expect(link.className).toBe(
+        "hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:items-center pointer-coarse:justify-center",
+      );
+    }
   });
 });

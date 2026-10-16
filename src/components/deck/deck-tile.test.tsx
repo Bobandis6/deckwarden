@@ -5,14 +5,15 @@
  * gated; the name on up to two lines; `♥ N` only above zero; the
  * visibility word only when the data carries it; the actions slot above
  * the stretched link; `data-game` for the accent; the grid one column
- * below `md` and two from it; the hover lift (U5).
+ * below `md` and two from it; the hover lift (U5); the actions slot's text
+ * link (Share page) a 44 px target on touch (LATER row 248).
  */
 import { render, screen } from "@testing-library/react";
 import Link from "next/link";
 import { describe, expect, it } from "vitest";
 
 import { deckTileData } from "@/lib/decks/tiles";
-import { DeckTile, DeckTileGrid } from "./deck-tile";
+import { DeckTile, DeckTileGrid, TILE_ACTION_LINK_CLASS } from "./deck-tile";
 
 const IMAGE = "https://cards.scryfall.io/small/front/0/6/064a84dd-bb7c-4980-a031-23c778e37f73.jpg";
 
@@ -227,5 +228,13 @@ describe("DeckTile — the meta on two lines (U9, WAVE5 D9)", () => {
     expect(metas[0]).not.toContain("Updated");
     expect(metas[1]).toMatch(/^Updated Sep 9\s?· ≈ \$41$/);
     for (const line of metas) expect((line.match(/·/g) ?? []).length).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("DeckTile — the actions slot's text link (LATER row 248)", () => {
+  it("a tile's text action (Share page) is 12 px muted text, a 44 px target on touch", () => {
+    expect(TILE_ACTION_LINK_CLASS).toBe(
+      "text-muted-foreground text-xs hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center",
+    );
   });
 });

@@ -7,7 +7,7 @@
  */
 import Link from "next/link";
 
-import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
+import { DeckTile, DeckTileGrid, TILE_ACTION_LINK_CLASS } from "@/components/deck/deck-tile";
 import type { BrowserDeck } from "@/components/deck/use-browser-decks";
 import { deckTileData } from "@/lib/decks/tiles";
 
@@ -31,10 +31,7 @@ export function BrowserDeckTiles({ decks }: { decks: BrowserDeck[] }) {
           })}
           linkTitle={`Edit ${deck.name}`}
           actions={
-            <Link
-              href={`/d/${deck.publicId}`}
-              className="text-muted-foreground text-xs hover:underline"
-            >
+            <Link href={`/d/${deck.publicId}`} className={TILE_ACTION_LINK_CLASS}>
               Share page
             </Link>
           }

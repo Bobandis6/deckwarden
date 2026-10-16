@@ -90,6 +90,20 @@ describe("SiteHeader", () => {
     expect(banner.innerHTML).not.toMatch(/href="\/c\//);
   });
 
+  it("below 360 px the mark stands alone, a 44 px target on touch, so the guest row fits a 320 px screen (LATER row 250)", () => {
+    render(<SiteHeader />);
+    const mark = screen.getByRole("link", { name: "Deckwarden" });
+    expect(mark.className).toContain(
+      "pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center",
+    );
+    const word = within(mark).getByText("Deckwarden");
+    expect(word.className).toBe(
+      "font-display text-lg font-semibold tracking-tight max-[360px]:hidden",
+    );
+    // The link is named by its aria-label, so the hidden wordmark takes no name with it.
+    expect(mark.getAttribute("aria-label")).toBe("Deckwarden");
+  });
+
   it("the appearance menu carries the Background art switch on every (site) page (R2)", async () => {
     render(<SiteHeader />);
     open(screen.getByRole("button", { name: "Appearance" }));

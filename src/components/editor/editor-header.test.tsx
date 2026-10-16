@@ -410,6 +410,28 @@ describe("EditorHeader — the phone header (U4a, WAVE5 D5)", () => {
     expect(classes(chip)).toContain("max-md:hidden");
   });
 
+  it("a linked fork credit is a 44 px target on a touch phone: its line grows to 44 px only when it holds the link (LATER row 236)", () => {
+    const { unmount } = render(
+      header({
+        forkedFrom: { state: "linked", publicId: "abc12345", name: "Atraxa superfriends" },
+      }),
+    );
+    const link = screen.getByRole("link", { name: "Atraxa superfriends" });
+    expect(link.getAttribute("href")).toBe("/d/abc12345");
+    const line = link.parentElement!;
+    expect(classes(line)).toContain("max-md:col-[2/-1] max-md:row-start-2");
+    // A 44 px line, and the link's padding fills it; the line's clip
+    // (truncate) trims the padding to the line's 44 px.
+    expect(classes(line)).toContain(
+      "max-md:pointer-coarse:has-[a]:leading-11 max-md:pointer-coarse:[&_a]:py-4",
+    );
+    expect(classes(line)).toContain("truncate");
+    unmount();
+    // A private credit has nothing to tap, so `has-[a]` leaves its 16 px line.
+    render(header({ forkedFrom: { state: "private" } }));
+    expect(screen.getByText("Forked from a private deck").querySelector("a")).toBeNull();
+  });
+
   it("every deck keeps the status row: a saved deck's save slot and Share sit where a draft's Draft and Keep did", () => {
     const { rerender } = render(header({ draft: true, onKeep: () => {} }));
     const slot = () => document.querySelector<HTMLElement>("[data-slot=save-slot]")!;

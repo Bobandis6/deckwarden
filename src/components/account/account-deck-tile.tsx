@@ -46,7 +46,7 @@ import {
   type DeckActionDeck,
   type FolderOption,
 } from "@/components/account/deck-action-items";
-import { DeckTile } from "@/components/deck/deck-tile";
+import { DeckTile, TILE_ACTION_LINK_CLASS } from "@/components/deck/deck-tile";
 import { LazyLogGameDialog, preloadLogGameDialog } from "@/components/editor/log-game-door";
 import {
   AlertDialog,
@@ -256,7 +256,7 @@ export function AccountDeckTile({
                   </DropdownMenu>
                   <Link
                     href={`/d/${deck.publicId}`}
-                    className="text-muted-foreground shrink-0 text-xs hover:underline"
+                    className={cn(TILE_ACTION_LINK_CLASS, "shrink-0")}
                   >
                     Share page
                   </Link>

@@ -16,7 +16,11 @@
  *
  * Phones (< md): the nav links collapse into one Base UI Menu behind a
  * MenuIcon trigger (MobileNavMenu); the account slot and appearance menu
- * stay inline. The mark tilts 3° on hover (F13), motion-safe only.
+ * stay inline. The mark tilts 3° on hover (F13), motion-safe only. Below
+ * 360 px the wordmark steps aside and the mark stands alone, as in the
+ * phone editor's header (the link keeps its aria-label and a 44 px target):
+ * with it the guest row (mark, Sign in, Appearance, Menu) needs 324 px of a
+ * 320 px screen's 288 and scrolled every page 20 px sideways (LATER row 250).
  *
  * U8: Build, Browse and My decks are client islands so they can read the
  * path (usePathname — not request data) and mark the open page with
@@ -37,10 +41,12 @@ export function SiteHeader() {
         <Link
           href="/"
           aria-label="Deckwarden"
-          className="group/mark focus-visible:ring-ring/50 mr-2 flex shrink-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 pointer-coarse:min-h-11"
+          className="group/mark focus-visible:ring-ring/50 mr-2 flex shrink-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
         >
           <BrandMark className="size-8 motion-safe:transition-transform motion-safe:duration-[120ms] motion-safe:group-hover/mark:-rotate-3" />
-          <span className="font-display text-lg font-semibold tracking-tight">Deckwarden</span>
+          <span className="font-display text-lg font-semibold tracking-tight max-[360px]:hidden">
+            Deckwarden
+          </span>
         </Link>
 
         <nav aria-label="Site" className="hidden items-center gap-1 md:flex">

@@ -237,6 +237,11 @@ describe("home (U5, home B)", () => {
     expect(continueAt).toBeLessThan(html.indexOf('aria-label="Recent public decks"'));
     expect(html).toContain('<h2 class="type-section">Continue building</h2>');
     expect(html).toContain(`href="/decks/${"00000000-0000-4000-8000-000000000003"}/edit"`);
+    // LATER row 248: the tile's Share page is a 44 px target on touch.
+    const share = html.match(/<a [^>]*>Share page<\/a>/)?.[0] ?? "";
+    expect(share).toContain(
+      'class="text-muted-foreground text-xs hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"',
+    );
   });
 
   it("a guest's empty Continue building leaves an empty, hidden wrapper: no hairline, no words", async () => {

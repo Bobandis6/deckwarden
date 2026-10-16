@@ -172,3 +172,11 @@ export function DeckTile({
 export function DeckTileGrid({ children, className }: { children: ReactNode; className?: string }) {
   return <ul className={cn("grid gap-3 md:grid-cols-2", className)}>{children}</ul>;
 }
+
+/**
+ * A tile's text action in the `actions` slot (the Share page link on home,
+ * /account and the guest list): 12 px muted text, a 44 px target on a coarse
+ * pointer (LATER row 248), level with the account tiles' ⋯ trigger.
+ */
+export const TILE_ACTION_LINK_CLASS =
+  "text-muted-foreground text-xs hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center";

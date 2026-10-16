@@ -251,9 +251,14 @@ const KEEPALIVE_WAIT_MS = 10_000;
  * the row and its tabs share what is left over; 13 px labels on 4 px
  * sides, each at least 44 px on touch; a strip wider than the row (a
  * larger text setting, a narrower phone) scrolls sideways instead of
- * wrapping or clipping a name.
+ * wrapping or clipping a name. LATER row 244: the tabs start at the row's
+ * left edge (the list's own `justify-center` split the overflow and put
+ * half of Card out of reach of the scroll at 320 px), and the edge with
+ * more tabs past it fades (`scroll-cue-x`, globals.css), the cue a
+ * hidden scrollbar leaves out.
  */
-const PHONE_STRIP_CLASS = "w-full gap-0 overflow-x-auto [scrollbar-width:none]";
+const PHONE_STRIP_CLASS =
+  "w-full justify-start gap-0 overflow-x-auto [scrollbar-width:none] scroll-cue-x";
 const PHONE_TAB_CLASS = "flex-[1_0_auto] px-1 text-[0.8125rem] pointer-coarse:min-w-11";
 
 /** Write headers: token when this browser holds one, else the session cookie authenticates. */

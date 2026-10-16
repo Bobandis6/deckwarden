@@ -9,6 +9,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { TILE_ACTION_LINK_CLASS } from "@/components/deck/deck-tile";
 import { YourDecks } from "@/components/deck/your-decks";
 import { BrowserDecks } from "./browser-decks";
 
@@ -82,6 +83,10 @@ describe("BrowserDecks", () => {
       ["Krenko — Mob Rule", `/decks/${KRENKO.id}/edit`],
       ["Share page", `/d/${KRENKO.publicId}`],
     ]);
+    // LATER row 248: each Share page is a 44 px target on touch (12 px text for a mouse).
+    for (const share of within(section).getAllByRole("link", { name: "Share page" })) {
+      expect(share.className).toBe(TILE_ACTION_LINK_CLASS);
+    }
     // The shared tile grid: one column below `md`, two from it (U7a).
     expect(section.querySelector("ul")?.className).toBe("grid gap-3 md:grid-cols-2");
 

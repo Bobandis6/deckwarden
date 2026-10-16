@@ -11,6 +11,9 @@
  * first Enter creates exactly ONE deck, swaps the URL in place, and the
  * autosave PUTs the list once.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -583,6 +586,49 @@ describe("DeckEditor — the phone card sheet (U4b)", () => {
     // From md the analytics and the hand sit under the deck list again.
     expect(within(section("Deck list")).getByText("Sample hand")).toBeTruthy();
     expect(posts()).toBe(0);
+  });
+
+  it("the phone strip starts at its left edge and fades the edge with more tabs past it; the wide list keeps neither (LATER row 244)", () => {
+    const viewport = stubViewport(375);
+    render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
+    fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
+    const strip = screen.getByRole("tablist", { name: "Right pane view" });
+    // The list's own justify-center would split an overflow and put half of
+    // Card out of reach of the scroll (at 320 px it started at x = -12).
+    expect(strip.className).toContain(
+      "w-full justify-start gap-0 overflow-x-auto [scrollbar-width:none] scroll-cue-x",
+    );
+    expect(strip.className).not.toContain("justify-center");
+    act(() => viewport.resize(1440));
+    const wide = screen.getByRole("tablist", { name: "Right pane view" });
+    expect(wide.className).toContain("justify-center");
+    expect(wide.className).not.toContain("scroll-cue-x");
+  });
+
+  it("globals.css: the scroll cue follows the row's own scroll, 1.5rem a side, only where scroll-driven animations exist (LATER row 244)", () => {
+    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+    const rule = css.slice(css.indexOf("@supports (animation-timeline: scroll())"));
+    expect(rule).toMatch(/^@supports \(animation-timeline: scroll\(\)\) \{\s+\.scroll-cue-x \{/);
+    const body = rule.slice(0, rule.indexOf("}"));
+    expect(body).toContain("#000 var(--scroll-cue-start),");
+    expect(body).toContain("#000 calc(100% - var(--scroll-cue-end)),");
+    // Each declaration at the start of its own line (a renamed property is not the property).
+    expect(body).toMatch(
+      /\n\s+animation:\s+scroll-cue-start linear both,\s+scroll-cue-end linear both;/,
+    );
+    expect(body).toMatch(/\n\s+animation-timeline: scroll\(self inline\), scroll\(self inline\);/);
+    expect(body).toMatch(/\n\s+animation-range:\s+0 1\.5rem,\s+calc\(100% - 1\.5rem\) 100%;/);
+    // The shorthand resets the timeline, so the timeline and the ranges come after it.
+    const shorthand = body.search(/\n\s+animation:/);
+    expect(body.search(/\n\s+animation-timeline:/)).toBeGreaterThan(shorthand);
+    expect(body.search(/\n\s+animation-range:/)).toBeGreaterThan(shorthand);
+    // Unregistered or inherited widths would not interpolate, or would leak into the tabs.
+    expect(css).toMatch(
+      /@property --scroll-cue-start \{\s+syntax: "<length>";\s+inherits: false;\s+initial-value: 0px;\s+\}/,
+    );
+    expect(css).toMatch(
+      /@property --scroll-cue-end \{\s+syntax: "<length>";\s+inherits: false;\s+initial-value: 0px;\s+\}/,
+    );
   });
 
   it("One Piece's phone strip is Card · Analytics · Hand; from wide its single Card panel and heading stay", () => {

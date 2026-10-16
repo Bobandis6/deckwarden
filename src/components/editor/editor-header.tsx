@@ -186,11 +186,15 @@ export function EditorHeader({
         className="focus-visible:ring-ring/50 order-last min-w-[8rem] basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 max-md:col-start-2 max-md:row-start-1 max-md:w-full max-md:text-ellipsis max-md:pointer-coarse:min-h-11 lg:order-none lg:flex-1 lg:basis-auto"
       />
       {/* Fork credit (P3.6) rides the name row on mobile and sits inline on
-          desktop. U4a: on phones, its own line under the name. */}
+          desktop. U4a: on phones, its own line under the name. On a touch
+          phone a linked credit's line is 44 px and the link's padding
+          overfills it (the line's clip trims it to 44), so the upstream deck
+          is a 44 px target (LATER row 236); a private credit has nothing to
+          tap and keeps its 16 px line. */}
       {forkedFrom && (
         <ForkCreditLine
           credit={forkedFrom}
-          className="order-last basis-full truncate px-2 max-md:col-[2/-1] max-md:row-start-2 lg:order-none lg:max-w-56 lg:basis-auto"
+          className="order-last basis-full truncate px-2 max-md:col-[2/-1] max-md:row-start-2 max-md:pointer-coarse:has-[a]:leading-11 max-md:pointer-coarse:[&_a]:py-4 lg:order-none lg:max-w-56 lg:basis-auto"
         />
       )}
       {/* U4a: on phones the cluster steps aside, its items placed in the rows. */}

@@ -13,7 +13,7 @@
  */
 import Link from "next/link";
 
-import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
+import { DeckTile, DeckTileGrid, TILE_ACTION_LINK_CLASS } from "@/components/deck/deck-tile";
 import { CONTINUE_BUILDING_LIMIT, loadOwnerDecks } from "@/lib/decks/collections";
 import { rowPrinting, tileFromDeck } from "@/lib/decks/tiles";
 
@@ -41,10 +41,7 @@ export async function ContinueBuilding({ userId }: { userId: string }) {
             })}
             linkTitle={`Edit ${row.name}`}
             actions={
-              <Link
-                href={`/d/${row.publicId}`}
-                className="text-muted-foreground text-xs hover:underline"
-              >
+              <Link href={`/d/${row.publicId}`} className={TILE_ACTION_LINK_CLASS}>
                 Share page
               </Link>
             }
