@@ -18,8 +18,9 @@
  * fetch so no edit is lost mid-navigation or to a discarded tab.
  *
  * R3 (REDESIGN.md §2 "Desktop builder"): the editor's own header
- * (EditorHeader — mark, game/format chip, name, the fixed-width save slot,
- * Share primary, More, the appearance menu), one window hotkey listener
+ * (EditorHeader — game/format chip, name, the fixed-width save slot, Share
+ * primary, More; the mark and the appearance menu moved up to the site
+ * header on 2026-10-17, decks/layout.tsx), one window hotkey listener
  * (useEditorHotkeys — `/` and `?`, inert while any dialog is open), the add
  * toast with Undo (F3 — Undo is a real edit through applyEdit), the leader
  * replace for max-1 zones, the tool pane on Base UI Tabs with every panel
@@ -2037,7 +2038,7 @@ export function DeckEditor({
 
   if (load.state !== "ready") {
     return (
-      <main id="main" className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+      <main id="main" className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
         {load.state === "loading" ? (
           <p className="text-muted-foreground">Loading deck…</p>
         ) : (
@@ -2328,8 +2329,6 @@ export function DeckEditor({
             onOpen={openFromHeader}
             moreRef={moreRef}
             onOpenTools={() => setToolsOpen(true)}
-            // U4a: on phones Appearance lives in More (one control per page).
-            phone={tier === "phone"}
             draft={liveDeckId === null}
             // A draft holding cards it never edited holds a seed's — the
             // URL's, once settled, or the Surprise me door's (Y2b): any

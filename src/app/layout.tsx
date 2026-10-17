@@ -74,9 +74,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         {/* No footer here since R4: the (site) layout renders it for every
-            public page, the headerless shells outside the group (the new-deck
-            picker, the root 404, the error page) render it themselves, and
-            the editor routes carry a compact attribution line instead. */}
+            public page, the shells outside the group (the new-deck picker,
+            the root 404, the error page) render it themselves, and the editor
+            routes carry a compact attribution line instead. The site header
+            is on every page: the (site) layout's, the root 404's and error
+            page's own, and decks/layout.tsx's since 2026-10-17. */}
         {/* Skip to content (U8): the first focusable on every page, editor
             routes included; it targets the page's <main id="main">. */}
         <SkipLink />

@@ -1868,21 +1868,23 @@ describe("DeckEditor — an honest first screen (Y2a)", () => {
     expect(slot().hasAttribute("data-draft")).toBe(false);
   });
 
-  it("on a phone Appearance steps into More and Group · Sort folds the controls (U4a); a flip to wide brings the header's control and the inline row back, nothing created", async () => {
+  it("on a phone Group · Sort folds the controls (U4a); a flip to wide brings the inline row back, nothing created; Appearance is nowhere in the editor at either tier — the site header's is the one (2026-10-17)", async () => {
     fetchMock.mockImplementation(seedRoute);
     const viewport = stubViewport(375);
     render(
       <DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" draftFromSlug="tiny" />,
     );
     await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" }));
-    // The header: no Appearance button on the phone; More carries the group.
+    // The bar: no Appearance button on the phone, and More carries no group either
+    // (U4a's phone group left with the site header's arrival above the editor).
     expect(screen.queryByRole("button", { name: "Appearance" })).toBeNull();
     const more = screen.getByRole("button", { name: "More" });
     fireEvent.pointerDown(more, { pointerType: "mouse", button: 0 });
     fireEvent.mouseDown(more, { button: 0 });
     fireEvent.click(more, { button: 0 });
     const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
-    expect(within(menu).getByRole("group", { name: "Appearance" })).toBeTruthy();
+    expect(within(menu).queryByRole("group", { name: "Appearance" })).toBeNull();
+    expect(within(menu).queryByRole("menuitemradio")).toBeNull();
     fireEvent.keyDown(menu, { key: "Escape" });
     await pollFor(() => (screen.queryByRole("menu") ? null : document.body));
     // The deck pane: View, then the Group · Sort trigger; Group and Sort wait inside it.
@@ -1891,9 +1893,9 @@ describe("DeckEditor — an honest first screen (Y2a)", () => {
     expect(screen.queryByRole("group", { name: "Group" })).toBeNull();
     expect(screen.queryByRole("group", { name: "Sort" })).toBeNull();
 
-    // The tier flip: the header's own control and the inline row, one of each.
+    // The tier flip: the inline row comes back; still no Appearance control in the editor.
     act(() => viewport.resize(1440));
-    expect(screen.getAllByRole("button", { name: "Appearance" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Appearance" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Group · Sort" })).toBeNull();
     expect(screen.getByRole("group", { name: "Group" })).toBeTruthy();
     expect(screen.getByRole("group", { name: "Sort" })).toBeTruthy();

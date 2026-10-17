@@ -30,10 +30,13 @@
  * its `scrollTop` as it scrolls and is restored in a layout effect when it
  * comes back (a tab change, or a tier change revealing every pane).
  *
- * The root is `h-dvh` at every tier: each section is its own scroll
+ * The root is the viewport minus the site header at every tier
+ * (`h-[calc(100dvh-var(--site-header-height))]`; the token in globals.css
+ * mirrors SiteHeader's row and hairline, and decks/layout.tsx renders that
+ * header above the root since 2026-10-17): each section is its own scroll
  * container, so the sticky search block and the sticky group headers stick
- * inside their pane everywhere, and the phone's document never scrolls
- * under the bar. Two things ride the viewport's bottom edge from outside
+ * inside their pane everywhere, the document never scrolls under the bar,
+ * and the site header stays put without being sticky. Two things ride the viewport's bottom edge from outside
  * this tree — the toast viewport and R2's credit chip — and both read
  * `--editor-bottom-inset` (the bar's height plus the safe-area inset below
  * `md`, 0 from it) to sit above the bar; the same class sets it on the
@@ -248,7 +251,10 @@ export function EditorLayout({
 
   return (
     <div
-      className={cn("relative isolate flex h-dvh flex-col", EDITOR_BOTTOM_INSET_CLASS)}
+      className={cn(
+        "relative isolate flex h-[calc(100dvh-var(--site-header-height))] flex-col",
+        EDITOR_BOTTOM_INSET_CLASS,
+      )}
       data-game={gameId}
       data-tier={tier}
     >

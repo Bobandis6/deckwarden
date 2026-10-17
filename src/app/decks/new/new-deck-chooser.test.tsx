@@ -5,8 +5,9 @@
  * one-shot latch like `?surprise=1`: the draft opens with the Import dialog
  * (the editor's `draftImport`, pinned in deck-editor.test.tsx), the param
  * leaves the URL and `?game=` stays, and a latch set on the picker itself
- * carries into the game picked next. The editor and the site shell are
- * stand-ins here.
+ * carries into the game picked next. The editor and the footer are
+ * stand-ins here; the picker renders no header of its own since 2026-10-17
+ * (decks/layout.tsx's site header is the page's).
  */
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,7 +15,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));
-vi.mock("@/components/site-header", () => ({ SiteHeader: () => null }));
 vi.mock("@/components/site-footer", () => ({ SiteFooter: () => null }));
 vi.mock("@/components/editor/deck-editor", () => ({
   DeckEditor: (props: { draftGame?: string; draftImport?: boolean; draftSurprise?: boolean }) => (
@@ -44,6 +44,8 @@ describe("NewDeckChooser — the picker's start doors (Y2b)", () => {
   it("each game card carries its adapter's doors, in one order", () => {
     render(<NewDeckChooser />);
     expect(screen.getByText("Pick your game.")).toBeTruthy();
+    // No header of its own (2026-10-17): decks/layout.tsx renders the site header above it.
+    expect(screen.queryByRole("banner")).toBeNull();
     expect(doors("Other ways to start a Magic: The Gathering deck")).toEqual([
       "Pick a commander → /commanders",
       "Paste a list → /decks/new?game=mtg&import=1",

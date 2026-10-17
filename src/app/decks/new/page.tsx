@@ -9,7 +9,8 @@
  * Caching intent: fully static shell — the game choice is a ?game= search
  * param read CLIENT-side (useSearchParams behind Suspense), so no dynamic
  * rendering; everything interesting happens client-side. The Suspense
- * fallback (Y2a) is that static shell's visible face: a header strip and a
+ * fallback (Y2a) is that static shell's visible face under the site header
+ * (decks/layout.tsx, 2026-10-17): a strip at the editor bar's height and a
  * skeleton instead of a blank page.
  */
 import type { Metadata, Viewport } from "next";

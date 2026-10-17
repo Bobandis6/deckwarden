@@ -19,6 +19,8 @@
  * new body while it stays open is a re-target in the same frame.
  */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -443,5 +445,26 @@ describe("EditorLayout across a tier change", () => {
     // wide → md unmounted it, md → phone and phone → wide mounted it again.
     expect(toolsMounts).toBe(3);
     expect(sections()).toHaveLength(3);
+  });
+});
+
+describe("EditorLayout's root under the site header (2026-10-17)", () => {
+  it.each(["phone", "md", "wide"] as const)(
+    "at %s the root is the viewport minus the site header, never h-dvh, so the document never scrolls under the workspace",
+    (tier) => {
+      render(<Harness tier={tier} />);
+      const root = document.querySelector<HTMLElement>("[data-tier]")!;
+      expect(root.dataset.tier).toBe(tier);
+      expect(root.className).toContain("h-[calc(100dvh-var(--site-header-height))]");
+      expect(root.className).not.toMatch(/\bh-dvh\b/);
+      // The root is still the flex column its panes shrink inside (min-h-0 flex-1).
+      expect(root.className).toContain("relative isolate flex");
+      expect(root.className).toContain("flex-col");
+    },
+  );
+
+  it("globals.css declares the token as the header's h-14 row plus its 1 px hairline", () => {
+    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+    expect(css).toContain("--site-header-height: calc(3.5rem + 1px);");
   });
 });

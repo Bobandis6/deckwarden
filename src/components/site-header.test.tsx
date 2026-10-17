@@ -19,6 +19,8 @@
  * only that one; home, hubs, card, event and deck pages name none.
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const session = vi.hoisted(() => ({
@@ -104,7 +106,16 @@ describe("SiteHeader", () => {
     expect(mark.getAttribute("aria-label")).toBe("Deckwarden");
   });
 
-  it("the appearance menu carries the Background art switch on every (site) page (R2)", async () => {
+  it("the header's row is h-14 over a hairline, and --site-header-height mirrors the pair for the editor's root (2026-10-17)", () => {
+    render(<SiteHeader />);
+    const banner = screen.getByRole("banner");
+    expect(banner.className).toContain("border-b");
+    expect(banner.firstElementChild!.className).toContain("h-14");
+    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+    expect(css).toContain("--site-header-height: calc(3.5rem + 1px);");
+  });
+
+  it("the appearance menu carries the Background art switch on every page (R2) — the editor routes included since 2026-10-17", async () => {
     render(<SiteHeader />);
     open(screen.getByRole("button", { name: "Appearance" }));
     const menu = await screen.findByRole("menu", { name: "Appearance" });
@@ -344,14 +355,20 @@ describe("SiteHeader", () => {
     },
   );
 
-  it.each(["/c/atraxa-praetors-voice", "/l/op01-001", "/cards/abc", "/tournaments/42", "/d/x1"])(
-    "U8: %s (a hub, card, event or deck page) names no entry",
-    (pathname) => {
-      session.pathname = pathname;
-      render(<SiteHeader />);
-      expect(currentEntries()).toEqual([]);
-    },
-  );
+  it.each([
+    "/c/atraxa-praetors-voice",
+    "/l/op01-001",
+    "/cards/abc",
+    "/tournaments/42",
+    "/d/x1",
+    // The editor of a saved deck (the header stands there since 2026-10-17): Build
+    // opens a NEW deck, so it is not the open page here; a draft's /decks/new is.
+    "/decks/abc12345/edit",
+  ])("U8: %s (a hub, card, event, deck or editor page) names no entry", (pathname) => {
+    session.pathname = pathname;
+    render(<SiteHeader />);
+    expect(currentEntries()).toEqual([]);
+  });
 
   it("U8: the phone menu marks the open page's entry too", async () => {
     session.pathname = "/sets";

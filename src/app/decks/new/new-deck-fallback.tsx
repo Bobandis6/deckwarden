@@ -2,29 +2,22 @@
  * /decks/new's Suspense fallback (Y2a, WAVE4 D2): the page's static shell
  * IS this fallback — `useSearchParams` bails the chooser out to the client —
  * so it is what every /decks/new URL paints first, picker and editor alike.
- * A header strip (the mark → home, the editor header's height) and a still
- * skeleton instead of a blank page; nothing in it knows the game yet.
- * Server component, no state, no request.
+ * Under the site header (decks/layout.tsx, 2026-10-17): a strip at the
+ * editor bar's height with two skeleton bars, then a still skeleton body
+ * instead of a blank page; nothing in it knows the game yet. The strip is a
+ * div, not a <header> — the site header is the page's one banner — and the
+ * shell fills the rest of the body (`flex-1`) under it. Server component,
+ * no state, no request.
  */
-import Link from "next/link";
-
-import { BrandMark } from "@/components/brand-mark";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function NewDeckFallback() {
   return (
-    <div className="flex min-h-dvh flex-col" aria-busy="true" data-slot="new-deck-fallback">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b px-3">
-        <Link
-          href="/"
-          aria-label="Deckwarden"
-          className="focus-visible:ring-ring/50 flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
-        >
-          <BrandMark className="size-8" />
-        </Link>
+    <div className="flex flex-1 flex-col" aria-busy="true" data-slot="new-deck-fallback">
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b px-3">
         <Skeleton className="h-5 w-40" />
         <Skeleton className="ml-auto h-7 w-36" />
-      </header>
+      </div>
       <main id="main" className="flex flex-1 flex-col gap-3 p-3">
         <p className="sr-only" role="status">
           Loading the deck builder…

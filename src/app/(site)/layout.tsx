@@ -1,7 +1,9 @@
 /**
  * The (site) route group (R1b, REDESIGN.md §2): every public page except
  * the editor routes (/decks/new, /decks/[id]/edit) stands in this shell,
- * which adds the site header above each page. URLs are unchanged — a route
+ * which adds the site header above each page (the editor routes get the
+ * same header from decks/layout.tsx since 2026-10-17; what they skip is the
+ * footer). URLs are unchanged — a route
  * group is invisible — and the root layout still wraps everything (theme,
  * fonts), so there is one root layout and no full-page reloads. The site
  * footer renders HERE since R4 (below every page in the group), not in the

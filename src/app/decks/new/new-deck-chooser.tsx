@@ -23,7 +23,6 @@ import { useEffect, useState } from "react";
 
 import { DeckEditor } from "@/components/editor/deck-editor";
 import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
 import { startDoorHref, startDoors } from "@/lib/decks/start-doors";
 import { listAdapters } from "@/lib/games/registry";
 import type { GameId } from "@/lib/games/types";
@@ -80,10 +79,10 @@ export function NewDeckChooser() {
   }, [params]);
 
   if (chosen) {
-    // Editor routes carry no site header: the editor renders its own (R3),
-    // appearance menu included — one appearance control per page. Every
-    // latched seed goes through as-is: the editor's one precedence rule
-    // (from > surprise > combo > leader) decides which single seeder runs.
+    // The site header is decks/layout.tsx's (2026-10-17), above the editor's
+    // own bar (R3). Every latched seed goes through as-is: the editor's one
+    // precedence rule (from > surprise > combo > leader) decides which single
+    // seeder runs.
     return (
       <DeckEditor
         deckId={null}
@@ -101,10 +100,10 @@ export function NewDeckChooser() {
 
   return (
     <>
-      {/* The picker is a site page (REDESIGN.md §2) and renders the shell
-          itself — header and footer (R4) — because /decks/new stands outside
-          the (site) group for the editor branch's sake. */}
-      <SiteHeader />
+      {/* The picker is a site page (REDESIGN.md §2): its header is
+          decks/layout.tsx's (2026-10-17), and it renders the footer itself
+          (R4) because /decks/new stands outside the (site) group for the
+          editor branch's sake. */}
       <main
         id="main"
         className="max-w-reading mx-auto flex w-full flex-1 flex-col items-center justify-center gap-8 px-4 py-12"

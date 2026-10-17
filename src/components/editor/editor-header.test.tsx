@@ -1,23 +1,22 @@
 /**
- * The editor header (R3): the mark → home (no "Back to home" text link), the
- * game / format chip, the name input's unchanged contract, the fixed-width
- * save slot across all four states with Retry outside the menu, Share only
- * once a server row exists (U3a: Keep this deck or Share in one fixed
- * primary slot, in the tree while empty), the More menu's items (History and Games… only
- * with a live deck) opening the right dialog, and exactly one appearance control
- * — the same assertion the site header test makes for the (site) pages. U3b:
- * the header on the chrome material, the name's 8rem floor, the chip truncating.
- * U4a: the phone's fixed rows (the name's, a fork's credit, the status row for
- * every deck) and Appearance inside More on phones, one control per tier.
+ * The editor header (R3): the game / format chip, the name input's unchanged
+ * contract, the fixed-width save slot across all four states with Retry
+ * outside the menu, Share only once a server row exists (U3a: Keep this deck
+ * or Share in one fixed primary slot, in the tree while empty), and the More
+ * menu's items (History and Games… only with a live deck) opening the right
+ * dialog. Since 2026-10-17 the site header stands above this bar on the
+ * editor routes (decks/layout.tsx), so the bar carries no mark → home and no
+ * appearance control at any tier (the site header test pins those), and it
+ * is a labelled section, not a second banner. U3b: the bar on the chrome
+ * material, the name's 8rem floor, the chip truncating. U4a: the phone's
+ * fixed rows (the name's, a fork's credit, the status row for every deck).
  */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SaveStatus } from "@/components/editor/use-autosave";
-import { ThemeProvider } from "@/components/theme/theme-provider";
 import { COMMANDER } from "@/lib/games/mtg/formats";
 import { getAdapter } from "@/lib/games/registry";
-import { APPEARANCE_KEY } from "@/lib/theme/appearance";
 import { EditorHeader, SAVING_LABEL_AFTER_MS } from "./editor-header";
 
 const mtg = getAdapter("mtg");
@@ -59,24 +58,22 @@ describe("EditorHeader", () => {
     expect(onOpenTools).toHaveBeenCalledTimes(1);
   });
 
-  it("mark → home, the chip, the name input, one appearance control, no site nav", () => {
+  it("the chip and the name input; no mark, no appearance control, no site nav — the site header above has them (2026-10-17)", () => {
     render(header());
-    expect(screen.getByRole("link", { name: "Deckwarden" }).getAttribute("href")).toBe("/");
+    // A labelled section, not a <header>: the site header is the page's one banner.
+    expect(screen.queryByRole("banner")).toBeNull();
+    const bar = screen.getByRole("region", { name: "Deck toolbar" });
+    expect(bar.tagName).toBe("SECTION");
+    expect(bar.getAttribute("data-slot")).toBe("editor-header");
+    expect(screen.queryByRole("link", { name: "Deckwarden" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Back to home" })).toBeNull();
     expect(screen.getByText("Magic: The Gathering · Commander")).toBeTruthy();
     const name = screen.getByRole("textbox", { name: "Deck name" });
     expect(name.getAttribute("placeholder")).toBe("Untitled: click to name your deck");
     expect(name.getAttribute("maxlength")).toBe("120");
-    expect(screen.getAllByRole("button", { name: "Appearance" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Appearance" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Browse" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Build" })).toBeNull();
-  });
-
-  it("the appearance menu carries the Background art switch (R2)", async () => {
-    render(header());
-    open(screen.getByRole("button", { name: "Appearance" }));
-    const menu = await screen.findByRole("menu", { name: "Appearance" });
-    expect(within(menu).getByRole("menuitemcheckbox", { name: "Background art" })).toBeTruthy();
   });
 
   it("name edits flow through onNameChange", () => {
@@ -346,7 +343,7 @@ describe("EditorHeader", () => {
 describe("EditorHeader — the materials (U3b, WAVE5 D4)", () => {
   it("the header is the chrome material and keeps its hairline (the panes' rules meet it)", () => {
     render(header());
-    const bar = screen.getByRole("banner");
+    const bar = screen.getByRole("region", { name: "Deck toolbar" });
     expect(bar.className).toContain("bg-(--chrome) backdrop-filter-(--chrome-backdrop)");
     expect(bar.className).toContain("border-b");
   });
@@ -368,7 +365,7 @@ describe("EditorHeader — the materials (U3b, WAVE5 D4)", () => {
 describe("EditorHeader — the phone header (U4a, WAVE5 D5)", () => {
   const classes = (el: Element | null) => el?.getAttribute("class") ?? "";
 
-  it("below md a grid of fixed rows, never a wrap: the mark, the name and More; a fork's credit; the status row", () => {
+  it("below md a grid of fixed rows, never a wrap: the name and More (two columns since the mark left, 2026-10-17); a fork's credit; the status row", () => {
     render(
       header({
         draft: true,
@@ -376,33 +373,32 @@ describe("EditorHeader — the phone header (U4a, WAVE5 D5)", () => {
         forkedFrom: { state: "private" },
       }),
     );
-    const bar = screen.getByRole("banner");
+    const bar = screen.getByRole("region", { name: "Deck toolbar" });
     expect(classes(bar)).toContain(
-      "max-md:grid max-md:grid-cols-[auto_minmax(0,1fr)_auto] max-md:grid-rows-[3.5rem_auto_2.5rem] max-md:gap-y-0 max-md:py-0 max-md:pointer-coarse:grid-rows-[3.5rem_auto_2.75rem]",
+      "max-md:grid max-md:grid-cols-[minmax(0,1fr)_auto] max-md:grid-rows-[3.5rem_auto_2.5rem] max-md:gap-y-0 max-md:py-0 max-md:pointer-coarse:grid-rows-[3.5rem_auto_2.75rem]",
     );
-    // Row 1: the mark, the name (its floor kept, 44 px on touch, truncating), More.
-    expect(classes(screen.getByRole("link", { name: "Deckwarden" }))).toContain(
-      "max-md:col-start-1 max-md:row-start-1",
-    );
+    expect(classes(bar)).not.toContain("grid-cols-[auto_minmax(0,1fr)_auto]");
+    // Row 1: the name (its floor kept, 44 px on touch, truncating), then More.
+    expect(screen.queryByRole("link", { name: "Deckwarden" })).toBeNull();
     const name = screen.getByRole("textbox", { name: "Deck name" });
     expect(classes(name)).toContain(
-      "max-md:col-start-2 max-md:row-start-1 max-md:w-full max-md:text-ellipsis max-md:pointer-coarse:min-h-11",
+      "max-md:col-start-1 max-md:row-start-1 max-md:w-full max-md:text-ellipsis max-md:pointer-coarse:min-h-11",
     );
     expect(classes(name)).toContain("min-w-[8rem]");
     expect(classes(screen.getByRole("button", { name: "More" }))).toContain(
-      "max-md:col-start-3 max-md:row-start-1",
+      "max-md:col-start-2 max-md:row-start-1",
     );
-    // A fork's credit: its own line under the name.
+    // A fork's credit: its own line under the name, the full width.
     expect(classes(screen.getByText("Forked from a private deck"))).toContain(
-      "max-md:col-[2/-1] max-md:row-start-2",
+      "max-md:col-[1/-1] max-md:row-start-2",
     );
     // The status row: the save slot under the name, left-aligned; the primary at the right.
     const slot = document.querySelector<HTMLElement>("[data-slot=save-slot]")!;
     expect(classes(slot)).toContain(
-      "max-md:col-start-2 max-md:row-start-3 max-md:ml-2 max-md:justify-start",
+      "max-md:col-start-1 max-md:row-start-3 max-md:ml-2 max-md:justify-start",
     );
     const primary = document.querySelector<HTMLElement>("[data-slot=primary-slot]")!;
-    expect(classes(primary)).toContain("max-md:col-[2/-1] max-md:row-start-3");
+    expect(classes(primary)).toContain("max-md:col-[1/-1] max-md:row-start-3");
     expect(within(primary).getByRole("button", { name: "Keep this deck" })).toBeTruthy();
     // The cluster steps aside so its items take their rows; the chip steps aside too.
     expect(classes(slot.parentElement)).toContain("max-md:contents");
@@ -419,7 +415,7 @@ describe("EditorHeader — the phone header (U4a, WAVE5 D5)", () => {
     const link = screen.getByRole("link", { name: "Atraxa superfriends" });
     expect(link.getAttribute("href")).toBe("/d/abc12345");
     const line = link.parentElement!;
-    expect(classes(line)).toContain("max-md:col-[2/-1] max-md:row-start-2");
+    expect(classes(line)).toContain("max-md:col-[1/-1] max-md:row-start-2");
     // A 44 px line, and the link's padding fills it; the line's clip
     // (truncate) trims the padding to the line's 44 px.
     expect(classes(line)).toContain(
@@ -453,12 +449,12 @@ describe("EditorHeader — the phone header (U4a, WAVE5 D5)", () => {
     expect(face.className).toContain("max-md:before:right-auto max-md:before:left-0");
   });
 
-  it("on phones Appearance lives in More (its radios and the Background art switch); the header's own control steps aside: one per tier", async () => {
-    const { rerender } = render(header({ phone: true }));
+  it("no Appearance anywhere in the bar, at any tier: not a control of its own, not a group inside More — the site header's is the one (2026-10-17)", async () => {
+    render(header({ canHistory: true }));
     expect(screen.queryByRole("button", { name: "Appearance" })).toBeNull();
     open(screen.getByRole("button", { name: "More" }));
-    let menu = await screen.findByRole("menu", { name: "More" });
-    // The command items are the draft's pinned list, unchanged.
+    const menu = await screen.findByRole("menu", { name: "More" });
+    // The command items only — no Appearance group, no theme radios, no Background art switch.
     expect(
       within(menu)
         .getAllByRole("menuitem")
@@ -470,66 +466,14 @@ describe("EditorHeader — the phone header (U4a, WAVE5 D5)", () => {
       "Fit my budget…",
       "Export",
       "Buy this deck…",
+      "History",
+      "Games…",
       "Keyboard shortcuts?",
     ]);
-    const group = within(menu).getByRole("group", { name: "Appearance" });
-    expect(
-      within(group)
-        .getAllByRole("menuitemradio")
-        .map((i) => i.textContent),
-    ).toEqual(["Dark", "Light", "System"]);
-    expect(within(group).getByRole("menuitemcheckbox", { name: "Background art" })).toBeTruthy();
-    fireEvent.click(within(menu).getByRole("menuitem", { name: "Details" }));
-    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
-
-    // From md: the header's own Appearance control, and More without the group.
-    rerender(header({ phone: false }));
-    expect(screen.getAllByRole("button", { name: "Appearance" })).toHaveLength(1);
-    // The editor's first commit on a dev phone reads the tier's server snapshot,
-    // so the control is CSS-hidden below md too: it never lands in the phone's rows.
-    expect(screen.getByRole("button", { name: "Appearance" }).parentElement!.className).toBe(
-      "contents max-md:hidden",
-    );
-    open(screen.getByRole("button", { name: "More" }));
-    menu = await screen.findByRole("menu", { name: "More" });
     expect(within(menu).queryByRole("group", { name: "Appearance" })).toBeNull();
     expect(within(menu).queryByRole("menuitemradio")).toBeNull();
-  });
-
-  it("inside More the theme radio picks the theme and closes the menu; Background art writes its preference and keeps it open", async () => {
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener() {},
-        removeEventListener() {},
-        addListener() {},
-        removeListener() {},
-      })),
-    );
-    try {
-      render(<ThemeProvider>{header({ phone: true })}</ThemeProvider>);
-      open(screen.getByRole("button", { name: "More" }));
-      let menu = await screen.findByRole("menu", { name: "More" });
-      fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "Background art" }));
-      await waitFor(() =>
-        expect(window.localStorage.getItem(APPEARANCE_KEY)).toBe('{"backgroundArt":false}'),
-      );
-      expect(screen.getByRole("menu", { name: "More" })).toBeTruthy();
-      fireEvent.click(within(menu).getByRole("menuitemradio", { name: "Light" }));
-      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
-      await waitFor(() => expect(window.localStorage.getItem("theme")).toBe("light"));
-      expect(document.documentElement.classList.contains("light")).toBe(true);
-      open(screen.getByRole("button", { name: "More" }));
-      menu = await screen.findByRole("menu", { name: "More" });
-      expect(
-        within(menu).getByRole("menuitemradio", { name: "Light" }).getAttribute("aria-checked"),
-      ).toBe("true");
-    } finally {
-      vi.unstubAllGlobals();
-      window.localStorage.clear();
-      document.documentElement.className = "";
-    }
+    expect(within(menu).queryByRole("menuitemcheckbox")).toBeNull();
+    // One separator left: between the commands and the shortcut sheet.
+    expect(within(menu).getAllByRole("separator")).toHaveLength(1);
   });
 });

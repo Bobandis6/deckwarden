@@ -38,7 +38,7 @@ export default async function DeckEditPage({
   // with a matching sessionStorage intent — the param alone changes nothing.
   const sp = await searchParams;
   const leader = typeof sp.leader === "string" ? sp.leader : undefined;
-  // No site header on editor routes: the editor renders its own (R3), with
-  // the appearance menu in it — one appearance control per page.
+  // The site header is decks/layout.tsx's (2026-10-17); the editor's own bar
+  // (R3) sits under it with the deck's controls.
   return <DeckEditor deckId={id} applyLeaderKey={leader} />;
 }

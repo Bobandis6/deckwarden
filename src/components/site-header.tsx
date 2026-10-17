@@ -1,9 +1,10 @@
 /**
  * SiteHeader (R1b, REDESIGN.md §2 "Site shell"): the shell every (site)
  * page stands in — the mark → home, Build, Browse (Commanders · Leaders ·
- * Cards), My decks, the account slot, the appearance menu. The editor
- * routes keep their own workspace header (R3 builds the real one) and never
- * render this; the /decks/new picker renders it itself.
+ * Cards), My decks, the account slot, the appearance menu. Since 2026-10-17
+ * the editor routes stand under it too — decks/layout.tsx renders it above
+ * /decks/new and /decks/[id]/edit — with the editor's workspace bar (R3)
+ * below it holding the deck's controls only; nothing renders it twice.
  *
  * Server shell, client islands. The shell is static markup, so it can sit
  * in the (site) layout without touching request data: the account slot

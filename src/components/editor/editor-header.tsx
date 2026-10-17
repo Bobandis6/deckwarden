@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * The editor's own header (R3, REDESIGN.md §2 "Header"): the mark → home ·
- * the game / format chip · the deck name · save status in a FIXED-WIDTH slot
+ * The editor's own header (R3, REDESIGN.md §2 "Header"): the game / format
+ * chip · the deck name · save status in a FIXED-WIDTH slot
  * (F9 — the four states never shift the row, and "Save failed" + Retry stay
  * visible outside any menu) · Share as the primary action once a server row
  * exists (a draft has nothing to share, so nothing shows) · More (Details,
@@ -10,21 +10,23 @@
  * — History and Games… only with a live deck, Games… only where the
  * adapter declares a journal; Autofill and Fit only where the adapter
  * declares them — and the keyboard-shortcut sheet, so `?` is discoverable
- * by mouse) ·
- * the appearance menu. That last one retires R1b's AppearanceRow: exactly
- * one appearance control per page, and on the editor routes it is this one.
+ * by mouse). The appearance menu that ended the row (it retired R1b's
+ * AppearanceRow) is gone since 2026-10-17: the site header above carries the
+ * one appearance control per page.
  *
  * R4: a "Tools" button between Share and More on the `md` tier only
  * (`hidden md:inline-flex wide:hidden`) opens the tools drawer — phones
  * reach the tools through the Tools tab, `wide:` shows them inline. The
  * row still wraps below `lg` (the name input takes its own line): at 768 px
- * the mark, chip, save slot, Share, Tools, More and appearance already fill
- * the width, so the one-row form stays `lg:`.
+ * the save slot, Share, Tools and More already fill the width beside a name
+ * at its floor, so the one-row form stays `lg:`.
  *
- * `data-game` stays on the editor root — the chip is inert. The site header
- * is never rendered on the editor (a workspace has no room for site nav),
- * and the `← Deckwarden` text link is gone: the mark is the way home, with
- * the same F13 tilt as the site header's.
+ * `data-game` stays on the editor root — the chip is inert. Since 2026-10-17
+ * the site header stands above this bar on the editor routes too
+ * (decks/layout.tsx; the owner's call, amending REDESIGN.md §2), so the mark
+ * → home that opened the row is gone — the site header's mark is the way
+ * home — and this bar is a labelled <section> ("Deck toolbar"), not a second
+ * <header>: the site header is the page's one banner.
  *
  * Y2a (WAVE4 D2): a draft — no server row yet — says "Draft" in the save
  * slot ("Saves on your first change", no check mark) instead of a "Saved"
@@ -52,34 +54,29 @@
  *
  * U4a (WAVE5 D5, the phone header; the owner's call of 2026-10-14 for the
  * status row): below `md` the header is a grid of fixed rows, never a wrap.
- * Row 1 (56 px): the mark, the name (truncating, its 8rem floor, 44 px on
- * touch) and More. A fork's credit line under the name. Then the status row
+ * Row 1 (56 px): the name (truncating, its 8rem floor, 44 px on touch) and
+ * More (the mark stood first until 2026-10-17). A fork's credit line under the name. Then the status row
  * (40 px, 44 on touch) for every deck: the save slot under the name, its
  * label left-aligned, and the primary action at the right (Keep this deck
  * on a seeded draft, Share once a row exists). The save status and Share
  * stay outside any menu, and a kept draft changes the row's words, never
  * its height. The chip steps aside below `wide` (beside the name it would
- * cut a phone's name under its floor), and Appearance moves into More
- * (`phone`, the editor's tier): one appearance control per page at every
- * tier. From `md` nothing here changes.
+ * cut a phone's name under its floor). Appearance moved into More on phones
+ * here until 2026-10-17; the site header's control serves every tier now.
+ * From `md` nothing here changes.
  */
 import { CheckIcon, EllipsisIcon, PanelRightIcon } from "lucide-react";
-import Link from "next/link";
 import { type Ref, useEffect, useState } from "react";
 
-import { BrandMark } from "@/components/brand-mark";
 import { CHROME_CLASS } from "@/components/chrome-material";
 import { ForkCreditLine } from "@/components/deck/fork-button";
 import type { SaveStatus } from "@/components/editor/use-autosave";
-import { AppearanceItems, AppearanceMenu } from "@/components/theme/appearance-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
@@ -125,7 +122,6 @@ export function EditorHeader({
   onOpenTools,
   draft = false,
   onKeep,
-  phone = false,
 }: {
   adapter: GameAdapter;
   format: FormatDef;
@@ -147,25 +143,18 @@ export function EditorHeader({
   draft?: boolean;
   /** "Keep this deck" (Y2a) — a seeded draft's explicit save; the button renders only when given. */
   onKeep?: () => void;
-  /** The phone tier (U4a): Appearance lives in More, the header's own control steps aside. */
-  phone?: boolean;
 }) {
   return (
-    <header
+    <section
+      aria-label="Deck toolbar"
+      data-slot="editor-header"
       className={cn(
         "flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2 lg:h-14 lg:flex-nowrap lg:py-0",
         // U4a: the phone's fixed rows (the name's, a fork's credit, the status row).
-        "max-md:grid max-md:grid-cols-[auto_minmax(0,1fr)_auto] max-md:grid-rows-[3.5rem_auto_2.5rem] max-md:gap-y-0 max-md:py-0 max-md:pointer-coarse:grid-rows-[3.5rem_auto_2.75rem]",
+        "max-md:grid max-md:grid-cols-[minmax(0,1fr)_auto] max-md:grid-rows-[3.5rem_auto_2.5rem] max-md:gap-y-0 max-md:py-0 max-md:pointer-coarse:grid-rows-[3.5rem_auto_2.75rem]",
         CHROME_CLASS,
       )}
     >
-      <Link
-        href="/"
-        aria-label="Deckwarden"
-        className="group/mark focus-visible:ring-ring/50 flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 max-md:col-start-1 max-md:row-start-1 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
-      >
-        <BrandMark className="size-8 motion-safe:transition-transform motion-safe:duration-[120ms] motion-safe:group-hover/mark:-rotate-3" />
-      </Link>
       {/* U3b: the chip shrinks with the name (min-w-0, its words truncating),
           alone once the name is at 8rem, and steps aside from md to wide.
           U4a: and on phones, where it would cut the name under its floor. */}
@@ -183,7 +172,7 @@ export function EditorHeader({
         aria-label="Deck name"
         placeholder="Untitled: click to name your deck"
         maxLength={120}
-        className="focus-visible:ring-ring/50 order-last min-w-[8rem] basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 max-md:col-start-2 max-md:row-start-1 max-md:w-full max-md:text-ellipsis max-md:pointer-coarse:min-h-11 lg:order-none lg:flex-1 lg:basis-auto"
+        className="focus-visible:ring-ring/50 order-last min-w-[8rem] basis-full rounded-md bg-transparent px-2 py-1 font-semibold outline-none focus-visible:ring-2 max-md:col-start-1 max-md:row-start-1 max-md:w-full max-md:text-ellipsis max-md:pointer-coarse:min-h-11 lg:order-none lg:flex-1 lg:basis-auto"
       />
       {/* Fork credit (P3.6) rides the name row on mobile and sits inline on
           desktop. U4a: on phones, its own line under the name. On a touch
@@ -194,7 +183,7 @@ export function EditorHeader({
       {forkedFrom && (
         <ForkCreditLine
           credit={forkedFrom}
-          className="order-last basis-full truncate px-2 max-md:col-[2/-1] max-md:row-start-2 max-md:pointer-coarse:has-[a]:leading-11 max-md:pointer-coarse:[&_a]:py-4 lg:order-none lg:max-w-56 lg:basis-auto"
+          className="order-last basis-full truncate px-2 max-md:col-[1/-1] max-md:row-start-2 max-md:pointer-coarse:has-[a]:leading-11 max-md:pointer-coarse:[&_a]:py-4 lg:order-none lg:max-w-56 lg:basis-auto"
         />
       )}
       {/* U4a: on phones the cluster steps aside, its items placed in the rows. */}
@@ -202,7 +191,7 @@ export function EditorHeader({
         <SaveIndicator status={saveStatus} onRetry={onRetry} draft={draft} />
         <span
           data-slot="primary-slot"
-          className="max-md:col-[2/-1] max-md:row-start-3 max-md:flex max-md:justify-self-end md:inline-flex md:w-[7.5rem] md:shrink-0 md:justify-end"
+          className="max-md:col-[1/-1] max-md:row-start-3 max-md:flex max-md:justify-self-end md:inline-flex md:w-[7.5rem] md:shrink-0 md:justify-end"
         >
           {onKeep ? (
             <Button size="sm" onClick={onKeep}>
@@ -233,7 +222,7 @@ export function EditorHeader({
                 size="icon-sm"
                 aria-label="More"
                 ref={moreRef}
-                className="max-md:col-start-3 max-md:row-start-1"
+                className="max-md:col-start-2 max-md:row-start-1"
               />
             }
           >
@@ -273,29 +262,10 @@ export function EditorHeader({
               Keyboard shortcuts
               <DropdownMenuShortcut>?</DropdownMenuShortcut>
             </DropdownMenuItem>
-            {/* U4a: the phone's appearance control, the header's own stepping aside. */}
-            {phone && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>Appearance</DropdownMenuLabel>
-                  <AppearanceItems />
-                </DropdownMenuGroup>
-              </>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
-        {/* From md the header's own appearance control. The editor's first
-            commit reads the tier's server snapshot ("wide"), so on a phone it
-            renders here for one commit: CSS keeps it out of the phone's rows
-            until the tier settles (no shift), and then it is gone. */}
-        {!phone && (
-          <span className="contents max-md:hidden">
-            <AppearanceMenu />
-          </span>
-        )}
       </div>
-    </header>
+    </section>
   );
 }
 
@@ -364,7 +334,7 @@ function SaveIndicator({
       data-draft={draft || undefined}
       title={resting ? "Saves on your first change" : undefined}
       aria-live="polite"
-      className="inline-flex h-7 w-36 shrink-0 items-center justify-end gap-2 text-sm tabular-nums max-md:col-start-2 max-md:row-start-3 max-md:ml-2 max-md:justify-start"
+      className="inline-flex h-7 w-36 shrink-0 items-center justify-end gap-2 text-sm tabular-nums max-md:col-start-1 max-md:row-start-3 max-md:ml-2 max-md:justify-start"
     >
       {status === "error" ? (
         <>

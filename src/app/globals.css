@@ -373,6 +373,15 @@
   --chrome-fade: color-mix(in oklab, var(--background) 60%, transparent);
 }
 
+/* The site header's outer height (2026-10-17): SiteHeader's h-14 row plus
+   its 1 px hairline. The editor's root (editor-layout.tsx) is the viewport
+   minus this, so the workspace fills what is left under the header and the
+   document never scrolls; nothing else reads it. Change the header's row or
+   its border and this moves with them (site-header.test pins the pair). */
+:root {
+  --site-header-height: calc(3.5rem + 1px);
+}
+
 /* The fallbacks (F8): a reader who asked for less transparency, or for more
    contrast, gets the solid strip with no blur, and a stuck heading's hairline
    back in place of its gradient. */
