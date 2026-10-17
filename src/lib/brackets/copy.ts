@@ -124,18 +124,22 @@ export function goalsParts(
   return parts;
 }
 
+/** "Bracket" — the adapter's noun, capitalized (the /precons filter's label, LATER row 151). */
+export function nounLabel(brackets: Pick<BracketsMeta, "noun">): string {
+  return brackets.noun.charAt(0).toUpperCase() + brackets.noun.slice(1);
+}
+
 /**
  * "Bracket 3 (declared)" — the owner's target on tiles and unfurls (Y5,
  * D6): declared, never computed, and said so.
  */
 export function declaredLabel(brackets: Pick<BracketsMeta, "noun">, level: number): string {
-  const noun = brackets.noun.charAt(0).toUpperCase() + brackets.noun.slice(1);
-  return `${noun} ${level} (declared)`;
+  return `${nounLabel(brackets)} ${level} (declared)`;
 }
 
 /** "Bracket 3 (Upgraded)" — the adapter's noun, capitalized, and the level's name. */
 export function levelLabel(brackets: Pick<BracketsMeta, "noun" | "levels">, level: number): string {
-  const noun = brackets.noun.charAt(0).toUpperCase() + brackets.noun.slice(1);
+  const noun = nounLabel(brackets);
   const name = brackets.levels.find((l) => l.level === level)?.name;
   return name ? `${noun} ${level} (${name})` : `${noun} ${level}`;
 }

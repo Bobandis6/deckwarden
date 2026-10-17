@@ -24,12 +24,19 @@
  * shifts when an image lands. Hover (U5, WAVE5 D6): the tint and a 2 px
  * lift over 120 ms on settle-120, the lift `motion-safe:` only (reduced
  * motion keeps the tint); the lift is a `translate`, so no box moves.
+ *
+ * LATER row 151: a /precons tile's bracket read under its date and price,
+ * in the share page's form (the gauge glyph, the line's lead in the
+ * foreground and the rest muted) and its words, with no "Why?": the tile
+ * holds one link, and the share page is where the read is explained.
  */
+import { GaugeIcon } from "lucide-react";
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { badgeVariants } from "@/components/ui/badge";
+import { bracketLineLead } from "@/lib/brackets/line-view";
 import { TILE_IMAGE, type DeckTileData } from "@/lib/decks/tiles";
 import { cn } from "@/lib/utils";
 
@@ -146,6 +153,7 @@ export function DeckTile({
           <span>{tile.dateLabel ?? `Updated ${tile.updatedLabel}`}</span>
           {tile.priceLabel && <span className="tabular-nums">· {tile.priceLabel}</span>}
         </p>
+        {tile.bracketLine && <TileBracketLine line={tile.bracketLine} />}
         {(tile.author || tile.likesCount > 0) && (
           <p className="text-muted-foreground mt-0.5 flex items-center justify-between gap-2 text-xs">
             <span className="truncate">{tile.author ? `by ${tile.author}` : ""}</span>
@@ -159,6 +167,31 @@ export function DeckTile({
         )}
       </div>
     </li>
+  );
+}
+
+/**
+ * A tile's bracket read (LATER row 151): BracketLine's form at the tile's
+ * 12 px, the glyph on the first line, so a line that wraps keeps its text
+ * in one column; `text-pretty`, so a wrap (three columns from xl, a 320 px
+ * phone) leaves no word alone on its second line.
+ */
+function TileBracketLine({ line }: { line: string }) {
+  const lead = bracketLineLead({ text: line, action: null });
+  return (
+    <p data-slot="tile-bracket" className="text-muted-foreground flex gap-1 text-xs text-pretty">
+      <GaugeIcon aria-hidden className="mt-0.5 size-3 shrink-0" />
+      <span>
+        {lead ? (
+          <>
+            <span className="text-foreground font-medium">{lead}</span>
+            {line.slice(lead.length)}
+          </>
+        ) : (
+          line
+        )}
+      </span>
+    </p>
   );
 }
 

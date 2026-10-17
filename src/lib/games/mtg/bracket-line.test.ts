@@ -14,7 +14,12 @@ import { addMorePhrase, cardsToGoPhrase, deckProgress } from "@/lib/decks/progre
 
 import type { BracketAnswers, BracketFreshness, BracketRead, CompleteCombo } from "../types";
 import type { MtgAttrs } from "./attrs";
-import { MTG_BRACKET_LINKS, mtgBracketLine, mtgBracketTable } from "./bracket-line";
+import {
+  MTG_BRACKET_LINKS,
+  mtgBracketBands,
+  mtgBracketLine,
+  mtgBracketTable,
+} from "./bracket-line";
 import { BRACKET_RULESET } from "./bracket-ruleset";
 import { assessBracket, mtgBrackets } from "./brackets";
 import { COMMANDER } from "./formats";
@@ -427,6 +432,85 @@ describe("the shapes of a pending call", () => {
   });
 });
 
+describe("LATER row 151 — the bands a filter reads (the /precons bracket filter)", () => {
+  const ONE_TO_TWO = { level: 1, label: "1 to 2" };
+  const band = (level: number) => ({ level, label: String(level) });
+  /** The line and its bands, from one read: the filter's chip names what the tile's line says. */
+  const both = (spec: Spec, combos?: CompleteCombo[] | null, over?: ReadOptions) => {
+    const r = read(spec, combos, over);
+    return [line(spec, r), mtgBracketBands(r)];
+  };
+
+  it("is the adapter's declaration", () => {
+    expect(mtgBrackets.bands).toBe(mtgBracketBands);
+  });
+
+  it("a band per level the line names: the unflagged pair as one, every other level on its own", () => {
+    expect(both(list([]))).toEqual(["Bracket 1 to 2 · nothing here goes past Core", [ONE_TO_TWO]]);
+    // Nothing past Core is proven: the same band.
+    expect(both(list([timeWarp]))).toEqual(["At least Bracket 2 (Core)", [ONE_TO_TWO]]);
+    expect(both(list([rhystic]))).toEqual(["At least Bracket 3 (Upgraded)", [band(3)]]);
+    expect(both(list([rhystic, rift, tithe, breach]))).toEqual([
+      "At least Bracket 4 (Optimized)",
+      [band(4)],
+    ]);
+  });
+
+  it("a pending call is in every band its line names, lowest first", () => {
+    const abc = list([pieceA, pieceB, pieceC]);
+    const s = combo("s", [pieceA, pieceB, pieceC], { tag: "S", relevant: false });
+    expect(both(abc, [s])).toEqual(["Bracket 3 or 4 · one combo is your call", [band(3), band(4)]]);
+    expect(both(list([liliana]))).toEqual([
+      "Bracket 1 to 2 or 4 · one card is your call",
+      [ONE_TO_TWO, band(4)],
+    ]);
+    expect(both(list([timeWarp, temporal]))).toEqual([
+      "Bracket 2 or 4 · chaining extra turns is your call",
+      [ONE_TO_TWO, band(4)],
+    ]);
+    const o = combo("o", [pieceA, pieceB, pieceC], { tag: "O", relevant: false });
+    expect(both(list([liliana, pieceA, pieceB, pieceC]), [o])).toEqual([
+      "Bracket 2, 3 or 4 · one combo and one card are your call",
+      [ONE_TO_TWO, band(3), band(4)],
+    ]);
+    const tpl = combo("t", [pieceA, pieceB, pieceC], {
+      tag: "C",
+      relevant: false,
+      templates: ["A creature with power 5 or greater"],
+    });
+    expect(both(abc, [tpl])).toEqual(["Bracket 1 or 2 · one combo is your call", [ONE_TO_TWO]]);
+    // Answered: the settled level alone.
+    const v = BRACKET_RULESET.version;
+    expect(both(abc, [s], { answers: { rulesetVersion: v, calls: { "combo:s": "yes" } } })).toEqual(
+      ["Bracket 4 (Optimized) · from the cards and your answers", [band(4)]],
+    );
+    expect(
+      both(abc, [s], { answers: { rulesetVersion: v, calls: { "combo:s": "no" } } })[1],
+    ).toEqual([band(3)]);
+  });
+
+  it("none where the line names none; an incomplete read is in its floor's band when it has one", () => {
+    expect(both(list([dockside]))).toEqual(["Bracket read needs a legal list · 1 banned card", []]);
+    expect(both(list([rhystic], 66))[1]).toEqual([]);
+    expect(both(list([]), null)).toEqual(["Bracket read incomplete · Couldn't check combos", []]);
+    const stale: BracketFreshness = {
+      ...FRESH,
+      feeds: { ...FRESH.feeds, extraTurns: { state: "stale", asOf: "2026-09-01T00:00:00.000Z" } },
+    };
+    expect(both(list([rhystic]), [], { freshness: stale })).toEqual([
+      "At least Bracket 3 (Upgraded) · Couldn't check extra turns",
+      [band(3)],
+    ]);
+  });
+
+  it("a declared target moves the line, never the bands", () => {
+    const spec = list([rhystic]);
+    const r = read(spec);
+    expect(line(spec, r, 2)).toBe("Your target: Bracket 2 · the cards say at least 3");
+    expect(mtgBracketBands(r)).toEqual([band(3)]);
+  });
+});
+
 describe("drafts", () => {
   it("found nothing yet: the progress phrase alone", () => {
     expect(lineOf(list([], 1))).toBe("Bracket: add 99 more cards");
@@ -536,6 +620,8 @@ describe("copy guard (WAVE4 D0) — every line the adapter can say", () => {
       line(spec, r, null, "table"),
       ...[1, 2, 3, 4, 5].map((target) => line(spec, r, target, "table")),
       ...mtgBracketTable(r).flatMap((row) => [row.label, row.empty]),
+      // LATER row 151: the filter's band labels.
+      ...mtgBracketBands(r).map((b) => b.label),
     ]);
   }
 
@@ -570,5 +656,12 @@ describe("copy guard (WAVE4 D0) — every line the adapter can say", () => {
 
   it("plain words, never notation: no '+', no '(est.)'", () => {
     expect(everyLine().filter((l) => /\d\+|est\./i.test(l))).toEqual([]);
+  });
+
+  it("ranges as 'to', never a dash (WAVE5 D0); at most one middle dot a line", () => {
+    const lines = everyLine();
+    expect(lines).toContain("1 to 2");
+    expect(lines.filter((l) => /[\u2013\u2014]|\d-\d/.test(l))).toEqual([]);
+    expect(lines.filter((l) => l.split(" · ").length > 2)).toEqual([]);
   });
 });

@@ -759,6 +759,17 @@ export interface BracketComboBadge {
   source: string;
 }
 
+/**
+ * One band of a bracket filter over many lists (LATER row 151, /precons):
+ * the levels a read's line names, grouped the way the line groups them.
+ */
+export interface BracketBand {
+  /** The band's key and order: its lowest level. */
+  level: number;
+  /** The line's words for it, after the noun: "1 to 2", "3". */
+  label: string;
+}
+
 // ---------------------------------------------------------------------------
 // Journal (Y9a, WAVE4 D10) — the games an owner logs
 // ---------------------------------------------------------------------------
@@ -830,6 +841,17 @@ export interface BracketsMeta<A = Record<string, unknown>> {
    * or fail.
    */
   line(read: BracketRead, ctx: BracketLineContext<A>): string;
+  /**
+   * Pure (LATER row 151): the bands a read falls in, for a filter over many
+   * lists (/precons): every level its line names, grouped the way the line
+   * groups them ("1 to 2" for the levels nothing flagged can tell apart),
+   * lowest first. A pending call names each outcome, so "Bracket 3 or 4"
+   * is in both bands. Empty when the line names no level: a blocked list,
+   * a draft, an incomplete read with nothing flagged ("Bracket read
+   * incomplete"). The cards' read alone: a declared target never moves a
+   * list's band.
+   */
+  bands(read: BracketRead): BracketBand[];
   /**
    * Pure: "At the table"'s evidence rows (Y5, WAVE4 D6), each with its
    * named source — what the pod should know before the game. Never empty

@@ -80,7 +80,13 @@ import type {
   IngestRunFacts,
 } from "../types";
 import type { MtgAttrs } from "./attrs";
-import { MTG_BRACKET_LINKS, MTG_TABLE_NOTE, mtgBracketLine, mtgBracketTable } from "./bracket-line";
+import {
+  MTG_BRACKET_LINKS,
+  MTG_TABLE_NOTE,
+  mtgBracketBands,
+  mtgBracketLine,
+  mtgBracketTable,
+} from "./bracket-line";
 import { BRACKET_RULESET, type BracketLevel } from "./bracket-ruleset";
 import { mtgFormat } from "./formats";
 import { bracketTagOf, type SpellbookBracketTag } from "./spellbook-tags";
@@ -1206,6 +1212,7 @@ export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   freshness: mtgBracketFreshness,
   assess: assessBracket,
   line: mtgBracketLine,
+  bands: mtgBracketBands,
   table: mtgBracketTable,
   tableNote: MTG_TABLE_NOTE,
   links: MTG_BRACKET_LINKS,

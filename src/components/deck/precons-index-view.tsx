@@ -27,6 +27,14 @@
  * ask); Oldest keeps the two groups at the top open, the ones a reader
  * sorted to see first; Name sort is one flat group with nothing to fold.
  * The count beside "Show {year}" says how many rows the row hides.
+ *
+ * LATER row 151: a bracket filter beside the colors, one band at a time
+ * (the adapter's `brackets.bands`, in the line's words: "1 to 2", "3", "4")
+ * under the noun the page passes ("Bracket"). A precon is in every band its
+ * tile's line names, so "Bracket 3 or 4" shows under both; a precon whose
+ * line names none (a banned card) shows under All alone. Chips only for the
+ * bands some precon is in; no bands, or no label, and no bracket filter.
+ * Ephemeral like the rest: never in the URL.
  */
 import { useMemo, useState } from "react";
 
@@ -39,6 +47,7 @@ import { Input } from "@/components/ui/input";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import type { DeckTileData } from "@/lib/decks/tiles";
 import { COLOR_ORDER, lettersToMask, type ColorLetter } from "@/lib/games/colors";
+import type { BracketBand } from "@/lib/games/types";
 import { cn } from "@/lib/utils";
 
 export interface PreconItem {
@@ -50,6 +59,8 @@ export interface PreconItem {
   ciMask: number;
   /** Pre-normalized haystack (name + commanders + set) the search box matches against. */
   search: string;
+  /** LATER row 151: the bands the precon's bracket read falls in, lowest first; empty = none. */
+  bands: readonly BracketBand[];
   tile: DeckTileData;
 }
 
@@ -75,9 +86,18 @@ const count = (n: number) => `${n} ${n === 1 ? "precon" : "precons"}`;
 const SELECT_CLASS =
   "h-9 rounded-lg border border-(--border-control) bg-transparent px-2 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30 pointer-coarse:min-h-11";
 
-export function PreconsIndexView({ items }: { items: PreconItem[] }) {
+export function PreconsIndexView({
+  items,
+  bracketLabel,
+}: {
+  items: PreconItem[];
+  /** The bracket filter's label, the adapter's noun ("Bracket"); absent = no bracket filter. */
+  bracketLabel?: string;
+}) {
   const [q, setQ] = useState("");
   const [letters, setLetters] = useState("");
+  /** The band shown, by its level (LATER row 151); null = every precon. */
+  const [band, setBand] = useState<number | null>(null);
   const [year, setYear] = useState<"all" | number>("all");
   const [sort, setSort] = useState<PreconSort>("newest");
   /** Year groups a reader opened with "Show {year}" (U7b); one-way, like the folds. */
@@ -89,6 +109,13 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
     [items],
   );
 
+  // The bands some precon is in, lowest first: the filter's chips.
+  const bands = useMemo(() => {
+    const byLevel = new Map<number, BracketBand>();
+    for (const item of items) for (const b of item.bands) byLevel.set(b.level, b);
+    return [...byLevel.values()].sort((a, b) => a.level - b.level);
+  }, [items]);
+
   // Exact-identity mask: letters "WU" = exactly Azorius; "C" = exactly
   // colorless (mask 0); "" = no color filter.
   const ciMask = letters === "C" ? 0 : letters ? lettersToMask(letters) : null;
@@ -99,9 +126,10 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
       (item) =>
         (norm === "" || item.search.includes(norm)) &&
         (ciMask === null || item.ciMask === ciMask) &&
+        (band === null || item.bands.some((b) => b.level === band)) &&
         (year === "all" || item.year === year),
     );
-  }, [items, q, ciMask, year]);
+  }, [items, q, ciMask, band, year]);
 
   const groups = useMemo(() => {
     if (sort === "name") {
@@ -131,7 +159,7 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
   }, [filtered, sort]);
 
   // The fold applies to the whole list only (U7b): any filter opens every group.
-  const unfiltered = q === "" && ciMask === null && year === "all";
+  const unfiltered = q === "" && ciMask === null && band === null && year === "all";
   const strip = groups.length > 1 ? groups.flatMap((g) => (g.label === null ? [] : [g.label])) : [];
 
   const toggleLetter = (c: ColorLetter) => {
@@ -149,6 +177,7 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
   const clearFilters = () => {
     setQ("");
     setLetters("");
+    setBand(null);
     setYear("all");
   };
 
@@ -189,6 +218,36 @@ export function PreconsIndexView({ items }: { items: PreconItem[] }) {
             />
           ))}
         </div>
+        {bracketLabel && bands.length > 0 && (
+          <div
+            role="group"
+            aria-labelledby="precons-bracket"
+            className="flex flex-wrap items-center gap-1.5"
+          >
+            <span id="precons-bracket" className="text-muted-foreground text-sm">
+              {bracketLabel}
+            </span>
+            <Chip
+              render={<button type="button" />}
+              onClick={() => setBand(null)}
+              aria-pressed={band === null}
+              pressed={band === null}
+            >
+              All
+            </Chip>
+            {bands.map((b) => (
+              <Chip
+                key={b.level}
+                render={<button type="button" />}
+                onClick={() => setBand((current) => (current === b.level ? null : b.level))}
+                aria-pressed={band === b.level}
+                pressed={band === b.level}
+              >
+                {b.label}
+              </Chip>
+            ))}
+          </div>
+        )}
         <label className="flex items-center gap-1.5 text-sm">
           <span className="text-muted-foreground">Year</span>
           <select

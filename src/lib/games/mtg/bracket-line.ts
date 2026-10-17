@@ -51,6 +51,7 @@
  * id>`, `extra-turns:<oracle ids>`, `combo:<key>`.
  */
 import type {
+  BracketBand,
   BracketLineContext,
   BracketQuestion,
   BracketRead,
@@ -287,6 +288,40 @@ export function mtgBracketLine(read: BracketRead, ctx: BracketLineContext<MtgAtt
     return `${NOUN} ${UNFLAGGED_RANGE} · nothing here goes past ${UNFLAGGED_TOP.name}`;
   }
   return `At least ${named(read.minimum)}`;
+}
+
+/** A level's band: the unflagged pair as one ("1 to 2"), any other level on its own. */
+function bandOf(level: number): BracketBand {
+  return UNFLAGGED.some((l) => l.level === level)
+    ? { level: UNFLAGGED_LOW.level, label: UNFLAGGED_RANGE }
+    : { level, label: String(level) };
+}
+
+/**
+ * The read's bands — `mtgBrackets.bands` (LATER row 151, the /precons
+ * filter): the levels `mtgBracketLine` names without a target, each in its
+ * band. "Bracket 1 to 2" and "At least Bracket 2 (Core)" are the "1 to 2"
+ * band (nothing past Core is proven), "At least Bracket 3 (Upgraded)" the
+ * "3", "Bracket 3 or 4 · one combo is your call" both, and an incomplete
+ * read its floor when it has one ("At least Bracket 3 (Upgraded) ·
+ * Couldn't check extra turns"). A blocked list, a draft and "Bracket read
+ * incomplete" name none.
+ */
+export function mtgBracketBands(read: BracketRead): BracketBand[] {
+  if (read.status === "blocked" || read.status === "draft") return [];
+  let levels: number[];
+  if (read.status === "unavailable") {
+    levels = read.minimum > UNFLAGGED_LOW.level ? [read.minimum] : [];
+  } else {
+    const settled = read.suggested ?? read.minimum;
+    levels = [settled, ...openCalls(read, settled).map((q) => q.raisesTo)];
+  }
+  const bands = new Map<number, BracketBand>();
+  for (const level of levels) {
+    const band = bandOf(level);
+    bands.set(band.level, band);
+  }
+  return [...bands.values()].sort((a, b) => a.level - b.level);
 }
 
 /** The copied text's closing line (D6): what the read reads, and where the combos come from. */

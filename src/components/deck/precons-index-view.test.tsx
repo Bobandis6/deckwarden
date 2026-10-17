@@ -3,15 +3,21 @@
  * exact-identity color pills, search over name + commanders + set, the
  * sort select, the empty state with Clear filters — and the W8b decision
  * pin that filter state is EPHEMERAL: no filter ever reflects into the
- * URL (no searchParams by contract, no hash by decision).
+ * URL (no searchParams by contract, no hash by decision). LATER row 151:
+ * the bracket filter, one band at a time.
  */
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { deckTileData } from "@/lib/decks/tiles";
 import { lettersToMask } from "@/lib/games/colors";
+import type { BracketBand } from "@/lib/games/types";
 import { PreconsIndexView, type PreconItem } from "./precons-index-view";
+
+const ONE_TO_TWO: BracketBand = { level: 1, label: "1 to 2" };
+const THREE: BracketBand = { level: 3, label: "3" };
+const FOUR: BracketBand = { level: 4, label: "4" };
 
 function item(
   name: string,
@@ -19,6 +25,8 @@ function item(
   letters: string,
   leaders: string[],
   set: string,
+  bands: BracketBand[] = [],
+  bracketLine: string | null = null,
 ): PreconItem {
   const ciMask = letters === "" ? 0 : lettersToMask(letters);
   return {
@@ -27,6 +35,7 @@ function item(
     releaseDate: `${year}-06-01`,
     ciMask,
     search: normalizeCardName([name, ...leaders, set].join(" ")),
+    bands,
     tile: deckTileData({
       href: `/d/p_x`,
       name,
@@ -38,6 +47,7 @@ function item(
       leaderImage: null,
       dateLabel: `Released Jun ${year}`,
       priceLabel: "≈ $97",
+      bracketLine,
     }),
   };
 }
@@ -222,5 +232,137 @@ describe("PreconsIndexView — the long list on phones (U7b, WAVE5 D8)", () => {
     const tile = document.querySelector("[data-slot=deck-tile]")!;
     expect(tile.className).toContain("max-md:p-2");
     expect(tile.querySelector("[data-slot=tile-art]")!.className).toContain("max-md:w-[1.625rem]");
+  });
+});
+
+/** The same five precons, each with its bracket read (LATER row 151). */
+const BRACKETED: PreconItem[] = [
+  item(
+    "Breed Lethality",
+    2016,
+    "WUBG",
+    ["Atraxa"],
+    "Commander 2016",
+    [THREE, FOUR],
+    "Bracket 3 or 4 · one combo is your call",
+  ),
+  item(
+    "Counterpunch",
+    2011,
+    "WBG",
+    ["Ghave"],
+    "Commander",
+    [ONE_TO_TWO, THREE],
+    "Bracket 1 to 2 or 3 · one combo is your call",
+  ),
+  item(
+    "Eldrazi Unbound",
+    2018,
+    "",
+    ["Zetalpa"],
+    "Commander Anthology",
+    [],
+    "Bracket read needs a legal list · 1 banned card",
+  ),
+  item(
+    "Timey-Wimey",
+    2023,
+    "WUR",
+    ["The Tenth Doctor"],
+    "Doctor Who",
+    [ONE_TO_TWO],
+    "At least Bracket 2 (Core)",
+  ),
+  item(
+    "Wretched Ranks",
+    2026,
+    "WB",
+    ["Someone"],
+    "Foundations",
+    [THREE],
+    "At least Bracket 3 (Upgraded)",
+  ),
+];
+
+const bracketGroup = () => screen.getByRole("group", { name: "Bracket" });
+const chip = (name: string) => within(bracketGroup()).getByRole("button", { name });
+const pressed = () =>
+  within(bracketGroup())
+    .getAllByRole("button")
+    .filter((b) => b.getAttribute("aria-pressed") === "true")
+    .map((b) => b.textContent);
+
+describe("PreconsIndexView — the bracket filter (LATER row 151)", () => {
+  it("a group named by the adapter's noun: All, then a chip for each band some precon is in, lowest first", () => {
+    render(<PreconsIndexView items={BRACKETED} bracketLabel="Bracket" />);
+    const buttons = within(bracketGroup()).getAllByRole("button");
+    expect(buttons.map((b) => b.textContent)).toEqual(["All", "1 to 2", "3", "4"]);
+    for (const b of buttons) {
+      expect(b.dataset.slot).toBe("chip");
+      expect(b.getAttribute("type")).toBe("button");
+    }
+    expect(pressed()).toEqual(["All"]);
+    // Every tile says its read: the filter's chips name what the lines say.
+    expect(
+      [...document.querySelectorAll("[data-slot=tile-bracket]")].map((p) => p.textContent),
+    ).toEqual([
+      "At least Bracket 3 (Upgraded)",
+      "At least Bracket 2 (Core)",
+      "Bracket read needs a legal list · 1 banned card",
+      "Bracket 3 or 4 · one combo is your call",
+      "Bracket 1 to 2 or 3 · one combo is your call",
+    ]);
+  });
+
+  it("one band at a time: a precon is in every band its line names; a second press shows them all", () => {
+    render(<PreconsIndexView items={BRACKETED} bracketLabel="Bracket" />);
+    fireEvent.click(chip("3"));
+    expect(tileNames()).toEqual(["Wretched Ranks", "Breed Lethality", "Counterpunch"]);
+    expect(pressed()).toEqual(["3"]);
+    fireEvent.click(chip("4"));
+    expect(tileNames()).toEqual(["Breed Lethality"]);
+    expect(pressed()).toEqual(["4"]);
+    fireEvent.click(chip("4"));
+    expect(tileNames()).toHaveLength(5);
+    expect(pressed()).toEqual(["All"]);
+    fireEvent.click(chip("1 to 2"));
+    expect(tileNames()).toEqual(["Timey-Wimey", "Counterpunch"]);
+    // A list whose line names no level (a banned card) is under All alone.
+    fireEvent.click(chip("All"));
+    expect(tileNames()).toContain("Eldrazi Unbound");
+  });
+
+  it("narrows with the other filters, opens every fold, and Clear filters lets it go", () => {
+    const { container } = render(<PreconsIndexView items={BRACKETED} bracketLabel="Bracket" />);
+    expect(collapsedGrids(container).some(Boolean)).toBe(true);
+    // Three year groups under "3": the third would fold if the band didn't count as a filter.
+    fireEvent.click(chip("3"));
+    expect(collapsedGrids(container)).toEqual([false, false, false]);
+    fireEvent.change(screen.getByLabelText(/Year/), { target: { value: "2016" } });
+    expect(tileNames()).toEqual(["Breed Lethality"]);
+    fireEvent.change(screen.getByLabelText(/Year/), { target: { value: "2023" } });
+    expect(screen.getByText("No precons match")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(tileNames()).toHaveLength(5);
+    expect(pressed()).toEqual(["All"]);
+  });
+
+  it("never touches the URL", () => {
+    render(<PreconsIndexView items={BRACKETED} bracketLabel="Bracket" />);
+    const before = window.location.href;
+    fireEvent.click(chip("1 to 2"));
+    fireEvent.click(chip("3"));
+    fireEvent.click(chip("All"));
+    expect(window.location.href).toBe(before);
+  });
+
+  it("no label, or no precon in any band, and there is no bracket filter", () => {
+    const { unmount } = render(<PreconsIndexView items={BRACKETED} />);
+    expect(screen.queryByRole("group", { name: "Bracket" })).toBeNull();
+    unmount();
+    render(<PreconsIndexView items={ITEMS} bracketLabel="Bracket" />);
+    expect(screen.queryByRole("group", { name: "Bracket" })).toBeNull();
+    // The color filter's All is the page's only one.
+    expect(screen.getAllByRole("button", { name: "All" })).toHaveLength(1);
   });
 });

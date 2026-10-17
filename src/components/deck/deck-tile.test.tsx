@@ -231,6 +231,60 @@ describe("DeckTile — the meta on two lines (U9, WAVE5 D9)", () => {
   });
 });
 
+describe("DeckTile — a precon's bracket read (LATER row 151)", () => {
+  const precon = deckTileData({
+    href: "/d/p_breed_lethality_c16",
+    name: "Breed Lethality",
+    game: "mtg",
+    formatCode: "commander",
+    updatedAt: "2016-11-11",
+    likesCount: 0,
+    ciMask: 23,
+    leaderImage: null,
+    dateLabel: "Released Nov 2016",
+    priceLabel: "≈ $97",
+    bracketLine: "Bracket 3 or 4 · one combo is your call",
+  });
+
+  it("its own line after the date and price: the gauge, the lead forward and the rest muted, one dot", () => {
+    const { container } = render(
+      <DeckTileGrid>
+        <DeckTile tile={precon} badge="Precon" compact />
+      </DeckTileGrid>,
+    );
+    const lines = [...container.querySelectorAll("[data-slot=deck-tile] p")];
+    const bracket = container.querySelector("[data-slot=tile-bracket]")!;
+    expect(lines.at(-1)).toBe(bracket);
+    expect(bracket.textContent).toBe("Bracket 3 or 4 · one combo is your call");
+    expect(bracket.className).toBe("text-muted-foreground flex gap-1 text-xs text-pretty");
+    expect(bracket.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+    const lead = bracket.querySelector("span > span")!;
+    expect(lead.textContent).toBe("Bracket 3 or 4");
+    expect(lead.className).toBe("text-foreground font-medium");
+    // The tile stays one link, named by the deck name: the line explains nothing it links to.
+    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["Breed Lethality"]);
+  });
+
+  it("a line with no separator is all lead; no line on any other tile", () => {
+    const { container, unmount } = render(
+      <DeckTileGrid>
+        <DeckTile tile={{ ...precon, bracketLine: "At least Bracket 3 (Upgraded)" }} />
+      </DeckTileGrid>,
+    );
+    expect(container.querySelector("[data-slot=tile-bracket] span > span")!.textContent).toBe(
+      "At least Bracket 3 (Upgraded)",
+    );
+    unmount();
+    expect(queza.bracketLine).toBeNull();
+    const { container: plain } = render(
+      <DeckTileGrid>
+        <DeckTile tile={queza} />
+      </DeckTileGrid>,
+    );
+    expect(plain.querySelector("[data-slot=tile-bracket]")).toBeNull();
+  });
+});
+
 describe("DeckTile — the actions slot's text link (LATER row 248)", () => {
   it("a tile's text action (Share page) is 12 px muted text, a 44 px target on touch", () => {
     expect(TILE_ACTION_LINK_CLASS).toBe(

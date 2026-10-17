@@ -20,7 +20,10 @@
  *
  * Y5 (WAVE4 D6): the owner's declared target as the tile's chip — "Bracket
  * 3 (declared)" — where the game has brackets and a target is set; never a
- * computed read (a stored read on tiles stays deferred, WAVE4 F).
+ * computed read on a user deck's tile (a stored read on tiles stays
+ * deferred, WAVE4 F). LATER row 151: a /precons tile carries its computed
+ * read as a line (`bracketLine`, its share page's words), built by that
+ * page at each revalidate and never stored.
  */
 import type { DeckVisibility } from "@/db/schema";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
@@ -70,6 +73,8 @@ export interface DeckTileData {
   priceLabel: string | null;
   /** Y5: "Bracket 3 (declared)" — the owner's target; null without one (and always for One Piece). */
   declared: string | null;
+  /** LATER row 151: the precon's bracket read, its share page's line; null on every other tile. */
+  bracketLine: string | null;
 }
 
 export interface DeckTileInput {
@@ -90,6 +95,8 @@ export interface DeckTileInput {
   priceLabel?: string | null;
   /** Y5: the owner's declared target (decks.goals.targetLevel); null or absent = none. */
   targetLevel?: number | null;
+  /** LATER row 151: a /precons tile's bracket line (precon-brackets.ts); absent = none. */
+  bracketLine?: string | null;
 }
 
 /** The adapter's swatches for a deck's identity; the neutral swatch without an adapter. */
@@ -153,6 +160,7 @@ export function deckTileData(input: DeckTileInput): DeckTileData {
     dateLabel: input.dateLabel ?? null,
     priceLabel: input.priceLabel ?? null,
     declared: declaredChip(game, input.targetLevel),
+    bracketLine: input.bracketLine ?? null,
   };
 }
 
