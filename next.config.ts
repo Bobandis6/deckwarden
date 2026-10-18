@@ -1,5 +1,21 @@
 import type { NextConfig } from "next";
 
+/**
+ * The card pages' CDN cache (2026-10-18, the ISR write budget). /cards/[id]
+ * renders on demand now, and Vercel's CDN keeps each page: fresh for an
+ * hour, then served stale for up to a day while the next request
+ * re-renders it — the freshness the hourly ISR route had. A dynamic page
+ * leaves Next with `Cache-Control: private, no-cache, no-store`, which
+ * browsers keep; the targeted `CDN-Cache-Control` (RFC 9213) is what a CDN
+ * reads instead, and on Vercel it always overrides `Cache-Control`, even
+ * when set from this file (vercel.com/docs/caching/cache-control-headers). CDN cache
+ * writes are free where every ISR render of a card page spent ~5 of
+ * Hobby's 200K monthly write units, and one crawler sweep of the 38,192
+ * card URLs cost ~195K (2026-10-11). Off Vercel, the same header serves any
+ * CDN that reads it (LATER.md row 279 has the VPS note).
+ */
+const CARD_PAGE_CDN_CACHE_CONTROL = "public, max-age=3600, stale-while-revalidate=86400";
+
 const nextConfig: NextConfig = {
   // Portability rule: build must run on any Node host (Hetzner runbook), not just Vercel.
   // Vercel's build packaging breaks on standalone output (ENOENT next-server.js.nft.json),
@@ -21,6 +37,17 @@ const nextConfig: NextConfig = {
     // a runtime lookup and its dead branches would ship. Empty on Hobby
     // always (non-commercial plan); see .env.example.
     NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE: process.env.NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE ?? "",
+  },
+  // `:id` is one segment: the card page and its RSC requests, never the
+  // preview image (/cards/:id/opengraph-image-…), the card sitemaps
+  // (/cards/sitemap/N.xml) or /cards itself.
+  async headers() {
+    return [
+      {
+        source: "/cards/:id",
+        headers: [{ key: "CDN-Cache-Control", value: CARD_PAGE_CDN_CACHE_CONTROL }],
+      },
+    ];
   },
 };
 

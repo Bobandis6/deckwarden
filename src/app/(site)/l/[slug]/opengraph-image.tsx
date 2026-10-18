@@ -5,8 +5,12 @@
  * unanswered; the R2 mirror serves PAGES, unfurls stay text-only. The frame
  * matches the site OG family, so the unfurl is branded, never half-rendered.
  *
- * Caching intent: ISR, revalidate daily — leader data changes at nightly
- * ingest; 142 leaders render lazily on first unfurl.
+ * Caching intent: dynamic, kept by Vercel's CDN for a day and served stale
+ * for another while one re-renders (`OG_CDN_CACHE_CONTROL`) — leader data
+ * changes at nightly ingest. Not ISR since 2026-10-18 (the ISR write
+ * budget, with the card and hub previews): ~6 of Hobby's 200K monthly ISR
+ * write units per render, re-spent after every deployment; CDN cache
+ * writes are free. A JPEG since the same day (src/lib/og/jpeg.ts).
  */
 import { ImageResponse } from "next/og";
 
@@ -24,22 +28,14 @@ import {
   OgTitle,
 } from "@/lib/og/elements";
 import { loadOgFonts } from "@/lib/og/fonts";
+import { jpegPreview, OG_CDN_CACHE_CONTROL } from "@/lib/og/jpeg";
 import { ogAccent } from "@/lib/theme/tokens";
 
-export const revalidate = 86400;
-
-// ISR needs this (LATER row 69, fired in R1b): `revalidate` alone renders on
-// every request — Next treats a dynamic route as ISR only when
-// generateStaticParams exists, and an empty array means "nothing at build
-// time, everything on first request, then cached for `revalidate`". Looks
-// unused; do not delete.
-export function generateStaticParams() {
-  return [];
-}
+export const dynamic = "force-dynamic";
 
 export const alt = "One Piece leader hub on Deckwarden";
 export const size = OG_SIZE;
-export const contentType = "image/png";
+export const contentType = "image/jpeg";
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -48,12 +44,15 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const [leader, fonts] = await Promise.all([loadLeaderBySlug(GAME_ID.optcg, slug), loadOgFonts()]);
 
   if (!leader) {
-    return new ImageResponse(
-      <OgFrame art={null}>
-        <OgGenericBody />
-        <OgFooter stats={[]} />
-      </OgFrame>,
-      { ...size, fonts },
+    return jpegPreview(
+      new ImageResponse(
+        <OgFrame art={null}>
+          <OgGenericBody />
+          <OgFooter stats={[]} />
+        </OgFrame>,
+        { ...size, fonts },
+      ),
+      OG_CDN_CACHE_CONTROL,
     );
   }
 
@@ -64,15 +63,18 @@ export default async function Image({ params }: { params: Promise<{ slug: string
     .filter(Boolean)
     .join(" · ");
 
-  return new ImageResponse(
-    <OgFrame art={null}>
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <OgKicker accent={accent}>One Piece Leader</OgKicker>
-        <OgTitle>{leader.name}</OgTitle>
-        <OgSubtitle>{`${leader.externalKey}${subtitle ? ` · ${subtitle}` : ""}`}</OgSubtitle>
-      </div>
-      <OgFooter stats={["Leader profile · deck building"]} accent={accent} />
-    </OgFrame>,
-    { ...size, fonts },
+  return jpegPreview(
+    new ImageResponse(
+      <OgFrame art={null}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <OgKicker accent={accent}>One Piece Leader</OgKicker>
+          <OgTitle>{leader.name}</OgTitle>
+          <OgSubtitle>{`${leader.externalKey}${subtitle ? ` · ${subtitle}` : ""}`}</OgSubtitle>
+        </div>
+        <OgFooter stats={["Leader profile · deck building"]} accent={accent} />
+      </OgFrame>,
+      { ...size, fonts },
+    ),
+    OG_CDN_CACHE_CONTROL,
   );
 }

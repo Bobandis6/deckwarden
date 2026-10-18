@@ -4,7 +4,7 @@
  *
  * Caching intent: force-dynamic, the same privacy contract as the page —
  * a deck flipped private must stop unfurling its name/commander/curve on
- * the NEXT request, so no ISR of the rendered PNG. Unlisted decks render
+ * the NEXT request, so no ISR of the rendered image. Unlisted decks render
  * fully (share links are the viral loop; unlisted means unlisted, not
  * secret content). Cost stays sane because the Scryfall art/artist fetches
  * inside are data-cached daily per printing (og/scryfall.ts), leaving one
@@ -12,6 +12,11 @@
  *
  * Private/unknown decks get the generic branded image — zero deck data in
  * the pixels, and a 200 so link previews look intentional, never broken.
+ *
+ * A JPEG since 2026-10-18 (src/lib/og/jpeg.ts: the ~0.7 MB PNG re-encoded
+ * at quality 80, an order of magnitude smaller per unfurl) under the same
+ * header as before (`OG_UNCACHED_CACHE_CONTROL`, ImageResponse's own
+ * production default): still never kept at the CDN.
  */
 import { ImageResponse } from "next/og";
 
@@ -27,6 +32,7 @@ import {
   OgTitle,
 } from "@/lib/og/elements";
 import { loadOgFonts } from "@/lib/og/fonts";
+import { jpegPreview, OG_UNCACHED_CACHE_CONTROL } from "@/lib/og/jpeg";
 import { deckOgLabels } from "@/lib/og/labels";
 import { fetchOgArt } from "@/lib/og/scryfall";
 
@@ -34,7 +40,7 @@ export const dynamic = "force-dynamic";
 
 export const alt = "Deck on Deckwarden";
 export const size = OG_SIZE;
-export const contentType = "image/png";
+export const contentType = "image/jpeg";
 
 export default async function Image({ params }: { params: Promise<{ publicId: string }> }) {
   const { publicId } = await params;
@@ -43,12 +49,15 @@ export default async function Image({ params }: { params: Promise<{ publicId: st
   const [deck, fonts] = await Promise.all([loadDeckOgData(publicId), loadOgFonts()]);
 
   if (!deck || deck.visibility === "private") {
-    return new ImageResponse(
-      <OgFrame art={null}>
-        <OgGenericBody />
-        <OgFooter stats={[]} />
-      </OgFrame>,
-      { ...size, fonts },
+    return jpegPreview(
+      new ImageResponse(
+        <OgFrame art={null}>
+          <OgGenericBody />
+          <OgFooter stats={[]} />
+        </OgFrame>,
+        { ...size, fonts },
+      ),
+      OG_UNCACHED_CACHE_CONTROL,
     );
   }
 
@@ -69,23 +78,26 @@ export default async function Image({ params }: { params: Promise<{ publicId: st
     deck.targetLevel !== null && labels.declared ? labels.declared(deck.targetLevel) : null;
   const hasCurve = deck.curve.some((v) => v > 0);
 
-  return new ImageResponse(
-    <OgFrame art={art}>
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <OgKicker accent={labels.accent}>{labels.kicker}</OgKicker>
-        {declared && <OgKicker accent={labels.accent}>{declared}</OgKicker>}
-        <OgTitle>{deck.name}</OgTitle>
-        {deck.commanderNames.length > 0 && (
-          <OgSubtitle>{deck.commanderNames.join(" · ")}</OgSubtitle>
-        )}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        {hasCurve && (
-          <OgCurve buckets={deck.curve} label={labels.curveLabel} accent={labels.accent} />
-        )}
-        <OgFooter stats={stats} accent={labels.accent} />
-      </div>
-    </OgFrame>,
-    { ...size, fonts },
+  return jpegPreview(
+    new ImageResponse(
+      <OgFrame art={art}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <OgKicker accent={labels.accent}>{labels.kicker}</OgKicker>
+          {declared && <OgKicker accent={labels.accent}>{declared}</OgKicker>}
+          <OgTitle>{deck.name}</OgTitle>
+          {deck.commanderNames.length > 0 && (
+            <OgSubtitle>{deck.commanderNames.join(" · ")}</OgSubtitle>
+          )}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {hasCurve && (
+            <OgCurve buckets={deck.curve} label={labels.curveLabel} accent={labels.accent} />
+          )}
+          <OgFooter stats={stats} accent={labels.accent} />
+        </div>
+      </OgFrame>,
+      { ...size, fonts },
+    ),
+    OG_UNCACHED_CACHE_CONTROL,
   );
 }

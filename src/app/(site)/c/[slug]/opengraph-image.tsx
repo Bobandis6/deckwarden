@@ -2,9 +2,16 @@
  * Commander hub OG image (P2.6): leader art + name + staples curve, with
  * honest shelf counts as footer chips.
  *
- * Caching intent: ISR, revalidate daily — hub data shifts once nightly at
- * ingest, matching the hub sitemap. (The page itself revalidates hourly;
- * the unfurl can lag a few hours without anyone noticing.)
+ * Caching intent: dynamic, kept by Vercel's CDN for a day and served stale
+ * for another while one re-renders (`OG_CDN_CACHE_CONTROL`) — hub data
+ * shifts once nightly at ingest, matching the hub sitemap. (The page
+ * itself revalidates hourly; the unfurl can lag a few hours without anyone
+ * noticing.) Not ISR since 2026-10-18 (the ISR write budget): this preview
+ * stored 0.7–1 MB, 89–127 of Hobby's 200K monthly ISR write units per
+ * render (five renders were 28% of one 12-hour window's writes), and every
+ * deployment starts its own empty ISR cache; CDN cache writes are free. A
+ * JPEG since the same day (src/lib/og/jpeg.ts: ~1 MB → ~80 KB). The
+ * Scryfall fetches inside keep their own daily data cache.
  */
 import { ImageResponse } from "next/og";
 
@@ -23,23 +30,15 @@ import {
   OgTitle,
 } from "@/lib/og/elements";
 import { loadOgFonts } from "@/lib/og/fonts";
+import { jpegPreview, OG_CDN_CACHE_CONTROL } from "@/lib/og/jpeg";
 import { fetchOgArt } from "@/lib/og/scryfall";
 import { ogAccent } from "@/lib/theme/tokens";
 
-export const revalidate = 86400;
-
-// ISR needs this (LATER row 69, fired in R1b): `revalidate` alone renders on
-// every request — Next treats a dynamic route as ISR only when
-// generateStaticParams exists, and an empty array means "nothing at build
-// time, everything on first request, then cached for `revalidate`". Looks
-// unused; do not delete.
-export function generateStaticParams() {
-  return [];
-}
+export const dynamic = "force-dynamic";
 
 export const alt = "Commander hub on Deckwarden";
 export const size = OG_SIZE;
-export const contentType = "image/png";
+export const contentType = "image/jpeg";
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -48,12 +47,15 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const [leader, fonts] = await Promise.all([loadLeaderBySlug(GAME_ID.mtg, slug), loadOgFonts()]);
 
   if (!leader) {
-    return new ImageResponse(
-      <OgFrame art={null}>
-        <OgGenericBody />
-        <OgFooter stats={[]} />
-      </OgFrame>,
-      { ...size, fonts },
+    return jpegPreview(
+      new ImageResponse(
+        <OgFrame art={null}>
+          <OgGenericBody />
+          <OgFooter stats={[]} />
+        </OgFrame>,
+        { ...size, fonts },
+      ),
+      OG_CDN_CACHE_CONTROL,
     );
   }
 
@@ -73,24 +75,27 @@ export default async function Image({ params }: { params: Promise<{ slug: string
     stats.push(`${combosData.total} ${combosData.total === 1 ? "combo" : "combos"}`);
   }
 
-  return new ImageResponse(
-    <OgFrame art={art}>
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <OgKicker accent={accent}>Commander hub</OgKicker>
-        <OgTitle>{leader.name}</OgTitle>
-        <OgSubtitle>Staples, curve, budget picks & combos</OgSubtitle>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        {curveBlock?.kind === "histogram" && (
-          <OgCurve
-            buckets={curveBlock.buckets.map((b) => b.value)}
-            label="Curve of staples"
-            accent={accent}
-          />
-        )}
-        <OgFooter stats={stats} accent={accent} />
-      </div>
-    </OgFrame>,
-    { ...size, fonts },
+  return jpegPreview(
+    new ImageResponse(
+      <OgFrame art={art}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <OgKicker accent={accent}>Commander hub</OgKicker>
+          <OgTitle>{leader.name}</OgTitle>
+          <OgSubtitle>Staples, curve, budget picks & combos</OgSubtitle>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {curveBlock?.kind === "histogram" && (
+            <OgCurve
+              buckets={curveBlock.buckets.map((b) => b.value)}
+              label="Curve of staples"
+              accent={accent}
+            />
+          )}
+          <OgFooter stats={stats} accent={accent} />
+        </div>
+      </OgFrame>,
+      { ...size, fonts },
+    ),
+    OG_CDN_CACHE_CONTROL,
   );
 }

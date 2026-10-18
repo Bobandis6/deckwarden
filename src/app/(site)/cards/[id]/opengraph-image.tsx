@@ -1,9 +1,14 @@
 /**
  * Card page OG image (P2.6): art + name + type line.
  *
- * Caching intent: ISR, revalidate daily — card names/art/types change only
- * at nightly ingest, matching the card sitemap. ~35k cards render lazily
- * on first unfurl, never in bulk.
+ * Caching intent: dynamic, kept by Vercel's CDN for a day and served stale
+ * for another while one re-renders (`OG_CDN_CACHE_CONTROL`) — card names,
+ * art and types change only at nightly ingest. Not ISR since 2026-10-18
+ * (the ISR write budget): a Magic card's preview stored ~1 MB, ~127 of
+ * Hobby's 200K monthly ISR write units per render, and every deployment
+ * starts its own empty ISR cache; CDN cache writes are free. A JPEG since
+ * the same day (src/lib/og/jpeg.ts: ~1 MB → ~80 KB). The Scryfall fetches
+ * inside keep their own daily data cache (explicit `next.revalidate`).
  */
 import { ImageResponse } from "next/og";
 
@@ -19,23 +24,15 @@ import {
   OgTitle,
 } from "@/lib/og/elements";
 import { loadOgFonts } from "@/lib/og/fonts";
+import { jpegPreview, OG_CDN_CACHE_CONTROL } from "@/lib/og/jpeg";
 import { fetchOgArt } from "@/lib/og/scryfall";
 import { ogAccent } from "@/lib/theme/tokens";
 
-export const revalidate = 86400;
-
-// ISR needs this (LATER row 69, fired in R1b): `revalidate` alone renders on
-// every request — Next treats a dynamic route as ISR only when
-// generateStaticParams exists, and an empty array means "nothing at build
-// time, everything on first request, then cached for `revalidate`". Looks
-// unused; do not delete.
-export function generateStaticParams() {
-  return [];
-}
+export const dynamic = "force-dynamic";
 
 export const alt = "Card on Deckwarden";
 export const size = OG_SIZE;
-export const contentType = "image/png";
+export const contentType = "image/jpeg";
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -44,12 +41,15 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   const [card, fonts] = await Promise.all([loadCardOgData(id), loadOgFonts()]);
 
   if (!card) {
-    return new ImageResponse(
-      <OgFrame art={null}>
-        <OgGenericBody />
-        <OgFooter stats={[]} />
-      </OgFrame>,
-      { ...size, fonts },
+    return jpegPreview(
+      new ImageResponse(
+        <OgFrame art={null}>
+          <OgGenericBody />
+          <OgFooter stats={[]} />
+        </OgFrame>,
+        { ...size, fonts },
+      ),
+      OG_CDN_CACHE_CONTROL,
     );
   }
 
@@ -67,18 +67,21 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     : card.isLeaderCandidate
       ? "One Piece Leader"
       : "One Piece card";
-  return new ImageResponse(
-    <OgFrame art={art}>
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <OgKicker accent={accent}>{kicker}</OgKicker>
-        <OgTitle>{card.name}</OgTitle>
-        {card.typeLine && <OgSubtitle>{card.typeLine}</OgSubtitle>}
-      </div>
-      <OgFooter
-        stats={[isMtg ? "Printings, prices, legality" : "Card text, printings, legality"]}
-        accent={accent}
-      />
-    </OgFrame>,
-    { ...size, fonts },
+  return jpegPreview(
+    new ImageResponse(
+      <OgFrame art={art}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <OgKicker accent={accent}>{kicker}</OgKicker>
+          <OgTitle>{card.name}</OgTitle>
+          {card.typeLine && <OgSubtitle>{card.typeLine}</OgSubtitle>}
+        </div>
+        <OgFooter
+          stats={[isMtg ? "Printings, prices, legality" : "Card text, printings, legality"]}
+          accent={accent}
+        />
+      </OgFrame>,
+      { ...size, fonts },
+    ),
+    OG_CDN_CACHE_CONTROL,
   );
 }

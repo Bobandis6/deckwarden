@@ -1,11 +1,18 @@
 /**
  * Card page: image, printings, prices, legality (P0.6).
  *
- * Caching intent: ISR, revalidate hourly — card data changes once nightly at
- * ingest, so pages are effectively static between runs. Rendered on first
- * request, then cached: generateStaticParams returns [] (35k cards would
- * bloat the build for no reason) — and that empty export is what makes the
- * revalidate real (LATER row 69).
+ * Caching intent: dynamic, kept by Vercel's CDN — next.config.ts sends
+ * `CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=86400`
+ * on /cards/:id, which Vercel's CDN obeys over the `private, no-store`
+ * Next sends with a dynamic page (the targeted header always wins), so a
+ * page is fresh for an hour and served stale for up to a day while the
+ * next request re-renders it: the hourly freshness the ISR route had.
+ * Card data changes once nightly at ingest. Not ISR since 2026-10-18 (the
+ * ISR write budget): every ISR render stored two writes, ~5 of Hobby's
+ * 200K monthly write units; every deployment starts its own empty ISR
+ * cache; and one crawler sweep of the 38,192 card URLs cost ~195K units
+ * (2026-10-11). CDN cache writes are free, and a render that misses the
+ * CDN costs what an ISR miss cost — one function invocation.
  *
  * Game-agnostic by construction: everything game-flavored (cost pips, subtitle,
  * rules text, stat line) comes through the adapter's display contract.
@@ -35,16 +42,7 @@ import { cn } from "@/lib/utils";
 import { getCard } from "./card";
 import { PrintingsGallery, PrintingsHero, PrintingsTable } from "./printings-gallery";
 
-export const revalidate = 3600;
-
-// ISR needs this (LATER row 69, fired in R1b): `revalidate` alone renders on
-// every request — Next treats a dynamic route as ISR only when
-// generateStaticParams exists, and an empty array means "nothing at build
-// time, everything on first request, then cached for `revalidate`". Looks
-// unused; do not delete.
-export function generateStaticParams() {
-  return [];
-}
+export const dynamic = "force-dynamic";
 
 // Light tints take the 800 shade (R6 contrast audit): the 700s measured
 // 4.22:1 (amber) and 4.08:1 (green) on their /15 tints in the light theme;
@@ -108,9 +106,9 @@ export default async function CardPage({ params }: PageProps<"/cards/[id]">) {
   // page sort above), no image URLs on the wire; "Show all" fetches the rest.
   const galleryRows = printings.slice(0, INLINE_PRINTINGS_MAX).map(toGalleryPrinting);
   // Buy link (W7): built HERE from the adapter declaration + the build-time
-  // affiliate env, then passed down as data — the route stays ● (no request-
-  // time env read on the ISR path) and no "sponsored" literal reaches the
-  // client bundle while NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE is unset.
+  // affiliate env, then passed down as data — the value is next.config.ts's
+  // build-time pin, never a request-time read, and no "sponsored" literal
+  // reaches the client bundle while NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE is unset.
   const buyCap = adapter.capabilities.buy;
   const buy = buyCap
     ? {
