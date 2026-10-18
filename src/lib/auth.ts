@@ -16,6 +16,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 
 import { getDb, schema } from "@/db";
+import { ACCOUNT_OPTIONS } from "@/lib/auth/account-options";
 import {
   narrowSignInRefresh,
   SIGN_IN_REFRESH,
@@ -70,6 +71,9 @@ export const auth = betterAuth({
       ...SIGN_IN_REFRESH,
     },
   },
+  // S2 (SECURITY-AUDIT-report.md L8): the provider tokens at rest are
+  // encrypted under the secret; account-options.ts has the legacy-row reading.
+  account: ACCOUNT_OPTIONS,
   // The chosen picture and the username ride in the session (the header
   // reads both with no server read); no client can write either.
   user: { additionalFields: USER_ADDITIONAL_FIELDS },
