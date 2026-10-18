@@ -17,20 +17,73 @@
  * words). Both shelves take the `small` rendition of each default printing
  * (One Piece's since P4.9: the mirror's WebP on img.deckwarden.gg).
  *
- * U5 (WAVE5 D6): home's hero fans the Magic index's top three as full
- * `normal` cards, and the shelf shows the NEXT six, so no image appears in
- * two sections of the page (D0). One statement still serves both: the page
- * asks `loadTopCommanders` for FAN_SIZE + SHELF_SIZE rows and `magicHome`
- * splits them.
+ * U5 (WAVE5 D6): home's hero fans three Magic commanders as full `normal`
+ * cards and the shelf shows six more, so no image appears in two sections
+ * of the page (D0). Since 2026-10-17 (the owner's call, amending D6's "top
+ * three") the fan rotates daily: the pool is the index's top POOL_SIZE,
+ * the day's three are a seeded draw over it (the seed is the UTC date, so
+ * every render of one day agrees and the fan turns over at 00:00 UTC), the
+ * highest-ranked of the three sits in the center, and the shelf is the six
+ * highest-ranked of the rest — the most-played commanders are always on the
+ * page, in the fan on their day and on the shelf otherwise. One statement
+ * still serves both: the page asks `loadTopCommanders` for POOL_SIZE rows
+ * and `magicHome` splits them. The day key comes from the page, never from
+ * a clock read in here, so the split is a pure function of rows and day.
  */
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { leaderTileImage } from "@/lib/decks/tiles";
+import { mulberry32 } from "@/lib/recommend/rng";
 
 /** Six per shelf: three by two below `lg`, one row of six from it (U5). */
 export const SHELF_SIZE = 6;
 
-/** The hero fan's cards (U5): the Magic index's top three. */
+/** The hero fan's cards (U5): three full cards, the day's draw from the pool. */
 export const FAN_SIZE = 3;
+
+/**
+ * The fan's pool (the daily rotation, 2026-10-17): the Magic index's top
+ * POOL_SIZE commanders, the LIMIT of home's one Magic statement (9 before).
+ * Wide enough that the fan reads as new most days (C(30, 3) = 4,060 fans),
+ * narrow enough that every card in it is a commander people actually play.
+ */
+export const POOL_SIZE = 30;
+
+/**
+ * The rotation's day key: the UTC calendar date as `YYYY-MM-DD`. The page
+ * passes `utcDayKey(new Date())` once per request; tests pass a literal.
+ * UTC rather than the server's zone, so every region agrees on the day and
+ * the fan turns over at 00:00 UTC for everyone at once.
+ */
+export function utcDayKey(now: Date): string {
+  return now.toISOString().slice(0, 10);
+}
+
+/** FNV-1a over the day key: a 32-bit seed for mulberry32 (W9a's generator; one PRNG in the repo). */
+function daySeed(day: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < day.length; i++) {
+    h ^= day.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/**
+ * The day's picks: `count` distinct indices below `size` by a seeded
+ * partial Fisher–Yates (one `rand()` per pick, so a fixed day and a fixed
+ * pool size give a fixed draw). Which indices, not their order: the caller
+ * walks the pool in rank order.
+ */
+function dailyPicks(size: number, count: number, day: string): Set<number> {
+  const rand = mulberry32(daySeed(day));
+  const indices = Array.from({ length: size }, (_, i) => i);
+  const n = Math.min(count, size);
+  for (let i = 0; i < n; i++) {
+    const j = i + Math.floor(rand() * (size - i));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  return new Set(indices.slice(0, n));
+}
 
 export interface MagicShelfRow {
   id: string;
@@ -75,33 +128,50 @@ export interface FanCard {
 }
 
 export interface MagicHome {
-  /** The top FAN_SIZE rows, most played first: the hero's fan. */
+  /**
+   * The day's FAN_SIZE picks from the pool in rank order: the highest-ranked
+   * first — the center card, on top (`.home-fan > :first-child`).
+   */
   fan: FanCard[];
-  /** The next SHELF_SIZE rows: the shelf never repeats a fan card. */
+  /** The SHELF_SIZE highest-ranked of the rest of the pool: the shelf never repeats a fan card. */
   shelf: MagicShelfCard[];
 }
 
-/**
- * Home's Magic rows split in rank order (U5): the fan takes the first
- * FAN_SIZE slugged rows, the shelf the SHELF_SIZE after them. Fewer rows
- * than that (a young corpus) shorten the shelf first; no row is ever in
- * both.
- */
-export function magicHome(rows: readonly MagicShelfRow[]): MagicHome {
-  const slugged = rows.filter((row) => row.slug !== null);
+function fanCard(row: MagicShelfRow): FanCard {
   return {
-    fan: slugged.slice(0, FAN_SIZE).map((row) => ({
-      id: row.id,
-      name: row.name,
-      image: row.printingId
-        ? embeddablePrintingImageUrl(
-            { id: row.printingId, imageOverride: row.imageOverride },
-            "normal",
-          )
-        : null,
-    })),
-    shelf: magicShelf(slugged.slice(FAN_SIZE, FAN_SIZE + SHELF_SIZE)),
+    id: row.id,
+    name: row.name,
+    image: row.printingId
+      ? embeddablePrintingImageUrl(
+          { id: row.printingId, imageOverride: row.imageOverride },
+          "normal",
+        )
+      : null,
   };
+}
+
+/**
+ * Home's Magic rows split for one day (U5; the daily rotation of
+ * 2026-10-17). The pool is the first POOL_SIZE slugged rows (the query
+ * orders them most played first; rows past the pool are ignored). The fan
+ * is a seeded draw of FAN_SIZE from the pool, listed in rank order, so the
+ * day's highest-ranked card is the first element — the center card, on
+ * top — and a screen reader still hears the most played first. The shelf is
+ * the SHELF_SIZE highest-ranked rows not in the fan, in rank order. Fewer
+ * rows than the pool still fill the fan first (three of five rows fan, two
+ * shelve); no row is ever in both. `day` is the UTC day key (`utcDayKey`),
+ * handed in by the page: the same rows and day always give the same split.
+ */
+export function magicHome(rows: readonly MagicShelfRow[], day: string): MagicHome {
+  const pool = rows.filter((row) => row.slug !== null).slice(0, POOL_SIZE);
+  const picks = dailyPicks(pool.length, FAN_SIZE, day);
+  const fan: FanCard[] = [];
+  const rest: MagicShelfRow[] = [];
+  pool.forEach((row, i) => {
+    if (picks.has(i)) fan.push(fanCard(row));
+    else rest.push(row);
+  });
+  return { fan, shelf: magicShelf(rest.slice(0, SHELF_SIZE)) };
 }
 
 export interface FinishLeaderRow {

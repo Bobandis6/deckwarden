@@ -1,11 +1,14 @@
 /**
- * The hero fan (U5, WAVE5 D6 section 1): the Magic index's top three
- * commanders as full `normal` cards, the most played in the center on top
- * and the next two turned −8° and +8° about their bottom edges, stepped out
- * so each overlaps the center card by about a third. The geometry is the
- * `.home-fan` rule in globals.css: 180 px tall below `md` (inside a 360 px
- * phone's gutters), 280 from it, in a box of explicit height, so nothing
- * shifts when the cards land.
+ * The hero fan (U5, WAVE5 D6 section 1): three Magic commanders as full
+ * `normal` cards — since 2026-10-17 the day's seeded draw from the index's
+ * top 30 (`magicHome` in src/lib/home/shelves.ts; D6's "top three" before),
+ * so the hero changes at 00:00 UTC — the highest-ranked of the three in the
+ * center on top and the other two turned −8° and +8° about their bottom
+ * edges, stepped out so each overlaps the center card by about a third.
+ * The cards render in array order: the first is the center. The geometry
+ * is the `.home-fan` rule in globals.css: 180 px tall below `md` (inside a
+ * 360 px phone's gutters), 280 from it, in a box of explicit height, so
+ * nothing shifts when the cards land.
  *
  * All three are `priority` (eager, fetchpriority high, React's preload, no
  * fade). D6 named the center card the LCP image, but a turned card's

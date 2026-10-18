@@ -1,8 +1,10 @@
 /**
  * The homepage leader shelves (R5a, §2 item 2): six real leader cards per
- * game region. Magic shows the commanders in the most EDHREC decklists,
- * after the hero fan's three (U5: the shelf never repeats a fan card), with
- * their `small` renditions under a serif heading and the index's honest
+ * game region. Magic shows the commanders in the most EDHREC decklists
+ * that are not in the day's hero fan (U5: the shelf never repeats a fan
+ * card; the fan rotates daily since 2026-10-17, so the shelf's six are the
+ * highest-ranked of the rest), with their `small` renditions under a serif
+ * heading and the index's honest
  * clause (decklist popularity via Scryfall, not games played: Y1's sense in
  * one clause, WAVE5 D6). One Piece shows the leaders with the most recent
  * Top finishes under a heading and a clause that names the source — the

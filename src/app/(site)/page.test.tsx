@@ -7,12 +7,16 @@
  * capabilities, the outro); the pinned strings and links smoke:seo and
  * smoke:engagement read (the H1, `/leaders`, `/cards?game=optcg`, the exact
  * Surprise me `<a>`, ♥ on the rail, no "Continue building" for a guest);
- * the fan's three cards eager and on no other section (D0); nine Magic rows
- * asked for; zero uppercase section labels; no "Open beta", Moxfield or
- * GitHub sentence left on the page.
+ * the fan's three cards eager and on no other section (D0); thirty Magic
+ * rows asked for and the fan the day's draw from them (the daily rotation
+ * of 2026-10-17: the page reads the UTC date, pinned here with a fake
+ * Date, and `magicHome` says which three); zero uppercase section labels;
+ * no "Open beta", Moxfield or GitHub sentence left on the page.
  */
 import { renderToReadableStream } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { magicHome } from "@/lib/home/shelves";
 
 const mocks = vi.hoisted(() => ({
   userId: null as string | null,
@@ -77,7 +81,7 @@ const deckRow = (i: number, extra: Record<string, unknown> = {}) => ({
   likesCount: 0,
   updatedAt: new Date("2026-10-10T12:00:00Z"),
   targetLevel: null,
-  // The rail's commander is the shelf's tenth row: never a fan or shelf card.
+  // The rail's commander is outside the twelve Magic rows: never a fan or shelf card.
   printingId: printing(20 + i),
   imageOverride: null,
   authorName: "Bobandis6",
@@ -91,10 +95,37 @@ async function renderHome(): Promise<string> {
   return new Response(stream).text();
 }
 
+/**
+ * Pins the UTC date the page reads for the fan's day key — Date alone, so
+ * React's stream keeps its real timers.
+ */
+function onUtcDay(day: string) {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(`${day}T12:00:00Z`));
+}
+
+const DAY = "2026-10-17";
+const NEXT_DAY = "2026-10-18";
+/** The fan's `alt`s and the shelf's hub slugs in a rendered home. */
+function fanAndShelf(html: string) {
+  const fanStart = html.indexOf('data-slot="hero-fan"');
+  const fan = html.slice(fanStart, html.indexOf("</div>", fanStart));
+  const rest = html.slice(html.indexOf('aria-label="Magic: The Gathering · Commander"'));
+  const shelf = rest.slice(0, rest.indexOf('aria-label="One Piece Card Game"'));
+  return {
+    fan: [...fan.matchAll(/<img[^>]*alt="([^"]*)"/g)].map((m) => m[1]),
+    shelf: [...shelf.matchAll(/href="\/c\/(commander-\d+)"/g)].map((m) => m[1]),
+  };
+}
+
 /** Every <img> src in a slice of HTML. */
 const srcs = (html: string) => [...html.matchAll(/<img[^>]*\ssrc="([^"]+)"/g)].map((m) => m[1]);
 /** The printing id an image URL derives from (Scryfall's small or normal path). */
 const printingOf = (src: string) => src.match(/\/([0-9a-f]{8}-[0-9a-f-]+)\.jpg$/)?.[1] ?? src;
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 beforeEach(() => {
   mocks.userId = null;
@@ -109,10 +140,10 @@ beforeEach(() => {
 });
 
 describe("home (U5, home B)", () => {
-  it("stays force-dynamic and asks for nine Magic rows: the fan's three and the shelf's six", async () => {
+  it("stays force-dynamic and asks for thirty Magic rows: the fan's pool, the shelf drawn from the rest", async () => {
     expect(dynamic).toBe("force-dynamic");
     await renderHome();
-    expect(mocks.loadTopCommanders).toHaveBeenCalledWith(9);
+    expect(mocks.loadTopCommanders).toHaveBeenCalledWith(30);
     expect(mocks.loadRecentFinishLeaders).toHaveBeenCalledWith(2, 6);
   });
 
@@ -163,7 +194,8 @@ describe("home (U5, home B)", () => {
     );
   });
 
-  it("the fan: the top three as eager `normal` cards, none of them on the shelf or the rail (D0)", async () => {
+  it("the fan: the day's three as eager `normal` cards, none of them on the shelf or the rail (D0)", async () => {
+    onUtcDay(DAY);
     const html = await renderHome();
     const fanStart = html.indexOf('data-slot="hero-fan"');
     const fan = html.slice(fanStart, html.indexOf("</div>", fanStart));
@@ -174,22 +206,47 @@ describe("home (U5, home B)", () => {
       expect(img).toMatch(/fetchPriority="high"|fetchpriority="high"/);
       expect(img).toMatch(/src="https:\/\/cards\.scryfall\.io\/normal\/front\//);
     }
-    expect(fanImgs.map((img) => img.match(/alt="([^"]*)"/)?.[1])).toEqual([
-      "Commander 1",
-      "Commander 2",
-      "Commander 3",
-    ]);
+    // The three are magicHome's draw for the UTC date the page read, in
+    // rank order: the first (the center card) is the highest-ranked.
+    const expected = magicHome(COMMANDERS, DAY);
+    const names = fanImgs.map((img) => img.match(/alt="([^"]*)"/)?.[1]);
+    expect(names).toEqual(expected.fan.map((c) => c.name));
+    const ranks = names.map((name) => Number(name?.slice("Commander ".length)));
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+    expect(new Set(ranks).size).toBe(3);
     const rest = html.slice(html.indexOf('aria-label="Magic: The Gathering · Commander"'));
     const restPrintings = srcs(rest).map(printingOf);
     for (const src of srcs(fan)) expect(restPrintings).not.toContain(printingOf(src));
-    // The shelf is the next six: Commanders 4 to 9, linked to their hubs.
+    // The shelf is the six highest-ranked of the rest, linked to their hubs.
     const shelf = rest.slice(0, rest.indexOf('aria-label="One Piece Card Game"'));
-    expect([...shelf.matchAll(/href="\/c\/(commander-\d+)"/g)].map((m) => m[1])).toEqual(
-      [4, 5, 6, 7, 8, 9].map((i) => `commander-${i}`),
+    const shelfSlugs = [...shelf.matchAll(/href="\/c\/(commander-\d+)"/g)].map((m) => m[1]);
+    expect(shelfSlugs).toEqual(expected.shelf.map((c) => c.href.slice("/c/".length)));
+    expect(shelfSlugs).toEqual(
+      COMMANDERS.filter((c) => !names.includes(c.name))
+        .slice(0, 6)
+        .map((c) => c.slug),
     );
     // Only the fan is eager: every other card image waits for the viewport.
     expect(srcs(rest)).not.toHaveLength(0);
     expect(rest).not.toContain('loading="eager"');
+  });
+
+  it("the fan is the day's: the next UTC date fans other cards, the shelf still never repeating one", async () => {
+    onUtcDay(DAY);
+    const today = fanAndShelf(await renderHome());
+    onUtcDay(NEXT_DAY);
+    const tomorrow = fanAndShelf(await renderHome());
+    expect(tomorrow.fan).not.toEqual(today.fan);
+    expect(tomorrow.fan).toEqual(magicHome(COMMANDERS, NEXT_DAY).fan.map((c) => c.name));
+    for (const day of [today, tomorrow]) {
+      expect(day.fan).toHaveLength(3);
+      expect(day.shelf).toHaveLength(6);
+      const fanSlugs = day.fan.map((name) => name.toLowerCase().replace(" ", "-"));
+      expect(day.shelf.some((slug) => fanSlugs.includes(slug))).toBe(false);
+    }
+    // The same date twice renders the same fan: the draw is the date's, not the request's.
+    onUtcDay(DAY);
+    expect(fanAndShelf(await renderHome())).toEqual(today);
   });
 
   it("zero uppercase section labels; serif section headings; the rail's ♥", async () => {

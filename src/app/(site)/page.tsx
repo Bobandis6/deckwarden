@@ -14,7 +14,7 @@ import { OptcgPostureLine } from "@/components/optcg-posture-line";
 import { Button } from "@/components/ui/button";
 import { GAME_ID } from "@/db/seed-data";
 import { getSessionUserId } from "@/lib/auth";
-import { FAN_SIZE, magicHome, opShelf, SHELF_SIZE } from "@/lib/home/shelves";
+import { magicHome, opShelf, POOL_SIZE, SHELF_SIZE, utcDayKey } from "@/lib/home/shelves";
 import { loadTopCommanders } from "@/lib/hub/queries";
 import { JsonLd, websiteJsonLd } from "@/lib/seo/jsonld";
 import { loadRecentFinishLeaders } from "@/lib/tournaments/queries";
@@ -31,23 +31,29 @@ import { cn } from "@/lib/utils";
  *
  * Order per D6, on the wide container with a gold hairline and 96 px
  * between sections instead of boxes: the split hero (the H1, the 15-word
- * sentence, Build a deck and Browse commanders; the fan of the top three
- * commanders, eager, the LCP from `md`) → the Magic region (the shelf
- * shows the NEXT six, so no image is on the page twice) → the One Piece
- * color field → Continue building (the visitor's own decks: the account's,
- * server-rendered, or the browser's claim tokens, client-rendered; its
- * wrapper hides while empty, so a guest without decks gets no hairline
- * and no words) → Recent public decks → What Deckwarden does → the outro.
+ * sentence, Build a deck and Browse commanders; the fan of the day's three
+ * commanders from the index's top 30, eager, the LCP from `md`) → the
+ * Magic region (the shelf shows six more, never a fan card, so no image is
+ * on the page twice) → the One Piece color field → Continue building (the
+ * visitor's own decks: the account's, server-rendered, or the browser's
+ * claim tokens, client-rendered; its wrapper hides while empty, so a guest
+ * without decks gets no hairline and no words) → Recent public decks →
+ * What Deckwarden does → the outro.
  *
  * Caching intent: force-dynamic since the rail landed (P2.3) — a deck
  * flipped private must vanish from the rail immediately. Query budget
- * (R5a, counted with DB_LOG on dev; U5 widens one LIMIT): the rail (1, with
- * the printing joined), the Magic rows (1: the fan's three and the shelf's
- * six), the One Piece shelf (1) — three statements for a guest, plus the
- * guest's client POST /api/decks/mine; a signed-in visitor adds Better
- * Auth's session lookup and one decks_owner read. Being force-dynamic is
- * what lets this PAGE read headers() for the session — the (site) layout
- * never may (the ISR routes).
+ * (R5a, counted with DB_LOG on dev; U5 widened one LIMIT to 9, the daily
+ * fan rotation of 2026-10-17 to 30): the rail (1, with the printing
+ * joined), the Magic rows (1: the index's top 30, split in code into the
+ * day's fan of three and the shelf's six — `magicHome`), the One Piece
+ * shelf (1) — three statements for a guest, plus the guest's client POST
+ * /api/decks/mine; a signed-in visitor adds Better Auth's session lookup
+ * and one decks_owner read. The fan's day is the UTC date read once per
+ * request (`utcDayKey(new Date())`) and handed to the pure split: a
+ * force-dynamic page renders per request, so the fan turns over at 00:00
+ * UTC with no cache to wait out. Being force-dynamic is what lets this
+ * PAGE read headers() for the session — the (site) layout never may (the
+ * ISR routes).
  */
 export const dynamic = "force-dynamic";
 
@@ -63,10 +69,10 @@ const SECTION_CLASS = "border-gold/30 border-t py-12";
 export default async function Home() {
   const [userId, topCommanders, finishLeaders] = await Promise.all([
     getSessionUserId(await headers()),
-    loadTopCommanders(FAN_SIZE + SHELF_SIZE),
+    loadTopCommanders(POOL_SIZE),
     loadRecentFinishLeaders(GAME_ID.optcg, SHELF_SIZE),
   ]);
-  const magic = magicHome(topCommanders);
+  const magic = magicHome(topCommanders, utcDayKey(new Date()));
 
   return (
     <main id="main" className="max-w-wide mx-auto w-full flex-1 px-4">

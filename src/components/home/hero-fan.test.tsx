@@ -2,9 +2,11 @@
  * HeroFan (U5, WAVE5 D6 section 1): three full `normal` cards, all eager and
  * high priority (the turned side cards' boxes are larger than the center
  * card's, so a lazy side card became the LCP after hydration), named by the
- * card, never links, the most played first in the DOM (the center, on
- * top); a card without an image is CardImage's named box; no cards, no
- * fan. The geometry lives in globals.css's `.home-fan` rule, pinned here
+ * card, never links, in array order — the first card is the center, on
+ * top, which is why `magicHome` lists the day's highest-ranked first (the
+ * daily rotation of 2026-10-17); a card without an image is CardImage's
+ * named box; no cards, no fan. The geometry lives in globals.css's
+ * `.home-fan` rule, pinned here
  * where a regression would hide: children rather than `img` (the fallback
  * is a <span>), an explicit box height, the side cards' drop that keeps
  * the center card off their artist and © lines, and the 180 / 280 px sizes.
@@ -31,7 +33,7 @@ const FAN = [
 ];
 
 describe("HeroFan", () => {
-  it("renders the three cards in rank order, every one eager, high priority and unfaded", () => {
+  it("renders the three cards in array order (the first is the center), every one eager, high priority and unfaded", () => {
     const { container } = render(<HeroFan cards={FAN} />);
     const fan = container.querySelector("[data-slot=hero-fan]") as HTMLElement;
     expect(fan.className).toBe("home-fan");

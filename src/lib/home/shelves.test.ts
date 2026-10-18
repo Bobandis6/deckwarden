@@ -5,8 +5,11 @@
  * finish rows and never padded with unranked leaders; no finishes at all
  * → the cold-start shelf in the query's name order with no label — and,
  * since P4.9, the mirror's small WebP on each One Piece card. U5: home's
- * Magic rows split into the hero fan (the top three, `normal`) and the
- * shelf (the next six), never sharing a card.
+ * Magic rows split into the hero fan (`normal`) and the shelf, never
+ * sharing a card; since the daily rotation (2026-10-17) the fan is the
+ * day's seeded draw of three from the top-30 pool — the same day gives the
+ * same fan and shelf, another day another fan, the highest-ranked of the
+ * three first (the center), the shelf the six highest-ranked of the rest.
  */
 import { describe, expect, it } from "vitest";
 
@@ -15,7 +18,9 @@ import {
   magicHome,
   magicShelf,
   opShelf,
+  POOL_SIZE,
   SHELF_SIZE,
+  utcDayKey,
   type FinishLeaderRow,
   type MagicShelfRow,
 } from "./shelves";
@@ -59,50 +64,124 @@ const commander = (i: number, overrides: Partial<MagicShelfRow> = {}): MagicShel
   ...overrides,
 });
 
-describe("magicHome (U5)", () => {
-  it("asks for nine rows: the fan's three and the shelf's six", () => {
-    expect([FAN_SIZE, SHELF_SIZE]).toEqual([3, 6]);
+/** `n` commanders in rank order, most played first. */
+const corpus = (n: number) => Array.from({ length: n }, (_, i) => commander(i + 1));
+const ids = (cards: readonly { id: string }[]) => cards.map((c) => c.id);
+/** A card's rank in the corpus: its 1-based position, `c7` → 7. */
+const rank = (id: string) => Number(id.slice(1));
+
+const DAY = "2026-10-17";
+const NEXT_DAY = "2026-10-18";
+
+describe("magicHome (U5; the daily rotation of 2026-10-17)", () => {
+  it("the sizes: a fan of three and a shelf of six from a pool of thirty", () => {
+    expect([FAN_SIZE, SHELF_SIZE, POOL_SIZE]).toEqual([3, 6, 30]);
   });
 
-  it("the fan takes the top three as `normal` renditions, the shelf the next six, no card in both", () => {
-    const rows = Array.from({ length: FAN_SIZE + SHELF_SIZE }, (_, i) => commander(i + 1));
-    const { fan, shelf } = magicHome(rows);
-    expect(fan.map((c) => c.name)).toEqual(["Commander 1", "Commander 2", "Commander 3"]);
-    expect(fan[0]).toEqual({
-      id: "c1",
-      name: "Commander 1",
-      image: "https://cards.scryfall.io/normal/front/0/1/01aaaaaa-0000-4000-8000-000000000000.jpg",
-    });
-    expect(shelf.map((c) => c.name)).toEqual([4, 5, 6, 7, 8, 9].map((i) => `Commander ${i}`));
-    expect(shelf[0].image).toBe(
-      "https://cards.scryfall.io/small/front/0/4/04aaaaaa-0000-4000-8000-000000000000.jpg",
+  it("the same day and rows give the same fan and shelf, every time", () => {
+    const rows = corpus(POOL_SIZE);
+    const first = magicHome(rows, DAY);
+    expect(magicHome(rows, DAY)).toEqual(first);
+    expect(magicHome([...rows], DAY)).toEqual(first);
+    expect(first.fan).toHaveLength(FAN_SIZE);
+    expect(first.shelf).toHaveLength(SHELF_SIZE);
+  });
+
+  it("another UTC day fans other cards", () => {
+    const rows = corpus(POOL_SIZE);
+    expect(ids(magicHome(rows, NEXT_DAY).fan)).not.toEqual(ids(magicHome(rows, DAY).fan));
+    // A week of fans is not one fan repeated.
+    const week = Array.from({ length: 7 }, (_, i) =>
+      ids(magicHome(rows, `2026-10-${17 + i}`).fan).join(","),
     );
-    // D0: no image on two sections of one page.
-    const fanIds = new Set(fan.map((c) => c.id));
-    expect(shelf.some((c) => fanIds.has(c.id))).toBe(false);
+    expect(new Set(week).size).toBeGreaterThan(1);
+  });
+
+  it("the fan is drawn from the pool and listed in rank order: the day's highest-ranked first (the center)", () => {
+    const rows = corpus(POOL_SIZE);
+    for (const day of [DAY, NEXT_DAY, "2026-11-01", "2027-01-01"]) {
+      const { fan } = magicHome(rows, day);
+      const ranks = ids(fan).map(rank);
+      expect(ranks).toHaveLength(3);
+      expect(new Set(ranks).size).toBe(3);
+      for (const r of ranks) expect(r).toBeLessThanOrEqual(POOL_SIZE);
+      expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+      expect(ranks[0]).toBe(Math.min(...ranks));
+    }
+  });
+
+  it("the shelf is the six highest-ranked of the rest, in rank order; no card in both (D0)", () => {
+    const rows = corpus(POOL_SIZE);
+    for (const day of [DAY, NEXT_DAY, "2026-11-01", "2027-01-01"]) {
+      const { fan, shelf } = magicHome(rows, day);
+      const fanIds = new Set(ids(fan));
+      expect(shelf.some((c) => fanIds.has(c.id))).toBe(false);
+      const expected = rows.filter((r) => !fanIds.has(r.id)).slice(0, SHELF_SIZE);
+      expect(ids(shelf)).toEqual(ids(expected));
+    }
+  });
+
+  it("renditions: the fan `normal`, the shelf `small`, both from the default printing", () => {
+    const { fan, shelf } = magicHome(corpus(POOL_SIZE), DAY);
+    for (const card of fan) {
+      const hex = rank(card.id).toString(16).padStart(2, "0");
+      expect(card).toEqual({
+        id: card.id,
+        name: `Commander ${rank(card.id)}`,
+        image: `https://cards.scryfall.io/normal/front/${hex[0]}/${hex[1]}/${hex}aaaaaa-0000-4000-8000-000000000000.jpg`,
+      });
+    }
+    for (const card of shelf) {
+      expect(card.href).toBe(`/c/commander-${rank(card.id)}`);
+      expect(card.image).toMatch(/^https:\/\/cards\.scryfall\.io\/small\/front\//);
+    }
+  });
+
+  it("rows past the pool never fan or shelve", () => {
+    const rows = corpus(POOL_SIZE + 20);
+    for (const day of [DAY, NEXT_DAY, "2026-12-25"]) {
+      const { fan, shelf } = magicHome(rows, day);
+      for (const id of [...ids(fan), ...ids(shelf)])
+        expect(rank(id)).toBeLessThanOrEqual(POOL_SIZE);
+    }
+    // Rows past the pool do not change the day's draw either.
+    expect(magicHome(rows, DAY)).toEqual(magicHome(corpus(POOL_SIZE), DAY));
   });
 
   it("an override image serves the fan as stored; no printing → null (CardImage's named box)", () => {
     const override =
       "https://cards.scryfall.io/normal/front/f/f/ffaaaaaa-0000-4000-8000-000000000000.jpg";
-    const { fan } = magicHome([
-      commander(1, { imageOverride: { front: override } }),
-      commander(2, { printingId: null }),
-    ]);
+    const { fan } = magicHome(
+      [commander(1, { imageOverride: { front: override } }), commander(2, { printingId: null })],
+      DAY,
+    );
     expect(fan.map((c) => c.image)).toEqual([override, null]);
   });
 
-  it("skips unslugged rows, and a short corpus shortens the shelf first", () => {
-    const { fan, shelf } = magicHome([
-      commander(1),
-      commander(2, { slug: null }),
-      commander(3),
-      commander(4),
-      commander(5),
-    ]);
-    expect(fan.map((c) => c.id)).toEqual(["c1", "c3", "c4"]);
-    expect(shelf.map((c) => c.id)).toEqual(["c5"]);
-    expect(magicHome([])).toEqual({ fan: [], shelf: [] });
+  it("skips unslugged rows, and a short corpus fills the fan first", () => {
+    const { fan, shelf } = magicHome(
+      [commander(1), commander(2, { slug: null }), commander(3), commander(4), commander(5)],
+      DAY,
+    );
+    // Four slugged rows: three fan (in rank order), the one left shelves.
+    expect(fan).toHaveLength(3);
+    expect(shelf).toHaveLength(1);
+    const all = [...ids(fan), ...ids(shelf)].sort();
+    expect(all).toEqual(["c1", "c3", "c4", "c5"]);
+    expect(ids(fan).map(rank)).toEqual([...ids(fan).map(rank)].sort((a, b) => a - b));
+    expect(ids(magicHome([commander(1), commander(2)], DAY).fan).sort()).toEqual(["c1", "c2"]);
+    expect(magicHome([commander(1), commander(2)], DAY).shelf).toEqual([]);
+    expect(magicHome([], DAY)).toEqual({ fan: [], shelf: [] });
+  });
+});
+
+describe("utcDayKey", () => {
+  it("is the UTC calendar date, whatever the zone the instant was written in", () => {
+    expect(utcDayKey(new Date("2026-10-17T00:00:00Z"))).toBe("2026-10-17");
+    expect(utcDayKey(new Date("2026-10-17T23:59:59.999Z"))).toBe("2026-10-17");
+    expect(utcDayKey(new Date("2026-10-18T00:00:00Z"))).toBe("2026-10-18");
+    // 8 pm in Los Angeles on the 17th is already the 18th in UTC: the fan turns there, not at local midnight.
+    expect(utcDayKey(new Date("2026-10-17T20:00:00-07:00"))).toBe("2026-10-18");
   });
 });
 
