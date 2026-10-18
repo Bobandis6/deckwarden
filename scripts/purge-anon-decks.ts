@@ -5,13 +5,20 @@
  *   - EMPTY decks (no deck_cards rows) created > 30 days ago
  *   - untouched decks (updated_at) > 12 months ago
  *
- * DRY-RUN BY DEFAULT: candidates are logged; rows are deleted only when
+ * DRY-RUN BY DEFAULT: candidates are counted; rows are deleted only when
  * PURGE_APPLY=true. The nightly workflow runs it unarmed until a human has
- * eyeballed at least one candidate log and set the PURGE_ANON_DECKS_APPLY
+ * eyeballed at least one candidate list and set the PURGE_ANON_DECKS_APPLY
  * repo variable to "true".
  *
- *   pnpm decks:purge                  # dry run
- *   PURGE_APPLY=true pnpm decks:purge # delete
+ * The report is COUNTS PER REASON (S1, SECURITY-AUDIT-report.md M2): the
+ * nightly runs in a public repository, so its log is world-readable, and a
+ * private guest deck's name or an unlisted deck's public id must never land
+ * there. The per-deck lines (internal id, public id, name) print only with
+ * PURGE_VERBOSE=1 — a local eyeballing run, never the workflow.
+ *
+ *   pnpm decks:purge                    # dry run, counts only
+ *   PURGE_VERBOSE=1 pnpm decks:purge    # dry run, one line per candidate (local)
+ *   PURGE_APPLY=true pnpm decks:purge   # delete
  */
 import { config as loadEnv } from "dotenv";
 
@@ -23,12 +30,14 @@ import { sql } from "drizzle-orm";
 import { createDb } from "../src/db";
 import { decks, deckCards, rateLimitCounters } from "../src/db/schema";
 import { deleteDecksForkSafe } from "../src/lib/decks/forks";
+import { purgeReportLines, type PurgeReason } from "../src/lib/decks/purge-report";
 
 const EMPTY_AFTER = "30 days";
 const UNTOUCHED_AFTER = "12 months";
 
 async function main() {
   const apply = process.env.PURGE_APPLY === "true";
+  const verbose = process.env.PURGE_VERBOSE === "1";
   const { client, db } = createDb();
   try {
     const candidates = await db
@@ -39,9 +48,9 @@ async function main() {
         createdAt: decks.createdAt,
         updatedAt: decks.updatedAt,
         cardRows: sql<number>`(select count(*) from ${deckCards} where ${deckCards.deckId} = ${decks.id})::int`,
-        reason: sql<string>`case
-          when ${decks.updatedAt} < now() - interval '${sql.raw(UNTOUCHED_AFTER)}' then 'untouched > ${sql.raw(UNTOUCHED_AFTER)}'
-          else 'empty > ${sql.raw(EMPTY_AFTER)}'
+        reason: sql<PurgeReason>`case
+          when ${decks.updatedAt} < now() - interval '${sql.raw(UNTOUCHED_AFTER)}' then 'untouched'
+          else 'empty'
         end`,
       })
       .from(decks)
@@ -58,13 +67,13 @@ async function main() {
         )`,
       );
 
-    console.log(
-      `purge-anon-decks: ${candidates.length} candidate(s) [empty > ${EMPTY_AFTER}, untouched > ${UNTOUCHED_AFTER}] — mode: ${apply ? "APPLY" : "dry-run"}`,
-    );
-    for (const c of candidates) {
-      console.log(
-        `  ${c.id}  ${c.publicId}  "${c.name}"  cards=${c.cardRows}  created=${c.createdAt.toISOString()}  updated=${c.updatedAt.toISOString()}  (${c.reason})`,
-      );
+    for (const line of purgeReportLines(candidates, {
+      apply,
+      verbose,
+      emptyAfter: EMPTY_AFTER,
+      untouchedAfter: UNTOUCHED_AFTER,
+    })) {
+      console.log(line);
     }
 
     if (apply && candidates.length > 0) {

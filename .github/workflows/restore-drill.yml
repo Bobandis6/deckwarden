@@ -96,7 +96,21 @@ jobs:
                  + (SELECT count(*) FROM (SELECT unnest(leader_ids) AS lid FROM decks) l LEFT JOIN identity_map m ON m.id = l.lid WHERE m.id IS NULL)
                  + (SELECT count(*) FROM (SELECT (c->>'cardId')::uuid AS cid FROM deck_versions v, jsonb_array_elements(v.cards) c) f LEFT JOIN identity_map m ON m.id = f.cid WHERE m.id IS NULL)")
           echo "restored: $DECKS deck(s), $CARDS deck_cards row(s); identity map: $MAPPED ids; dangling refs: $DANGLING"
-          psql "$SCRATCH_URL" -c "SELECT d.name, d.visibility, count(dc.card_identity_id) AS cards FROM decks d LEFT JOIN deck_cards dc ON dc.deck_id = d.id GROUP BY d.id ORDER BY d.created_at"
+          # Aggregates only (S1, SECURITY-AUDIT-report.md M2): this log is
+          # world-readable, so no deck name, id or public_id is ever printed —
+          # decks and card rows per kind and visibility, then the card-count
+          # spread over the restored decks.
+          psql "$SCRATCH_URL" -c "
+            SELECT d.kind, d.visibility, count(*) AS decks,
+                   coalesce(sum(c.cards), 0) AS cards,
+                   count(*) FILTER (WHERE c.cards IS NULL) AS empty_decks
+              FROM decks d
+              LEFT JOIN (SELECT deck_id, count(*) AS cards FROM deck_cards GROUP BY deck_id) c ON c.deck_id = d.id
+             GROUP BY d.kind, d.visibility
+             ORDER BY d.kind, d.visibility"
+          psql "$SCRATCH_URL" -c "
+            SELECT min(cards) AS min_cards, round(avg(cards), 1) AS avg_cards, max(cards) AS max_cards
+              FROM (SELECT count(*) AS cards FROM deck_cards GROUP BY deck_id) c"
           [ "$DECKS" -ge 1 ] || { echo "FAIL: no decks restored"; exit 1; }
           [ "$CARDS" -ge 1 ] || { echo "FAIL: no deck_cards restored"; exit 1; }
           [ "$DANGLING" = "0" ] || { echo "FAIL: deck rows reference ids missing from the identity map"; exit 1; }

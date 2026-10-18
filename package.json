@@ -46,7 +46,8 @@
     "counters:reset": "tsx scripts/reset-dev-counters.ts",
     "db:size": "tsx scripts/db-size.ts",
     "ruleset:watch": "tsx scripts/ruleset-watch.ts",
-    "advisories:watch": "tsx scripts/advisory-watch.ts"
+    "advisories:watch": "tsx scripts/advisory-watch.ts",
+    "sentry:probe": "tsx scripts/sentry-probe.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

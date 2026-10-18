@@ -115,6 +115,9 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      # Counts per reason only (S1, SECURITY-AUDIT-report.md M2): this log is
+      # world-readable, so PURGE_VERBOSE (the per-deck ids and names) is never
+      # set here — eyeball candidates locally with PURGE_VERBOSE=1.
       - name: Purge stale anonymous decks (dry-run until the PURGE_ANON_DECKS_APPLY repo variable is "true")
         if: ${{ !cancelled() }}
         run: pnpm decks:purge

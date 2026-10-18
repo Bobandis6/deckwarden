@@ -136,7 +136,7 @@ Full SQL sketches in Appendix A. The decisions that matter:
    - Card data: `INSERT … ON CONFLICT DO UPDATE … WHERE content_hash IS DISTINCT FROM excluded.content_hash` — unchanged cards cost nothing.
    - Prices: separate blind `UPDATE` (they change daily for most cards; never let them dirty the content hash).
 4. Post-pass (set-based SQL): soft-delete rows not seen this run (never hard-delete — decks reference identities); recompute default printing per identity, `cheapest_usd`, `popularity`, `is_leader_candidate`; **diff legalities into dated rows**; sample-verify derived image URLs, write `image_override` on mismatch.
-5. Bookkeeping: `pg_advisory_lock` around the run; one `ingest_runs` row with counts, duration, and `pg_database_size()` (the free-tier fuel gauge); `/api/health` flags price staleness > 48h.
+5. Bookkeeping: `pg_advisory_lock` around the run; one `ingest_runs` row with counts, duration, and `pg_database_size()` (the free-tier fuel gauge). (`/api/health` flagged price staleness > 48h until S1, 2026-10-18: the flag was public, uncached and read by nothing, so the route answers `{ ok, db }` only; a failed Scryfall step is the freshness signal — SECURITY-AUDIT-report.md L3.)
 
 **Spoiler seasons.** Preview cards are ingested (spoiler brewing is a traffic spike worth catching) and flagged `is_preview`; the MTG adapter turns preview+not_legal into a `NOT_RELEASED` **warning**, not an error, and the legality differ skips preview cards so ban history never records spoiler flapping. Hotlinking means placeholder→final image swaps are automatic.
 
