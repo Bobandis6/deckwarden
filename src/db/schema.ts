@@ -313,14 +313,22 @@ export const sessions = pgTable(
   (t) => [index("sessions_user").on(t.userId)],
 );
 
-/** One row per linked OAuth identity; `issuer` is better-auth's provider namespace key. */
+/**
+ * One row per linked OAuth identity, keyed by (provider_id, account_id) — the
+ * key Better Auth 1.6 used and 1.7.3 restored. `issuer` was 1.7.0–1.7.2's
+ * identity column (migration 0005, NOT NULL); the library stopped writing it
+ * in 1.7.3, so S0 (2026-10-18, migration 0019) relaxed it to nullable and
+ * moved the unique constraint to the provider key. Rows from before S0 keep
+ * their value; new rows leave it NULL. Dropping the column is a later
+ * cleanup (LATER.md).
+ */
 export const accounts = pgTable(
   "accounts",
   {
     id: uuid("id")
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    issuer: text("issuer").notNull(),
+    issuer: text("issuer"),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
     userId: uuid("user_id")
@@ -337,7 +345,7 @@ export const accounts = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    unique("accounts_issuer_account").on(t.issuer, t.accountId),
+    unique("accounts_provider_account").on(t.providerId, t.accountId),
     index("accounts_user").on(t.userId),
   ],
 );

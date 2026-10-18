@@ -155,6 +155,21 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      # The advisory watch (S0, SECURITY-AUDIT-report.md H1): the second
+      # dependency-advisory signal. `pnpm audit` reads the global GitHub
+      # Advisory Database, which a repository-published advisory reaches days
+      # later (the three next.js advisories of 2026-10-14 were still absent
+      # on 10-18, and `pnpm audit` said clean on a vulnerable version). This
+      # step reads the repository feeds of vercel/next.js and
+      # better-auth/better-auth directly and fails when one covers a version
+      # installed in this tree — a red nightly, read by a person, like the
+      # ruleset watch. github.token is enough: both repositories are public.
+      - name: Advisory watch (fails when a repository-published next.js or better-auth advisory covers an installed version)
+        if: ${{ !cancelled() }}
+        run: pnpm advisories:watch
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Workflow keepalive (GitHub disables idle scheduled workflows after 60 days)
         if: always()
         run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/nightly-ingest.yml/enable"

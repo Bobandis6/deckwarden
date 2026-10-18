@@ -1,0 +1,28 @@
+# S0 (SECURITY-AUDIT-report.md L18, half): Dependabot version updates for the
+# npm tree — one weekly pull request with every minor and patch bump grouped,
+# so the lockfile moves in one reviewed step instead of a dozen. Majors stay
+# their own pull requests (the working agreement: one major per package, with
+# `pnpm check` and a prod smoke each — LATER.md row 270).
+#
+# This file configures VERSION updates only. Dependabot ALERTS and SECURITY
+# updates are repository settings (Settings → Advanced Security → Dependabot),
+# which no file in the repository can turn on — the owner enables them in the
+# GitHub UI; `gh api repos/Bobandis6/deckwarden/vulnerability-alerts` answers
+# 204 once they are on (404 on 2026-10-18).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "11:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
