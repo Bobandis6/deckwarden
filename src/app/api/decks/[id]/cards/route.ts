@@ -12,6 +12,17 @@
  * (leader_ids, ci_mask, updated_at) update in the same transaction, via
  * src/lib/decks/save-cards.ts — shared with version restore (P3.6).
  *
+ * The write takes the deck row lock first (S4, SECURITY-AUDIT-report.md L7),
+ * like every other writer of the list — restore, fork, the journal: a restore
+ * racing an autosave used to be able to commit a merged list (each writer's
+ * delete sees only committed rows, so the second insert lands beside the
+ * first's) or fail on the primary key; under the lock the later writer waits
+ * and replaces the earlier one's list whole.
+ *
+ * Limiter order (S4, M1): the IP bucket, the ownership proof, then the
+ * per-deck bucket — requireOwnedDeckWrite; the per-deck allowance is the
+ * owner's alone now.
+ *
  * Caching intent: dynamic — a mutation; Cache-Control no-store.
  */
 import { and, eq, inArray } from "drizzle-orm";
@@ -22,12 +33,12 @@ import { getDb, schema } from "@/db";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
 import { cardListIssues, type DeckCardInput } from "@/lib/decks/cards";
 import { fetchLegalityMap } from "@/lib/decks/legality";
-import { clientIp } from "@/lib/decks/access";
-import { requireOwnedDeck } from "@/lib/decks/route-helpers";
+import { requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
 import { writeDeckCards } from "@/lib/decks/save-cards";
 import { toDeckSnapshot, toWireIssues } from "@/lib/decks/validation";
+import { lockDeck } from "@/lib/decks/versions";
 import { getAdapter } from "@/lib/games/registry";
-import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { RATE_LIMITS } from "@/lib/rate-limit";
 import type { CardData } from "@/lib/games/types";
 
 export const dynamic = "force-dynamic";
@@ -52,11 +63,10 @@ const BODY = z.object({
 
 export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/cards">) {
   const { id } = await ctx.params;
-  // Rate limit precedes auth; per-deck cap is generous — the autosave PUTs at
-  // most ~1/s debounced, far under it (P1.8 gate: never throttle the editor).
-  const limited = await enforceRateLimit(RATE_LIMITS.deckCardsPut(clientIp(request.headers), id));
-  if (limited) return limited;
-  const access = await requireOwnedDeck(request.headers, id);
+  // The IP bucket precedes auth, the per-deck one follows it (S4, M1); the
+  // per-deck cap is generous — the autosave PUTs at most ~1/s debounced, far
+  // under it (P1.8 gate: never throttle the editor).
+  const access = await requireOwnedDeckWrite(request.headers, id, RATE_LIMITS.deckCardsPut);
   if (access instanceof NextResponse) return access;
   const { deck } = access;
 
@@ -179,10 +189,13 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   );
 
   // The write + denorms live in save-cards.ts (P3.6): version restore
-  // replaces the list through the very same function.
-  const { leaderIds, ciMask, updatedAt } = await db.transaction((tx) =>
-    writeDeckCards(tx, deck.id, entries, formatDef, ciMaskByCard),
-  );
+  // replaces the list through the very same function. The deck row lock
+  // first (S4, L7): a restore, fork or game log in flight finishes before
+  // this list lands, and this list lands whole.
+  const { leaderIds, ciMask, updatedAt } = await db.transaction(async (tx) => {
+    await lockDeck(tx, deck.id);
+    return writeDeckCards(tx, deck.id, entries, formatDef, ciMaskByCard);
+  });
 
   return NextResponse.json(
     { count: entries.length, leaderIds, ciMask, updatedAt, validation },

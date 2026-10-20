@@ -14,10 +14,9 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { isUniqueViolation } from "@/db/errors";
-import { clientIp } from "@/lib/decks/access";
 import { FOLDER_LIMITS, folderMetaJson } from "@/lib/decks/folders";
-import { requireOwnedFolder } from "@/lib/decks/route-helpers";
-import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { requireOwnedFolderWrite } from "@/lib/decks/route-helpers";
+import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -34,11 +33,8 @@ const PATCH_BODY = z
 
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/folders/[id]">) {
   const { id } = await ctx.params;
-  const limited = await enforceRateLimit(
-    RATE_LIMITS.folderMetaWrite(clientIp(request.headers), id),
-  );
-  if (limited) return limited;
-  const access = await requireOwnedFolder(request.headers, id);
+  // IP bucket, ownership proof, per-folder bucket (S4, M1's order).
+  const access = await requireOwnedFolderWrite(request.headers, id, RATE_LIMITS.folderMetaWrite);
   if (access instanceof NextResponse) return access;
 
   let json: unknown;
@@ -78,11 +74,8 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/folder
 
 export async function DELETE(request: NextRequest, ctx: RouteContext<"/api/folders/[id]">) {
   const { id } = await ctx.params;
-  const limited = await enforceRateLimit(
-    RATE_LIMITS.folderMetaWrite(clientIp(request.headers), id),
-  );
-  if (limited) return limited;
-  const access = await requireOwnedFolder(request.headers, id);
+  // IP bucket, ownership proof, per-folder bucket (S4, M1's order).
+  const access = await requireOwnedFolderWrite(request.headers, id, RATE_LIMITS.folderMetaWrite);
   if (access instanceof NextResponse) return access;
 
   await getDb().delete(schema.deckFolders).where(eq(schema.deckFolders.id, access.folder.id));

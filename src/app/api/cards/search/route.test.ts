@@ -10,7 +10,7 @@
  * and the one extra statement that words an empty answer's warning.
  */
 import { drizzle } from "drizzle-orm/postgres-js";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
@@ -35,6 +35,17 @@ const fakeDb = drizzle(fakeClient as never, { schema });
 vi.mock("@/db", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/db")>()),
   getDb: () => fakeDb,
+}));
+
+// The limiter at its seam (S4, M6): its keys and order are pinned below; the
+// counting itself is src/lib/rate-limit-enforce.test.ts's.
+const limiter = { calls: [] as string[][], answer: null as NextResponse | null };
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
+  enforceRateLimit: async (limits: { key: string }[]) => {
+    limiter.calls.push(limits.map((l) => l.key));
+    return limiter.answer;
+  },
 }));
 
 const { GET } = await import("./route");
@@ -76,14 +87,62 @@ function row(r: {
   ];
 }
 
-async function get(query: string) {
-  const res = await GET(new NextRequest(`http://localhost/api/cards/search?${query}`));
+async function get(query: string, headers: Record<string, string> = {}) {
+  const res = await GET(new NextRequest(`http://localhost/api/cards/search?${query}`, { headers }));
   return { res, body: await res.json() };
 }
 
 beforeEach(() => {
   statements = [];
   answers = [];
+  limiter.calls = [];
+  limiter.answer = null;
+});
+
+describe("GET /api/cards/search — the limiter and the bounds (S4, M6)", () => {
+  it("consumes the caller's IP buckets before the query string is even parsed; a 429 runs nothing", async () => {
+    limiter.answer = NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    const { res } = await get("game=mtg&limit=nope", { "x-forwarded-for": "203.0.113.9" });
+    expect(res.status).toBe(429);
+    expect(limiter.calls).toEqual([
+      ["card-search:ip:203.0.113.9", "card-search:ip-hour:203.0.113.9"],
+    ]);
+    expect(statements).toEqual([]);
+  });
+
+  it("every honest request passes through the same buckets, once", async () => {
+    await get("game=mtg&limit=60", { "x-forwarded-for": "203.0.113.9" });
+    expect(limiter.calls).toEqual([
+      ["card-search:ip:203.0.113.9", "card-search:ip-hour:203.0.113.9"],
+    ]);
+    expect(statements).toHaveLength(1);
+  });
+
+  it("a 300-character name is a 400 naming the bound, with no statement", async () => {
+    const { res, body } = await get(`game=mtg&name=${"a".repeat(300)}&limit=60`);
+    expect(res.status).toBe(400);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(body).toEqual({
+      error: "Invalid query",
+      issues: ["name: 300 characters, the limit is 200"],
+    });
+    expect(statements).toEqual([]);
+  });
+
+  it("21 types is a 400; 20 run", async () => {
+    const twenty = Array.from({ length: 20 }, (_, i) => `T${i}`);
+    const { res } = await get(`game=mtg&type=${[...twenty, "T20"].join(",")}`);
+    expect(res.status).toBe(400);
+    expect(statements).toEqual([]);
+    const ok = await get(`game=mtg&type=${twenty.join(",")}`);
+    expect(ok.res.status).toBe(200);
+    expect(statements).toHaveLength(1);
+  });
+
+  it("a One Piece id-shaped name never reaches the translator, so it cannot be refused", async () => {
+    const { res } = await get("game=optcg&name=OP01-02&limit=20");
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("GET /api/cards/search — without a set, what it was", () => {

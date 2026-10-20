@@ -11,6 +11,19 @@
  * never throttled. Routes call `enforceRateLimit` BEFORE body parsing, so
  * malformed spam consumes quota too.
  *
+ * Order around the ownership gate (S4, SECURITY-AUDIT-report.md M1): a
+ * per-RESOURCE bucket (a deck's, a folder's) is consumed only AFTER the
+ * caller has proven ownership, through the `GatedWriteLimits` shape below
+ * and `requireOwnedDeckWrite` / `requireOwnedFolderWrite` in
+ * src/lib/decks/route-helpers.ts. Before S4 the deck routes consumed
+ * `deck-cards:deck:<uuid>` and its siblings before `requireOwnedDeck`, and a
+ * deck's uuid is public (every deck JSON, every share page), so anyone could
+ * spend an owner's per-deck allowance with tokenless 403s — 120 a minute
+ * locked the editor out of saving. The per-IP half still runs before the
+ * gate: a stranger's hammering is bounded by their own address, never by the
+ * owner's bucket. A non-uuid id is a 404 before any counter is touched (it
+ * used to mint a counter row per arbitrary id).
+ *
  * Failure mode: fail OPEN. If the counter upsert errors the write itself will
  * almost certainly fail on the same database anyway, and a broken limiter must
  * never take down legitimate saves.
@@ -25,6 +38,17 @@ export interface RateLimit {
   key: string;
   max: number;
   windowSeconds: number;
+}
+
+/**
+ * A resource write's two buckets in the order the gate consumes them (S4,
+ * M1): `ip` before the ownership proof, `resource` only after it. The
+ * resource half is the generous per-deck (per-folder) allowance that keeps
+ * honest building unthrottled; spent by the resource's owner alone.
+ */
+export interface GatedWriteLimits {
+  ip: (ip: string | null) => RateLimit[];
+  resource: (resourceId: string) => RateLimit[];
 }
 
 /** Bucket start for a fixed window (pure — unit-tested). */
@@ -45,20 +69,66 @@ export const RATE_LIMITS = {
     { key: `deck-create:ip:${ip ?? "unknown"}`, max: 10, windowSeconds: 3600 },
     { key: `deck-create:ip-day:${ip ?? "unknown"}`, max: 30, windowSeconds: 86400 },
   ],
-  /** PUT /api/decks/[id]/cards — autosave path; generous per deck token. */
-  deckCardsPut: (ip: string | null, deckId: string): RateLimit[] => [
-    { key: `deck-cards:deck:${deckId}`, max: 120, windowSeconds: 60 },
-    { key: `deck-cards:ip:${ip ?? "unknown"}`, max: 360, windowSeconds: 60 },
-  ],
-  /** PATCH/DELETE /api/decks/[id] — name autosave + rare visibility flips. */
-  deckMetaWrite: (ip: string | null, deckId: string): RateLimit[] => [
-    { key: `deck-meta:deck:${deckId}`, max: 60, windowSeconds: 60 },
-    { key: `deck-meta:ip:${ip ?? "unknown"}`, max: 180, windowSeconds: 60 },
-  ],
+  /**
+   * PUT /api/decks/[id]/cards — autosave path; generous per deck. The deck
+   * half is consumed after the ownership gate (S4, M1 — the docblock).
+   */
+  deckCardsPut: {
+    ip: (ip) => [{ key: `deck-cards:ip:${ip ?? "unknown"}`, max: 360, windowSeconds: 60 }],
+    resource: (deckId) => [{ key: `deck-cards:deck:${deckId}`, max: 120, windowSeconds: 60 }],
+  } satisfies GatedWriteLimits,
+  /** PATCH/DELETE /api/decks/[id] — name autosave + rare visibility flips; gated like deckCardsPut. */
+  deckMetaWrite: {
+    ip: (ip) => [{ key: `deck-meta:ip:${ip ?? "unknown"}`, max: 180, windowSeconds: 60 }],
+    resource: (deckId) => [{ key: `deck-meta:deck:${deckId}`, max: 60, windowSeconds: 60 }],
+  } satisfies GatedWriteLimits,
   /** POST /api/cards/resolve — one request per import paste (≤400 names). */
   cardResolve: (ip: string | null): RateLimit[] => [
     { key: `card-resolve:ip:${ip ?? "unknown"}`, max: 20, windowSeconds: 60 },
     { key: `card-resolve:ip-hour:${ip ?? "unknown"}`, max: 200, windowSeconds: 3600 },
+  ],
+  /**
+   * GET /api/cards/search (S4, SECURITY-AUDIT-report.md M6) — a trigram
+   * similarity, a full-text parse or a JSONB containment over the card
+   * corpus per request, and every distinct query string is a CDN miss, so
+   * a script walking unique URLs reached Neon with nothing in the way. The
+   * editor's search pane asks once per 200 ms-debounced keystroke pause and
+   * the /cards grid once per 250 ms-debounced filter change — a few dozen a
+   * minute at the very most — so 120/min is far above honest use and 2,000/hour bounds a
+   * scripted sweep to what the free compute absorbs. The per-value bounds
+   * (src/lib/search/translate.ts) are the other half of M6.
+   */
+  cardSearch: (ip: string | null): RateLimit[] => [
+    { key: `card-search:ip:${ip ?? "unknown"}`, max: 120, windowSeconds: 60 },
+    { key: `card-search:ip-hour:${ip ?? "unknown"}`, max: 2000, windowSeconds: 3600 },
+  ],
+  /**
+   * GET /api/cards/suggest (S4, M6) — the same shape for the dropdown's
+   * route: the edge keeps each URL an hour, so only a miss reaches this
+   * bucket, and a miss is exactly what a walk of unique strings produces.
+   * The box asks once per 150 ms-debounced pause. LATER row 118 (X2's "no
+   * limiter, a write per uncached request costs more than the query") is
+   * fired by this: the write is the price of bounding the unique-URL walk.
+   */
+  cardSuggest: (ip: string | null): RateLimit[] => [
+    { key: `card-suggest:ip:${ip ?? "unknown"}`, max: 120, windowSeconds: 60 },
+    { key: `card-suggest:ip-hour:${ip ?? "unknown"}`, max: 2000, windowSeconds: 3600 },
+  ],
+  /**
+   * /d/[publicId]/opengraph-image (S4, the deck OG route) — a force-dynamic
+   * satori + sharp render per request (~200 ms of function CPU, three Neon
+   * reads), never kept at the CDN by the privacy contract, so one share
+   * link was the cheapest way to spend Hobby's monthly function time. An
+   * unfurl is one fetch per link POSTED (Discord, Slack and Reddit cache the
+   * image per link), so 60/min from one address is unreachable by any
+   * honest crawler pool at this site's scale; over it, the standard 429
+   * with Retry-After — a crawler backs off and refetches, the link still
+   * unfurls with its title. Consumed before anything renders, the generic
+   * image included (a malformed id costs the same satori pass).
+   */
+  deckPreview: (ip: string | null): RateLimit[] => [
+    { key: `deck-preview:ip:${ip ?? "unknown"}`, max: 60, windowSeconds: 60 },
+    { key: `deck-preview:ip-hour:${ip ?? "unknown"}`, max: 600, windowSeconds: 3600 },
   ],
   /**
    * POST /api/decks/autofill (W9a) — now the app's costliest read (~2×
@@ -165,11 +235,15 @@ export const RATE_LIMITS = {
   folderCreate: (userId: string): RateLimit[] => [
     { key: `folder-create:user:${userId}`, max: 30, windowSeconds: 3600 },
   ],
-  /** PATCH/DELETE /api/folders/[id] — checked before auth, so keyed like deckMetaWrite. */
-  folderMetaWrite: (ip: string | null, folderId: string): RateLimit[] => [
-    { key: `folder-meta:folder:${folderId}`, max: 60, windowSeconds: 60 },
-    { key: `folder-meta:ip:${ip ?? "unknown"}`, max: 180, windowSeconds: 60 },
-  ],
+  /**
+   * PATCH/DELETE /api/folders/[id] — deckMetaWrite's twin: the folder half
+   * after `requireOwnedFolder`, the IP half before it (S4, M1's order — a
+   * folder's uuid reaches only its owner today, but the pattern is one).
+   */
+  folderMetaWrite: {
+    ip: (ip) => [{ key: `folder-meta:ip:${ip ?? "unknown"}`, max: 180, windowSeconds: 60 }],
+    resource: (folderId) => [{ key: `folder-meta:folder:${folderId}`, max: 60, windowSeconds: 60 }],
+  } satisfies GatedWriteLimits,
   /**
    * PUT/DELETE /api/decks/[id]/(like|bookmark) — session-only click toggles
    * (P2.3), so the principal is the user id. Generous per-minute (UI is
@@ -182,13 +256,13 @@ export const RATE_LIMITS = {
   ],
   /**
    * POST /api/decks/[id]/versions + restore/delete (P3.6) — owner writes,
-   * checked before auth like deckMetaWrite. Versions are deliberate clicks,
-   * never autosaved, so 30/min per deck is unreachable in honest use.
+   * gated like deckMetaWrite. Versions are deliberate clicks, never
+   * autosaved, so 30/min per deck is unreachable in honest use.
    */
-  deckVersionWrite: (ip: string | null, deckId: string): RateLimit[] => [
-    { key: `deck-version:deck:${deckId}`, max: 30, windowSeconds: 60 },
-    { key: `deck-version:ip:${ip ?? "unknown"}`, max: 90, windowSeconds: 60 },
-  ],
+  deckVersionWrite: {
+    ip: (ip) => [{ key: `deck-version:ip:${ip ?? "unknown"}`, max: 90, windowSeconds: 60 }],
+    resource: (deckId) => [{ key: `deck-version:deck:${deckId}`, max: 30, windowSeconds: 60 }],
+  } satisfies GatedWriteLimits,
   /**
    * POST /api/decks/[id]/fork (P3.6) — session-only, so keyed by user id;
    * the route ALSO consumes deckCreate(ip) because a fork mints a deck row

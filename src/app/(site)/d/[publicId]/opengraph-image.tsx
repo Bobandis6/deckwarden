@@ -17,9 +17,20 @@
  * at quality 80, an order of magnitude smaller per unfurl) under the same
  * header as before (`OG_UNCACHED_CACHE_CONTROL`, ImageResponse's own
  * production default): still never kept at the CDN.
+ *
+ * Rate-limited per address since S4 (SECURITY-AUDIT-report.md §7's S4
+ * paragraph, `RATE_LIMITS.deckPreview`): a dynamic satori + sharp render
+ * that no cache keeps was the cheapest way to spend the function-time
+ * budget from one share link. The bucket is consumed before anything —
+ * the generic image included — and the over-cap answer is the limiter's
+ * own 429 with Retry-After, which an unfurl crawler backs off from; the
+ * tag-revalidated cached render that would make the route cheap instead is
+ * LATER.md's design note (an ISR write per render, the budget 847e999 left).
  */
+import { headers } from "next/headers";
 import { ImageResponse } from "next/og";
 
+import { clientIp } from "@/lib/decks/access";
 import { loadDeckOgData, loadDefaultPrintingId } from "@/lib/og/data";
 import {
   OG_SIZE,
@@ -35,6 +46,7 @@ import { loadOgFonts } from "@/lib/og/fonts";
 import { jpegPreview, OG_UNCACHED_CACHE_CONTROL } from "@/lib/og/jpeg";
 import { deckOgLabels } from "@/lib/og/labels";
 import { fetchOgArt } from "@/lib/og/scryfall";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +55,11 @@ export const size = OG_SIZE;
 export const contentType = "image/jpeg";
 
 export default async function Image({ params }: { params: Promise<{ publicId: string }> }) {
+  // The address's bucket before any read or render (S4) — this is a route
+  // handler, so the request's headers are in scope.
+  const limited = await enforceRateLimit(RATE_LIMITS.deckPreview(clientIp(await headers())));
+  if (limited) return limited;
+
   const { publicId } = await params;
   // Fonts on EVERY ImageResponse, fallback branches included (W2) — a
   // branch without them would repaint in the bundled sans mid-family.

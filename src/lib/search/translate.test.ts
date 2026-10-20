@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import { mtgAdapter } from "@/lib/games/mtg/adapter";
 import type { SQL } from "drizzle-orm";
-import { translateSearch } from "./translate";
+import {
+  SEARCH_MULTISELECT_MAX_VALUES,
+  SEARCH_VALUE_MAX_CHARS,
+  translateSearch,
+} from "./translate";
 
 const dialect = new PgDialect();
 const render = (fragment: SQL) => dialect.sqlToQuery(fragment);
@@ -127,6 +131,53 @@ describe("translateSearch", () => {
   it("set (X4a): no set, no scope — the translation's shape is what it was", () => {
     const t = translateSearch(fields, { name: "sol", set: "  " });
     expect(Object.keys(t)).toEqual(["conditions", "rank", "warnings"]);
+  });
+
+  it("bounds (S4, M6): a value past 200 characters is refused — named, with no SQL built from it", () => {
+    expect(SEARCH_VALUE_MAX_CHARS).toBe(200);
+    const long = "a".repeat(300);
+    const t = translateSearch(fields, { name: long, text: long, mv: "3" });
+    expect(t.refused).toEqual([
+      "name: 300 characters, the limit is 200",
+      "text: 300 characters, the limit is 200",
+    ]);
+    expect(t.warnings).toEqual([]);
+    // Only the in-bounds filter made SQL — and none of it carries the value.
+    expect(t.conditions).toHaveLength(1);
+    expect(render(t.conditions[0]).sql).toBe('"card_identities"."cost_value" = $1');
+    expect(t.rank).toBeNull();
+  });
+
+  it("bounds (S4, M6): exactly 200 characters is inside the bound; the 201st is out", () => {
+    const edge = translateSearch(fields, { name: "b".repeat(200) });
+    expect(edge.refused).toBeUndefined();
+    expect(edge.conditions).toHaveLength(1);
+    const over = translateSearch(fields, { name: "b".repeat(201) });
+    expect(over.refused).toEqual(["name: 201 characters, the limit is 200"]);
+    expect(over.conditions).toEqual([]);
+  });
+
+  it("bounds (S4, M6): a multiselect past 20 values is refused; 20 translate", () => {
+    expect(SEARCH_MULTISELECT_MAX_VALUES).toBe(20);
+    const twenty = Array.from({ length: 20 }, (_, i) => `K${i}`);
+    const ok = translateSearch(fields, { keywords: twenty.join(",") });
+    expect(ok.refused).toBeUndefined();
+    expect(render(ok.conditions[0]).params).toEqual([JSON.stringify({ keywords: twenty })]);
+    const over = translateSearch(fields, {
+      keywords: [...twenty, "K20"].join(","),
+      type: "Creature",
+    });
+    expect(over.refused).toEqual(["keywords: 21 values, the limit is 20"]);
+    expect(over.conditions).toHaveLength(1);
+    expect(render(over.conditions[0]).sql).toBe('"card_identities"."primary_type" in ($1)');
+  });
+
+  it("bounds (S4, M6): a translation inside the bounds carries no `refused` key — its shape is what it was", () => {
+    expect(Object.keys(translateSearch(fields, { name: "sol" }))).toEqual([
+      "conditions",
+      "rank",
+      "warnings",
+    ]);
   });
 
   it("binds every user value as a parameter — nothing user-supplied lands in SQL text", () => {

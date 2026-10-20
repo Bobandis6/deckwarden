@@ -16,13 +16,13 @@ import { z } from "zod";
 import { getDb, schema } from "@/db";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
 import { getSessionUserId } from "@/lib/auth";
-import { canReadDeck, deckTokenFrom, isDeckOwner } from "@/lib/decks/access";
+import { canReadDeck, clientIp, deckTokenFrom, isDeckOwner } from "@/lib/decks/access";
 import { isFolderOwner, loadFolder, type FolderRow } from "@/lib/decks/folders";
 import type { DeckRow } from "@/lib/decks/serialize";
 import { getAdapter } from "@/lib/games/registry";
 import type { FormatDef, GameAdapter, JournalMeta } from "@/lib/games/types";
 import { JOURNAL_COPY } from "@/lib/journal/copy";
-import { enforceRateLimit, type RateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit, type GatedWriteLimits, type RateLimit } from "@/lib/rate-limit";
 
 const UUID = z.uuid();
 const NO_STORE = { "Cache-Control": "no-store" };
@@ -80,6 +80,38 @@ export async function requireOwnedDeck(
     return NextResponse.json({ error: "You don't have edit access to this deck" }, { status: 403 });
   }
   return { deck, isOwner: true };
+}
+
+/**
+ * The owner-write gate with its limiter in the audit's order (S4,
+ * SECURITY-AUDIT-report.md M1): a 404 for an id that cannot be a deck
+ * before any counter is touched; the caller's IP bucket (a stranger's
+ * hammering is bounded by their own address, 403s included); the ownership
+ * proof (404 / 403); and only then the per-deck bucket, which the deck's
+ * owner alone can reach. Before S4 the routes consumed both buckets before
+ * `requireOwnedDeck`, so anyone holding a deck's uuid — public in every deck
+ * JSON and share page — could spend the owner's per-deck allowance with
+ * tokenless 403s and lock the editor out of saving (120 a minute did it),
+ * and a non-uuid id minted a counter row per string. Every bucket still runs
+ * before the body is read, so malformed spam consumes quota too (P1.8).
+ */
+export async function requireOwnedDeckWrite(
+  headers: Headers,
+  id: string,
+  limits: GatedWriteLimits,
+  opts: { authoritative?: boolean } = {},
+): Promise<DeckContext | NextResponse> {
+  if (!UUID.safeParse(id).success) {
+    return NextResponse.json({ error: "Deck not found" }, { status: 404 });
+  }
+  const limited = await enforceRateLimit(limits.ip(clientIp(headers)));
+  if (limited) return limited;
+  const access = await requireOwnedDeck(headers, id, opts);
+  if (access instanceof NextResponse) return access;
+  // The row's id, not the URL's: one bucket per deck whatever the id's case.
+  const deckLimited = await enforceRateLimit(limits.resource(access.deck.id));
+  if (deckLimited) return deckLimited;
+  return access;
 }
 
 /**
@@ -162,6 +194,24 @@ export async function requireOwnedFolder(
     return NextResponse.json({ error: "This folder isn't yours" }, { status: 403 });
   }
   return { folder };
+}
+
+/** requireOwnedDeckWrite's folder twin (S4, M1): the same order, the session as the only proof. */
+export async function requireOwnedFolderWrite(
+  headers: Headers,
+  id: string,
+  limits: GatedWriteLimits,
+): Promise<{ folder: FolderRow } | NextResponse> {
+  if (!UUID.safeParse(id).success) {
+    return NextResponse.json({ error: "Folder not found" }, { status: 404 });
+  }
+  const limited = await enforceRateLimit(limits.ip(clientIp(headers)));
+  if (limited) return limited;
+  const access = await requireOwnedFolder(headers, id);
+  if (access instanceof NextResponse) return access;
+  const folderLimited = await enforceRateLimit(limits.resource(access.folder.id));
+  if (folderLimited) return folderLimited;
+  return access;
 }
 
 /**

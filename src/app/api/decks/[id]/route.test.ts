@@ -122,12 +122,18 @@ describe("PATCH {goals} (Y4b)", () => {
     expect(json.deck.updatedAt).toBe(UPDATED);
   });
 
-  it("the same per-deck bucket as the meta PATCH, checked before anything else", async () => {
+  it("the same buckets as the meta PATCH: the IP's before anything else, the deck's only after the proof (S4, M1)", async () => {
     limiter.answer = NextResponse.json({ error: "Too many requests" }, { status: 429 });
     const res = await PATCH(patch({ goals }), ctx);
     expect(res.status).toBe(429);
-    expect(limiter.calls).toEqual([[`deck-meta:deck:${DECK}`, "deck-meta:ip:unknown"]]);
+    expect(limiter.calls).toEqual([["deck-meta:ip:unknown"]]);
     expect(statements).toEqual([]);
+
+    limiter.calls = [];
+    limiter.answer = null;
+    answers = [[deckRow()], [deckRow({ goals })]];
+    await PATCH(patch({ goals }), ctx);
+    expect(limiter.calls).toEqual([["deck-meta:ip:unknown"], [`deck-meta:deck:${DECK}`]]);
   });
 
   it("a meta key alongside goals moves updated_at, as every meta PATCH always has", async () => {

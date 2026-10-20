@@ -29,15 +29,15 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
-import { clientIp, deckTokenFrom } from "@/lib/decks/access";
+import { deckTokenFrom } from "@/lib/decks/access";
 import { getSessionUserId } from "@/lib/auth";
 import { deckOwnedForViewer } from "@/lib/collection/owned";
 import { loadFolder } from "@/lib/decks/folders";
 import { deleteDecksForkSafe, forkCredit } from "@/lib/decks/forks";
 import { goalsSchema, normalizeGoals, type DeckGoals } from "@/lib/decks/goals";
-import { deckFormat, requireOwnedDeck, requireReadableDeck } from "@/lib/decks/route-helpers";
+import { deckFormat, requireOwnedDeckWrite, requireReadableDeck } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
-import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -98,11 +98,10 @@ function patchBody(brackets: Parameters<typeof goalsSchema>[0]) {
 
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/[id]">) {
   const { id } = await ctx.params;
-  // Rate limit precedes auth so unauthenticated hammering is bounded too;
-  // per-deck generosity covers the name autosave (~1/s debounced).
-  const limited = await enforceRateLimit(RATE_LIMITS.deckMetaWrite(clientIp(request.headers), id));
-  if (limited) return limited;
-  const access = await requireOwnedDeck(request.headers, id);
+  // The IP bucket precedes auth so unauthenticated hammering is bounded too;
+  // the per-deck bucket follows the ownership proof (S4, M1), and its
+  // generosity covers the name autosave (~1/s debounced).
+  const access = await requireOwnedDeckWrite(request.headers, id, RATE_LIMITS.deckMetaWrite);
   if (access instanceof NextResponse) return access;
 
   let json: unknown;
@@ -157,11 +156,12 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/
 
 export async function DELETE(request: NextRequest, ctx: RouteContext<"/api/decks/[id]">) {
   const { id } = await ctx.params;
-  const limited = await enforceRateLimit(RATE_LIMITS.deckMetaWrite(clientIp(request.headers), id));
-  if (limited) return limited;
   // Authoritative (S3): the session is read from the database, not the
   // 5-minute cookie cache — a session revoked elsewhere cannot delete a deck.
-  const access = await requireOwnedDeck(request.headers, id, { authoritative: true });
+  // Limiter order per S4 (M1): IP bucket, proof, per-deck bucket.
+  const access = await requireOwnedDeckWrite(request.headers, id, RATE_LIMITS.deckMetaWrite, {
+    authoritative: true,
+  });
   if (access instanceof NextResponse) return access;
 
   await deleteDecksForkSafe(getDb(), [access.deck.id]);

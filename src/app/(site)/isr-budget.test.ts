@@ -33,6 +33,13 @@ vi.mock("@/lib/hub/queries", () => ({
   loadStaples: vi.fn(),
 }));
 vi.mock("@/lib/og/scryfall", () => ({ fetchOgArt: mocks.fetchOgArt }));
+// The deck preview reads the request's headers for its limiter (S4); both
+// are outside this test's subject (d/[publicId]/opengraph-image.test.ts).
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
+  enforceRateLimit: async () => null,
+}));
 
 const cardPage = await import("./cards/[id]/page");
 const cardPreview = await import("./cards/[id]/opengraph-image");

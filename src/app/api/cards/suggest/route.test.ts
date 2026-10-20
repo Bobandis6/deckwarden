@@ -8,7 +8,7 @@
  * live acceptance table ran against the database (WAVE3.md X2 ship note).
  */
 import { drizzle } from "drizzle-orm/postgres-js";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
@@ -33,6 +33,17 @@ const fakeDb = drizzle(fakeClient as never, { schema });
 vi.mock("@/db", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/db")>()),
   getDb: () => fakeDb,
+}));
+
+// The limiter at its seam (S4, M6; LATER row 118 fired): keys and order
+// pinned here, the counting in src/lib/rate-limit-enforce.test.ts.
+const limiter = { calls: [] as string[][], answer: null as NextResponse | null };
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
+  enforceRateLimit: async (limits: { key: string }[]) => {
+    limiter.calls.push(limits.map((l) => l.key));
+    return limiter.answer;
+  },
 }));
 
 const { GET } = await import("./route");
@@ -66,14 +77,37 @@ function row(r: {
 
 const SOL_PRINTING = "5bef0790-aa1b-4144-8391-338e59e86115";
 
-async function get(query: string) {
-  const res = await GET(new NextRequest(`http://localhost/api/cards/suggest?${query}`));
+async function get(query: string, headers: Record<string, string> = {}) {
+  const res = await GET(
+    new NextRequest(`http://localhost/api/cards/suggest?${query}`, { headers }),
+  );
   return { res, body: await res.json() };
 }
 
 beforeEach(() => {
   statements = [];
   answers = [];
+  limiter.calls = [];
+  limiter.answer = null;
+});
+
+describe("GET /api/cards/suggest — the limiter (S4, M6)", () => {
+  it("consumes the caller's IP buckets first; a 429 parses nothing and runs nothing", async () => {
+    limiter.answer = NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    const { res } = await get("game=mtg&q=sol", { "x-forwarded-for": "203.0.113.9" });
+    expect(res.status).toBe(429);
+    expect(limiter.calls).toEqual([
+      ["card-suggest:ip:203.0.113.9", "card-suggest:ip-hour:203.0.113.9"],
+    ]);
+    expect(statements).toEqual([]);
+  });
+
+  it("the empty answer (under two characters) still passes the bucket — it is a request like any other", async () => {
+    const { res } = await get("game=mtg&q=s", { "x-forwarded-for": "203.0.113.9" });
+    expect(res.status).toBe(200);
+    expect(limiter.calls).toHaveLength(1);
+    expect(statements).toEqual([]);
+  });
 });
 
 describe("GET /api/cards/suggest", () => {

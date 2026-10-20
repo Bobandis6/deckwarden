@@ -22,14 +22,19 @@
  * for that URL every time.
  *
  * Statements: one; two only when the trigram pass (class 5) runs; none for
- * the empty answer. No rate limit (WAVE3.md A, LATER row 118): the edge
- * absorbs repeats, and a limiter would cost a database write per uncached
- * request — more than the 1–2 ms query it guards.
+ * the empty answer. The caller's IP bucket (`cardSuggest`) is consumed
+ * first, before the query string is parsed (S4, SECURITY-AUDIT-report.md
+ * M6; LATER row 118 fired): X2 shipped the route without a limiter because
+ * the edge absorbs repeats and a counter write costs more than the 1–2 ms
+ * query — but a miss is exactly what a walk of unique strings produces, and
+ * the write per uncached request is the price of bounding it.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getDb } from "@/db";
+import { clientIp } from "@/lib/decks/access";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { loadSuggestions } from "@/lib/search/suggest";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +49,9 @@ const QUERY = z.object({
 const SUGGEST_CACHE_CONTROL = "public, s-maxage=3600, stale-while-revalidate=86400";
 
 export async function GET(request: NextRequest) {
+  const limited = await enforceRateLimit(RATE_LIMITS.cardSuggest(clientIp(request.headers)));
+  if (limited) return limited;
+
   const parsed = QUERY.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsed.success) {
     return NextResponse.json(

@@ -15,11 +15,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getDb } from "@/db";
-import { clientIp } from "@/lib/decks/access";
-import { requireOwnedDeck } from "@/lib/decks/route-helpers";
+import { requireOwnedDeck, requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
 import { cardNamesById, deleteVersion, loadVersion, parseVersionParam } from "@/lib/decks/versions";
 import { JOURNAL_COPY } from "@/lib/journal/copy";
-import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -58,11 +57,8 @@ export async function DELETE(
   if (version === null) {
     return NextResponse.json({ error: "Version not found" }, { status: 404, headers: NO_STORE });
   }
-  const limited = await enforceRateLimit(
-    RATE_LIMITS.deckVersionWrite(clientIp(request.headers), id),
-  );
-  if (limited) return limited;
-  const access = await requireOwnedDeck(request.headers, id);
+  // IP bucket, ownership proof, per-deck bucket (S4, M1).
+  const access = await requireOwnedDeckWrite(request.headers, id, RATE_LIMITS.deckVersionWrite);
   if (access instanceof NextResponse) return access;
 
   const deleted = await deleteVersion(access.deck.id, version);

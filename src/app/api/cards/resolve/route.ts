@@ -29,6 +29,7 @@ import { clientIp } from "@/lib/decks/access";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import type { LegalityEntry } from "@/lib/games/types";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { escapeLike } from "@/lib/search/name-match";
 
 export const dynamic = "force-dynamic";
 
@@ -128,9 +129,13 @@ export async function POST(request: NextRequest) {
   if (misses.length > 0) {
     const missSet = new Set(misses);
     // Drizzle binds a JS array as one scalar param — build the ARRAY[] literal
-    // from individual params so LIKE ANY sees a real text[].
+    // from individual params so LIKE ANY sees a real text[]. The pasted name
+    // is escaped (S4, the audit's resolver note): "%" and "_" survive the
+    // normalizer, and unescaped they were wildcards — "_____" (an Unhinged
+    // card) matched every five-letter front face and a "%" anything — a
+    // wider scan whose false positives only the JS split check threw away.
     const patterns = sql.join(
-      misses.map((m) => sql`${m + " %"}`),
+      misses.map((m) => sql`${escapeLike(m) + " %"}`),
       sql`, `,
     );
     const rows = await wireSelect(db).where(

@@ -23,9 +23,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getDb } from "@/db";
-import { clientIp } from "@/lib/decks/access";
 import { LIST_HASH_PREFIX, playableListHash } from "@/lib/decks/list-hash";
-import { requireOwnedDeck } from "@/lib/decks/route-helpers";
+import { requireOwnedDeck, requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
 import {
   listVersions,
   loadVersion,
@@ -37,7 +36,7 @@ import {
 } from "@/lib/decks/versions";
 import { loadRecordCells } from "@/lib/journal/games";
 import { tallyByVersion } from "@/lib/journal/record";
-import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -83,11 +82,8 @@ const POST_BODY = z.object({
 
 export async function POST(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/versions">) {
   const { id } = await ctx.params;
-  const limited = await enforceRateLimit(
-    RATE_LIMITS.deckVersionWrite(clientIp(request.headers), id),
-  );
-  if (limited) return limited;
-  const access = await requireOwnedDeck(request.headers, id);
+  // IP bucket, ownership proof, per-deck bucket (S4, M1).
+  const access = await requireOwnedDeckWrite(request.headers, id, RATE_LIMITS.deckVersionWrite);
   if (access instanceof NextResponse) return access;
 
   let json: unknown = {};

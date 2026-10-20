@@ -13,10 +13,9 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 
-import { clientIp } from "@/lib/decks/access";
-import { deckFormat, requireOwnedDeck } from "@/lib/decks/route-helpers";
+import { deckFormat, requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
 import { MAX_VERSIONS_PER_DECK, parseVersionParam, restoreVersion } from "@/lib/decks/versions";
-import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +30,8 @@ export async function POST(
   if (version === null) {
     return NextResponse.json({ error: "Version not found" }, { status: 404, headers: NO_STORE });
   }
-  const limited = await enforceRateLimit(
-    RATE_LIMITS.deckVersionWrite(clientIp(request.headers), id),
-  );
-  if (limited) return limited;
-  const access = await requireOwnedDeck(request.headers, id);
+  // IP bucket, ownership proof, per-deck bucket (S4, M1).
+  const access = await requireOwnedDeckWrite(request.headers, id, RATE_LIMITS.deckVersionWrite);
   if (access instanceof NextResponse) return access;
 
   const resolved = deckFormat(access.deck);

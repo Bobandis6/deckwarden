@@ -18,6 +18,16 @@
  *   colorset    ci=within:WUG | colors=including:R | ci=exactly:WU
  *               (bare masks default to `within` — the deck-building question)
  *   set         set=blb                          (one code, any case; X4a)
+ *
+ * Bounds (S4, SECURITY-AUDIT-report.md M6): a value longer than
+ * SEARCH_VALUE_MAX_CHARS, or a multiselect with more than
+ * SEARCH_MULTISELECT_MAX_VALUES values, is REFUSED — named in `refused`,
+ * with no SQL built from it — rather than dropped with a warning: a dropped
+ * name would answer the unfiltered first page, and the route turns a refusal
+ * into a 400 so an oversize request costs no statement. Every real value is
+ * far inside the bounds (the longest Magic name is 141 characters; the
+ * widest option list the /cards filters can tick is the keywords', and 20
+ * of them narrows to nothing).
  */
 import { and, eq, exists, inArray, sql, type Column, type SQL } from "drizzle-orm";
 import { alias, QueryBuilder } from "drizzle-orm/pg-core";
@@ -69,7 +79,18 @@ export interface SearchTranslation {
    * the route's hand-built id-pass translation keeps its shape.
    */
   scope?: SetScope;
+  /**
+   * S4 (M6): values past the bounds, one line each ("name: 300 characters,
+   * the limit is 200"); no SQL was built from them. Present only when there
+   * is one, so a translation within the bounds keeps its shape.
+   */
+  refused?: string[];
 }
+
+/** The longest filter value the translator accepts (S4, M6). */
+export const SEARCH_VALUE_MAX_CHARS = 200;
+/** The most values one multiselect filter accepts (S4, M6). */
+export const SEARCH_MULTISELECT_MAX_VALUES = 20;
 
 /**
  * A set code's shape. Magic codes are 3–6 lowercase letters and digits
@@ -133,12 +154,19 @@ export function translateSearch(
 ): SearchTranslation {
   const conditions: SQL[] = [];
   const warnings: string[] = [];
+  const refused: string[] = [];
   let rank: SQL | null = null;
   let scope: SetScope | undefined;
 
   for (const field of fields) {
     const raw = params[field.key]?.trim();
     if (!raw) continue;
+    if (raw.length > SEARCH_VALUE_MAX_CHARS) {
+      refused.push(
+        `${field.key}: ${raw.length} characters, the limit is ${SEARCH_VALUE_MAX_CHARS}`,
+      );
+      continue;
+    }
 
     switch (field.kind) {
       case "text": {
@@ -201,6 +229,12 @@ export function translateSearch(
           .map((v) => v.trim())
           .filter(Boolean);
         if (!values.length) break;
+        if (values.length > SEARCH_MULTISELECT_MAX_VALUES) {
+          refused.push(
+            `${field.key}: ${values.length} values, the limit is ${SEARCH_MULTISELECT_MAX_VALUES}`,
+          );
+          break;
+        }
         if ("column" in field.target) {
           // 'all' over a scalar column can never match more than one value; treat as any.
           const column = COLUMNS[field.target.column];
@@ -270,5 +304,11 @@ export function translateSearch(
     }
   }
 
-  return { conditions, rank, warnings, ...(scope ? { scope } : {}) };
+  return {
+    conditions,
+    rank,
+    warnings,
+    ...(scope ? { scope } : {}),
+    ...(refused.length ? { refused } : {}),
+  };
 }

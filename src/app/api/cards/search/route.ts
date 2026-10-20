@@ -45,6 +45,16 @@
  * honest empty result with a warning. Without a set the SQL, the rows and
  * the bytes are what they were — the default order, the row shape and the
  * One Piece id pass included (pinned by route.test.ts).
+ *
+ * Bounds and a limiter (S4, SECURITY-AUDIT-report.md M6): the translator
+ * refuses a filter value past SEARCH_VALUE_MAX_CHARS or a multiselect past
+ * SEARCH_MULTISELECT_MAX_VALUES — the route answers 400 with the refusals
+ * and runs no statement, because dropping the value would answer the
+ * unfiltered first page instead (the widening the set case refuses too) —
+ * and every request consumes the caller's IP bucket (`cardSearch`) before
+ * the query string is even parsed, as the sibling routes do: each distinct
+ * query string is a CDN miss, so without it a walk of unique URLs reached
+ * Neon with nothing in the way.
  */
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
@@ -54,8 +64,10 @@ import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { searchIdPrefix } from "@/lib/cards/resolve-token";
+import { clientIp } from "@/lib/decks/access";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import { getAdapter } from "@/lib/games/registry";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { nameFieldKey, nameMatchOrder, parseNameQuery } from "@/lib/search/name-match";
 import { translateSearch, type SearchTranslation } from "@/lib/search/translate";
 import { loadSetStatus, type SetStatus } from "@/lib/sets/queries";
@@ -83,6 +95,9 @@ const SET_STATUS_WARNING: Record<Exclude<SetStatus, "released">, (code: string) 
 };
 
 export async function GET(request: NextRequest) {
+  const limited = await enforceRateLimit(RATE_LIMITS.cardSearch(clientIp(request.headers)));
+  if (limited) return limited;
+
   const params = Object.fromEntries(request.nextUrl.searchParams);
   const parsed = QUERY.safeParse(params);
   if (!parsed.success) {
@@ -107,6 +122,12 @@ export async function GET(request: NextRequest) {
     idPrefix !== null
       ? { conditions: [sql`${ci.externalKey} LIKE ${idPrefix + "%"}`], rank: null, warnings: [] }
       : translateSearch(adapter.searchFields, params);
+  if (translation.refused?.length) {
+    return NextResponse.json(
+      { error: "Invalid query", issues: translation.refused },
+      { status: 400, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const { conditions, rank, warnings, scope } = translation;
 
   // X4a: the set's printing of every card, only when scoped (docblock).
