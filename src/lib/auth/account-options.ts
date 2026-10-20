@@ -33,3 +33,25 @@ import type { BetterAuthOptions } from "better-auth";
 export const ACCOUNT_OPTIONS = {
   encryptOAuthTokens: true,
 } as const satisfies NonNullable<BetterAuthOptions["account"]>;
+
+type AccountHooks = NonNullable<NonNullable<BetterAuthOptions["databaseHooks"]>["account"]>;
+
+/**
+ * S3 (LATER.md row 278, fired): the id token never reaches the row. Google
+ * issues one on every sign-in — a signed JWT carrying the subject, email,
+ * name and picture — and 1.7.10 writes `idToken` as the provider sent it on
+ * every path (sign-up, link, the sign-in refresh), outside `encryptOAuthTokens`.
+ * The app never reads it (`/account-info` is closed), so the account hooks
+ * below replace it with null on every account write: a new row stores none,
+ * and a row from before S3 loses its plaintext token at its owner's next
+ * sign-in (the refresh writes `idToken` again, and the hook nulls it). An
+ * explicit null, not undefined: the adapter skips an undefined key on an
+ * update, which would have left the legacy value in place. Pinned against the
+ * library in account-id-token.test.ts.
+ */
+export const dropIdToken = async () => ({ data: { idToken: null } });
+
+export const ACCOUNT_HOOKS = {
+  create: { before: dropIdToken },
+  update: { before: dropIdToken },
+} satisfies AccountHooks;

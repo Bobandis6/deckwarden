@@ -298,9 +298,12 @@ export async function enforceRateLimit(limits: RateLimit[]): Promise<NextRespons
  *
  * Cost note: only real HTTP requests to /api/auth/* pass through better-auth's
  * router (where the limiter runs) — server-side auth.api.getSession calls on
- * SSR renders never do — so this is one upsert per client auth call, not per
- * page view. Fail-open like enforceRateLimit: sign-in must never die on a
- * limiter error.
+ * SSR renders never do — and the one client call every page view makes, the
+ * header's GET /get-session, is exempt from the limiter (S3,
+ * SECURITY-AUDIT-report.md L21: src/lib/auth/limiter-rules.ts; before that it
+ * was one upsert per page view by every visitor). So this is one upsert per
+ * sign-in, sign-out or other client auth call. Fail-open like
+ * enforceRateLimit: sign-in must never die on a limiter error.
  */
 export const betterAuthRateLimitStorage = {
   async consume(

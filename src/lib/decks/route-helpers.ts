@@ -64,13 +64,19 @@ export async function requireReadableDeck(
   return { deck, isOwner: isDeckOwner(deck, token, userId) };
 }
 
+/**
+ * `authoritative` (S3) reads the session from the database instead of the
+ * 5-minute cookie cache — for the deck DELETE, so a session revoked elsewhere
+ * cannot act within the cache window. The guest token path is unchanged.
+ */
 export async function requireOwnedDeck(
   headers: Headers,
   id: string,
+  opts: { authoritative?: boolean } = {},
 ): Promise<DeckContext | NextResponse> {
   const deck = await loadDeck(id);
   if (!deck) return NextResponse.json({ error: "Deck not found" }, { status: 404 });
-  if (!isDeckOwner(deck, deckTokenFrom(headers), await getSessionUserId(headers))) {
+  if (!isDeckOwner(deck, deckTokenFrom(headers), await getSessionUserId(headers, opts))) {
     return NextResponse.json({ error: "You don't have edit access to this deck" }, { status: 403 });
   }
   return { deck, isOwner: true };

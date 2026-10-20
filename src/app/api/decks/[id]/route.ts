@@ -159,7 +159,9 @@ export async function DELETE(request: NextRequest, ctx: RouteContext<"/api/decks
   const { id } = await ctx.params;
   const limited = await enforceRateLimit(RATE_LIMITS.deckMetaWrite(clientIp(request.headers), id));
   if (limited) return limited;
-  const access = await requireOwnedDeck(request.headers, id);
+  // Authoritative (S3): the session is read from the database, not the
+  // 5-minute cookie cache — a session revoked elsewhere cannot delete a deck.
+  const access = await requireOwnedDeck(request.headers, id, { authoritative: true });
   if (access instanceof NextResponse) return access;
 
   await deleteDecksForkSafe(getDb(), [access.deck.id]);

@@ -33,7 +33,9 @@ const BODY = z.object({
 });
 
 export async function DELETE(request: NextRequest) {
-  const userId = await getSessionUserId(request.headers);
+  // Authoritative (S3): the session is read from the database, not the
+  // 5-minute cookie cache — a session revoked elsewhere cannot delete an account.
+  const userId = await getSessionUserId(request.headers, { authoritative: true });
   if (!userId) {
     return NextResponse.json(
       { error: "Sign in to delete your account" },

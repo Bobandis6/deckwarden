@@ -34,6 +34,10 @@
  * is read from the users row, not the session: the session cookie caches
  * the user for up to 5 minutes, and Save's router.refresh() must show the
  * new choice at once.
+ *
+ * S3 (SECURITY-AUDIT-report.md M4): a sign-in that did not finish comes back
+ * here as `/account?error=<code>` (src/lib/auth.ts, onAPIError) and the
+ * signed-out view explains it in one sentence (sign-in-error.ts).
  */
 import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
 import { ArrowRightIcon, FolderIcon } from "lucide-react";
@@ -63,6 +67,7 @@ import { Toaster } from "@/components/ui/toast";
 import { getDb, schema } from "@/db";
 import { auth } from "@/lib/auth";
 import { safeNextPath } from "@/lib/auth/next-path";
+import { signInErrorMessage } from "@/lib/auth/sign-in-error";
 import { collectionSummary } from "@/lib/collection/owned";
 import { formatLabel, updatedLabel } from "@/lib/decks/display";
 import { readGoals } from "@/lib/decks/goals";
@@ -133,6 +138,9 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
   ]);
   // null for a missing, repeated or unsafe value — the page is then plain /account.
   const next = safeNextPath(params.next);
+  // S3: the OAuth callback lands here with `?error=<code>` when a sign-in did
+  // not finish; the sentence comes from an allowlist, never the raw value.
+  const signInError = signInErrorMessage(params.error);
 
   if (!session) {
     return (
@@ -145,6 +153,9 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
           An account keeps your decks across browsers and devices. Decks you built on this browser
           come along automatically when you sign in.
         </p>
+        {signInError && (
+          <p className="text-destructive max-w-md text-center text-sm">{signInError}</p>
+        )}
         <SignInButtons next={next} />
         <BrowserDecks />
       </main>

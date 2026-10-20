@@ -16,12 +16,19 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 
 import { getDb, schema } from "@/db";
-import { ACCOUNT_OPTIONS } from "@/lib/auth/account-options";
+import { ACCOUNT_HOOKS, ACCOUNT_OPTIONS } from "@/lib/auth/account-options";
+import { AUTH_RATE_LIMIT_RULES } from "@/lib/auth/limiter-rules";
+import { SESSION_PAYLOAD_HOOKS } from "@/lib/auth/session-payload";
 import {
   narrowSignInRefresh,
   SIGN_IN_REFRESH,
   USER_ADDITIONAL_FIELDS,
 } from "@/lib/auth/user-fields";
+import {
+  OAUTH_ERROR_LANDING,
+  refuseUnverifiedUserInsert,
+  REQUIRE_VERIFIED_EMAIL,
+} from "@/lib/auth/verified-email";
 import { AUTH_DISABLED_PATHS } from "@/lib/auth-disabled-paths";
 import { betterAuthRateLimitStorage } from "@/lib/rate-limit";
 
@@ -59,16 +66,21 @@ export const auth = betterAuth({
   // X5: every sign-in refreshes the provider picture (a stale Discord URL
   // heals by signing in again) — and ONLY the picture: the hook below drops
   // the name and the email from that write (user-fields.ts has the why).
+  // S3 (SECURITY-AUDIT-report.md M4): requireEmailVerification is the second
+  // lock on an unverified provider email — the first is the user-create hook
+  // below; verified-email.ts has why neither is enough alone.
   socialProviders: {
     discord: {
       clientId: requireEnv("DISCORD_CLIENT_ID"),
       clientSecret: requireEnv("DISCORD_CLIENT_SECRET"),
       ...SIGN_IN_REFRESH,
+      ...REQUIRE_VERIFIED_EMAIL,
     },
     google: {
       clientId: requireEnv("GOOGLE_CLIENT_ID"),
       clientSecret: requireEnv("GOOGLE_CLIENT_SECRET"),
       ...SIGN_IN_REFRESH,
+      ...REQUIRE_VERIFIED_EMAIL,
     },
   },
   // S2 (SECURITY-AUDIT-report.md L8): the provider tokens at rest are
@@ -77,7 +89,23 @@ export const auth = betterAuth({
   // The chosen picture and the username ride in the session (the header
   // reads both with no server read); no client can write either.
   user: { additionalFields: USER_ADDITIONAL_FIELDS },
-  databaseHooks: { user: { update: { before: narrowSignInRefresh } } },
+  // The user create hook refuses a `users` row without a verified email (S3,
+  // M4); the update hook narrows the sign-in refresh to the picture (X5). The
+  // account pair keeps the provider's id token out of `accounts` (S3, LATER
+  // row 278 — account-options.ts).
+  databaseHooks: {
+    user: {
+      create: { before: refuseUnverifiedUserInsert },
+      update: { before: narrowSignInRefresh },
+    },
+    account: ACCOUNT_HOOKS,
+  },
+  // S3: a failed OAuth callback lands on /account, which explains the code in
+  // one sentence (sign-in-error.ts) — not on Better Auth's own error page.
+  onAPIError: OAUTH_ERROR_LANDING,
+  // S3 (SECURITY-AUDIT-report.md L9): /get-session and /list-sessions answer
+  // without the session token, IP address and user agent.
+  hooks: SESSION_PAYLOAD_HOOKS,
   session: {
     // Signed cookie cache: deck routes check the session without a DB read
     // for up to 5 minutes (Neon compute is a budget); sign-out revocation lag
@@ -87,11 +115,14 @@ export const auth = betterAuth({
   rateLimit: {
     // Better-auth only enables this in production by default — forced on so
     // dev and previews exercise the same 429 paths. Rules stay stock (per
-    // ip+path: 100/10s globally, 3/10s on /sign-in/*); the storage is the
-    // house Postgres counters (rate-limit.ts) so limits actually hold across
-    // serverless instances.
+    // ip+path: 100/10s globally, 3/10s on /sign-in/*) with one exemption:
+    // /get-session, which the site header fetches on every page view, is not
+    // counted at all (S3, SECURITY-AUDIT-report.md L21 — limiter-rules.ts);
+    // the storage is the house Postgres counters (rate-limit.ts) so limits
+    // actually hold across serverless instances.
     enabled: true,
     customStorage: betterAuthRateLimitStorage,
+    customRules: AUTH_RATE_LIMIT_RULES,
   },
   // Stock routes the app never calls and must not expose (the unvalidated
   // profile write) — the list and its reasons live in auth-disabled-paths.ts.
@@ -103,8 +134,20 @@ export const auth = betterAuth({
   plugins: [nextCookies()],
 });
 
-/** Session user id for deck routes; null when signed out. */
-export async function getSessionUserId(headers: Headers): Promise<string | null> {
-  const session = await auth.api.getSession({ headers });
+/**
+ * Session user id for deck routes; null when signed out. `authoritative`
+ * skips the 5-minute cookie cache for a database read of the session: the
+ * destructive routes (account and deck DELETE) ask for it, so a session
+ * revoked elsewhere cannot act within the cache window (S3; the report's §8
+ * item on cookie-cache lag).
+ */
+export async function getSessionUserId(
+  headers: Headers,
+  opts: { authoritative?: boolean } = {},
+): Promise<string | null> {
+  const session = await auth.api.getSession({
+    headers,
+    ...(opts.authoritative ? { query: { disableCookieCache: true } } : {}),
+  });
   return session?.user.id ?? null;
 }

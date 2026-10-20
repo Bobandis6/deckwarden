@@ -13,4 +13,10 @@ import { USER_ADDITIONAL_FIELDS } from "@/lib/auth/user-fields";
 // (src/lib/auth.ts' additional fields); nothing changes at runtime.
 export const authClient = createAuthClient({
   plugins: [inferAdditionalFields({ user: USER_ADDITIONAL_FIELDS })],
+  // S3 (SECURITY-AUDIT-report.md L21): the header's useSession refetched
+  // /get-session on every window focus (the client's default), one function
+  // invocation each that answers from the cookie cache alone. The mount fetch
+  // and the sign-in / sign-out signal keep the header current; a session
+  // revoked in another tab is picked up by the next navigation.
+  sessionOptions: { refetchOnWindowFocus: false },
 });
