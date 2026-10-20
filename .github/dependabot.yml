@@ -26,3 +26,26 @@ updates:
         update-types:
           - minor
           - patch
+
+  # S7 (SECURITY-AUDIT-report.md L18, the other half): the workflows pin
+  # every action to a full commit SHA with its version in a trailing comment,
+  # and a SHA never moves on its own — this entry is what keeps the pins
+  # current. Dependabot moves the SHA and the comment together; the same
+  # weekly slot and the same grouping as the npm entry (minors and patches
+  # in one pull request, a major on its own, read against the action's
+  # release notes — a runner-side change, not a dependency of the app).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "11:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

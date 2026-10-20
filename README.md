@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Deckwarden
 
-## Getting Started
+[deckwarden.gg](https://deckwarden.gg) is a deck builder for trading card games.
+It ships Magic: The Gathering Commander and the One Piece Card Game behind one
+game-adapter interface: pick a commander or a leader, build a legal list with
+suggestions, combos and tournament evidence beside it, and share it by link.
+Guest decks need no account; signing in (Discord or Google) keeps them.
 
-First, run the development server:
+## What is in this repository
+
+| Path                 | What                                                                                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app`            | The Next.js App Router site: public pages, the deck editor, the JSON API under `src/app/api`.                                                                                                                             |
+| `src/lib/games`      | The game adapters (`mtg`, `optcg`): legality, analysis, search translation — pure functions, no IO.                                                                                                                       |
+| `src/db`             | The Drizzle schema, the migration runner and the reference seed. SQL migrations live in `drizzle/`.                                                                                                                       |
+| `scripts`            | Ingest jobs (Scryfall, Commander Spellbook, MTGJSON precons, Topdeck.gg, punk-records, Limitless), the nightly's housekeeping (size gauge, anonymous-deck purge, backups and their pruning, advisory watch) and smoke runs. |
+| `.github/workflows`  | `ci.yml` (`pnpm check` on every push), `nightly-ingest.yml` (the data jobs and the housekeeping), `restore-drill.yml` (restores the latest backup into a scratch Postgres on demand).                                      |
+| `*.md` at the root   | The planning corpus — see [Where the plan lives](#where-the-plan-lives).                                                                                                                                                  |
+
+Stack: Next.js (App Router, TypeScript strict), Tailwind v4 + shadcn/ui, Postgres
+on Neon with Drizzle, Better Auth (Discord and Google only), Postgres full-text
+search with pg_trgm, GitHub Actions for the nightly ingest, Vercel for hosting.
+The build is `output: "standalone"` and uses no platform-specific SDK, so it runs
+on any host with Node and Postgres.
+
+## Running it locally
+
+Requirements: Node 22 or newer and pnpm (the version is pinned in `package.json`,
+so `corepack enable` is enough).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Fill in `.env.local` — every variable is explained in `.env.example`. Point
+`DATABASE_URL` at a Postgres of your own (a Neon branch or a local server), never
+at a database with other people's decks in it: the scripts and the dev server
+write to whatever it names.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm db:migrate        # applies drizzle/ and seeds games + formats
+pnpm ingest:scryfall   # the Magic card corpus (a large bulk download; optional)
+pnpm dev               # http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Before every commit:
 
-## Learn More
+```bash
+pnpm check             # typecheck + lint + format check + tests
+```
 
-To learn more about Next.js, take a look at the following resources:
+CI runs the same command on every push to `main`. Deploys go to Vercel from
+`main`; the nightly workflow runs the ingest jobs against the production database
+from GitHub Actions.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Data sources
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Card data and prices come from [Scryfall](https://scryfall.com) and are never
+behind a paywall; combos from [Commander Spellbook](https://commanderspellbook.com);
+preconstructed decks from [MTGJSON](https://mtgjson.com); Commander tournament
+results from [Topdeck.gg](https://topdeck.gg); the One Piece card corpus from the
+punk-records project and One Piece tournament results from
+[Limitless](https://limitlesstcg.com). Magic card images are hotlinked from
+Scryfall's CDN with the artist and copyright line kept visible; One Piece images
+are mirrored to the site's own image host. Deckwarden is unofficial fan content
+and is not affiliated with Wizards of the Coast or Bandai.
 
-## Deploy on Vercel
+## Where the plan lives
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- [`deckwarden-build-plan.md`](deckwarden-build-plan.md) — the execution plan:
+  stack decisions, schema, the adapter contract, milestones. The working contract.
+- [`CLAUDE.md`](CLAUDE.md) — the working agreement for the Claude Code sessions
+  that build the site: one work package per session, `pnpm check` green before
+  every commit, the portability and data rules.
+- [`LATER.md`](LATER.md) — deliberately deferred work, each row with the trigger
+  that brings it back.
+- [`REDESIGN.md`](REDESIGN.md), [`WAVE2.md`](WAVE2.md) … [`WAVE5.md`](WAVE5.md) —
+  the package lists of the shipped waves.
+- `*-session-prompt.md` — the brief each package session started from, kept as
+  the record of what was asked.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Security
+
+Please report a vulnerability privately through the repository's Security tab
+("Report a vulnerability"), not in a public issue.
