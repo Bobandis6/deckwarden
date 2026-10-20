@@ -39,6 +39,36 @@ export function canReadFolder(
   return folder.visibility !== "private" || isFolderOwner(folder, sessionUserId);
 }
 
+export type DeckVisibility = (typeof schema.DECK_VISIBILITIES)[number];
+
+/**
+ * The deck visibilities a viewer sees inside a folder (S6,
+ * SECURITY-AUDIT-report.md L5). The owner sees everything, with the
+ * visibility word on every non-public tile. Everyone else sees public decks,
+ * plus unlisted ones only inside an UNLISTED folder — the folder's own link
+ * is the unguessable thing then, the same reachability class as the decks'
+ * links (P2.2's reasoning). A PUBLIC folder is browsable (the profile lists
+ * it, the sitemap carries it, crawlers index it), so an unlisted deck filed
+ * in one was listed to the world, against the schema's own promise that
+ * unlisted means not browsable; now it shows only to its owner there. A
+ * private folder's non-owners never reach a listing (the page answers the
+ * denial shell first), so the answer for them is nothing.
+ */
+export function folderDeckVisibilities(
+  folder: Pick<FolderRow, "userId" | "visibility">,
+  sessionUserId: string | null,
+): DeckVisibility[] {
+  if (isFolderOwner(folder, sessionUserId)) return ["public", "unlisted", "private"];
+  switch (folder.visibility) {
+    case "public":
+      return ["public"];
+    case "unlisted":
+      return ["public", "unlisted"];
+    default:
+      return [];
+  }
+}
+
 /** user_id never leaves the server; attribution goes through the owner's username. */
 export function folderMetaJson(folder: FolderRow, opts: { isOwner: boolean }) {
   return {

@@ -124,6 +124,11 @@ export type TournamentMapResult =
       standings: StandingRow[];
       standingSkips: Partial<Record<StandingSkip, number>>;
       /**
+       * URL-shaped `decklist` values dropped by the host allowlist (S6,
+       * L11) — the standing is kept, its decklist_url null.
+       */
+      decklistUrlsDropped: number;
+      /**
        * How many KEPT standings embedded a full card list (deckObj mainboard
        * with ≥ MIN_LIST_CARDS entries). Pure measurement — P3.8's aggregate
        * confirmed the gate this was built for (99.96% of kept standings
@@ -178,6 +183,51 @@ export function commanderNamesFrom(s: TopdeckStanding): string[] | null {
 
 function isUrl(v: string): boolean {
   return /^https?:\/\/\S+$/i.test(v.trim());
+}
+
+/**
+ * The hosts a standing's decklist link may point at (S6,
+ * SECURITY-AUDIT-report.md L11). Topdeck's `decklist` field is text the
+ * player typed, and three public pages render it as an outbound link
+ * (`rel="noreferrer nofollow"`, a new tab), so until S6 anyone placing in
+ * the top 16 of a 16+ player event could make Deckwarden link to any site.
+ * Now only the decklist hosts survive — the apex or any subdomain
+ * (`www.moxfield.com`, `edhtop16.topdeck.gg`), http or https, no
+ * credentials in the URL — and every other URL-shaped value is dropped and
+ * counted (`decklistUrlsDropped`) with the standing itself kept. The list is
+ * the audit's: on 2026-10-20 the 52 live event pages rendered no decklist
+ * link at all, so there was no census to widen it from.
+ */
+export const DECKLIST_URL_HOSTS = [
+  "moxfield.com",
+  "archidekt.com",
+  "tappedout.net",
+  "mtggoldfish.com",
+  "topdeck.gg",
+  "limitlesstcg.com",
+] as const;
+
+/**
+ * The trimmed link when it is a well-formed http(s) URL to a decklist host
+ * within MAX_URL_LEN; null for anything else (not a string, not a URL, too
+ * long, another host, a lookalike such as `moxfield.com.evil.example`, or
+ * credentials in the authority).
+ */
+export function decklistUrlOrNull(v: unknown): string | null {
+  const text = textOrNull(v, MAX_URL_LEN);
+  if (text === null || !isUrl(text)) return null;
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  if (url.username !== "" || url.password !== "") return null;
+  const host = url.hostname.toLowerCase();
+  return DECKLIST_URL_HOSTS.some((allowed) => host === allowed || host.endsWith(`.${allowed}`))
+    ? text
+    : null;
 }
 
 /** A stub "Mainboard" section isn't a list; a Commander mainboard has ~98 distinct names. */
@@ -314,6 +364,7 @@ export function mapTournament(
   const lists: StandingListCards[] = [];
   const listCards = { seen: 0, unresolved: 0 };
   let standingsWithLists = 0;
+  let decklistUrlsDropped = 0;
   const seenPlacements = new Set<number>();
   for (const [index, s] of rawStandings.entries()) {
     const placement =
@@ -379,15 +430,16 @@ export function mapTournament(
         if (cardIds.length > 0) lists.push({ leaderIds, placement, cardIds });
       }
     }
+    const decklistUrl = decklistUrlOrNull(s.decklist);
+    if (decklistUrl === null && typeof s.decklist === "string" && isUrl(s.decklist)) {
+      decklistUrlsDropped++;
+    }
     standings.push({
       external_key: externalKey,
       placement,
       player_name: textOrNull(s.name, MAX_NAME_LEN),
       leader_ids: leaderIds,
-      decklist_url:
-        typeof s.decklist === "string" && isUrl(s.decklist)
-          ? textOrNull(s.decklist, MAX_URL_LEN)
-          : null,
+      decklist_url: decklistUrl,
       wins: smallintOrNull(s.wins),
       draws: smallintOrNull(s.draws),
       losses: smallintOrNull(s.losses),
@@ -409,6 +461,7 @@ export function mapTournament(
     },
     standings,
     standingSkips,
+    decklistUrlsDropped,
     standingsWithLists,
     lists,
     listCards,

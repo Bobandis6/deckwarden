@@ -26,6 +26,7 @@
     "optcg:image-manifest": "tsx scripts/optcg-image-manifest.ts",
     "optcg:image-small": "tsx scripts/optcg-image-small.ts",
     "decks:purge": "tsx scripts/purge-anon-decks.ts",
+    "backups:prune": "tsx scripts/prune-backups.ts",
     "smoke:decks": "tsx scripts/deck-api-smoke.ts",
     "smoke:profile": "tsx scripts/profile-folders-smoke.ts",
     "smoke:engagement": "tsx scripts/engagement-smoke.ts",

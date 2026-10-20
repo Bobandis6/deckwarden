@@ -42,15 +42,26 @@ export function printingImageUrl(
 }
 
 /**
- * Bandai's card-image host serves `Cross-Origin-Resource-Policy: same-site`
- * (verified 2026-09-03 on en. and asia-en.onepiece-cardgame.com), so browsers
- * REFUSE cross-site embeds — a Bandai URL in image_override is data
- * provenance and the mirror job's download source, never a renderable src.
- * OP images render from the R2 mirror instead: image_override has pointed
- * there since P4.1 (r2.dev), and at img.deckwarden.gg since P4.9.
+ * The two hosts a card image may render from — Scryfall's CDN and the One
+ * Piece mirror at img.deckwarden.gg — and nothing else (S6,
+ * SECURITY-AUDIT-report.md L12). `image_override` is written by the ingest
+ * post-passes from upstream data, so until S6 any URL an upstream handed
+ * over became an `<img src>` on every surface that renders a printing;
+ * the gate was a blocklist of one host (Bandai's, whose
+ * `Cross-Origin-Resource-Policy: same-site` — verified 2026-09-03 on en.
+ * and asia-en.onepiece-cardgame.com — makes browsers refuse the embed
+ * anyway, so a Bandai URL is data provenance and the mirror job's download
+ * source, never a renderable src). An allowlist says the same thing the
+ * Content Security Policy's `img-src` says (next.config.ts): a host that
+ * is not on it would be blocked by the browser, so null — "no <img>",
+ * the box keeps its spacer — is the honest answer here too. The r2.dev era
+ * (P4.1 to P4.9) is off the list on purpose: that host is rate-limited and
+ * nothing has pointed at it since the P4.9 flip.
  */
+const EMBEDDABLE_IMAGE_HOSTS = ["https://cards.scryfall.io/", "https://img.deckwarden.gg/"];
+
 export function isEmbeddableImageUrl(url: string): boolean {
-  return !/^https:\/\/[^/]*onepiece-cardgame\.com\//.test(url);
+  return EMBEDDABLE_IMAGE_HOSTS.some((prefix) => url.startsWith(prefix));
 }
 
 /** printingImageUrl, returning null instead of a URL browsers will refuse to render. */

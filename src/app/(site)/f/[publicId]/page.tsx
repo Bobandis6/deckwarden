@@ -10,19 +10,24 @@
  * accounts), so unlike the deck page there's no client token gate — the
  * server can answer "is this the owner" directly. Private folders render a
  * denial shell (HTTP 200, same status posture as private decks — see
- * LATER.md). Deck rows are filtered per-viewer: non-owners see public +
- * unlisted decks (sharing a folder link shares its decks' links — same
- * reachability class), never private ones; the owner sees everything with
- * visibility spelled out so the page can't silently lie to them about what
- * others see. Attribution goes through the owner's username only — no
- * username, no byline (choosing one is the publish opt-in).
+ * LATER.md). Deck rows are filtered per-viewer (folderDeckVisibilities, S6,
+ * SECURITY-AUDIT-report.md L5): non-owners of an UNLISTED folder see its
+ * public + unlisted decks (sharing a folder link shares its decks' links —
+ * same reachability class); non-owners of a PUBLIC folder see its public
+ * decks only, because a public folder is browsable (profile, sitemap,
+ * crawlers) and an unlisted deck filed there was being listed to the world;
+ * never private ones. The owner sees everything with visibility spelled
+ * out so the page can't silently lie to them about what others see, and
+ * the public-folder hint says so in words. Attribution goes through the
+ * owner's username only — no username, no byline (choosing one is the
+ * publish opt-in).
  *
  * R5b: the deck rows are R5a's DeckTiles through the joined collection
  * select (one statement); the owner's non-public decks still SAY their
  * visibility (the tile's visibility word), everyone else's tiles carry none;
  * no byline — the folder header names the author.
  */
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -34,7 +39,7 @@ import { EmptyState } from "@/components/empty-state";
 import { getDb, schema } from "@/db";
 import { getSessionUserId } from "@/lib/auth";
 import { deckCollection } from "@/lib/decks/collections";
-import { isFolderOwner, loadFolderByPublicId } from "@/lib/decks/folders";
+import { folderDeckVisibilities, isFolderOwner, loadFolderByPublicId } from "@/lib/decks/folders";
 import { rowPrinting, tileFromDeck } from "@/lib/decks/tiles";
 
 export const dynamic = "force-dynamic";
@@ -87,7 +92,7 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
       .where(
         and(
           eq(schema.decks.folderId, folder.id),
-          ...(isOwner ? [] : [ne(schema.decks.visibility, "private")]),
+          inArray(schema.decks.visibility, folderDeckVisibilities(folder, sessionUserId)),
         ),
       )
       .orderBy(desc(schema.decks.updatedAt)),
@@ -128,7 +133,7 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
               ? "Only you can see this folder."
               : folder.visibility === "unlisted"
                 ? "Anyone with this link can view it. "
-                : "This folder is public. It appears on your profile. "}
+                : "This folder is public. It appears on your profile, where only its public decks show to others. "}
             Organize it from{" "}
             <Link href="/account" className="underline">
               your account

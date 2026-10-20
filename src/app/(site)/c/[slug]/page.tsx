@@ -48,7 +48,7 @@ import { StaplesTable } from "@/components/hub/staples-table";
 import { HERO_CARD_SHADOW, SurfaceHeader } from "@/components/surface-header";
 import { FORMAT_ID, GAME_ID } from "@/db/seed-data";
 import { resolveCardArt } from "@/lib/cards/art";
-import { printingImageUrl } from "@/lib/cards/images";
+import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
 import { comboDoorHref } from "@/lib/combos/view";
 import { releasedLabel } from "@/lib/decks/precon-info";
@@ -169,7 +169,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
       <div className="flex flex-col gap-6 md:flex-row md:gap-8">
         <div className="relative -mt-24 shrink-0 md:-mt-28">
           <CardImage
-            src={printing ? printingImageUrl(printing, "normal") : null}
+            src={printing ? embeddablePrintingImageUrl(printing, "normal") : null}
             alt={leader.name}
             width={488}
             height={680}

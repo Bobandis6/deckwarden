@@ -22,21 +22,24 @@
  * private gate 1. Signed in adds engagement 1 and the collection check 1;
  * a fork adds its credit 1.
  *
- * Access: public/unlisted render server-side. Private decks never have their
- * data embedded in HTML — the RSC hands off to a client gate that fetches the
- * token-authed API, so only the owning browser (claim token in localStorage)
- * can render them; everyone else gets the denial message.
+ * Access (share-access.ts, S6 — SECURITY-AUDIT-report.md L4): public and
+ * unlisted decks render server-side for everyone. A private ACCOUNT deck
+ * renders server-side for the session that owns it and is a 404 to anyone
+ * else (the layout answers it above the loading boundary; this page
+ * decides the same way, so no path can embed it). A private GUEST deck
+ * never has its data — or, since S6, its uuid — in the HTML: the RSC hands
+ * the client gate the public id alone, and the gate proves ownership with
+ * the claim token only the owning browser holds, through the token-authed
+ * API; everyone else gets the denial message.
  */
 import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { DeckShareView, type ShareBracketFacts } from "@/components/deck/deck-share-view";
 import { OptcgPostureLine } from "@/components/optcg-posture-line";
 import { PrivateShareGate } from "@/components/deck/private-share-gate";
 import { getDb, schema } from "@/db";
-import { getSessionUserId } from "@/lib/auth";
 import { FACTS_MAX_IDS, factsIds } from "@/lib/brackets/facts";
 import { loadBracketFreshness } from "@/lib/brackets/freshness";
 import { shareGoals } from "@/lib/brackets/table";
@@ -53,12 +56,14 @@ import { hasLeader } from "@/lib/decks/panel-view";
 import { loadPreconByDeckId } from "@/lib/decks/precons";
 import { deckFormat } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
+import { shareAccess } from "@/lib/decks/share-access";
 import { deckJsonLd, JsonLd } from "@/lib/seo/jsonld";
 
 export const dynamic = "force-dynamic";
 
-// One DB lookup shared by the layout (the 404 gate, R6), generateMetadata and the page render.
-import { getDeck } from "./deck";
+// One DB lookup and one session read shared by the layout (the 404 gate, R6; the
+// private account deck's 404, S6), generateMetadata and the page render.
+import { getDeck, getViewer } from "./deck";
 
 /**
  * Indexing policy (P2.6): only PUBLIC decks are indexable. Unlisted decks
@@ -91,14 +96,16 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
   const deck = await getDeck(publicId);
   if (!deck) notFound();
 
-  if (deck.visibility === "private") {
-    return <PrivateShareGate deckId={deck.id} />;
+  const sessionUserId = await getViewer();
+  const access = shareAccess(deck, sessionUserId);
+  if (access === "not-found") notFound();
+  if (access === "gate") {
+    return <PrivateShareGate publicId={publicId} />;
   }
 
   // Byline (P2.2): attribution only through a chosen username — picking one
   // is the opt-in that makes name/profile public, so accounts without one
   // stay anonymous here.
-  const sessionUserId = await getSessionUserId(await headers());
   const [cards, author, viewer, forkedFrom, precon] = await Promise.all([
     fetchDeckCardsWire(deck),
     deck.userId

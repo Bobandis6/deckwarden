@@ -149,6 +149,22 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
 
+      # Retention (S6, SECURITY-AUDIT-report.md L17): the privacy page says
+      # backups are kept for 35 days, and this step is what makes that true —
+      # a rule in the repository that the VPS move keeps (LATER row 279), not
+      # a bucket setting. The newest 10 runs are kept whatever their age, so a
+      # nightly that stopped producing dumps can never prune the bucket down
+      # to nothing. Counts only in this log (S1); BACKUP_PRUNE_DRY_RUN is a
+      # local flag, never set here.
+      - name: Prune backups older than 35 days (keeps the newest 10 runs whatever their age)
+        if: ${{ !cancelled() }}
+        run: pnpm backups:prune
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+
       # The ruleset watch (Y3a): the Game Changer flags update themselves; a
       # change to Wizards' list must be read by a person before the ruleset's
       # as-of date and hash move. Last but the keepalive, which runs always.

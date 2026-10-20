@@ -69,6 +69,40 @@ describe("toSmallImage", () => {
 });
 
 describe("embeddablePrintingImageUrl", () => {
+  it("renders overrides from the two allowed hosts only (S6, L12): r2.dev, Bandai and any other host are null", () => {
+    const printing = (front: string) => ({
+      id: "f17abc33-b7f1-51b2-9a61-7f3af8c60d6a",
+      imageOverride: { front },
+    });
+    expect(
+      embeddablePrintingImageUrl(printing("https://img.deckwarden.gg/optcg/images/OP15-058.png")),
+    ).toBe("https://img.deckwarden.gg/optcg/images/OP15-058.png");
+    expect(
+      embeddablePrintingImageUrl(printing(`https://cards.scryfall.io/normal/front/e/3/${ID}.jpg`)),
+    ).toBe(`https://cards.scryfall.io/normal/front/e/3/${ID}.jpg`);
+    for (const url of [
+      "https://pub-0123456789abcdef.r2.dev/optcg/images/OP15-058.png",
+      "https://en.onepiece-cardgame.com/images/cardlist/card/ST01-001.png?260828",
+      "https://example.com/normal/hosted.jpg",
+      "https://cards.scryfall.io.example.com/normal/x.jpg",
+      "http://cards.scryfall.io/normal/front/e/3/x.jpg",
+      "https://img.deckwarden.gg.example.com/optcg/images/x.png",
+      "data:image/png;base64,AAAA",
+      "javascript:alert(1)",
+    ]) {
+      expect(embeddablePrintingImageUrl(printing(url)), url).toBeNull();
+      expect(isEmbeddableImageUrl(url), url).toBe(false);
+    }
+    // The back face goes through the same gate.
+    expect(
+      embeddablePrintingImageUrl(
+        { id: ID, imageOverride: { back: "https://example.com/back.jpg" } },
+        "normal",
+        "back",
+      ),
+    ).toBeNull();
+  });
+
   it("returns Bandai CORP-blocked override URLs as null, everything else as-is", () => {
     // Bandai serves Cross-Origin-Resource-Policy: same-site (2026-09-03) —
     // browsers refuse the embed, so the wire must carry null, not a broken src.

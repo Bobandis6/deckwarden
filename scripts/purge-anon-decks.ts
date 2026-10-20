@@ -16,6 +16,12 @@
  * there. The per-deck lines (internal id, public id, name) print only with
  * PURGE_VERBOSE=1 — a local eyeballing run, never the workflow.
  *
+ * Two steps run whatever the dry-run gate says, because neither deletes a
+ * deck: the created_ip clear (S6, SECURITY-AUDIT-report.md L16 — the
+ * privacy page says the creating address is cleared after 30 days, and
+ * this is the step that does it; created-ip-retention.ts) and the
+ * rate-limit counter sweep (P1.8). Both print a count and nothing else.
+ *
  *   pnpm decks:purge                    # dry run, counts only
  *   PURGE_VERBOSE=1 pnpm decks:purge    # dry run, one line per candidate (local)
  *   PURGE_APPLY=true pnpm decks:purge   # delete
@@ -29,6 +35,7 @@ import { sql } from "drizzle-orm";
 
 import { createDb } from "../src/db";
 import { decks, deckCards, rateLimitCounters } from "../src/db/schema";
+import { clearStaleCreatedIps, createdIpReportLine } from "../src/lib/decks/created-ip-retention";
 import { deleteDecksForkSafe } from "../src/lib/decks/forks";
 import { purgeReportLines, type PurgeReason } from "../src/lib/decks/purge-report";
 
@@ -87,6 +94,11 @@ async function main() {
     } else if (candidates.length > 0) {
       console.log("dry run — nothing deleted. Set PURGE_APPLY=true to delete.");
     }
+
+    // created_ip retention (S6, L16): the creating address is spam control
+    // at creation time and nothing after; cleared 30 days on, every deck
+    // alike. Always applied — a nulled column is not a deleted deck.
+    console.log(createdIpReportLine(await clearStaleCreatedIps(db)));
 
     // Rate-limit counter sweep (P1.8): windows are ≤1 day, so anything older
     // than 2 days is dead weight. Always applied — counters are not user data.

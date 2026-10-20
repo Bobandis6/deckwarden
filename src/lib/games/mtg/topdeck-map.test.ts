@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildLeaderResolver,
   commanderNamesFrom,
+  DECKLIST_URL_HOSTS,
+  decklistUrlOrNull,
   hasCardList,
   mainboardEntries,
   mapTournament,
@@ -440,5 +442,65 @@ describe("buildLeaderResolver (P3.9 — DFC commanders arrive as their front fac
     expect(resolve("fire")).toBeUndefined();
     expect(resolve("fire ice")).toBeUndefined();
     expect(resolve("")).toBeUndefined();
+  });
+});
+
+describe("decklist_url host allowlist (S6, SECURITY-AUDIT-report.md L11)", () => {
+  it("keeps links to the decklist hosts — apex or subdomain, https or http — trimmed", () => {
+    for (const host of DECKLIST_URL_HOSTS) {
+      expect(decklistUrlOrNull(`https://${host}/decks/abc`)).toBe(`https://${host}/decks/abc`);
+      expect(decklistUrlOrNull(`https://www.${host}/decks/abc`)).toBe(
+        `https://www.${host}/decks/abc`,
+      );
+    }
+    expect(decklistUrlOrNull(" http://moxfield.com/decks/abc ")).toBe(
+      "http://moxfield.com/decks/abc",
+    );
+    expect(decklistUrlOrNull("https://edhtop16.topdeck.gg/deck/xyz?v=2#top")).toBe(
+      "https://edhtop16.topdeck.gg/deck/xyz?v=2#top",
+    );
+  });
+
+  it("refuses every other host, lookalikes, credentials, other schemes and over-long links", () => {
+    for (const v of [
+      "https://evil.example/phish",
+      "https://moxfield.com.evil.example/decks/abc",
+      "https://notmoxfield.com/decks/abc",
+      "https://user:pw@moxfield.com/decks/abc",
+      "https://user@moxfield.com/decks/abc",
+      "javascript:alert(1)",
+      "ftp://moxfield.com/decks/abc",
+      "https://moxfield.com/" + "a".repeat(400),
+      "moxfield.com/decks/abc",
+      "",
+      42,
+      null,
+      undefined,
+    ]) {
+      expect(decklistUrlOrNull(v), String(v)).toBeNull();
+    }
+  });
+
+  it("drops a foreign link from a standing, counts it, and keeps the standing", () => {
+    const standings = Array.from({ length: MIN_EVENT_PLAYERS }, (_, i) =>
+      standing({ standing: i + 1 }),
+    );
+    standings[0] = standing({ standing: 1, decklist: "https://evil.example/phish" });
+    standings[1] = standing({ standing: 2, decklist: "https://www.archidekt.com/decks/123" });
+    const res = mapTournament(tournament({ standings }), resolve);
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.standings[0]).toMatchObject({ placement: 1, decklist_url: null });
+    expect(res.standings[1]).toMatchObject({
+      placement: 2,
+      decklist_url: "https://www.archidekt.com/decks/123",
+    });
+    expect(res.decklistUrlsDropped).toBe(1);
+    expect(res.standingSkips).toEqual({});
+  });
+
+  it("a clean event drops nothing", () => {
+    const res = mapTournament(tournament(), resolve);
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.decklistUrlsDropped).toBe(0);
   });
 });

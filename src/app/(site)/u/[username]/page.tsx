@@ -21,7 +21,7 @@
  * gone stale shows the initial instead of an empty ring. X5: it shows the
  * chosen picture, and card art carries its credit under the handle.
  */
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -95,9 +95,11 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
       .from(schema.deckFolders)
       .leftJoin(
         schema.decks,
+        // S6 (L5): the count a visitor sees is the count they can open —
+        // public decks only, as the folder page lists them.
         and(
           eq(schema.decks.folderId, schema.deckFolders.id),
-          ne(schema.decks.visibility, "private"),
+          eq(schema.decks.visibility, "public"),
         ),
       )
       .where(

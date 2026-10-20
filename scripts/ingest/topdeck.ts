@@ -98,6 +98,8 @@ interface Stats {
   standings_kept: number;
   /** Kept standings that embedded a full card list — the LATER rows' empirical gate. */
   standings_with_lists: number;
+  /** URL-shaped decklist values dropped by the host allowlist (S6, L11); the standings stay. */
+  decklist_urls_dropped: number;
   standing_skips: Partial<Record<StandingSkip, number>>;
   tournaments_merged: { inserted: number; updated: number };
   standings_merged: { inserted: number; updated: number; stale_deleted: number };
@@ -252,6 +254,7 @@ async function main() {
       tournament_skips: {},
       standings_kept: 0,
       standings_with_lists: 0,
+      decklist_urls_dropped: 0,
       standing_skips: {},
       tournaments_merged: { inserted: 0, updated: 0 },
       standings_merged: { inserted: 0, updated: 0, stale_deleted: 0 },
@@ -324,6 +327,7 @@ async function main() {
         stats.tournaments_kept++;
         stats.standings_kept += mapped.standings.length;
         stats.standings_with_lists += mapped.standingsWithLists;
+        stats.decklist_urls_dropped += mapped.decklistUrlsDropped;
         stats.list_cards_seen += mapped.listCards.seen;
         stats.list_cards_unresolved += mapped.listCards.unresolved;
         for (const [reason, count] of Object.entries(mapped.standingSkips)) {
