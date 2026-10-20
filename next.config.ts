@@ -45,8 +45,10 @@ const SECURITY_HEADERS = [
 ];
 
 /**
- * Content Security Policy, report-only (S5, M5). Every source is what the
- * browser loads from this tree on 2026-10-20, nothing speculative:
+ * Content Security Policy, enforcing since LATER.md row 286 fired (S5
+ * shipped it report-only on 2026-10-20; the switch landed the same day on
+ * the owner's call). Every source is what the browser loads from this
+ * tree on 2026-10-20, nothing speculative:
  *   img-src — card images from Scryfall's CDN, the One Piece images at
  *     img.deckwarden.gg (P4.9), the provider pictures Discord and Google
  *     hand Better Auth (users.image; the chosen card art is a Scryfall
@@ -73,10 +75,17 @@ const SECURITY_HEADERS = [
  *   object-src 'none', base-uri 'self', form-action 'self' (every form
  *     posts or GETs here; the OAuth hops are navigations, not forms),
  *     frame-ancestors 'none'.
- * Report-only: a violation is a console line, never a blocked load, and
- * the dev console is the reader (no report-uri: a Sentry endpoint would
- * spend the error quota on extension noise — the owner's call). The switch
- * to an enforcing Content-Security-Policy is LATER.md row 286.
+ * No report-uri: a Sentry endpoint would spend the error quota on
+ * extension noise (the owner's call), so a violation is a console line in
+ * the visitor's own DevTools and a blocked load. The production walk before
+ * the switch (fourteen pages in a plain Chrome, 2026-10-20) showed one
+ * kind of violation and nothing else: two guarded `Function(...)` probes —
+ * zod 4's `allowsEval` (v4/core/util.js, cached; false → the jitless
+ * parser) and `is-generator-function`'s feature test inside the
+ * browserified `util` that a crypto polyfill chunk drags in (LATER.md row
+ * 287) — both try/catch feature detection that falls back by design, so an
+ * enforcing policy costs two console lines per page and no behaviour;
+ * asn1.js's `vm.runInThisContext` in the same chunk has the same fallback.
  */
 function contentSecurityPolicy(): string {
   const development = process.env.NODE_ENV === "development";
@@ -152,7 +161,7 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [
           ...SECURITY_HEADERS,
-          { key: "Content-Security-Policy-Report-Only", value: contentSecurityPolicy() },
+          { key: "Content-Security-Policy", value: contentSecurityPolicy() },
         ],
       },
       // `:id` is one segment: the card page and its RSC requests, never the

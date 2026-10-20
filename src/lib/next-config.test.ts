@@ -6,8 +6,9 @@
  * ISR write budget) the card pages carry the CDN header that keeps them at
  * Vercel's CDN, matched through Next's own route compiler so the pattern
  * is proven to catch card pages and nothing beside them. Since S5 (M5)
- * every response carries the security header set and the report-only
- * Content Security Policy, and `x-powered-by` is off.
+ * every response carries the security header set and the Content Security
+ * Policy — report-only for the S5 day, enforcing since LATER.md row 286
+ * fired on 2026-10-20 — and `x-powered-by` is off.
  */
 import { buildCustomRoute } from "next/dist/lib/build-custom-route";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -57,21 +58,18 @@ describe("next.config", () => {
     expect(nextConfig.poweredByHeader).toBe(false);
   });
 
-  it("sends the security header set and the report-only CSP on every path (M5)", async () => {
+  it("sends the security header set and the enforcing CSP on every path (M5, LATER 286)", async () => {
     vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", undefined);
     const rules = await nextConfig.headers!();
     expect(rules).toHaveLength(2);
     expect(rules[0]).toEqual({
       source: "/:path*",
-      headers: [
-        ...SECURITY_HEADERS,
-        { key: "Content-Security-Policy-Report-Only", value: PRODUCTION_CSP },
-      ],
+      headers: [...SECURITY_HEADERS, { key: "Content-Security-Policy", value: PRODUCTION_CSP }],
     });
-    // Report-only until a day of production traffic shows no violation the
-    // owner cannot explain (LATER.md row 286): no enforcing header yet.
-    expect(headerValue(rules[0], "Content-Security-Policy")).toBeUndefined();
-    expect(headerValue(rules[1], "Content-Security-Policy-Report-Only")).toBeUndefined();
+    // Enforcing since row 286 fired: the report-only key is gone, not
+    // doubled (two policies would both apply and one would be stale).
+    expect(headerValue(rules[0], "Content-Security-Policy-Report-Only")).toBeUndefined();
+    expect(headerValue(rules[1], "Content-Security-Policy")).toBeUndefined();
     // The dev console is the reader; no reporting endpoint spends quota.
     expect(PRODUCTION_CSP).not.toMatch(/report-uri|report-to/);
 
@@ -97,7 +95,7 @@ describe("next.config", () => {
       "https://examplePublicKey@o4500000.ingest.us.sentry.io/4500000001",
     );
     const [siteWide] = await nextConfig.headers!();
-    const csp = headerValue(siteWide, "Content-Security-Policy-Report-Only")!;
+    const csp = headerValue(siteWide, "Content-Security-Policy")!;
     expect(csp).toContain("connect-src 'self' https://o4500000.ingest.us.sentry.io; ");
     expect(csp).not.toContain("examplePublicKey");
     expect(csp).not.toContain("4500000001");
@@ -109,14 +107,14 @@ describe("next.config", () => {
   it("ignores a DSN that is not a URL", async () => {
     vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", "not a dsn");
     const [siteWide] = await nextConfig.headers!();
-    expect(headerValue(siteWide, "Content-Security-Policy-Report-Only")).toBe(PRODUCTION_CSP);
+    expect(headerValue(siteWide, "Content-Security-Policy")).toBe(PRODUCTION_CSP);
   });
 
   it("allows eval in development only (React's server error stacks)", async () => {
     vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", undefined);
     vi.stubEnv("NODE_ENV", "development");
     const [dev] = await nextConfig.headers!();
-    expect(headerValue(dev, "Content-Security-Policy-Report-Only")).toBe(
+    expect(headerValue(dev, "Content-Security-Policy")).toBe(
       PRODUCTION_CSP.replace(
         "script-src 'self' 'unsafe-inline'",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
@@ -124,7 +122,7 @@ describe("next.config", () => {
     );
     vi.stubEnv("NODE_ENV", "production");
     const [prod] = await nextConfig.headers!();
-    expect(headerValue(prod, "Content-Security-Policy-Report-Only")).toBe(PRODUCTION_CSP);
+    expect(headerValue(prod, "Content-Security-Policy")).toBe(PRODUCTION_CSP);
     expect(PRODUCTION_CSP).not.toContain("unsafe-eval");
   });
 
