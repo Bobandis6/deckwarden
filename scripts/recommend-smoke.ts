@@ -4,7 +4,7 @@
  * contract against live data. Runs outside `pnpm check` (live server + DB).
  *
  *   pnpm smoke:recommend                                  # http://localhost:3000
- *   BASE_URL=https://deckwarden.gg pnpm smoke:recommend   # against a deploy
+ *   SMOKE_ALLOW_REMOTE=1 BASE_URL=https://deckwarden.gg pnpm smoke:recommend   # a deploy, on purpose
  *
  * Covers: every recommendation carries evidence (no bare scores) · sources
  * are the real ones (edhrec_rank / spellbook / curve-template /
@@ -51,9 +51,7 @@
  * cards. The goals are cleared before the Radar section. The Radar's rows
  * carry the combo's tag and "relevant" mark now (Y6a's plumbing).
  */
-export {}; // import-free file: stay a module so `main` doesn't collide with other scripts
-
-const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
 
 let failures = 0;
 function check(label: string, ok: boolean, detail?: unknown) {

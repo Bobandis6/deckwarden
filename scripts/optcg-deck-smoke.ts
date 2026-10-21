@@ -4,7 +4,7 @@
  * against a live server + real DB — deliberately outside `pnpm check`.
  *
  *   pnpm smoke:optcg-deck                                  # localhost:3000
- *   BASE_URL=https://deckwarden.gg pnpm smoke:optcg-deck   # against prod
+ *   SMOKE_ALLOW_REMOTE=1 BASE_URL=https://deckwarden.gg pnpm smoke:optcg-deck   # a deploy, on purpose
  *
  * Budget: exactly one deck create (prod limiter: 10/h + 30/day per IP, fixed
  * windows) — read rate_limit_counters before a prod run. The deck is deleted
@@ -14,9 +14,7 @@
  * OP06-116 (banned, Yellow), the OP07-115+EB04-058 pair (Yellow), plus a
  * searched mono-Yellow leader/filler and a mono-Red off-color card.
  */
-export {}; // import-free file: stay a module so `main` doesn't collide with other scripts
-
-const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
 
 let failures = 0;
 function check(label: string, ok: boolean, detail?: unknown) {

@@ -3,7 +3,7 @@
  * Runs against a live server + real DB — deliberately outside `pnpm check`.
  *
  *   pnpm smoke:decks                                  # against http://localhost:3000
- *   BASE_URL=https://deckwarden.gg pnpm smoke:decks   # against a deploy
+ *   SMOKE_ALLOW_REMOTE=1 BASE_URL=https://deckwarden.gg pnpm smoke:decks   # a deploy, on purpose
  *
  * Covers: create returns claim_token exactly once · wrong/missing token 403s
  * on reads-of-private and all writes · claim_token never re-exposed · zone /
@@ -14,9 +14,7 @@
  * One Piece's no-target answer 400.
  * Cleans up after itself (the deck is deleted at the end even on failure).
  */
-export {}; // import-free file: stay a module so `main` doesn't collide with other scripts
-
-const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
 
 let failures = 0;
 function check(label: string, ok: boolean, detail?: unknown) {

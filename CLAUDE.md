@@ -58,6 +58,12 @@ affiliate dollar (Hobby is non-commercial).
 - Every `drizzle-kit generate` migration gets eyeballed before applying.
 - App Router caching is explicit: state the caching intent (static / dynamic /
   revalidate) whenever adding a route or fetch.
+- **Scratch scripts and smoke runs never target production.** `BASE_URL` is a local
+  server (`scripts/smoke/guard.ts` refuses anything else before the first request;
+  `SMOKE_ALLOW_REMOTE=1` is a per-run exception the owner approves in the chat, never a
+  default), and `.env.local` names a Neon development branch, never the production
+  database (`.env.example` says how). A scratch script in `scripts/.tmp/` that takes
+  `BASE_URL` imports `../smoke/guard` like the smokes do.
 
 ## Conventions
 

@@ -8,13 +8,13 @@
  *   - /cards/<uuid> rendering an OP card with image + © line + statement link
  *
  *   pnpm smoke:optcg
- *   BASE_URL=https://deckwarden.gg pnpm smoke:optcg
+ *   SMOKE_ALLOW_REMOTE=1 BASE_URL=https://deckwarden.gg pnpm smoke:optcg   # a deploy, on purpose
  */
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
+
 import { config as loadEnv } from "dotenv";
 
 loadEnv({ path: [".env.local", ".env"], quiet: true });
-
-const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 let failures = 0;
 function check(label: string, ok: boolean, detail?: unknown) {

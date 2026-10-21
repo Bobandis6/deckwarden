@@ -9,15 +9,16 @@
  * read-only transaction; creates nothing.
  *
  *   pnpm smoke:sets                                  # http://localhost:3000
- *   BASE_URL=https://deckwarden.gg pnpm smoke:sets
+ *   SMOKE_ALLOW_REMOTE=1 BASE_URL=https://deckwarden.gg pnpm smoke:sets   # a deploy, on purpose
  */
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
+
 import { config as loadEnv } from "dotenv";
 
 loadEnv({ path: [".env.local", ".env"], quiet: true });
 
 import postgres from "postgres";
 
-const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const DB_URL = process.env.DATABASE_URL;
 if (!DB_URL) throw new Error("DATABASE_URL is not set.");
 

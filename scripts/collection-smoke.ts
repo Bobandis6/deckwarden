@@ -9,16 +9,19 @@
  * deliberately outside `pnpm check`.
  *
  *   pnpm smoke:collection                                  # http://localhost:3000
- *   BASE_URL=https://deckwarden.gg pnpm smoke:collection   # against prod
+ *   SMOKE_ALLOW_REMOTE=1 BASE_URL=https://deckwarden.gg pnpm smoke:collection   # a deploy, on purpose
  *
- * Sessions are minted like engagement-smoke.ts (throwaway users + session
- * rows, cookies signed with BETTER_AUTH_SECRET). Fixtures are REAL printing
+ * Sessions come from scripts/smoke/session.ts (throwaway users + session
+ * rows in the database .env.local names). Fixtures are REAL printing
  * ids read from the DB (never the owner's account, which has no collection
  * yet); one deck is created (the per-IP deck-create limiter is 10/hour —
  * run this smoke before the deck-heavy ones). Everything is deleted in
  * `finally`, and the user delete doubles as the cascade proof.
  */
-import { createHmac, randomBytes, randomUUID } from "node:crypto";
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
+import { mintSession } from "./smoke/session";
+
+import { randomBytes, randomUUID } from "node:crypto";
 
 import { config as loadEnv } from "dotenv";
 
@@ -28,9 +31,6 @@ import postgres from "postgres";
 
 import { COLLECTION_LIMITS } from "../src/lib/collection/types";
 
-const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
-const SECRET = process.env.BETTER_AUTH_SECRET;
-if (!SECRET) throw new Error("BETTER_AUTH_SECRET is not set — see .env.example.");
 const DB_URL = process.env.DATABASE_URL;
 if (!DB_URL) throw new Error("DATABASE_URL is not set.");
 
@@ -42,14 +42,6 @@ function check(label: string, ok: boolean, detail?: unknown) {
     failures++;
     console.error(`  FAIL  ${label}${detail !== undefined ? ` — ${JSON.stringify(detail)}` : ""}`);
   }
-}
-
-function signedCookie(token: string): string {
-  const sig = createHmac("sha256", SECRET as string)
-    .update(token)
-    .digest("base64");
-  const value = encodeURIComponent(`${token}.${sig}`);
-  return `better-auth.session_token=${value}; __Secure-better-auth.session_token=${value}`;
 }
 
 async function api(
@@ -183,18 +175,8 @@ async function main() {
     const nonfoilOnlyId = nonfoilOnly.printing_id as string;
 
     // ---- mint two users: A imports, B never does ---------------------------
-    const mkUser = async (tag: string) => {
-      const [user] = await sql`
-        insert into users (name, email) values
-          (${`P37 Smoke ${tag} ${run}`}, ${`p37-smoke-${tag}-${run}@smoke.invalid`})
-        returning id`;
-      cleanup.userIds.push(user.id as string);
-      const token = randomBytes(24).toString("hex");
-      await sql`
-        insert into sessions (token, user_id, expires_at)
-        values (${token}, ${user.id as string}, now() + interval '1 hour')`;
-      return { id: user.id as string, cookie: signedCookie(token) };
-    };
+    const mkUser = (tag: string) =>
+      mintSession(sql, { label: "P37", tag, run, userIds: cleanup.userIds });
     const alice = await mkUser("a");
     const bob = await mkUser("b");
 

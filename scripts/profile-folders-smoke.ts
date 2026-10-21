@@ -6,13 +6,11 @@
  *   pnpm smoke:profile                                  # against http://localhost:3000
  *   BASE_URL=http://localhost:3111 pnpm smoke:profile   # against another port
  *
- * Sessions can't come from OAuth in a script, so this mints them the way
- * better-auth would read them: two throwaway users + session rows inserted
- * directly, cookies signed with BETTER_AUTH_SECRET using better-call's
- * scheme (token + "." + base64(HMAC-SHA256(secret, token)), URI-encoded —
- * see better-call/dist/crypto.mjs). Both the plain and __Secure- cookie
- * names are sent so the server's baseURL mode doesn't matter. Everything is
- * cleaned up in `finally`, pass or fail.
+ * Sessions can't come from OAuth in a script, so scripts/smoke/session.ts
+ * mints them the way better-auth reads them (two throwaway users + session
+ * rows in the database .env.local names, the cookie signed with better-call's
+ * scheme under both cookie names — the scheme is documented there). Everything
+ * is cleaned up in `finally`, pass or fail.
  *
  * Deck creates are checked before their ids are recorded: POST /api/decks is
  * rate-limited per IP (10/hour, 30/day), and a 429 mid-run used to leave an
@@ -21,7 +19,10 @@
  * behind in prod (found twice on 2026-09-02). Now a failed create aborts the
  * run with the status in the message, and cleanup only ever deletes real ids.
  */
-import { createHmac, randomBytes, randomUUID } from "node:crypto";
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
+import { mintSession } from "./smoke/session";
+
+import { randomBytes, randomUUID } from "node:crypto";
 
 import { config as loadEnv } from "dotenv";
 
@@ -29,9 +30,6 @@ loadEnv({ path: [".env.local", ".env"], quiet: true });
 
 import postgres from "postgres";
 
-const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
-const SECRET = process.env.BETTER_AUTH_SECRET;
-if (!SECRET) throw new Error("BETTER_AUTH_SECRET is not set — see .env.example.");
 const DB_URL = process.env.DATABASE_URL;
 if (!DB_URL) throw new Error("DATABASE_URL is not set.");
 
@@ -43,14 +41,6 @@ function check(label: string, ok: boolean, detail?: unknown) {
     failures++;
     console.error(`  FAIL  ${label}${detail !== undefined ? ` — ${JSON.stringify(detail)}` : ""}`);
   }
-}
-
-function signedCookie(token: string): string {
-  const sig = createHmac("sha256", SECRET as string)
-    .update(token)
-    .digest("base64");
-  const value = encodeURIComponent(`${token}.${sig}`);
-  return `better-auth.session_token=${value}; __Secure-better-auth.session_token=${value}`;
 }
 
 async function api(
@@ -105,18 +95,8 @@ async function main() {
 
   try {
     // ---- mint two users + sessions straight into the DB -------------------
-    const mkUser = async (tag: string) => {
-      const [user] = await sql`
-        insert into users (name, email) values
-          (${`P22 Smoke ${tag} ${run}`}, ${`p22-smoke-${tag}-${run}@smoke.invalid`})
-        returning id`;
-      cleanup.userIds.push(user.id as string);
-      const token = randomBytes(24).toString("hex");
-      await sql`
-        insert into sessions (token, user_id, expires_at)
-        values (${token}, ${user.id as string}, now() + interval '1 hour')`;
-      return { id: user.id as string, cookie: signedCookie(token) };
-    };
+    const mkUser = (tag: string) =>
+      mintSession(sql, { label: "P22", tag, run, userIds: cleanup.userIds });
     const alice = await mkUser("a");
     const bob = await mkUser("b");
 

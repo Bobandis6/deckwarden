@@ -4,7 +4,7 @@
  * nothing). Runs outside `pnpm check` (live server + DB).
  *
  *   pnpm smoke:autofill                                  # http://localhost:3000
- *   BASE_URL=https://deckwarden.gg pnpm smoke:autofill   # against a deploy
+ *   SMOKE_ALLOW_REMOTE=1 BASE_URL=https://deckwarden.gg pnpm smoke:autofill   # a deploy, on purpose
  *
  * Five commanders, per the W9a acceptance:
  *   - Atraxa, Praetors' Voice — 99 picks, no validation errors, evidence on
@@ -34,10 +34,10 @@
  * Budget: 15 autofill POSTs — under the 20/min deckAutofill bucket. Never
  * retry into a 429; `pnpm counters:reset` if a manual battery preceded this.
  */
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
+
 import { getAdapter } from "../src/lib/games/registry";
 import type { BracketFreshness, CardData, CompleteCombo } from "../src/lib/games/types";
-
-const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 let failures = 0;
 function check(label: string, ok: boolean, detail?: unknown) {

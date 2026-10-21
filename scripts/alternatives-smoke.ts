@@ -5,7 +5,7 @@
  * rate-limit bucket (30/min, 200/hour), so requests are paced under it.
  *
  *   pnpm smoke:alternatives                                  # http://localhost:3000
- *   BASE_URL=https://deckwarden.gg pnpm smoke:alternatives   # against a deploy
+ *   SMOKE_ALLOW_REMOTE=1 BASE_URL=https://deckwarden.gg pnpm smoke:alternatives   # a deploy, on purpose
  *
  * Covers WAVE4 E's acceptance — Sol Ring in a mono-white deck offers mana
  * rocks (every row shares "mana-rock"), not lifegain; Swords to Plowshares
@@ -23,9 +23,8 @@
  * type line, never from its tags. The hit rate over the top five is
  * printed for the ship note; below 70% fires LATER row 154 (embeddings).
  */
-export {}; // import-free file: stay a module so `main` doesn't collide with other scripts
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
 
-const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 /** Under the route's 30/min bucket. */
 const PACE_MS = 2100;
 

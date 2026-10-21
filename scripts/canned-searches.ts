@@ -4,14 +4,13 @@
  * (budget: < ~150ms). Run against local dev or the deployment:
  *
  *   pnpm search:canned                              # http://localhost:3000
- *   BASE_URL=https://deckwarden.gg pnpm search:canned
+ *   SMOKE_ALLOW_REMOTE=1 BASE_URL=https://deckwarden.gg pnpm search:canned   # a deploy, on purpose
  *
  * Note: p95 measured here includes network RTT to the target; the budget is
  * meant for warm server-side latency, so run against the nearest target when
  * a number looks suspicious.
  */
-
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
 
 interface Result {
   id: string;
@@ -159,7 +158,7 @@ const CANNED: Canned[] = [
 ];
 
 async function timedFetch(params: string): Promise<{ body: SearchResponse; ms: number }> {
-  const url = `${BASE_URL}/api/cards/search?${params.replaceAll(" ", "+")}`;
+  const url = `${BASE}/api/cards/search?${params.replaceAll(" ", "+")}`;
   const start = performance.now();
   const res = await fetch(url);
   const body = (await res.json()) as SearchResponse;
@@ -169,7 +168,7 @@ async function timedFetch(params: string): Promise<{ body: SearchResponse; ms: n
 }
 
 async function main() {
-  console.log(`Canned searches against ${BASE_URL}\n`);
+  console.log(`Canned searches against ${BASE}\n`);
   const timings: number[] = [];
   let failures = 0;
 

@@ -11,13 +11,14 @@
  *   pnpm smoke:seo
  *   BASE_URL=http://localhost:3111 pnpm smoke:seo
  */
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
+
 import { config as loadEnv } from "dotenv";
 
 loadEnv({ path: [".env.local", ".env"], quiet: true });
 
 import postgres from "postgres";
 
-const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const DB_URL = process.env.DATABASE_URL;
 if (!DB_URL) throw new Error("DATABASE_URL is not set.");
 
@@ -241,8 +242,8 @@ async function main() {
     if (deckOgPath) {
       const img = await fetchImage(deckOgPath);
       check(
-        "deck OG image renders (200, png, >10KB)",
-        img.status === 200 && img.type.startsWith("image/png") && img.bytes > 10_000,
+        "deck OG image renders (200, jpeg, >10KB)",
+        img.status === 200 && img.type === "image/jpeg" && img.bytes > 10_000,
         img,
       );
     }
@@ -269,8 +270,8 @@ async function main() {
     if (deckOgPath) {
       const img = await fetchImage(deckOgPath);
       check(
-        "private deck OG image degrades to the generic brand (200, png)",
-        img.status === 200 && img.type.startsWith("image/png"),
+        "private deck OG image degrades to the generic brand (200, jpeg)",
+        img.status === 200 && img.type === "image/jpeg",
         img,
       );
     }
@@ -289,8 +290,8 @@ async function main() {
     if (hubOgPath) {
       const img = await fetchImage(hubOgPath);
       check(
-        "hub OG image renders (200, png, >10KB)",
-        img.status === 200 && img.type.startsWith("image/png") && img.bytes > 10_000,
+        "hub OG image renders (200, jpeg, >10KB)",
+        img.status === 200 && img.type === "image/jpeg" && img.bytes > 10_000,
         img,
       );
     }
@@ -312,8 +313,8 @@ async function main() {
     if (cardOgPath) {
       const img = await fetchImage(cardOgPath);
       check(
-        "card OG image renders (200, png, >10KB)",
-        img.status === 200 && img.type.startsWith("image/png") && img.bytes > 10_000,
+        "card OG image renders (200, jpeg, >10KB)",
+        img.status === 200 && img.type === "image/jpeg" && img.bytes > 10_000,
         img,
       );
     }
@@ -372,8 +373,8 @@ async function main() {
     if (opHubOgPath) {
       const img = await fetchImage(opHubOgPath);
       check(
-        "OP hub OG image renders (200, png — artless frame by design)",
-        img.status === 200 && img.type.startsWith("image/png") && img.bytes > 5_000,
+        "OP hub OG image renders (200, jpeg — artless frame by design)",
+        img.status === 200 && img.type === "image/jpeg" && img.bytes > 5_000,
         img,
       );
     }
@@ -481,8 +482,8 @@ async function main() {
       if (opDeckOgPath) {
         const img = await fetchImage(opDeckOgPath);
         check(
-          "OP deck OG image renders (200, png — artless + game-true words by design, labels.ts)",
-          img.status === 200 && img.type.startsWith("image/png") && img.bytes > 5_000,
+          "OP deck OG image renders (200, jpeg — artless + game-true words by design, labels.ts)",
+          img.status === 200 && img.type === "image/jpeg" && img.bytes > 5_000,
           img,
         );
       }

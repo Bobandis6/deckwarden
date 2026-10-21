@@ -7,11 +7,14 @@
  *   pnpm smoke:engagement                                  # http://localhost:3000
  *   BASE_URL=http://localhost:3111 pnpm smoke:engagement   # another port
  *
- * Sessions are minted the same way profile-folders-smoke.ts does: throwaway
- * users + session rows inserted directly, cookies signed with
- * BETTER_AUTH_SECRET using better-call's scheme. Cleanup in `finally`.
+ * Sessions come from scripts/smoke/session.ts (a throwaway user + session
+ * row in the database .env.local names, the cookie signed the way Better
+ * Auth reads it). Cleanup in `finally`.
  */
-import { createHmac, randomBytes, randomUUID } from "node:crypto";
+import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
+import { mintSession } from "./smoke/session";
+
+import { randomBytes, randomUUID } from "node:crypto";
 
 import { config as loadEnv } from "dotenv";
 
@@ -19,9 +22,6 @@ loadEnv({ path: [".env.local", ".env"], quiet: true });
 
 import postgres from "postgres";
 
-const BASE = (process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
-const SECRET = process.env.BETTER_AUTH_SECRET;
-if (!SECRET) throw new Error("BETTER_AUTH_SECRET is not set — see .env.example.");
 const DB_URL = process.env.DATABASE_URL;
 if (!DB_URL) throw new Error("DATABASE_URL is not set.");
 
@@ -33,14 +33,6 @@ function check(label: string, ok: boolean, detail?: unknown) {
     failures++;
     console.error(`  FAIL  ${label}${detail !== undefined ? ` — ${JSON.stringify(detail)}` : ""}`);
   }
-}
-
-function signedCookie(token: string): string {
-  const sig = createHmac("sha256", SECRET as string)
-    .update(token)
-    .digest("base64");
-  const value = encodeURIComponent(`${token}.${sig}`);
-  return `better-auth.session_token=${value}; __Secure-better-auth.session_token=${value}`;
 }
 
 async function api(
@@ -95,18 +87,8 @@ async function main() {
 
   try {
     // ---- mint two users + sessions straight into the DB -------------------
-    const mkUser = async (tag: string) => {
-      const [user] = await sql`
-        insert into users (name, email) values
-          (${`P23 Smoke ${tag} ${run}`}, ${`p23-smoke-${tag}-${run}@smoke.invalid`})
-        returning id`;
-      cleanup.userIds.push(user.id as string);
-      const token = randomBytes(24).toString("hex");
-      await sql`
-        insert into sessions (token, user_id, expires_at)
-        values (${token}, ${user.id as string}, now() + interval '1 hour')`;
-      return { id: user.id as string, cookie: signedCookie(token) };
-    };
+    const mkUser = (tag: string) =>
+      mintSession(sql, { label: "P23", tag, run, userIds: cleanup.userIds });
     const alice = await mkUser("a");
     const bob = await mkUser("b");
 
