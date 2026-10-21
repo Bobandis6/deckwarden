@@ -39,7 +39,7 @@
  */
 import type { DeckGoals } from "@/lib/decks/goals";
 import { loadCompleteCombos } from "@/lib/combos/queries";
-import { getAdapter } from "@/lib/games/registry";
+import { findAdapter } from "@/lib/games/registry";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
 import type {
   BracketInput,
@@ -47,7 +47,6 @@ import type {
   CompleteCombo,
   DeckEntry,
   GameAdapter,
-  RecommendMeta,
 } from "@/lib/games/types";
 import {
   applyGoals,
@@ -170,15 +169,9 @@ export interface GatherOptions {
   excludeCardIds?: readonly string[];
 }
 
-/** The game's adapter, or undefined for an unknown game id. */
+/** The game's adapter, or undefined for an unknown game id or one without an adapter (azuki). */
 export function adapterFor(gameId: number): GameAdapter | undefined {
-  const gameCode = gameCodeById(gameId);
-  return gameCode ? getAdapter(gameCode) : undefined;
-}
-
-/** The game's RecommendMeta, or undefined for games without signals (OPTCG). */
-export function recommendMetaFor(gameId: number): RecommendMeta | undefined {
-  return adapterFor(gameId)?.recommend;
+  return findAdapter(gameCodeById(gameId));
 }
 
 /**

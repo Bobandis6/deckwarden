@@ -27,6 +27,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 
+import { noStoreJson } from "@/lib/api/json";
 import { loadCombosNearDeck, loadDeckCardIds } from "@/lib/combos/queries";
 import { deckComboStatus } from "@/lib/combos/view";
 import { clientIp } from "@/lib/decks/access";
@@ -36,8 +37,6 @@ import { loadTournamentSignals } from "@/lib/recommend/queries";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/combos">) {
   const limited = await enforceRateLimit(RATE_LIMITS.deckCombos(clientIp(request.headers)));
@@ -78,8 +77,5 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
     }
   }
 
-  return NextResponse.json(
-    { deckId: deck.id, inDeck, oneAway, truncated: found.truncated, tournaments },
-    { headers: NO_STORE },
-  );
+  return noStoreJson({ deckId: deck.id, inDeck, oneAway, truncated: found.truncated, tournaments });
 }

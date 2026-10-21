@@ -15,7 +15,7 @@ const { decks, deckCards, cardIdentities } = schema;
 
 export interface DeckOgData {
   name: string;
-  visibility: string;
+  visibility: "public" | "unlisted";
   /** The deck's game — kicker/curve-label vocabulary and the art posture (P4.6). */
   gameId: number;
   cardCount: number;
@@ -32,7 +32,14 @@ export interface DeckOgData {
   targetLevel: number | null;
 }
 
-export async function loadDeckOgData(publicId: string): Promise<DeckOgData | null> {
+/**
+ * A private deck's read stops at the visibility row (S8, SECURITY-AUDIT-report.md
+ * I9): the preview renders the generic image for it, so the card list and
+ * the leader names are never fetched — nothing past the first statement.
+ */
+export type DeckOgRead = { visibility: "private" } | DeckOgData;
+
+export async function loadDeckOgData(publicId: string): Promise<DeckOgRead | null> {
   if (!/^[a-z0-9_]{4,32}$/.test(publicId)) return null;
   const db = getDb();
   const [deck] = await db
@@ -48,6 +55,7 @@ export async function loadDeckOgData(publicId: string): Promise<DeckOgData | nul
     .where(eq(decks.publicId, publicId))
     .limit(1);
   if (!deck) return null;
+  if (deck.visibility === "private") return { visibility: "private" };
 
   const [cards, leaders] = await Promise.all([
     db

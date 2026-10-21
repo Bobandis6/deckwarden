@@ -15,14 +15,13 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { isUniqueViolation } from "@/db/errors";
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { getSessionUserId } from "@/lib/auth";
 import { FOLDER_LIMITS, folderMetaJson } from "@/lib/decks/folders";
 import { newPublicId } from "@/lib/decks/public-id";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 const BODY = z.object({
   name: z.string().trim().min(1).max(FOLDER_LIMITS.nameMax),
@@ -33,27 +32,13 @@ const BODY = z.object({
 export async function POST(request: NextRequest) {
   const userId = await getSessionUserId(request.headers);
   if (!userId) {
-    return NextResponse.json(
-      { error: "Sign in to create folders" },
-      { status: 401, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "Sign in to create folders" }, { status: 401 });
   }
   const limited = await enforceRateLimit(RATE_LIMITS.folderCreate(userId));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  const parsed = BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  const body = await parseJsonBody(request, BODY);
+  if (body instanceof NextResponse) return body;
 
   const db = getDb();
   const [{ existing }] = await db
@@ -61,9 +46,9 @@ export async function POST(request: NextRequest) {
     .from(schema.deckFolders)
     .where(eq(schema.deckFolders.userId, userId));
   if (existing >= FOLDER_LIMITS.perUser) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: `Folder limit reached (${FOLDER_LIMITS.perUser}).` },
-      { status: 400, headers: NO_STORE },
+      { status: 400 },
     );
   }
 
@@ -73,23 +58,17 @@ export async function POST(request: NextRequest) {
       .values({
         publicId: newPublicId(),
         userId,
-        name: parsed.data.name,
-        description: parsed.data.description ?? null,
-        visibility: parsed.data.visibility,
+        name: body.name,
+        description: body.description ?? null,
+        visibility: body.visibility,
       })
       .returning();
-    return NextResponse.json(
-      { folder: folderMetaJson(folder, { isOwner: true }) },
-      { status: 201, headers: NO_STORE },
-    );
+    return noStoreJson({ folder: folderMetaJson(folder, { isOwner: true }) }, { status: 201 });
   } catch (err) {
     if (isUniqueViolation(err)) {
       // (user_id, lower(name)) — the public_id space makes its own
       // collisions negligible (public-id.ts), so name is the realistic hit.
-      return NextResponse.json(
-        { error: "You already have a folder with that name." },
-        { status: 409, headers: NO_STORE },
-      );
+      return noStoreJson({ error: "You already have a folder with that name." }, { status: 409 });
     }
     throw err;
   }

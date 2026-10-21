@@ -50,8 +50,6 @@ const deckFileSchema = z.object({
   schemes: z.array(z.unknown()).default([]),
 });
 
-export type MtgjsonDeckFile = z.input<typeof deckFileSchema>;
-
 // --- Mapping ------------------------------------------------------------------
 
 export interface PreconEntry {

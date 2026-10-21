@@ -32,6 +32,7 @@ loadEnv({ path: [".env.local", ".env"], quiet: true });
 import postgres from "postgres";
 
 import { GAME_ID } from "../../src/db/seed-data";
+import { fetchBounded } from "../../src/lib/ingest/fetch-bounded";
 import { assignOpLeaderSlugs } from "./assign-leader-slugs";
 import {
   baseCardId,
@@ -54,6 +55,14 @@ const RAW_BASE = `https://raw.githubusercontent.com/${REPO}`;
 /** Bump when punk-map.ts mapping changes — forces a re-ingest at an unchanged sha. */
 const MAPPER_VERSION = 2; // v2: decode HTML entities (&amp; in 33 names, 2 pack titles)
 const FETCH_DELAY_MS = 100;
+/**
+ * Bounded read (S8, SECURITY-AUDIT-report.md L13): the largest file today is
+ * english/index/cards_by_id.json at 1.69 MB (2026-10-20; a pack file is at
+ * most 210 KB, packs.json 10 KB, the commits call ~1 KB) — the cap is about
+ * ten of those, room for the sets to come. One deadline per file.
+ */
+const FILE_MAX_BYTES = 16 * 1024 * 1024;
+const FILE_TIMEOUT_MS = 60_000;
 const BATCH_SIZE = 1000;
 /** Session-wide lock id shared by all Deckwarden ingest jobs. */
 const INGEST_LOCK_KEY = 7234015309;
@@ -67,9 +76,13 @@ function directUrl(): string {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: HEADERS });
+  const res = await fetchBounded(url, {
+    headers: HEADERS,
+    maxBytes: FILE_MAX_BYTES,
+    timeoutMs: FILE_TIMEOUT_MS,
+  });
   if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
-  return (await res.json()) as T;
+  return JSON.parse(res.text) as T;
 }
 
 async function latestSha(): Promise<string> {

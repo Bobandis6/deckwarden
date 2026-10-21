@@ -23,6 +23,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getDb } from "@/db";
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { LIST_HASH_PREFIX, playableListHash } from "@/lib/decks/list-hash";
 import { requireOwnedDeck, requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
 import {
@@ -40,8 +41,6 @@ import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-const NO_STORE = { "Cache-Control": "no-store" };
-
 export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/versions">) {
   const { id } = await ctx.params;
   const access = await requireOwnedDeck(request.headers, id);
@@ -57,23 +56,20 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
     const detail = await loadVersion(getDb(), access.deck.id, newest.version);
     latestListHash = detail ? playableListHash(detail.cards) : null;
   }
-  return NextResponse.json(
-    {
-      versions: versions.map((v) => ({
-        version: v.version,
-        note: v.note,
-        kind: v.kind,
-        createdAt: v.createdAt,
-        cardCount: v.cardCount,
-        record: tallies.get(v.version) ?? null,
-      })),
-      currentVersion: access.deck.currentVersion,
-      cap: MAX_VERSIONS_PER_DECK,
-      playedAllowance: MAX_PLAYED_SNAPSHOTS_PER_DECK,
-      latestListHash,
-    },
-    { headers: NO_STORE },
-  );
+  return noStoreJson({
+    versions: versions.map((v) => ({
+      version: v.version,
+      note: v.note,
+      kind: v.kind,
+      createdAt: v.createdAt,
+      cardCount: v.cardCount,
+      record: tallies.get(v.version) ?? null,
+    })),
+    currentVersion: access.deck.currentVersion,
+    cap: MAX_VERSIONS_PER_DECK,
+    playedAllowance: MAX_PLAYED_SNAPSHOTS_PER_DECK,
+    latestListHash,
+  });
 }
 
 const POST_BODY = z.object({
@@ -86,35 +82,16 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/decks/[
   const access = await requireOwnedDeckWrite(request.headers, id, RATE_LIMITS.deckVersionWrite);
   if (access instanceof NextResponse) return access;
 
-  let json: unknown = {};
-  const raw = await request.text();
-  if (raw) {
-    try {
-      json = JSON.parse(raw);
-    } catch {
-      return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-    }
-  }
-  const parsed = POST_BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  // An empty body is a plain save (the editor sends none); anything present must be JSON.
+  const body = await parseJsonBody(request, POST_BODY, { emptyBody: {} });
+  if (body instanceof NextResponse) return body;
 
   try {
-    const saved = await saveVersion(access.deck.id, parsed.data.note || null);
-    return NextResponse.json(
-      { ...saved, cap: MAX_VERSIONS_PER_DECK },
-      { status: 201, headers: NO_STORE },
-    );
+    const saved = await saveVersion(access.deck.id, body.note || null);
+    return noStoreJson({ ...saved, cap: MAX_VERSIONS_PER_DECK }, { status: 201 });
   } catch (err) {
     if (err instanceof VersionCapError) {
-      return NextResponse.json(
-        { error: err.message, cap: MAX_VERSIONS_PER_DECK },
-        { status: 409, headers: NO_STORE },
-      );
+      return noStoreJson({ error: err.message, cap: MAX_VERSIONS_PER_DECK }, { status: 409 });
     }
     throw err;
   }

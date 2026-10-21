@@ -35,7 +35,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
-import { getSessionUserId } from "@/lib/auth";
+import { noStoreJson } from "@/lib/api/json";
 import { ownedIdentityIds } from "@/lib/collection/owned";
 import { MAX_LIMIT, recommendForDeck } from "@/lib/recommend/engine";
 import { clientIp } from "@/lib/decks/access";
@@ -44,8 +44,6 @@ import { requireReadableDeck } from "@/lib/decks/route-helpers";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 const QUERY = z.object({
   /** Budget in USD: only cards with a known price at or under it. */
@@ -71,7 +69,7 @@ export async function GET(
   const { id } = await ctx.params;
   const access = await requireReadableDeck(request.headers, id);
   if (access instanceof NextResponse) return access;
-  const { deck, isOwner } = access;
+  const { deck, isOwner, userId } = access;
 
   const params = request.nextUrl.searchParams;
   const parsed = QUERY.safeParse({
@@ -80,17 +78,13 @@ export async function GET(
     owned: params.get("owned") ?? undefined,
   });
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid query", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "Invalid query", issues: parsed.error.issues }, { status: 400 });
   }
 
   const requested = parsed.data.owned === "1" || parsed.data.owned === "true";
   const owned: OwnedFilterMeta = { requested, applied: false };
   let ownedCardIds: ReadonlySet<string> | undefined;
   if (requested) {
-    const userId = await getSessionUserId(request.headers);
     if (!userId) {
       owned.reason = "signed-out";
     } else {
@@ -111,15 +105,12 @@ export async function GET(
     goals: isOwner ? goals : publicGoals(goals),
   });
 
-  return NextResponse.json(
-    {
-      deckId: deck.id,
-      count: recommendations.length,
-      owned,
-      recommendations,
-      hidden,
-      combosTruncated,
-    },
-    { headers: NO_STORE },
-  );
+  return noStoreJson({
+    deckId: deck.id,
+    count: recommendations.length,
+    owned,
+    recommendations,
+    hidden,
+    combosTruncated,
+  });
 }

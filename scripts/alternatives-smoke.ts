@@ -279,7 +279,8 @@ async function main() {
       (r) =>
         r.evidence[0]?.source === "scryfall_tagger" &&
         r.evidence[0].why.startsWith("Both: ") &&
-        r.evidence[0].why.endsWith("— community-tagged on Scryfall Tagger"),
+        // U9 (49a07aa) reworded the credit; the smoke lagged until S8.
+        r.evidence[0].why.endsWith(". Community-tagged on Scryfall Tagger"),
     ),
     a.alternatives[0]?.evidence[0],
   );

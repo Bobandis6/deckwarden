@@ -33,6 +33,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { findFormat, GAME_ID } from "@/db/seed-data";
+import { badRequest, noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { clientIp } from "@/lib/decks/access";
 import { goalsSchema } from "@/lib/decks/goals";
 import { getAdapter } from "@/lib/games/registry";
@@ -41,8 +42,6 @@ import { loadEntryFacts } from "@/lib/recommend/queries";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 /** The cards PUT's limits: 500 entries, 1–99 copies; a command zone holds at most two. */
 const BODY = z.object({
@@ -59,38 +58,29 @@ const BODY = z.object({
   goals: z.unknown().optional(),
 });
 
-const bad = (error: string, issues?: unknown) =>
-  NextResponse.json(issues ? { error, issues } : { error }, { status: 400, headers: NO_STORE });
-
 export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(RATE_LIMITS.recommendSnapshot(clientIp(request.headers)));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return bad("Body must be JSON");
-  }
-  const parsed = BODY.safeParse(json);
-  if (!parsed.success) return bad("Invalid body", parsed.error.issues);
-  const { game, format, leaderIds, entries, budget } = parsed.data;
+  const body = await parseJsonBody(request, BODY);
+  if (body instanceof NextResponse) return body;
+  const { game, format, leaderIds, entries, budget } = body;
 
   const adapter = getAdapter(game);
-  if (!adapter.recommend) return bad(`No recommendations for ${game}`);
+  if (!adapter.recommend) return badRequest(`No recommendations for ${game}`);
   const seededFormat = findFormat(game, format);
-  if (!seededFormat) return bad(`Unknown format "${format}" for ${game}`);
+  if (!seededFormat) return badRequest(`Unknown format "${format}" for ${game}`);
   const goals =
-    parsed.data.goals === undefined || parsed.data.goals === null
+    body.goals === undefined || body.goals === null
       ? null
-      : goalsSchema(adapter.brackets).safeParse(parsed.data.goals);
-  if (goals && !goals.success) return bad("Invalid goals", goals.error.issues);
+      : goalsSchema(adapter.brackets).safeParse(body.goals);
+  if (goals && !goals.success) return badRequest("Invalid goals", goals.error.issues);
 
   // Server-authoritative facts for every id the client sent.
   const ids = [...new Set([...leaderIds, ...entries.map((e) => e.cardId)])];
   const facts = await loadEntryFacts(GAME_ID[game], ids, adapter.brackets?.flagPaths);
   const unknown = ids.filter((id) => !facts.has(id));
-  if (unknown.length > 0) return bad("Unknown card ids for this game", unknown);
+  if (unknown.length > 0) return badRequest("Unknown card ids for this game", unknown);
 
   const snapshot: RecommendSnapshot = {
     gameId: GAME_ID[game],
@@ -107,8 +97,5 @@ export async function POST(request: NextRequest) {
     goals: goals?.data ?? null,
   });
 
-  return NextResponse.json(
-    { count: recommendations.length, recommendations, hidden, combosTruncated },
-    { headers: NO_STORE },
-  );
+  return noStoreJson({ count: recommendations.length, recommendations, hidden, combosTruncated });
 }

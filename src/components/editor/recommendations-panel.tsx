@@ -72,7 +72,7 @@ import { BRACKET_COPY } from "@/lib/brackets/copy";
 import type { EditorCard } from "@/lib/decks/editor-state";
 import { goalsPatchBody, suggestionGoals, withBudget, type DeckGoals } from "@/lib/decks/goals";
 import { deckStateKey, hasLeader, snapshotBody } from "@/lib/decks/panel-view";
-import { getDeckToken } from "@/lib/decks/token-store";
+import { DECK_TOKEN_HEADER, getDeckToken } from "@/lib/decks/token-store";
 import type { GoalConflict } from "@/lib/recommend/goals";
 import type { Confidence, Recommendation } from "@/lib/recommend/types";
 import { BUDGET_OPTIONS, tierOf, usdOf, type BudgetTier } from "@/lib/recommend/budget";
@@ -197,7 +197,7 @@ export function RecommendationsPanel({
           const params = query ? `?${query}` : "";
           const token = getDeckToken(deckId);
           res = await fetch(`/api/decks/${deckId}/recommendations${params}`, {
-            headers: token ? { "x-deck-token": token } : {},
+            headers: token ? { [DECK_TOKEN_HEADER]: token } : {},
             cache: "no-store",
             signal: controller.signal,
           });

@@ -18,7 +18,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getDb } from "@/db";
-import { getSessionUserId } from "@/lib/auth";
+import { noStoreJson } from "@/lib/api/json";
 import { deckTokenFrom } from "@/lib/decks/access";
 import { forkCredit } from "@/lib/decks/forks";
 import { requireOwnedDeck } from "@/lib/decks/route-helpers";
@@ -26,23 +26,15 @@ import { cardNamesById, loadLiveFrozen, loadVersion } from "@/lib/decks/versions
 
 export const dynamic = "force-dynamic";
 
-const NO_STORE = { "Cache-Control": "no-store" };
-
 export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/upstream">) {
   const { id } = await ctx.params;
   const access = await requireOwnedDeck(request.headers, id);
   if (access instanceof NextResponse) return access;
-  const { deck } = access;
+  const { deck, userId } = access;
 
-  const credit = await forkCredit(deck, {
-    token: deckTokenFrom(request.headers),
-    userId: await getSessionUserId(request.headers),
-  });
+  const credit = await forkCredit(deck, { token: deckTokenFrom(request.headers), userId });
   if (!credit || !deck.forkedFromDeckId) {
-    return NextResponse.json(
-      { credit: null, baseline: null, upstream: null, names: {} },
-      { headers: NO_STORE },
-    );
+    return noStoreJson({ credit: null, baseline: null, upstream: null, names: {} });
   }
 
   const db = getDb();
@@ -55,14 +47,11 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
     ...(baseline ?? []).map((c) => c.cardId),
     ...(upstream ?? []).map((c) => c.cardId),
   ]);
-  return NextResponse.json(
-    {
-      credit,
-      baseline,
-      baselineNote: baselineVersion?.note ?? null,
-      upstream,
-      names,
-    },
-    { headers: NO_STORE },
-  );
+  return noStoreJson({
+    credit,
+    baseline,
+    baselineNote: baselineVersion?.note ?? null,
+    upstream,
+    names,
+  });
 }

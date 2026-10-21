@@ -9,13 +9,12 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 
+import { noStoreJson } from "@/lib/api/json";
 import { setDeckLike } from "@/lib/decks/engagement";
 import { requireEngageableDeck } from "@/lib/decks/route-helpers";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 async function setLike(request: NextRequest, id: string, liked: boolean) {
   const access = await requireEngageableDeck(request.headers, id);
@@ -24,7 +23,7 @@ async function setLike(request: NextRequest, id: string, liked: boolean) {
   if (limited) return limited;
 
   const state = await setDeckLike(access.deck.id, access.userId, liked);
-  return NextResponse.json(state, { headers: NO_STORE });
+  return noStoreJson(state);
 }
 
 export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/like">) {

@@ -35,6 +35,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { findFormat, GAME_ID } from "@/db/seed-data";
+import { badRequest, noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { loadCardWires } from "@/lib/cards/wire";
 import { loadCompleteCombos } from "@/lib/combos/queries";
 import { clientIp } from "@/lib/decks/access";
@@ -57,8 +58,6 @@ import { shellGoals, skippedByGoals, type ShellGoals } from "@/lib/recommend/she
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 /** Pool sizes per gather (WAVE2 §W9a): curve pool `ne` base, base pool `eq`. */
 const CURVE_POOL = 600;
@@ -91,46 +90,37 @@ const BODY = z.object({
   goals: z.unknown().optional(),
 });
 
-const bad = (error: string, issues?: unknown) =>
-  NextResponse.json(issues ? { error, issues } : { error }, { status: 400, headers: NO_STORE });
-
 export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(RATE_LIMITS.deckAutofill(clientIp(request.headers)));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return bad("Body must be JSON");
-  }
-  const parsed = BODY.safeParse(json);
-  if (!parsed.success) return bad("Invalid body", parsed.error.issues);
-  const { game, format, leaderIds, keep, budgetUsd } = parsed.data;
+  const body = await parseJsonBody(request, BODY);
+  if (body instanceof NextResponse) return body;
+  const { game, format, leaderIds, keep, budgetUsd } = body;
 
   const adapter = getAdapter(game);
   const meta = adapter.recommend;
   const autofill = meta?.autofill;
   const curve = meta?.curve;
   if (!meta || !autofill || !curve) {
-    return bad(`No autofill for ${game}`);
+    return badRequest(`No autofill for ${game}`);
   }
 
   const seededFormat = findFormat(game, format);
   const formatDef = adapter.formats.find((f) => f.code === format);
-  if (!seededFormat || !formatDef) return bad(`Unknown format "${format}" for ${game}`);
+  if (!seededFormat || !formatDef) return badRequest(`Unknown format "${format}" for ${game}`);
 
   const leaderZone = formatDef.zones.find((z) => z.isLeaderZone);
   const mainZone = formatDef.zones.find((z) => z.countsTowardSize && !z.isLeaderZone);
-  if (!leaderZone || !mainZone) return bad(`Format "${format}" cannot be autofilled`);
+  if (!leaderZone || !mainZone) return badRequest(`Format "${format}" cannot be autofilled`);
   if (keep.some((k) => k.zone === leaderZone.id)) {
-    return bad(`Leaders go in leaderIds, not keep (zone "${leaderZone.id}")`);
+    return badRequest(`Leaders go in leaderIds, not keep (zone "${leaderZone.id}")`);
   }
   const goals =
-    parsed.data.goals === undefined || parsed.data.goals === null
+    body.goals === undefined || body.goals === null
       ? null
-      : goalsSchema(adapter.brackets).safeParse(parsed.data.goals);
-  if (goals && !goals.success) return bad("Invalid goals", goals.error.issues);
+      : goalsSchema(adapter.brackets).safeParse(body.goals);
+  if (goals && !goals.success) return badRequest("Invalid goals", goals.error.issues);
   const deckGoals: DeckGoals | null = goals?.data ?? null;
   const brackets = adapter.brackets;
   const targetLevel = brackets ? (deckGoals?.targetLevel ?? null) : null;
@@ -140,14 +130,14 @@ export async function POST(request: NextRequest) {
   const ids = [...new Set([...leaderIds, ...keep.map((k) => k.cardId)])];
   const facts = await loadEntryFacts(GAME_ID[game], ids, brackets?.flagPaths);
   const unknown = ids.filter((id) => !facts.has(id));
-  if (unknown.length > 0) return bad("Unknown card ids for this game", unknown);
+  if (unknown.length > 0) return badRequest("Unknown card ids for this game", unknown);
 
   const entries: DeckCardInput[] = [
     ...leaderIds.map((id) => ({ cardId: id, zone: leaderZone.id, qty: 1, tags: [] })),
     ...keep.map((k) => ({ cardId: k.cardId, zone: k.zone, qty: k.qty, tags: [] })),
   ];
   const structural = cardListIssues(entries, formatDef);
-  if (structural.length > 0) return bad("Invalid card list", structural);
+  if (structural.length > 0) return badRequest("Invalid card list", structural);
 
   const ciMask = leaderIds.reduce((mask, id) => mask | facts.get(id)!.ciMask, 0);
   const snapshot: RecommendSnapshot = {
@@ -162,7 +152,7 @@ export async function POST(request: NextRequest) {
       costValue: facts.get(e.cardId)!.costValue,
     })),
   };
-  const seed = parsed.data.seed ?? Math.floor(Math.random() * 2 ** 31);
+  const seed = body.seed ?? Math.floor(Math.random() * 2 ** 31);
 
   // Two gathers through the one deterministic filter: the curve pool is the
   // negation of the adapter's base scope, the base pool the scope itself —
@@ -343,7 +333,7 @@ export async function POST(request: NextRequest) {
     ...entries,
     ...shell.picks.map((p) => ({ cardId: p.cardId, zone: p.zone, qty: p.qty, tags: [] })),
   ]) {
-    const key = `${e.zone} ${e.cardId}`;
+    const key = `${e.zone}\u0000${e.cardId}`;
     const prev = mergedEntries.get(key);
     if (prev) prev.qty += e.qty;
     else mergedEntries.set(key, { ...e });
@@ -358,18 +348,15 @@ export async function POST(request: NextRequest) {
     cardData,
   );
 
-  return NextResponse.json(
-    {
-      game,
-      format,
-      seed: shell.seed,
-      picks: shell.picks,
-      groups: shell.groups,
-      notes: [...shell.notes, ...goalNotes],
-      totals: shell.totals,
-      issues: validation,
-      cards: wires.filter((w) => usedIds.has(w.id)),
-    },
-    { headers: NO_STORE },
-  );
+  return noStoreJson({
+    game,
+    format,
+    seed: shell.seed,
+    picks: shell.picks,
+    groups: shell.groups,
+    notes: [...shell.notes, ...goalNotes],
+    totals: shell.totals,
+    issues: validation,
+    cards: wires.filter((w) => usedIds.has(w.id)),
+  });
 }

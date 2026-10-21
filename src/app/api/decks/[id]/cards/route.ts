@@ -31,6 +31,7 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { cardListIssues, type DeckCardInput } from "@/lib/decks/cards";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import { requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
@@ -42,8 +43,6 @@ import { RATE_LIMITS } from "@/lib/rate-limit";
 import type { CardData } from "@/lib/games/types";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 const { cardIdentities: ci, cardPrintings: cp } = schema;
 
@@ -70,20 +69,9 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   if (access instanceof NextResponse) return access;
   const { deck } = access;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  const parsed = BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
-  const entries: DeckCardInput[] = parsed.data.cards;
+  const body = await parseJsonBody(request, BODY);
+  if (body instanceof NextResponse) return body;
+  const entries: DeckCardInput[] = body.cards;
 
   // Resolve the deck's format to the adapter's FormatDef (core ↔ interface only).
   const game = gameCodeById(deck.gameId);
@@ -91,18 +79,12 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   const formatCode = findFormatById(deck.formatId)?.code;
   const formatDef = adapter?.formats.find((f) => f.code === formatCode);
   if (!adapter || !formatDef) {
-    return NextResponse.json(
-      { error: "Deck has an unknown game/format" },
-      { status: 500, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "Deck has an unknown game/format" }, { status: 500 });
   }
 
   const issues = cardListIssues(entries, formatDef);
   if (issues.length > 0) {
-    return NextResponse.json(
-      { error: "Invalid card list", issues },
-      { status: 400, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "Invalid card list", issues }, { status: 400 });
   }
 
   const db = getDb();
@@ -133,9 +115,9 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   const ciMaskByCard = new Map(cardRows.map((r) => [r.id, r.ciMask]));
   const unknownCards = cardIds.filter((cid) => !ciMaskByCard.has(cid));
   if (unknownCards.length > 0) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: "Unknown card ids for this game", issues: unknownCards },
-      { status: 400, headers: NO_STORE },
+      { status: 400 },
     );
   }
 
@@ -152,9 +134,9 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
       .filter((e) => ownerByPrinting.get(e.printingId!) !== e.cardId)
       .map((e) => e.printingId!);
     if (badPrintings.length > 0) {
-      return NextResponse.json(
+      return noStoreJson(
         { error: "Printing ids that don't belong to their card", issues: badPrintings },
-        { status: 400, headers: NO_STORE },
+        { status: 400 },
       );
     }
   }
@@ -197,8 +179,5 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
     return writeDeckCards(tx, deck.id, entries, formatDef, ciMaskByCard);
   });
 
-  return NextResponse.json(
-    { count: entries.length, leaderIds, ciMask, updatedAt, validation },
-    { headers: NO_STORE },
-  );
+  return noStoreJson({ count: entries.length, leaderIds, ciMask, updatedAt, validation });
 }

@@ -39,7 +39,12 @@ import { EmptyState } from "@/components/empty-state";
 import { getDb, schema } from "@/db";
 import { getSessionUserId } from "@/lib/auth";
 import { deckCollection } from "@/lib/decks/collections";
-import { folderDeckVisibilities, isFolderOwner, loadFolderByPublicId } from "@/lib/decks/folders";
+import {
+  canReadFolder,
+  folderDeckVisibilities,
+  isFolderOwner,
+  loadFolderByPublicId,
+} from "@/lib/decks/folders";
 import { rowPrinting, tileFromDeck } from "@/lib/decks/tiles";
 
 export const dynamic = "force-dynamic";
@@ -72,7 +77,7 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
   const sessionUserId = await getSessionUserId(await headers());
   const isOwner = isFolderOwner(folder, sessionUserId);
 
-  if (folder.visibility === "private" && !isOwner) {
+  if (!canReadFolder(folder, sessionUserId)) {
     return (
       <main
         id="main"

@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { GAME_ID } from "@/db/seed-data";
 
+import { COLOR_BIT } from "../colors";
 import type { MtgAttrs } from "./attrs";
 import type { TaggerCardFlags } from "./tagger";
 
@@ -82,9 +83,7 @@ export function oracleId(card: ScryfallCard): string | undefined {
 
 // --- Field helpers -----------------------------------------------------------
 
-/** W1 U2 B4 R8 G16 C32. Colorless = 0 so the ci fit test (ci & ~cmdCi) = 0 holds. */
-const COLOR_BIT: Record<string, number> = { W: 1, U: 2, B: 4, R: 8, G: 16, C: 32 };
-
+/** Scryfall's letters on the shared bits (colors.ts). Colorless = 0 so the ci fit test (ci & ~cmdCi) = 0 holds. */
 export function colorsToMask(colors: string[] | undefined): number {
   let mask = 0;
   for (const c of colors ?? []) mask |= COLOR_BIT[c] ?? 0;

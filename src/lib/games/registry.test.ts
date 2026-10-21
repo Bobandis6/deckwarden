@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CardData, DeckSnapshot, GameAdapter } from "./types";
-import { getAdapter, listAdapters } from "./registry";
+import { findAdapter, getAdapter, hasAdapter, listAdapters } from "./registry";
 
 describe("registry", () => {
   it("serves both adapters behind the plain GameAdapter interface", () => {
@@ -12,6 +12,19 @@ describe("registry", () => {
 
   it("throws for games without an adapter yet", () => {
     expect(() => getAdapter("azuki")).toThrow(/azuki/);
+  });
+
+  it("hasAdapter / findAdapter answer the same question without throwing (S8, I7)", () => {
+    expect(hasAdapter("mtg")).toBe(true);
+    expect(hasAdapter("optcg")).toBe(true);
+    expect(hasAdapter("azuki")).toBe(false);
+    for (const junk of ["", "MTG", "toString", "hasOwnProperty", null, undefined]) {
+      expect(hasAdapter(junk), String(junk)).toBe(false);
+      expect(findAdapter(junk), String(junk)).toBeUndefined();
+    }
+    expect(findAdapter("azuki")).toBeUndefined();
+    expect(findAdapter("mtg")?.id).toBe("mtg");
+    expect(findAdapter("optcg")).toBe(getAdapter("optcg"));
   });
 });
 

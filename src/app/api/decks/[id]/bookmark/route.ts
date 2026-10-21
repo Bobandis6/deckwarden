@@ -8,13 +8,12 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 
+import { noStoreJson } from "@/lib/api/json";
 import { setDeckBookmark } from "@/lib/decks/engagement";
 import { requireEngageableDeck } from "@/lib/decks/route-helpers";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 async function setBookmark(request: NextRequest, id: string, bookmarked: boolean) {
   const access = await requireEngageableDeck(request.headers, id);
@@ -23,7 +22,7 @@ async function setBookmark(request: NextRequest, id: string, bookmarked: boolean
   if (limited) return limited;
 
   const state = await setDeckBookmark(access.deck.id, access.userId, bookmarked);
-  return NextResponse.json(state, { headers: NO_STORE });
+  return noStoreJson(state);
 }
 
 export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/bookmark">) {

@@ -16,13 +16,12 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { isUniqueViolation } from "@/db/errors";
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { getSessionUserId } from "@/lib/auth";
 import { checkUsername, USERNAME_MAX } from "@/lib/profile/username";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 const BODY = z.object({
   // Length is validated for real (post-fold) in checkUsername; this bound
@@ -33,31 +32,17 @@ const BODY = z.object({
 export async function PATCH(request: NextRequest) {
   const userId = await getSessionUserId(request.headers);
   if (!userId) {
-    return NextResponse.json(
-      { error: "Sign in to choose a username" },
-      { status: 401, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "Sign in to choose a username" }, { status: 401 });
   }
   const limited = await enforceRateLimit(RATE_LIMITS.profileWrite(userId));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  const parsed = BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  const body = await parseJsonBody(request, BODY);
+  if (body instanceof NextResponse) return body;
 
-  const checked = checkUsername(parsed.data.username);
+  const checked = checkUsername(body.username);
   if (!checked.ok) {
-    return NextResponse.json({ error: checked.error }, { status: 400, headers: NO_STORE });
+    return noStoreJson({ error: checked.error }, { status: 400 });
   }
 
   try {
@@ -67,13 +52,10 @@ export async function PATCH(request: NextRequest) {
       .where(eq(schema.users.id, userId));
   } catch (err) {
     if (isUniqueViolation(err)) {
-      return NextResponse.json(
-        { error: "That username is taken." },
-        { status: 409, headers: NO_STORE },
-      );
+      return noStoreJson({ error: "That username is taken." }, { status: 409 });
     }
     throw err;
   }
 
-  return NextResponse.json({ username: checked.username }, { headers: NO_STORE });
+  return noStoreJson({ username: checked.username });
 }

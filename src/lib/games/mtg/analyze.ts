@@ -3,6 +3,7 @@
  * never components (build plan §3). Pure, qty-weighted, lands excluded from
  * curve math. colorVar names are CSS custom properties the core's theme defines.
  */
+import { COLOR_BIT } from "../colors";
 import type { AnalyticsBlock, CardData, DeckSnapshot } from "../types";
 import type { MtgAttrs } from "./attrs";
 import { MTG_CURVE_TEMPLATE } from "./recommend";
@@ -30,11 +31,10 @@ function isLand(card: MtgCard): boolean {
  * `analyzeMtg` clamps the mask to the commander's identity (Y1, LATER row 31).
  */
 export function producedMask(card: MtgCard): number {
-  const bits: Record<string, number> = { W: 1, U: 2, B: 4, R: 8, G: 16, C: 32 };
   let mask = 0;
   for (const clause of card.attrs.oracle_text.matchAll(/\bAdd\b([^.\n]*)/g)) {
     if (/any (?:one )?color|any combination/i.test(clause[1])) mask |= 31;
-    for (const sym of clause[1].matchAll(/\{([WUBRGC])\}/g)) mask |= bits[sym[1]];
+    for (const sym of clause[1].matchAll(/\{([WUBRGC])\}/g)) mask |= COLOR_BIT[sym[1]];
   }
   return mask;
 }

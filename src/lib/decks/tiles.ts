@@ -31,10 +31,10 @@ import { embeddablePrintingImageUrl, thumbnailUrl } from "@/lib/cards/images";
 import { declaredLabel } from "@/lib/brackets/copy";
 import { ambientGradient } from "@/lib/decks/ambient-art";
 import { updatedLabel } from "@/lib/decks/display";
-import { getAdapter } from "@/lib/games/registry";
+import { getAdapter, hasAdapter, type AdapterGameId } from "@/lib/games/registry";
 
-/** The two games with adapters today (GameId also names azuki, which has none). */
-export type TileGame = "mtg" | "optcg";
+/** The games a tile can paint: the ones with an adapter (the registry's own list, S8 I7). */
+export type TileGame = AdapterGameId;
 
 /** Short game names for the tile chip — the header's long names would wrap a tile. */
 export const TILE_GAME_LABELS: Record<TileGame, string> = { mtg: "Magic", optcg: "One Piece" };
@@ -141,7 +141,7 @@ function formatLabelByCode(game: TileGame | null, code: string | null): string {
 
 /** Finished tile data from either the wire shape or a database row's fields. */
 export function deckTileData(input: DeckTileInput): DeckTileData {
-  const game: TileGame | null = input.game === "mtg" || input.game === "optcg" ? input.game : null;
+  const game: TileGame | null = hasAdapter(input.game) ? input.game : null;
   const swatches = tileSwatches(game, input.ciMask);
   return {
     href: input.href,

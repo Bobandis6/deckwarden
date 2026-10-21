@@ -161,7 +161,7 @@ describe("GET /api/combos/complete", () => {
     ]);
   });
 
-  it("one URL per set: anything but the canonical spelling is a 400, before any statement and with no cache header", async () => {
+  it("one URL per set: anything but the canonical spelling is a 400 under no-store, before any statement", async () => {
     const [a, b, c] = IDS;
     const cases: Record<string, string> = {
       "no game": `?ids=${a}`,
@@ -184,7 +184,7 @@ describe("GET /api/combos/complete", () => {
     for (const [label, search] of Object.entries(cases)) {
       const { res } = await get(search);
       expect(res.status, label).toBe(400);
-      expect(res.headers.get("cache-control"), label).toBeNull();
+      expect(res.headers.get("cache-control"), label).toBe("no-store");
     }
     expect(statements).toHaveLength(0);
   });

@@ -22,6 +22,7 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { classifyResolveToken, isBareIdToken } from "@/lib/cards/resolve-token";
 import { toWire, wireSelect, type WireRow } from "@/lib/cards/wire";
@@ -32,8 +33,6 @@ import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { escapeLike } from "@/lib/search/name-match";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 const { cardIdentities: ci } = schema;
 
@@ -59,27 +58,13 @@ export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(RATE_LIMITS.cardResolve(clientIp(request.headers)));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  const parsed = BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
-  const { game, format, names } = parsed.data;
+  const body = await parseJsonBody(request, BODY);
+  if (body instanceof NextResponse) return body;
+  const { game, format, names } = body;
 
   const seededFormat = format ? findFormat(game, format) : undefined;
   if (format && !seededFormat) {
-    return NextResponse.json(
-      { error: `Unknown format "${format}" for ${game}` },
-      { status: 400, headers: NO_STORE },
-    );
+    return noStoreJson({ error: `Unknown format "${format}" for ${game}` }, { status: 400 });
   }
 
   const db = getDb();
@@ -194,5 +179,5 @@ export async function POST(request: NextRequest) {
     };
   });
 
-  return NextResponse.json({ results }, { headers: NO_STORE });
+  return noStoreJson({ results });
 }

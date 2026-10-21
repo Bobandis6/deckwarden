@@ -16,14 +16,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { getSessionUserId } from "@/lib/auth";
 import { clientIp } from "@/lib/decks/access";
 import { claimDecks } from "@/lib/decks/claim";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 const BODY = z.object({
   decks: z
@@ -36,28 +35,14 @@ export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(RATE_LIMITS.deckClaim(clientIp(request.headers)));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  const parsed = BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  const body = await parseJsonBody(request, BODY);
+  if (body instanceof NextResponse) return body;
 
   const userId = await getSessionUserId(request.headers);
   if (!userId) {
-    return NextResponse.json(
-      { error: "Sign in to claim decks" },
-      { status: 401, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "Sign in to claim decks" }, { status: 401 });
   }
 
-  const claimedIds = await claimDecks(userId, parsed.data.decks);
-  return NextResponse.json({ claimedIds }, { headers: NO_STORE });
+  const claimedIds = await claimDecks(userId, body.decks);
+  return noStoreJson({ claimedIds });
 }

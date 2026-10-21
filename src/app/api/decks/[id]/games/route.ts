@@ -21,6 +21,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { requireJournalDeck } from "@/lib/decks/route-helpers";
 import {
   journalIssue,
@@ -34,13 +35,11 @@ import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-const NO_STORE = { "Cache-Control": "no-store" };
-
 export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/games">) {
   const { id } = await ctx.params;
   const access = await requireJournalDeck(request.headers, id, RATE_LIMITS.gamesRead);
   if (access instanceof NextResponse) return access;
-  return NextResponse.json(await listGames(access.deck), { headers: NO_STORE });
+  return noStoreJson(await listGames(access.deck));
 }
 
 export async function POST(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/games">) {
@@ -48,21 +47,9 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/decks/[
   const access = await requireJournalDeck(request.headers, id, RATE_LIMITS.gamesWrite);
   if (access instanceof NextResponse) return access;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  const parsed = LOG_BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  const body = await parseJsonBody(request, LOG_BODY);
+  if (body instanceof NextResponse) return body;
   const now = new Date();
-  const body = parsed.data;
   const game: GameFields = {
     playedOn: body.playedOn ?? utcDay(now),
     podSize: body.podSize,
@@ -74,14 +61,11 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/decks/[
     notes: body.notes ?? null,
   };
   if (playedOnTooLate(game.playedOn, now)) {
-    return NextResponse.json(
-      { error: "That date hasn't happened yet" },
-      { status: 400, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "That date hasn't happened yet" }, { status: 400 });
   }
   const issue = journalIssue(access.journal, game);
-  if (issue) return NextResponse.json({ error: issue }, { status: 400, headers: NO_STORE });
+  if (issue) return noStoreJson({ error: issue }, { status: 400 });
 
   const logged = await logGame(access.deck.id, game);
-  return NextResponse.json(logged, { status: 201, headers: NO_STORE });
+  return noStoreJson(logged, { status: 201 });
 }

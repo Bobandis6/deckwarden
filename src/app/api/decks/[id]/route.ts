@@ -28,9 +28,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
+import { NO_STORE, noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { fetchDeckCardsWire } from "@/lib/decks/deck-cards-wire";
 import { deckTokenFrom } from "@/lib/decks/access";
-import { getSessionUserId } from "@/lib/auth";
 import { deckOwnedForViewer } from "@/lib/collection/owned";
 import { loadFolder } from "@/lib/decks/folders";
 import { deleteDecksForkSafe, forkCredit } from "@/lib/decks/forks";
@@ -41,15 +41,13 @@ import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-const NO_STORE = { "Cache-Control": "no-store" };
-
 const { decks } = schema;
 
 export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[id]">) {
   const { id } = await ctx.params;
   const access = await requireReadableDeck(request.headers, id);
   if (access instanceof NextResponse) return access;
-  const { deck, isOwner } = access;
+  const { deck, isOwner, userId } = access;
 
   // `card` is CardData-shaped (incl. legality, plus image — the CardWire type
   // in src/lib/decks/editor-state.ts): the editor feeds it straight to the
@@ -57,7 +55,6 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   // Query shared with the P1.7 share page (deck-cards-wire.ts).
   // forkedFrom (P3.6): the credit line, resolved for THIS viewer (a private
   // upstream credits without name/link). One extra query, forks only.
-  const userId = await getSessionUserId(request.headers);
   const [cards, forkedFrom] = await Promise.all([
     fetchDeckCardsWire(deck),
     deck.forkedFromDeckId
@@ -72,10 +69,12 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
     cards.map((c) => c.cardId),
   );
 
-  return NextResponse.json(
-    { deck: { ...deckMetaJson(deck, { isOwner }), forkedFrom }, cards, owned, hasCollection },
-    { headers: NO_STORE },
-  );
+  return noStoreJson({
+    deck: { ...deckMetaJson(deck, { isOwner }), forkedFrom },
+    cards,
+    owned,
+    hasCollection,
+  });
 }
 
 /** The PATCH body for one deck — goals checked against its game's `brackets` (Y4b). */
@@ -104,39 +103,25 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/
   const access = await requireOwnedDeckWrite(request.headers, id, RATE_LIMITS.deckMetaWrite);
   if (access instanceof NextResponse) return access;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  const parsed = patchBody(deckFormat(access.deck)?.adapter.brackets).safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  const body = await parseJsonBody(request, patchBody(deckFormat(access.deck)?.adapter.brackets));
+  if (body instanceof NextResponse) return body;
 
   // Folder assignment is account-only and same-owner-only: a guest deck has
   // no folders to belong to, and filing into a stranger's folder would leak
   // your deck onto their shared folder page.
-  if (parsed.data.folderId != null) {
+  if (body.folderId != null) {
     if (access.deck.userId === null) {
-      return NextResponse.json(
-        { error: "Sign in to organize decks into folders" },
-        { status: 400, headers: NO_STORE },
-      );
+      return noStoreJson({ error: "Sign in to organize decks into folders" }, { status: 400 });
     }
-    const folder = await loadFolder(parsed.data.folderId);
+    const folder = await loadFolder(body.folderId);
     if (!folder || folder.userId !== access.deck.userId) {
-      return NextResponse.json({ error: "Folder not found" }, { status: 400, headers: NO_STORE });
+      return noStoreJson({ error: "Folder not found" }, { status: 400 });
     }
   }
 
   // Goals are a setting, not an edit: a goals-only body leaves updated_at
   // (and so the deck's place in every "recent" order) alone.
-  const { goals, ...meta } = parsed.data;
+  const { goals, ...meta } = body;
   const db = getDb();
   const [updated] = await db
     .update(decks)
@@ -148,10 +133,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/
     .where(eq(decks.id, access.deck.id))
     .returning();
 
-  return NextResponse.json(
-    { deck: deckMetaJson(updated, { isOwner: true }) },
-    { headers: NO_STORE },
-  );
+  return noStoreJson({ deck: deckMetaJson(updated, { isOwner: true }) });
 }
 
 export async function DELETE(request: NextRequest, ctx: RouteContext<"/api/decks/[id]">) {

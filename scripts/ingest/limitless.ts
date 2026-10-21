@@ -38,6 +38,11 @@ import postgres from "postgres";
 
 import { FORMAT_ID, GAME_ID } from "../../src/db/seed-data";
 import {
+  FetchBoundedError,
+  fetchBounded,
+  type BoundedResponse,
+} from "../../src/lib/ingest/fetch-bounded";
+import {
   assessTournament,
   isStandardFormat,
   mapLimitlessTournament,
@@ -58,6 +63,15 @@ const BACKFILL_DAYS = 180;
 /** ~45 requests per 5 minutes against the observed keyless "50-in-5min" policy. */
 const REQUEST_GAP_MS = 6700;
 const PAGE_LIMIT = 100;
+/**
+ * Bounded read (S8, SECURITY-AUDIT-report.md L13): a list page is 17 KB, a
+ * details answer under 1 KB, and the standings of the largest One Piece
+ * event on the first three pages (240 players) 301 KB on 2026-10-20 — about
+ * 1.25 KB a player, so the cap covers an event of several thousand. One
+ * deadline per call.
+ */
+const CALL_MAX_BYTES = 8 * 1024 * 1024;
+const CALL_TIMEOUT_MS = 60_000;
 /** Runaway guard only — ~505 rows in 180d means ~6 pages; the date check stops paging. */
 const MAX_PAGES = 12;
 const MAX_ATTEMPTS = 4;
@@ -98,7 +112,7 @@ interface Stats {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** `ratelimit: "50-in-5min"; r=49; t=300` → remaining requests + seconds to reset. */
-function parseRatelimit(res: Response): { remaining: number; resetS: number } | null {
+function parseRatelimit(res: { headers: Headers }): { remaining: number; resetS: number } | null {
   const header = res.headers.get("ratelimit");
   if (!header) return null;
   const r = /r=(\d+)/.exec(header);
@@ -121,16 +135,21 @@ async function apiGet(
   const url = `${API_BASE}${path}`;
   for (let attempt = 1; ; attempt++) {
     stats.requests++;
-    let res: Response;
+    let res: BoundedResponse;
     try {
-      res = await fetch(url, {
+      res = await fetchBounded(url, {
         headers: {
           Accept: "application/json",
           "User-Agent": USER_AGENT,
           ...(apiKey ? { "X-Access-Key": apiKey } : {}),
         },
+        maxBytes: CALL_MAX_BYTES,
+        timeoutMs: CALL_TIMEOUT_MS,
       });
     } catch (err) {
+      // Past the cap is final (the same answer is the same size); a timeout
+      // or a network error is transient and retried like before.
+      if (err instanceof FetchBoundedError && err.kind === "too-large") throw err;
       if (attempt >= MAX_ATTEMPTS) throw err;
       const waitMs = TRANSIENT_BACKOFF_MS * attempt;
       stats.retries++;
@@ -165,7 +184,7 @@ async function apiGet(
       console.log(`ratelimit nearly spent (r=${limit.remaining}) — waiting ${limit.resetS}s`);
       await sleep((limit.resetS + 2) * 1000);
     }
-    return { parsed: (await res.json()) as unknown };
+    return { parsed: JSON.parse(res.text) as unknown };
   }
 }
 

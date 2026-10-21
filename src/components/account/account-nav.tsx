@@ -13,8 +13,6 @@ export const ACCOUNT_SECTIONS = [
   { id: "settings", label: "Settings" },
 ] as const;
 
-export type AccountSectionId = (typeof ACCOUNT_SECTIONS)[number]["id"];
-
 export function AccountNav({ className }: { className?: string }) {
   return (
     <nav aria-label="Account sections" className={className}>

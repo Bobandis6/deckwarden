@@ -14,6 +14,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { requireJournalDeck } from "@/lib/decks/route-helpers";
 import {
   journalIssue,
@@ -27,10 +28,7 @@ import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-const NO_STORE = { "Cache-Control": "no-store" };
-
-const notFound = () =>
-  NextResponse.json({ error: "Game not found" }, { status: 404, headers: NO_STORE });
+const notFound = () => noStoreJson({ error: "Game not found" }, { status: 404 });
 
 export async function PATCH(
   request: NextRequest,
@@ -42,22 +40,11 @@ export async function PATCH(
   const access = await requireJournalDeck(request.headers, id, RATE_LIMITS.gamesWrite);
   if (access instanceof NextResponse) return access;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  const parsed = PATCH_BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  const body = await parseJsonBody(request, PATCH_BODY);
+  if (body instanceof NextResponse) return body;
   const existing = await loadGame(access.deck.id, gameId);
   if (!existing) return notFound();
-  const change = parsed.data;
+  const change = body;
   const game: GameFields = {
     playedOn: change.playedOn ?? existing.playedOn,
     podSize: change.podSize ?? existing.podSize,
@@ -69,17 +56,14 @@ export async function PATCH(
     notes: change.notes !== undefined ? change.notes : existing.notes,
   };
   if (change.playedOn && playedOnTooLate(change.playedOn, new Date())) {
-    return NextResponse.json(
-      { error: "That date hasn't happened yet" },
-      { status: 400, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "That date hasn't happened yet" }, { status: 400 });
   }
   const issue = journalIssue(access.journal, game);
-  if (issue) return NextResponse.json({ error: issue }, { status: 400, headers: NO_STORE });
+  if (issue) return noStoreJson({ error: issue }, { status: 400 });
 
   const updated = await updateGame(access.deck.id, gameId, game);
   if (!updated) return notFound();
-  return NextResponse.json({ game: updated }, { headers: NO_STORE });
+  return noStoreJson({ game: updated });
 }
 
 export async function DELETE(
@@ -94,5 +78,5 @@ export async function DELETE(
 
   const deleted = await deleteGame(access.deck.id, gameId);
   if (!deleted) return notFound();
-  return NextResponse.json({ deleted: true, ...deleted }, { headers: NO_STORE });
+  return noStoreJson({ deleted: true, ...deleted });
 }

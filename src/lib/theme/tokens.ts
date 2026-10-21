@@ -85,8 +85,6 @@ export const dark = {
   gold: "#c9a96a",
 } as const;
 
-export type TokenName = keyof typeof light;
-
 /** Panel corners; controls derive from it through the @theme radius scale. */
 export const radius = "0.75rem";
 

@@ -27,30 +27,17 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getDb, schema } from "@/db";
 import { gameCodeById } from "@/db/seed-data";
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { getSessionUserId } from "@/lib/auth";
 import { ambientArtKind, lookupScryfallArtMeta } from "@/lib/cards/art";
 import { listAdapters } from "@/lib/games/registry";
-import { AVATAR_REQUEST, type AvatarChoice } from "@/lib/profile/avatar";
+import { AVATAR_ERRORS, AVATAR_REQUEST, type AvatarChoice } from "@/lib/profile/avatar";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-const NO_STORE = { "Cache-Control": "no-store" };
-
-/** The refusal sentences — what the dialog shows under Save, verbatim. */
-export const AVATAR_ERRORS = {
-  signedOut: "Sign in to change your picture.",
-  notFound: "That card isn't in the database any more. Choose another card.",
-  notMagic: "Only Magic cards can be your picture.",
-  noPrinting: "That card has no printing to take art from. Choose another card.",
-  noArtist:
-    "Scryfall lists no artist for this card's art, and art is only shown with its artist. Choose another card.",
-  unreachable:
-    "Scryfall didn't answer, so the art couldn't be checked. Your picture hasn't changed. Try again in a minute.",
-} as const;
-
 function refuse(error: string, status: number) {
-  return NextResponse.json({ error }, { status, headers: NO_STORE });
+  return noStoreJson({ error }, { status });
 }
 
 export async function PUT(request: NextRequest) {
@@ -59,25 +46,14 @@ export async function PUT(request: NextRequest) {
   const limited = await enforceRateLimit(RATE_LIMITS.profileAvatar(userId));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return refuse("Body must be JSON", 400);
-  }
-  const parsed = AVATAR_REQUEST.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  const body = await parseJsonBody(request, AVATAR_REQUEST);
+  if (body instanceof NextResponse) return body;
 
   const db = getDb();
   let avatar: AvatarChoice | null;
-  if (parsed.data.kind === "provider") {
+  if (body.kind === "provider") {
     avatar = null;
-  } else if (parsed.data.kind === "initial") {
+  } else if (body.kind === "initial") {
     avatar = { kind: "initial" };
   } else {
     const { cardIdentities, cardPrintings } = schema;
@@ -97,7 +73,7 @@ export async function PUT(request: NextRequest) {
           eq(cardPrintings.isRemoved, false),
         ),
       )
-      .where(and(eq(cardIdentities.id, parsed.data.cardId), eq(cardIdentities.isRemoved, false)))
+      .where(and(eq(cardIdentities.id, body.cardId), eq(cardIdentities.isRemoved, false)))
       .limit(1);
     if (!card) return refuse(AVATAR_ERRORS.notFound, 404);
 
@@ -127,5 +103,5 @@ export async function PUT(request: NextRequest) {
     .set({ avatar, updatedAt: new Date() })
     .where(eq(schema.users.id, userId));
 
-  return NextResponse.json({ avatar }, { headers: NO_STORE });
+  return noStoreJson({ avatar });
 }

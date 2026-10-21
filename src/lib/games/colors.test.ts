@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ciPipsHtml, lettersToMask, maskToLetters } from "./colors";
+import { COLOR_BIT, ciPipsHtml, lettersToMask, maskToLetters, strictLettersToMask } from "./colors";
 
 describe("color mask helpers", () => {
   it("round-trips letters and masks in WUBRG order", () => {
@@ -12,6 +12,18 @@ describe("color mask helpers", () => {
 
   it("ignores junk letters", () => {
     expect(lettersToMask("w,x u!")).toBe(1 + 2);
+  });
+
+  it("the strict reading (the search grammar's) refuses junk instead of ignoring it", () => {
+    expect(strictLettersToMask("wub")).toBe(1 + 2 + 4);
+    expect(strictLettersToMask("C")).toBe(32);
+    expect(strictLettersToMask("")).toBe(0);
+    expect(strictLettersToMask("WUX")).toBeNull();
+    expect(strictLettersToMask("w,u")).toBeNull();
+  });
+
+  it("is the one WUBRGC table (S8, I3): W1 U2 B4 R8 G16 C32", () => {
+    expect(COLOR_BIT).toEqual({ W: 1, U: 2, B: 4, R: 8, G: 16, C: 32 });
   });
 
   it("renders a C pip for colorless identities", () => {

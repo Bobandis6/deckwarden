@@ -71,7 +71,7 @@ import {
 import { toEditorCard, type CardWire, type EditorCard } from "@/lib/decks/editor-state";
 import type { DeckGoals } from "@/lib/decks/goals";
 import { deckStateKey, hasLeader } from "@/lib/decks/panel-view";
-import { getDeckToken } from "@/lib/decks/token-store";
+import { DECK_TOKEN_HEADER, getDeckToken } from "@/lib/decks/token-store";
 import type { BracketComboBadge, FormatDef, GameAdapter } from "@/lib/games/types";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
@@ -313,7 +313,7 @@ export function ComboRadarPanel({
       try {
         const token = getDeckToken(deckId);
         const res = await fetch(`/api/decks/${deckId}/combos`, {
-          headers: token ? { "x-deck-token": token } : {},
+          headers: token ? { [DECK_TOKEN_HEADER]: token } : {},
           cache: "no-store",
           signal: controller.signal,
         });

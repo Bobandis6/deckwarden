@@ -13,8 +13,9 @@
 const PREFIX = "deckwarden:deck-token:";
 
 /**
- * Client-side mirror of access.ts's DECK_TOKEN_HEADER — that module is
- * server-only (node:crypto), so client components import the name from here.
+ * The ownership header's one definition (S8, SECURITY-AUDIT-report.md I3):
+ * this module is client-safe, so client components import the name from
+ * here, and access.ts (server-only, node:crypto) imports it from here too.
  */
 export const DECK_TOKEN_HEADER = "x-deck-token";
 

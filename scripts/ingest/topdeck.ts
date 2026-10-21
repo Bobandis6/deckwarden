@@ -48,6 +48,11 @@ import {
   type TournamentRow,
   type TournamentSkip,
 } from "../../src/lib/games/mtg/topdeck-map";
+import {
+  FetchBoundedError,
+  fetchBounded,
+  type BoundedResponse,
+} from "../../src/lib/ingest/fetch-bounded";
 import { settledCutoffIso } from "../../src/lib/tournaments/aggregate";
 import {
   aggregateSettledTournaments,
@@ -69,6 +74,15 @@ const BACKFILL_DAYS = 180;
  * with embedded deckObjs weighed ~20MB, so 10 days keeps responses ~30MB.
  */
 const CHUNK_DAYS = 10;
+/**
+ * Bounded read (S8, SECURITY-AUDIT-report.md L13). A 10-day chunk weighed
+ * ~30 MB at the 2026-09-01 probe and 18.6 MB decoded (150 tournaments, 1.1 MB
+ * of brotli on the wire) on 2026-10-20; the cap is four times the larger
+ * figure. One deadline covers the request and the body — the server's own
+ * assembly of a chunk is the slow part, not the transfer.
+ */
+const CHUNK_MAX_BYTES = 4 * 30 * 1024 * 1024;
+const CHUNK_TIMEOUT_MS = 180_000;
 const REQUEST_GAP_MS = 1100;
 const MAX_ATTEMPTS = 4;
 /** 5xx / network retry backoff: 15s, 30s, 45s — well inside the job timeout. */
@@ -147,9 +161,9 @@ async function fetchChunk(
   });
   for (let attempt = 1; ; attempt++) {
     stats.requests++;
-    let res: Response;
+    let res: BoundedResponse;
     try {
-      res = await fetch(API_URL, {
+      res = await fetchBounded(API_URL, {
         method: "POST",
         headers: {
           Authorization: apiKey,
@@ -158,8 +172,13 @@ async function fetchChunk(
           "User-Agent": USER_AGENT,
         },
         body,
+        maxBytes: CHUNK_MAX_BYTES,
+        timeoutMs: CHUNK_TIMEOUT_MS,
       });
     } catch (err) {
+      // Past the cap is final (the same window is the same size); a timeout
+      // or a network error is transient and retried like before.
+      if (err instanceof FetchBoundedError && err.kind === "too-large") throw err;
       if (attempt >= MAX_ATTEMPTS) throw err;
       const waitMs = TRANSIENT_BACKOFF_MS * attempt;
       stats.retries++;
@@ -185,7 +204,7 @@ async function fetchChunk(
       continue;
     }
     if (!res.ok) throw new Error(`POST ${API_URL} [${startS}..${endS}] → ${res.status}`);
-    const raw = await res.text();
+    const raw = res.text;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed))
       throw new Error(`expected a tournament array, got ${typeof parsed}`);

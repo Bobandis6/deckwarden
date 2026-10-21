@@ -12,10 +12,11 @@
  * which is the whole point. That also makes it uncacheable at the edge, so
  * it gets its own rate bucket (leadersRandom, 30/min per IP).
  */
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { findFormat } from "@/db/seed-data";
+import { noStoreJson } from "@/lib/api/json";
 import { loadCardWires } from "@/lib/cards/wire";
 import { clientIp } from "@/lib/decks/access";
 import { getAdapter } from "@/lib/games/registry";
@@ -23,8 +24,6 @@ import { loadRandomLeaderId } from "@/lib/hub/queries";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 const QUERY = z.object({ game: z.enum(["mtg", "optcg"]) });
 
@@ -34,10 +33,7 @@ export async function GET(request: NextRequest) {
 
   const query = QUERY.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!query.success) {
-    return NextResponse.json(
-      { error: "Invalid query", issues: query.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "Invalid query", issues: query.error.issues }, { status: 400 });
   }
   const { game } = query.data;
 
@@ -46,19 +42,13 @@ export async function GET(request: NextRequest) {
   const adapter = getAdapter(game);
   const seededFormat = findFormat(game, adapter.formats[0].code);
   if (!seededFormat) {
-    return NextResponse.json(
-      { error: `No format seeded for ${game}` },
-      { status: 500, headers: NO_STORE },
-    );
+    return noStoreJson({ error: `No format seeded for ${game}` }, { status: 500 });
   }
 
   const id = await loadRandomLeaderId(game, seededFormat.id);
   if (!id) {
-    return NextResponse.json(
-      { error: `No legal leaders to sample for ${game}` },
-      { status: 404, headers: NO_STORE },
-    );
+    return noStoreJson({ error: `No legal leaders to sample for ${game}` }, { status: 404 });
   }
   const [leader] = await loadCardWires([id], seededFormat.id);
-  return NextResponse.json({ leader: leader ?? null }, { headers: NO_STORE });
+  return noStoreJson({ leader: leader ?? null });
 }

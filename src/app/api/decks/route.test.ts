@@ -143,6 +143,26 @@ describe("POST /api/decks with goals (Y4b)", () => {
     expect(inserts()).toEqual([]);
   });
 
+  it("the body contract (S8, I2): not JSON and a refused body are 400s under no-store, nothing inserted", async () => {
+    const raw = new NextRequest("http://localhost:3000/api/decks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "not json",
+    });
+    const notJson = await POST(raw);
+    expect(notJson.status).toBe(400);
+    expect(notJson.headers.get("cache-control")).toBe("no-store");
+    expect(await notJson.json()).toEqual({ error: "Body must be JSON" });
+
+    const refused = await POST(post({ ...draft, game: "chess" }));
+    expect(refused.status).toBe(400);
+    expect(refused.headers.get("cache-control")).toBe("no-store");
+    const body = (await refused.json()) as { error: string; issues: { path: unknown[] }[] };
+    expect(body.error).toBe("Invalid body");
+    expect(body.issues.map((i) => i.path)).toEqual([["game"]]);
+    expect(inserts()).toEqual([]);
+  });
+
   it("the honeypot still answers before goals are read", async () => {
     const res = await POST(post({ ...draft, website: "spam", goals: { v: 1, targetLevel: 9 } }));
     expect(res.status).toBe(201);

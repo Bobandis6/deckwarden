@@ -31,11 +31,13 @@
  * (RATE_LIMITS.comboFacts) before anything is parsed: an edge HIT never
  * reaches it, but every uuid-shaped set is a fresh URL, so a walk through
  * sets would otherwise reach Neon unmetered (X3's route needs no bucket
- * because its keys are real ones). Errors carry no cache header.
+ * because its keys are real ones). Errors answer under no-store (S8: the
+ * shared `badRequest`; before it they carried no cache header at all).
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
+import { badRequest } from "@/lib/api/json";
 import { FACTS_ID, FACTS_MAX_IDS, factsPath } from "@/lib/brackets/facts";
 import { loadBracketFreshness } from "@/lib/brackets/freshness";
 import { loadCompleteCombos } from "@/lib/combos/queries";
@@ -56,26 +58,23 @@ const QUERY = z.object({
     .pipe(z.array(z.string().regex(FACTS_ID)).max(FACTS_MAX_IDS)),
 });
 
-const bad = (error: string, issues?: unknown) =>
-  NextResponse.json(issues ? { error, issues } : { error }, { status: 400 });
-
 export async function GET(request: NextRequest) {
   const limited = await enforceRateLimit(RATE_LIMITS.comboFacts(clientIp(request.headers)));
   if (limited) return limited;
 
   const query = QUERY.safeParse(Object.fromEntries(request.nextUrl.searchParams));
-  if (!query.success) return bad("Invalid query", query.error.issues);
+  if (!query.success) return badRequest("Invalid query", query.error.issues);
   const { game, ids } = query.data;
   for (let i = 1; i < ids.length; i++) {
-    if (ids[i - 1] >= ids[i]) return bad("ids must be sorted and unique");
+    if (ids[i - 1] >= ids[i]) return badRequest("ids must be sorted and unique");
   }
   // The one spelling per set: game, then ids, nothing else.
   if ([...request.nextUrl.searchParams.keys()].join("&") !== "game&ids") {
-    return bad(`Ask in the canonical form: ${factsPath(game, ["<id>", "…"])}`);
+    return badRequest(`Ask in the canonical form: ${factsPath(game, ["<id>", "…"])}`);
   }
 
   const adapter = getAdapter(game);
-  if (!adapter.brackets) return bad("No bracket read for this game");
+  if (!adapter.brackets) return badRequest("No bracket read for this game");
 
   const combos = await loadCompleteCombos(ids);
   const freshness = await loadBracketFreshness(adapter);

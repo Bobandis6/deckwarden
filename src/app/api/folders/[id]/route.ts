@@ -14,13 +14,12 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { isUniqueViolation } from "@/db/errors";
+import { NO_STORE, noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { FOLDER_LIMITS, folderMetaJson } from "@/lib/decks/folders";
 import { requireOwnedFolderWrite } from "@/lib/decks/route-helpers";
 import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 const PATCH_BODY = z
   .object({
@@ -37,36 +36,19 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/folder
   const access = await requireOwnedFolderWrite(request.headers, id, RATE_LIMITS.folderMetaWrite);
   if (access instanceof NextResponse) return access;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  const parsed = PATCH_BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  const body = await parseJsonBody(request, PATCH_BODY);
+  if (body instanceof NextResponse) return body;
 
   try {
     const [updated] = await getDb()
       .update(schema.deckFolders)
-      .set({ ...parsed.data, updatedAt: new Date() })
+      .set({ ...body, updatedAt: new Date() })
       .where(eq(schema.deckFolders.id, access.folder.id))
       .returning();
-    return NextResponse.json(
-      { folder: folderMetaJson(updated, { isOwner: true }) },
-      { headers: NO_STORE },
-    );
+    return noStoreJson({ folder: folderMetaJson(updated, { isOwner: true }) });
   } catch (err) {
     if (isUniqueViolation(err)) {
-      return NextResponse.json(
-        { error: "You already have a folder with that name." },
-        { status: 409, headers: NO_STORE },
-      );
+      return noStoreJson({ error: "You already have a folder with that name." }, { status: 409 });
     }
     throw err;
   }

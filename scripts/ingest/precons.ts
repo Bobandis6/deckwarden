@@ -37,6 +37,7 @@ import { FORMAT_ID, GAME_ID } from "../../src/db/seed-data";
 import { cardListIssues, type DeckCardInput } from "../../src/lib/decks/cards";
 import { writeDeckCards } from "../../src/lib/decks/save-cards";
 import { COMMANDER } from "../../src/lib/games/mtg/formats";
+import { fetchBounded } from "../../src/lib/ingest/fetch-bounded";
 import {
   COMMANDER_DECK_TYPE,
   collectorsEditionBaseName,
@@ -51,6 +52,14 @@ import {
 const USER_AGENT = "Deckwarden/1.0 (https://deckwarden.gg)";
 const HEADERS = { "User-Agent": USER_AGENT, Accept: "application/json" };
 const DECKLIST_URL = "https://mtgjson.com/api/v5/DeckList.json";
+/**
+ * Bounded read (S8, SECURITY-AUDIT-report.md L13): DeckList.json is 651 KB
+ * and the largest of the 200 Commander deck files 825 KB (2026-10-20,
+ * every file measured) — the cap is about ten times the larger one. One
+ * deadline per file.
+ */
+const FILE_MAX_BYTES = 8 * 1024 * 1024;
+const FILE_TIMEOUT_MS = 60_000;
 const deckUrl = (fileName: string) => `https://mtgjson.com/api/v5/decks/${fileName}.json`;
 const FETCH_GAP_MS = 250;
 /** Session-wide lock id shared by all Deckwarden ingest jobs (see scryfall.ts). */
@@ -96,8 +105,12 @@ interface Stats {
 
 async function fetchJson(url: string): Promise<unknown> {
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, { headers: HEADERS });
-    if (res.ok) return res.json();
+    const res = await fetchBounded(url, {
+      headers: HEADERS,
+      maxBytes: FILE_MAX_BYTES,
+      timeoutMs: FILE_TIMEOUT_MS,
+    });
+    if (res.ok) return JSON.parse(res.text);
     if (attempt >= 1) throw new Error(`GET ${url} → ${res.status}`);
     await sleep(1000);
   }

@@ -16,6 +16,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { clientIp, isDeckOwner } from "@/lib/decks/access";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { leaderTileImage } from "@/lib/decks/tiles";
@@ -23,8 +24,6 @@ import { loadDefaultPrintings } from "@/lib/hub/queries";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 const BODY = z.object({
   decks: z
@@ -37,21 +36,10 @@ export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(RATE_LIMITS.decksMine(clientIp(request.headers)));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  const parsed = BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  const body = await parseJsonBody(request, BODY);
+  if (body instanceof NextResponse) return body;
 
-  const tokenById = new Map(parsed.data.decks.map((d) => [d.id, d.token]));
+  const tokenById = new Map(body.decks.map((d) => [d.id, d.token]));
   const rows = await getDb()
     .select()
     .from(schema.decks)
@@ -73,5 +61,5 @@ export async function POST(request: NextRequest) {
     ),
   }));
 
-  return NextResponse.json({ decks }, { headers: NO_STORE });
+  return noStoreJson({ decks });
 }

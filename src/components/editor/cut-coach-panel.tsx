@@ -46,7 +46,7 @@ import { ConfidenceChip, sourceMeta } from "@/components/editor/recommendations-
 import type { DeckComboView } from "@/lib/combos/queries";
 import { deckSizeCount, type EditorCard, type EditorEntry } from "@/lib/decks/editor-state";
 import { deckStateKey, hasLeader } from "@/lib/decks/panel-view";
-import { getDeckToken } from "@/lib/decks/token-store";
+import { DECK_TOKEN_HEADER, getDeckToken } from "@/lib/decks/token-store";
 import {
   completeCombosByCard,
   rankCuts,
@@ -107,7 +107,7 @@ export function CutCoachPanel({
       try {
         const token = getDeckToken(deckId);
         const res = await fetch(`/api/decks/${deckId}/combos`, {
-          headers: token ? { "x-deck-token": token } : {},
+          headers: token ? { [DECK_TOKEN_HEADER]: token } : {},
           cache: "no-store",
           signal: controller.signal,
         });

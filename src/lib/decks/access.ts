@@ -14,7 +14,7 @@
  */
 import { timingSafeEqual } from "node:crypto";
 
-export const DECK_TOKEN_HEADER = "x-deck-token";
+import { DECK_TOKEN_HEADER } from "./token-store";
 
 export interface DeckAccessRow {
   userId: string | null;

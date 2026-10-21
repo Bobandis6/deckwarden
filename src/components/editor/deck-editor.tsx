@@ -182,7 +182,12 @@ import { clearPickIntent, pickIntentFor, writePickIntent } from "@/lib/decks/lea
 import { hasLeader, snapshotBody } from "@/lib/decks/panel-view";
 import { addMorePhrase, deckProgress } from "@/lib/decks/progress";
 import { startDoors } from "@/lib/decks/start-doors";
-import { getDeckToken, removeDeckToken, setDeckToken } from "@/lib/decks/token-store";
+import {
+  DECK_TOKEN_HEADER,
+  getDeckToken,
+  removeDeckToken,
+  setDeckToken,
+} from "@/lib/decks/token-store";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
 import { deckEstimate, FIT_COPY } from "@/lib/recommend/fit";
@@ -236,7 +241,6 @@ type LoadState =
 // U4b: the phone's strip adds the analytics and the sample hand as tabs.
 type RightTab = "card" | "suggest" | "combos" | "cuts" | "analytics" | "hand";
 
-const TOKEN_HEADER = "x-deck-token";
 /** Add-toast lifetime (F3): long enough to reach Undo, short enough to never stack up. */
 const TOAST_MS = 5000;
 /**
@@ -265,7 +269,7 @@ const PHONE_TAB_CLASS = "flex-[1_0_auto] px-1 text-[0.8125rem] pointer-coarse:mi
 /** Write headers: token when this browser holds one, else the session cookie authenticates. */
 function writeHeaders(deckId: string): Record<string, string> {
   const token = getDeckToken(deckId);
-  return { "Content-Type": "application/json", ...(token ? { [TOKEN_HEADER]: token } : {}) };
+  return { "Content-Type": "application/json", ...(token ? { [DECK_TOKEN_HEADER]: token } : {}) };
 }
 
 /**
@@ -607,7 +611,7 @@ export function DeckEditor({
   const hydrate = useCallback(async (deckId: string, signal?: AbortSignal) => {
     const token = getDeckToken(deckId);
     const res = await fetch(`/api/decks/${deckId}`, {
-      headers: token ? { [TOKEN_HEADER]: token } : {},
+      headers: token ? { [DECK_TOKEN_HEADER]: token } : {},
       signal,
       cache: "no-store",
     });
@@ -1746,7 +1750,7 @@ export function DeckEditor({
     try {
       const res = await fetch(`/api/decks/${deckId}`, {
         method: "DELETE",
-        headers: token ? { [TOKEN_HEADER]: token } : {},
+        headers: token ? { [DECK_TOKEN_HEADER]: token } : {},
       });
       if (!res.ok && res.status !== 204) return `Couldn't delete the deck (${res.status}).`;
     } catch {

@@ -15,14 +15,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getDb } from "@/db";
+import { NO_STORE, noStoreJson } from "@/lib/api/json";
 import { requireOwnedDeck, requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
 import { cardNamesById, deleteVersion, loadVersion, parseVersionParam } from "@/lib/decks/versions";
 import { JOURNAL_COPY } from "@/lib/journal/copy";
 import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function GET(
   request: NextRequest,
@@ -31,7 +30,7 @@ export async function GET(
   const { id, version: rawVersion } = await ctx.params;
   const version = parseVersionParam(rawVersion);
   if (version === null) {
-    return NextResponse.json({ error: "Version not found" }, { status: 404, headers: NO_STORE });
+    return noStoreJson({ error: "Version not found" }, { status: 404 });
   }
   const access = await requireOwnedDeck(request.headers, id);
   if (access instanceof NextResponse) return access;
@@ -39,13 +38,13 @@ export async function GET(
   const db = getDb();
   const detail = await loadVersion(db, access.deck.id, version);
   if (!detail) {
-    return NextResponse.json({ error: "Version not found" }, { status: 404, headers: NO_STORE });
+    return noStoreJson({ error: "Version not found" }, { status: 404 });
   }
   const names = await cardNamesById(
     db,
     detail.cards.map((c) => c.cardId),
   );
-  return NextResponse.json({ ...detail, names }, { headers: NO_STORE });
+  return noStoreJson({ ...detail, names });
 }
 
 export async function DELETE(
@@ -55,7 +54,7 @@ export async function DELETE(
   const { id, version: rawVersion } = await ctx.params;
   const version = parseVersionParam(rawVersion);
   if (version === null) {
-    return NextResponse.json({ error: "Version not found" }, { status: 404, headers: NO_STORE });
+    return noStoreJson({ error: "Version not found" }, { status: 404 });
   }
   // IP bucket, ownership proof, per-deck bucket (S4, M1).
   const access = await requireOwnedDeckWrite(request.headers, id, RATE_LIMITS.deckVersionWrite);
@@ -63,13 +62,10 @@ export async function DELETE(
 
   const deleted = await deleteVersion(access.deck.id, version);
   if (deleted === "not_found") {
-    return NextResponse.json({ error: "Version not found" }, { status: 404, headers: NO_STORE });
+    return noStoreJson({ error: "Version not found" }, { status: 404 });
   }
   if (deleted === "in_use") {
-    return NextResponse.json(
-      { error: JOURNAL_COPY.versionInUse },
-      { status: 409, headers: NO_STORE },
-    );
+    return noStoreJson({ error: JOURNAL_COPY.versionInUse }, { status: 409 });
   }
   return new NextResponse(null, { status: 204, headers: NO_STORE });
 }

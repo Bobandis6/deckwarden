@@ -12,6 +12,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 
+import { noStoreJson } from "@/lib/api/json";
 import { clientIp } from "@/lib/decks/access";
 import { forkDeck } from "@/lib/decks/forks";
 import { requireEngageableDeck } from "@/lib/decks/route-helpers";
@@ -20,8 +21,6 @@ import { VersionCapError } from "@/lib/decks/versions";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function POST(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/fork">) {
   const { id } = await ctx.params;
@@ -36,14 +35,11 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/decks/[
 
   try {
     const fork = await forkDeck(access.deck, { userId: access.userId, ip });
-    return NextResponse.json(
-      { deck: deckMetaJson(fork, { isOwner: true }) },
-      { status: 201, headers: NO_STORE },
-    );
+    return noStoreJson({ deck: deckMetaJson(fork, { isOwner: true }) }, { status: 201 });
   } catch (err) {
     // Unreachable for a fresh row (0 versions), kept explicit rather than a 500.
     if (err instanceof VersionCapError) {
-      return NextResponse.json({ error: err.message }, { status: 409, headers: NO_STORE });
+      return noStoreJson({ error: err.message }, { status: 409 });
     }
     throw err;
   }

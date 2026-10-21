@@ -34,6 +34,7 @@ import { alias, QueryBuilder } from "drizzle-orm/pg-core";
 
 import { cardIdentities, cardPrintings, sets } from "@/db/schema";
 import { normalizeCardName } from "@/lib/cards/normalize";
+import { strictLettersToMask } from "@/lib/games/colors";
 import type { FieldTarget, SearchFieldDef } from "@/lib/games/types";
 import { escapeLike } from "@/lib/search/name-match";
 import { releasedPaperSet } from "@/lib/sets/sql";
@@ -51,9 +52,6 @@ const COLUMNS: Record<ColumnName, Column> = {
   cheapest_usd: cardIdentities.cheapestUsd,
   popularity: cardIdentities.popularity,
 };
-
-/** W1 U2 B4 R8 G16 C32 — schema-level bit assignments, shared across games. */
-const COLOR_BIT: Record<string, number> = { W: 1, U: 2, B: 4, R: 8, G: 16, C: 32 };
 
 const NUMBER_OPS = { eq: "=", lte: "<=", gte: ">=" } as const;
 type NumberOp = keyof typeof NUMBER_OPS;
@@ -136,16 +134,6 @@ function jsonbText(path: string[]): SQL | null {
   }
   const literal = `'{${path.join(",")}}'`;
   return sql`${cardIdentities.attrs}#>>${sql.raw(literal)}`;
-}
-
-function lettersToMask(letters: string): number | null {
-  let mask = 0;
-  for (const ch of letters.toUpperCase()) {
-    const bit = COLOR_BIT[ch];
-    if (!bit) return null;
-    mask |= bit;
-  }
-  return mask;
 }
 
 export function translateSearch(
@@ -266,7 +254,7 @@ export function translateSearch(
         }
         const [modeRaw, lettersRaw] = raw.includes(":") ? raw.split(":", 2) : ["within", raw];
         const mode = modeRaw as ColorsetMode;
-        const mask = lettersToMask(lettersRaw);
+        const mask = strictLettersToMask(lettersRaw);
         if (!COLORSET_MODES.includes(mode) || mask === null) {
           warnings.push(`${field.key}: ignored "${raw}"`);
           break;

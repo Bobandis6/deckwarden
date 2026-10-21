@@ -28,6 +28,7 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { getSessionUserId } from "@/lib/auth";
 import { clientIp } from "@/lib/decks/access";
 import { goalsSchema, normalizeGoals, type DeckGoals } from "@/lib/decks/goals";
@@ -57,28 +58,14 @@ export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(RATE_LIMITS.deckCreate(ip));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400 });
-  }
-  const parsed = BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid body", issues: parsed.error.issues },
-      { status: 400 },
-    );
-  }
-  const { game, format, name, description, visibility, website, goals } = parsed.data;
+  const body = await parseJsonBody(request, BODY);
+  if (body instanceof NextResponse) return body;
+  const { game, format, name, description, visibility, website, goals } = body;
 
   if (website) {
     console.warn("deck-create honeypot tripped", { ip });
     // Fake success: nothing persisted, the ids lead nowhere.
-    return NextResponse.json(
-      { deck: { id: randomUUID() }, claimToken: randomUUID() },
-      { status: 201, headers: { "Cache-Control": "no-store" } },
-    );
+    return noStoreJson({ deck: { id: randomUUID() }, claimToken: randomUUID() }, { status: 201 });
   }
 
   // The format must exist both as a seeded DB row (FK) and in the adapter.
@@ -122,8 +109,5 @@ export async function POST(request: NextRequest) {
     })
     .returning();
 
-  return NextResponse.json(
-    { deck: deckMetaJson(deck, { isOwner: true }), claimToken },
-    { status: 201, headers: { "Cache-Control": "no-store" } },
-  );
+  return noStoreJson({ deck: deckMetaJson(deck, { isOwner: true }), claimToken }, { status: 201 });
 }

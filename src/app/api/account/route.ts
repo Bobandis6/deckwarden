@@ -19,14 +19,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { auth, getSessionUserId } from "@/lib/auth";
 import { deleteAccount } from "@/lib/profile/delete-account";
 import { DELETE_CONFIRM_PHRASE } from "@/lib/profile/delete-account-phrase";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 const BODY = z.object({
   confirm: z.literal(DELETE_CONFIRM_PHRASE),
@@ -37,26 +36,16 @@ export async function DELETE(request: NextRequest) {
   // 5-minute cookie cache — a session revoked elsewhere cannot delete an account.
   const userId = await getSessionUserId(request.headers, { authoritative: true });
   if (!userId) {
-    return NextResponse.json(
-      { error: "Sign in to delete your account" },
-      { status: 401, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "Sign in to delete your account" }, { status: 401 });
   }
   const limited = await enforceRateLimit(RATE_LIMITS.accountDelete(userId));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  if (!BODY.safeParse(json).success) {
-    return NextResponse.json(
-      { error: `Body must be {"confirm": "${DELETE_CONFIRM_PHRASE}"}` },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  const body = await parseJsonBody(request, BODY, {
+    invalidError: `Body must be {"confirm": "${DELETE_CONFIRM_PHRASE}"}`,
+    maxIssues: 0,
+  });
+  if (body instanceof NextResponse) return body;
 
   const { decksDeleted } = await deleteAccount(userId);
 
@@ -66,5 +55,5 @@ export async function DELETE(request: NextRequest) {
     // Session row is gone either way; see header comment.
   }
 
-  return NextResponse.json({ deleted: true, decksDeleted }, { headers: NO_STORE });
+  return noStoreJson({ deleted: true, decksDeleted });
 }

@@ -43,6 +43,22 @@ export function parseAvatarChoice(value: unknown): AvatarChoice | null {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * The PUT's refusal sentences — what the dialog shows under Save, verbatim.
+ * Beside the request shape rather than in the route module (S8, I4), so the
+ * route exports nothing for its test's sake.
+ */
+export const AVATAR_ERRORS = {
+  signedOut: "Sign in to change your picture.",
+  notFound: "That card isn't in the database any more. Choose another card.",
+  notMagic: "Only Magic cards can be your picture.",
+  noPrinting: "That card has no printing to take art from. Choose another card.",
+  noArtist:
+    "Scryfall lists no artist for this card's art, and art is only shown with its artist. Choose another card.",
+  unreachable:
+    "Scryfall didn't answer, so the art couldn't be checked. Your picture hasn't changed. Try again in a minute.",
+} as const;
+
 /** The PUT body: the three choices. Card art names a card; the server picks its printing. */
 export const AVATAR_REQUEST = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("provider") }),

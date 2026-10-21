@@ -279,7 +279,7 @@ export function toSavePayload(
 export function mergeEntries(entries: readonly EditorEntry[]): EditorEntry[] {
   const byKey = new Map<string, EditorEntry>();
   for (const e of entries) {
-    const key = `${e.zone} ${e.cardId}`;
+    const key = `${e.zone}\u0000${e.cardId}`;
     const prev = byKey.get(key);
     if (prev) byKey.set(key, { ...prev, qty: Math.min(prev.qty + e.qty, MAX_QTY) });
     else byKey.set(key, e);

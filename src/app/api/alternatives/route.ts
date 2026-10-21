@@ -33,6 +33,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { findFormat, GAME_ID } from "@/db/seed-data";
+import { badRequest, noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { loadCardWires } from "@/lib/cards/wire";
 import { clientIp } from "@/lib/decks/access";
 import { goalsSchema } from "@/lib/decks/goals";
@@ -43,8 +44,6 @@ import { loadEntryFacts } from "@/lib/recommend/queries";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 /** The cards PUT's limits: 500 entries, 1–99 copies; a command zone holds at most two. */
 const BODY = z.object({
@@ -61,35 +60,28 @@ const BODY = z.object({
   goals: z.unknown().optional(),
 });
 
-const bad = (error: string, issues?: unknown) =>
-  NextResponse.json(issues ? { error, issues } : { error }, { status: 400, headers: NO_STORE });
-
 export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(RATE_LIMITS.alternatives(clientIp(request.headers)));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return bad("Body must be JSON");
-  }
-  const parsed = BODY.safeParse(json);
-  if (!parsed.success) return bad("Invalid body", parsed.error.issues);
-  const { game, format, leaderIds, entries, cardId } = parsed.data;
+  const body = await parseJsonBody(request, BODY);
+  if (body instanceof NextResponse) return body;
+  const { game, format, leaderIds, entries, cardId } = body;
 
   const adapter = getAdapter(game);
   const swap = adapter.recommend?.swap;
-  if (!swap) return bad(`No alternatives for ${game}`);
+  if (!swap) return badRequest(`No alternatives for ${game}`);
   const seededFormat = findFormat(game, format);
-  if (!seededFormat) return bad(`Unknown format "${format}" for ${game}`);
+  if (!seededFormat) return badRequest(`Unknown format "${format}" for ${game}`);
   const goals =
-    parsed.data.goals === undefined || parsed.data.goals === null
+    body.goals === undefined || body.goals === null
       ? null
-      : goalsSchema(adapter.brackets).safeParse(parsed.data.goals);
-  if (goals && !goals.success) return bad("Invalid goals", goals.error.issues);
+      : goalsSchema(adapter.brackets).safeParse(body.goals);
+  if (goals && !goals.success) return badRequest("Invalid goals", goals.error.issues);
   if (!entries.some((e) => e.cardId === cardId)) {
-    return bad("The card to swap must be in the list's entries (leaders aren't swapped here)");
+    return badRequest(
+      "The card to swap must be in the list's entries (leaders aren't swapped here)",
+    );
   }
 
   // Server-authoritative facts for every id the client sent, the roles riding along.
@@ -101,7 +93,7 @@ export async function POST(request: NextRequest) {
     swap.rolesPath,
   );
   const unknown = ids.filter((id) => !facts.has(id));
-  if (unknown.length > 0) return bad("Unknown card ids for this game", unknown);
+  if (unknown.length > 0) return badRequest("Unknown card ids for this game", unknown);
 
   const card = facts.get(cardId)!;
   // Declared roles only, the adapter's order — a retired key in attrs is no role.
@@ -115,11 +107,7 @@ export async function POST(request: NextRequest) {
       tradeoff: unknown;
     },
     reason?: "no-roles" | "not-offered" | "goals" | "none",
-  ) =>
-    NextResponse.json(
-      { cardId, roles, ...rest, ...(reason ? { reason } : {}) },
-      { headers: NO_STORE },
-    );
+  ) => noStoreJson({ cardId, roles, ...rest, ...(reason ? { reason } : {}) });
   const empty = { alternatives: [], hidden: [], combosTruncated: false, tradeoff: null };
   if (!swap.offers(card)) return answer(empty, "not-offered");
   if (roles.length === 0) return answer(empty, "no-roles");

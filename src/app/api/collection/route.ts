@@ -22,6 +22,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
+import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { getSessionUserId } from "@/lib/auth";
 import { collectionSummary } from "@/lib/collection/owned";
 import { importCollection, wipeCollection } from "@/lib/collection/store";
@@ -29,8 +30,6 @@ import { COLLECTION_LIMITS, FINISHES } from "@/lib/collection/types";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 const ROW = z.object({
   scryfallId: z.uuid().optional(),
@@ -47,16 +46,13 @@ const BODY = z.object({
 });
 
 function unauthorized(action: string) {
-  return NextResponse.json(
-    { error: `Sign in to ${action} a collection` },
-    { status: 401, headers: NO_STORE },
-  );
+  return noStoreJson({ error: `Sign in to ${action} a collection` }, { status: 401 });
 }
 
 export async function GET(request: NextRequest) {
   const userId = await getSessionUserId(request.headers);
   if (!userId) return unauthorized("view");
-  return NextResponse.json({ summary: await collectionSummary(userId) }, { headers: NO_STORE });
+  return noStoreJson({ summary: await collectionSummary(userId) });
 }
 
 export async function POST(request: NextRequest) {
@@ -65,25 +61,14 @@ export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(RATE_LIMITS.collectionImport(userId));
   if (limited) return limited;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Body must be JSON" }, { status: 400, headers: NO_STORE });
-  }
-  const parsed = BODY.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json(
-      {
-        error: `Invalid body: rows must be 1 to ${COLLECTION_LIMITS.rowsPerImport.toLocaleString("en-US")} parsed collection lines`,
-        issues: parsed.error.issues.slice(0, 20),
-      },
-      { status: 400, headers: NO_STORE },
-    );
-  }
+  const body = await parseJsonBody(request, BODY, {
+    invalidError: `Invalid body: rows must be 1 to ${COLLECTION_LIMITS.rowsPerImport.toLocaleString("en-US")} parsed collection lines`,
+    maxIssues: 20,
+  });
+  if (body instanceof NextResponse) return body;
 
-  const report = await importCollection(userId, parsed.data.rows, parsed.data.mode);
-  return NextResponse.json(report, { headers: NO_STORE });
+  const report = await importCollection(userId, body.rows, body.mode);
+  return noStoreJson(report);
 }
 
 export async function DELETE(request: NextRequest) {
@@ -93,5 +78,5 @@ export async function DELETE(request: NextRequest) {
   if (limited) return limited;
 
   const deleted = await wipeCollection(userId);
-  return NextResponse.json({ deleted }, { headers: NO_STORE });
+  return noStoreJson({ deleted });
 }

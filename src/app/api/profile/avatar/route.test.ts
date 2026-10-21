@@ -11,6 +11,8 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { NextRequest, NextResponse } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AVATAR_ERRORS } from "@/lib/profile/avatar";
+
 import * as schema from "@/db/schema";
 import { GAME_ID } from "@/db/seed-data";
 
@@ -53,7 +55,7 @@ vi.mock("@/lib/rate-limit", async (importOriginal) => ({
   },
 }));
 
-const { PUT, AVATAR_ERRORS } = await import("./route");
+const { PUT } = await import("./route");
 
 const USER = "0b5a4f8e-1111-4222-8333-944445555666";
 const SOL_RING = "6ad8011d-3471-4369-9d68-b264cc027487";

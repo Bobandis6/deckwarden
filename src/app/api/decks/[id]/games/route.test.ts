@@ -67,6 +67,11 @@ vi.mock("@/lib/games/registry", async (importOriginal) => {
       const adapter = real.getAdapter(id);
       return registry.dropJournal ? { ...adapter, journal: undefined } : adapter;
     },
+    // The gate reads the adapter through findAdapter since S8 (I7); same drop.
+    findAdapter: (id: Parameters<typeof real.findAdapter>[0]) => {
+      const adapter = real.findAdapter(id);
+      return adapter && registry.dropJournal ? { ...adapter, journal: undefined } : adapter;
+    },
   };
 });
 

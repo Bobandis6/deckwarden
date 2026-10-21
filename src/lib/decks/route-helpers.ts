@@ -15,17 +15,17 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
+import { noStoreJson } from "@/lib/api/json";
 import { getSessionUserId } from "@/lib/auth";
 import { canReadDeck, clientIp, deckTokenFrom, isDeckOwner } from "@/lib/decks/access";
 import { isFolderOwner, loadFolder, type FolderRow } from "@/lib/decks/folders";
 import type { DeckRow } from "@/lib/decks/serialize";
-import { getAdapter } from "@/lib/games/registry";
+import { findAdapter } from "@/lib/games/registry";
 import type { FormatDef, GameAdapter, JournalMeta } from "@/lib/games/types";
 import { JOURNAL_COPY } from "@/lib/journal/copy";
 import { enforceRateLimit, type GatedWriteLimits, type RateLimit } from "@/lib/rate-limit";
 
 const UUID = z.uuid();
-const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function loadDeck(id: string): Promise<DeckRow | null> {
   if (!UUID.safeParse(id).success) return null;
@@ -48,7 +48,8 @@ export async function loadDeckByPublicId(publicId: string): Promise<DeckRow | nu
   return deck ?? null;
 }
 
-type DeckContext = { deck: DeckRow; isOwner: boolean };
+/** `userId` is the session the gate resolved (S8, I3): handlers reuse it instead of reading the session twice. */
+type DeckContext = { deck: DeckRow; isOwner: boolean; userId: string | null };
 
 export async function requireReadableDeck(
   headers: Headers,
@@ -61,7 +62,7 @@ export async function requireReadableDeck(
   if (!canReadDeck(deck, token, userId)) {
     return NextResponse.json({ error: "This deck is private" }, { status: 403 });
   }
-  return { deck, isOwner: isDeckOwner(deck, token, userId) };
+  return { deck, isOwner: isDeckOwner(deck, token, userId), userId };
 }
 
 /**
@@ -76,10 +77,11 @@ export async function requireOwnedDeck(
 ): Promise<DeckContext | NextResponse> {
   const deck = await loadDeck(id);
   if (!deck) return NextResponse.json({ error: "Deck not found" }, { status: 404 });
-  if (!isDeckOwner(deck, deckTokenFrom(headers), await getSessionUserId(headers, opts))) {
+  const userId = await getSessionUserId(headers, opts);
+  if (!isDeckOwner(deck, deckTokenFrom(headers), userId)) {
     return NextResponse.json({ error: "You don't have edit access to this deck" }, { status: 403 });
   }
-  return { deck, isOwner: true };
+  return { deck, isOwner: true, userId };
 }
 
 /**
@@ -153,29 +155,23 @@ export async function requireJournalDeck(
 ): Promise<{ deck: DeckRow; userId: string; journal: JournalMeta } | NextResponse> {
   const userId = await getSessionUserId(headers);
   if (!userId) {
-    return NextResponse.json({ error: JOURNAL_COPY.signIn }, { status: 401, headers: NO_STORE });
+    return noStoreJson({ error: JOURNAL_COPY.signIn }, { status: 401 });
   }
   const limited = await enforceRateLimit(limits(userId));
   if (limited) return limited;
   const deck = await loadDeck(id);
   if (!deck) {
-    return NextResponse.json({ error: "Deck not found" }, { status: 404, headers: NO_STORE });
+    return noStoreJson({ error: "Deck not found" }, { status: 404 });
   }
   if (!isDeckOwner(deck, deckTokenFrom(headers), userId)) {
-    return NextResponse.json(
-      { error: "You don't have edit access to this deck" },
-      { status: 403, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "You don't have edit access to this deck" }, { status: 403 });
   }
   if (deck.userId === null) {
-    return NextResponse.json({ error: JOURNAL_COPY.signIn }, { status: 400, headers: NO_STORE });
+    return noStoreJson({ error: JOURNAL_COPY.signIn }, { status: 400 });
   }
   const journal = deckFormat(deck)?.adapter.journal;
   if (!journal) {
-    return NextResponse.json(
-      { error: "This game has no game journal" },
-      { status: 400, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "This game has no game journal" }, { status: 400 });
   }
   return { deck, userId, journal };
 }
@@ -216,15 +212,14 @@ export async function requireOwnedFolderWrite(
 
 /**
  * A deck row's adapter + FormatDef (the core <-> adapter seam every card
- * writer needs). Undefined only for a row whose seeded game/format has no
- * adapter — a deploy misconfiguration, which routes surface as a 500.
+ * writer needs). Undefined for a row whose seeded game/format has no
+ * adapter (azuki is seeded without one) — which routes surface as a 500.
  */
 export function deckFormat(deck: {
   gameId: number;
   formatId: number;
 }): { adapter: GameAdapter; format: FormatDef } | undefined {
-  const game = gameCodeById(deck.gameId);
-  const adapter = game ? getAdapter(game) : undefined;
+  const adapter = findAdapter(gameCodeById(deck.gameId));
   const formatCode = findFormatById(deck.formatId)?.code;
   const format = adapter?.formats.find((f) => f.code === formatCode);
   return adapter && format ? { adapter, format } : undefined;

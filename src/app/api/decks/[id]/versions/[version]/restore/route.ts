@@ -13,13 +13,12 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 
+import { noStoreJson } from "@/lib/api/json";
 import { deckFormat, requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
 import { MAX_VERSIONS_PER_DECK, parseVersionParam, restoreVersion } from "@/lib/decks/versions";
 import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function POST(
   request: NextRequest,
@@ -28,7 +27,7 @@ export async function POST(
   const { id, version: rawVersion } = await ctx.params;
   const version = parseVersionParam(rawVersion);
   if (version === null) {
-    return NextResponse.json({ error: "Version not found" }, { status: 404, headers: NO_STORE });
+    return noStoreJson({ error: "Version not found" }, { status: 404 });
   }
   // IP bucket, ownership proof, per-deck bucket (S4, M1).
   const access = await requireOwnedDeckWrite(request.headers, id, RATE_LIMITS.deckVersionWrite);
@@ -36,34 +35,28 @@ export async function POST(
 
   const resolved = deckFormat(access.deck);
   if (!resolved) {
-    return NextResponse.json(
-      { error: "Deck has an unknown game/format" },
-      { status: 500, headers: NO_STORE },
-    );
+    return noStoreJson({ error: "Deck has an unknown game/format" }, { status: 500 });
   }
 
   const result = await restoreVersion(access.deck, version, resolved.format);
   if (!result.ok) {
     switch (result.error) {
       case "not_found":
-        return NextResponse.json(
-          { error: "Version not found" },
-          { status: 404, headers: NO_STORE },
-        );
+        return noStoreJson({ error: "Version not found" }, { status: 404 });
       case "cap":
-        return NextResponse.json(
+        return noStoreJson(
           {
             error: `Restoring saves a safety version first, and this deck already has ${MAX_VERSIONS_PER_DECK}. Delete an old version, then restore.`,
             cap: MAX_VERSIONS_PER_DECK,
           },
-          { status: 409, headers: NO_STORE },
+          { status: 409 },
         );
       case "invalid":
-        return NextResponse.json(
+        return noStoreJson(
           { error: "This version no longer fits the format", issues: result.issues },
-          { status: 422, headers: NO_STORE },
+          { status: 422 },
         );
     }
   }
-  return NextResponse.json(result, { headers: NO_STORE });
+  return noStoreJson(result);
 }

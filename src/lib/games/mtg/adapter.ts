@@ -107,13 +107,23 @@ function escapeHtml(s: string): string {
 /**
  * "{2}{W}{U}" → pip spans. Class is the symbol lowercased with '/' folded
  * ("{W/U}" → pip-wu, "{2}" → pip-2); theme CSS colors them. Plain string, no JSX.
+ *
+ * The string is tokenised and EVERY part escaped (S8, SECURITY-AUDIT-report.md
+ * L10): the brace groups always were, but text between them — a split
+ * card's " // " today — reached `dangerouslySetInnerHTML` raw, which was the
+ * missing backstop against a mis-parsed or compromised upstream cost.
  */
 export function manaCostHtml(manaCost: string | undefined): string {
   if (!manaCost) return "";
-  return manaCost.replace(/\{([^}]+)\}/g, (_, sym: string) => {
-    const cls = sym.toLowerCase().replace(/\//g, "");
-    return `<span class="pip pip-${escapeHtml(cls)}">${escapeHtml(sym)}</span>`;
-  });
+  return manaCost
+    .split(/(\{[^}]+\})/)
+    .map((part) => {
+      const sym = /^\{([^}]+)\}$/.exec(part)?.[1];
+      if (sym === undefined) return escapeHtml(part);
+      const cls = sym.toLowerCase().replace(/\//g, "");
+      return `<span class="pip pip-${escapeHtml(cls)}">${escapeHtml(sym)}</span>`;
+    })
+    .join("");
 }
 
 export const mtgAdapter: GameAdapter<MtgAttrs> = {

@@ -13,10 +13,11 @@
 import Link from "next/link";
 
 import { Chip } from "@/components/ui/chip";
+import type { AdapterGameId } from "@/lib/games/registry";
 import { cn } from "@/lib/utils";
 
-/** The two games with browse indexes today — GameId also declares azuki, which has none. */
-export type SwitchGame = "mtg" | "optcg";
+/** The games with a browse index: the ones with an adapter (the registry's own list, S8 I7). */
+export type SwitchGame = AdapterGameId;
 
 export const GAME_SWITCH_LABELS: Record<SwitchGame, string> = {
   mtg: "Magic: The Gathering",

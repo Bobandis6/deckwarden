@@ -37,7 +37,7 @@ import { diffDeckLists, type DeckDiff, type FrozenCard } from "@/lib/decks/diff"
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
 import { playableListHash } from "@/lib/decks/list-hash";
-import { getDeckToken } from "@/lib/decks/token-store";
+import { DECK_TOKEN_HEADER, getDeckToken } from "@/lib/decks/token-store";
 import type { FormatDef } from "@/lib/games/types";
 import { JOURNAL_COPY } from "@/lib/journal/copy";
 import type { Tally } from "@/lib/journal/record";
@@ -84,7 +84,7 @@ export interface RestoreOutcome {
 
 function authHeaders(deckId: string): Record<string, string> {
   const token = getDeckToken(deckId);
-  return { "Content-Type": "application/json", ...(token ? { "x-deck-token": token } : {}) };
+  return { "Content-Type": "application/json", ...(token ? { [DECK_TOKEN_HEADER]: token } : {}) };
 }
 
 function toFrozen(entries: readonly EditorEntry[]): FrozenCard[] {
