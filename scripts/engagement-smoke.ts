@@ -13,12 +13,14 @@
  */
 import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
 import { mintSession } from "./smoke/session";
+import { guardDatabaseUrl } from "./smoke/db";
 
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { config as loadEnv } from "dotenv";
 
 loadEnv({ path: [".env.local", ".env"], quiet: true });
+guardDatabaseUrl(); // right after the env load: a production DATABASE_URL exits 1 here
 
 import postgres from "postgres";
 

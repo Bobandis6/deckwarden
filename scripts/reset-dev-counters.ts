@@ -10,9 +10,11 @@
  *
  *   pnpm counters:reset
  */
+import { guardDatabaseUrl } from "./smoke/db"; // a production DATABASE_URL exits 1 after the env load
 import { config as loadEnv } from "dotenv";
 
 loadEnv({ path: [".env.local", ".env"], quiet: true });
+guardDatabaseUrl(); // right after the env load: a production DATABASE_URL exits 1 here
 
 import postgres from "postgres";
 

@@ -12,10 +12,12 @@
  *   SMOKE_ALLOW_REMOTE=1 BASE_URL=https://deckwarden.gg pnpm smoke:sets   # a deploy, on purpose
  */
 import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
+import { guardDatabaseUrl } from "./smoke/db";
 
 import { config as loadEnv } from "dotenv";
 
 loadEnv({ path: [".env.local", ".env"], quiet: true });
+guardDatabaseUrl(); // right after the env load: a production DATABASE_URL exits 1 here
 
 import postgres from "postgres";
 

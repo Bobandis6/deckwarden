@@ -9,7 +9,9 @@
  *
  * Importing this module imports the host guard, so a script that mints a
  * session is refused against a non-local `BASE_URL` even if it forgot the
- * guard. Nothing here prints: the secret and the tokens never reach a log,
+ * guard, and `mintSession` runs the database guard (`./db`, LATER row 295)
+ * before its first insert, so a production `DATABASE_URL` is refused there
+ * too. Nothing here prints: the secret and the tokens never reach a log,
  * and the only error thrown names the missing variable, not a value.
  *
  * The six copies agreed on everything but the label in the throwaway user's
@@ -21,6 +23,7 @@
  * the minting lives here.
  */
 import "./guard";
+import { guardDatabaseUrl } from "./db";
 
 import { randomBytes } from "node:crypto";
 
@@ -50,6 +53,7 @@ export async function mintSession(
   sql: Sql,
   opts: { label: string; tag: string; run: string; userIds: string[] },
 ): Promise<MintedSession> {
+  guardDatabaseUrl(); // before any insert: a production DATABASE_URL exits 1 here (silent after the script's own call)
   const secret = smokeSecret();
   const { label, tag, run } = opts;
   const [user] = await sql`

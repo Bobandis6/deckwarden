@@ -7,7 +7,10 @@
  * first import and builds its URLs on the `BASE` it exports, nothing but the
  * guard reads `process.env.BASE_URL`, the six scripts that need a signed-in
  * user mint through `scripts/smoke/session.ts` and nothing else signs a
- * cookie or inserts a session row, and `.env.example` documents the switches.
+ * cookie or inserts a session row, every script that opens `DATABASE_URL`
+ * for a local run calls the database guard (`scripts/smoke/db.ts`, LATER row
+ * 295) right after its env load while the nightly's scripts do not, and
+ * `.env.example` documents the switches.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -58,6 +61,36 @@ const MINTING = [
   "versions-forks-smoke.ts",
 ];
 
+/**
+ * Every top-level script that opens `DATABASE_URL` for a local run: the six
+ * minting smokes, the four smokes that read fixtures from the database, and
+ * `pnpm counters:reset`.
+ */
+const DB_GUARDED = [
+  "account-delete-smoke.ts",
+  "collection-smoke.ts",
+  "combos-smoke.ts",
+  "engagement-smoke.ts",
+  "games-smoke.ts",
+  "hubs-smoke.ts",
+  "profile-folders-smoke.ts",
+  "reset-dev-counters.ts",
+  "seo-smoke.ts",
+  "sets-smoke.ts",
+  "versions-forks-smoke.ts",
+];
+
+/** The nightly's scripts: they run against production by design and never see the variable. */
+const NIGHTLY = [
+  "db-size.ts",
+  "optcg-image-manifest.ts",
+  "prune-backups.ts",
+  "purge-anon-decks.ts",
+  "ruleset-watch.ts",
+];
+
+const LOAD_ENV = 'loadEnv({ path: [".env.local", ".env"], quiet: true });';
+
 const firstImport = (text: string) => text.split("\n").find((line) => line.startsWith("import "));
 
 describe("the host guard wiring", () => {
@@ -88,7 +121,10 @@ describe("the host guard wiring", () => {
       if (file === "smoke/guard.ts") continue;
       const text = read(file);
       expect(text, file).not.toContain("process.env.BASE_URL");
-      expect(text, file).not.toContain("process.env.SMOKE_ALLOW_REMOTE");
+      // the database guard reads the same opt-in, after the env load (LATER row 295)
+      if (file !== "smoke/db.ts") {
+        expect(text, file).not.toContain("process.env.SMOKE_ALLOW_REMOTE");
+      }
     }
     const guard = read("smoke/guard.ts");
     expect(guard).toContain(
@@ -142,6 +178,69 @@ describe("the shared session minting", () => {
   });
 });
 
+describe("the database guard wiring", () => {
+  it("every top-level script that reads DATABASE_URL, the nightly's aside, calls the guard right after its env load", () => {
+    const opening = topLevel.filter((file) => read(file).includes("process.env.DATABASE_URL"));
+    expect(opening.filter((file) => !NIGHTLY.includes(file))).toEqual(DB_GUARDED);
+    for (const file of DB_GUARDED) {
+      const text = read(file);
+      expect(text, file).toContain('import { guardDatabaseUrl } from "./smoke/db";');
+      expect(text, file).toContain(`${LOAD_ENV}\nguardDatabaseUrl();`);
+      // one env load, one call, and the call before the first database open
+      expect(text.split(LOAD_ENV), file).toHaveLength(2);
+      expect(text.split("guardDatabaseUrl();"), file).toHaveLength(2);
+      const open = text.search(/\b(postgres|createDb)\(/);
+      expect(open, file).toBeGreaterThan(-1);
+      expect(text.indexOf("guardDatabaseUrl();"), file).toBeLessThan(open);
+    }
+  });
+
+  it("the nightly's scripts are the ones its workflow runs, and neither they nor the ingest scripts call it", () => {
+    const nightly = readFileSync(join(ROOT, ".github/workflows/nightly-ingest.yml"), "utf8");
+    const { scripts } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    for (const file of NIGHTLY) {
+      const entry = Object.entries(scripts).find(
+        ([, command]) => command === `tsx scripts/${file}`,
+      );
+      expect(entry, file).toBeDefined();
+      expect(nightly, file).toContain(`pnpm ${entry?.[0]}`);
+    }
+    for (const file of [...NIGHTLY, ...scriptFiles("ingest")]) {
+      expect(read(file), file).not.toContain("guardDatabaseUrl");
+    }
+    const importing = topLevel.filter((file) => read(file).includes('from "./smoke/db"'));
+    expect(importing).toEqual(DB_GUARDED);
+  });
+
+  it("session.ts calls the guard inside mintSession, before its first insert", () => {
+    const text = read("smoke/session.ts");
+    expect(text).toContain('import { guardDatabaseUrl } from "./db";');
+    const call = text.indexOf("guardDatabaseUrl();");
+    expect(call).toBeGreaterThan(text.indexOf("export async function mintSession"));
+    expect(call).toBeLessThan(text.indexOf("insert into users"));
+  });
+
+  it("nothing but db.ts reads PRODUCTION_DB_ENDPOINT, and db.ts reads the three variables inside the call", () => {
+    for (const file of everyScript) {
+      if (file === "smoke/db.ts") continue;
+      expect(read(file), file).not.toContain("process.env.PRODUCTION_DB_ENDPOINT");
+    }
+    const db = read("smoke/db.ts");
+    expect(db).toContain('from "../../src/lib/smoke/db-guard"');
+    expect(db).toContain("process.exit(1)");
+    expect(db).toMatch(
+      /checkSmokeDatabase\(\s*process\.env\.DATABASE_URL,\s*process\.env\.PRODUCTION_DB_ENDPOINT,\s*process\.env\.SMOKE_ALLOW_REMOTE,?\s*\)/,
+    );
+    expect(db).not.toContain("process.env.BASE_URL");
+    const moduleLevel = db
+      .split("\n")
+      .filter((line) => !line.startsWith(" ") && !line.startsWith("\t") && !line.startsWith("*"));
+    expect(moduleLevel.join("\n")).not.toContain("process.env");
+  });
+});
+
 describe("the documented switches", () => {
   const envExample = readFileSync(join(ROOT, ".env.example"), "utf8");
 
@@ -149,5 +248,13 @@ describe("the documented switches", () => {
     expect(envExample).toMatch(/development branch/i);
     expect(envExample).toMatch(/^# BASE_URL="http:\/\/localhost:3000"$/m);
     expect(envExample).toMatch(/^# SMOKE_ALLOW_REMOTE=1$/m);
+  });
+
+  it(".env.example documents the production endpoint id beside the connection string", () => {
+    expect(envExample).toMatch(/^# PRODUCTION_DB_ENDPOINT="ep-xxx"$/m);
+    expect(envExample).toMatch(/first label of its host up to `-pooler`/);
+    expect(envExample.indexOf("PRODUCTION_DB_ENDPOINT")).toBeLessThan(
+      envExample.indexOf("# Sentry"),
+    );
   });
 });
