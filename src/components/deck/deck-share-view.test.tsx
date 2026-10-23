@@ -22,7 +22,7 @@ import { getAdapter } from "@/lib/games/registry";
 import { massEntryUrl } from "@/lib/buy/links";
 import { artCredit, type CardArt } from "@/lib/cards/art";
 import { COMMANDER } from "@/lib/games/mtg/formats";
-import { atraxa, card, thrasios, tymna } from "@/lib/games/mtg/test-fixtures";
+import { atraxa, basicLands, card, thrasios, tymna } from "@/lib/games/mtg/test-fixtures";
 import type { DeckGoals } from "@/lib/decks/goals";
 import { setDeckToken } from "@/lib/decks/token-store";
 import { DECK_HEADER, HERO_CARD_SHADOW } from "@/components/surface-header";
@@ -705,12 +705,14 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
     costValue: 2,
     attrs: { type_line: "Instant", oracle_text: "", game_changer: true },
   });
-  // Atraxa, two Game Changers, 97 fillers: 100 cards, at least Bracket 3.
+  // Atraxa, two Game Changers, 36 lands (BRACKET-SPEED counts them) and 61
+  // fillers: 100 cards, at least Bracket 3.
   const gcCards: ShareDeckCard[] = [
     wire(atraxa, commanderZone),
     wire(rhystic, mainZone),
     wire(rift, mainZone),
-    ...filler.slice(0, 97).map((c) => wire(c, mainZone)),
+    ...basicLands(36).map((c) => wire(c, mainZone)),
+    ...filler.slice(0, 61).map((c) => wire(c, mainZone)),
   ];
   const goals: DeckGoals = {
     v: 1,
@@ -749,6 +751,8 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
       "Game Changers (Wizards' list): Cyclonic Rift, Rhystic Study",
       "Combos (Commander Spellbook): none found",
       "Land denial / extra turns (Scryfall Tagger): none",
+      // BRACKET-SPEED: the speed line, numbers anyone holding the list can check.
+      "Speed (Scryfall Tagger roles): 0 fast mana, 0 tutors, average mana value 2.02, 36 lands",
       "Pace (owner): doesn't usually win before turn 6",
       "Exceptions (owner): one thematic Game Changer — ask me",
     ]);
@@ -810,6 +814,7 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
       "Game Changers (Wizards' list): Cyclonic Rift, Rhystic Study",
       "Combos (Commander Spellbook): none found",
       "Land denial / extra turns (Scryfall Tagger): none",
+      "Speed (Scryfall Tagger roles): 0 fast mana, 0 tutors, average mana value 2.02, 36 lands",
       "Pace (owner): doesn't usually win before turn 6",
       "Exceptions (owner): one thematic Game Changer — ask me",
       "Reads the card list only; combos via Commander Spellbook.",
@@ -960,6 +965,21 @@ describe("DeckShareView — at the table (Y5, WAVE4 D6)", () => {
       "The owner's answer: No",
     );
     expect(within(sheet).queryByRole("radio")).toBeNull();
+    // BRACKET-SPEED: the visitor reads the facts — and, on a list that looks
+    // tuned (no lands here), is never asked: no How it plays, no nudge.
+    const speed = sheet.querySelector<HTMLElement>("[data-slot=bracket-speed]")!;
+    expect(within(speed).getByRole("heading", { name: "How fast it looks" })).toBeTruthy();
+    expect([...speed.querySelectorAll("[data-speed]")].map((el) => el.textContent)).toEqual([
+      "Fast mana: 0 (mana sources costing 1 or less)",
+      "Tutors: 0 (cards that search for other cards, land tutors aside)",
+      "Curve: average mana value 2.06, 0 lands",
+    ]);
+    expect(speed.textContent).toContain(
+      "These show how fast the list looks. They don't change the bracket.",
+    );
+    expect(sheet.querySelector("[data-slot=bracket-speed-nudge]")).toBeNull();
+    expect(sheet.querySelector("[data-slot=bracket-how-it-plays]")).toBeNull();
+    expect(within(sheet).queryByText(/cEDH list/)).toBeNull();
   });
 
   it("the private gate's facts: one GET from the client, the editor's URL, then the read", async () => {

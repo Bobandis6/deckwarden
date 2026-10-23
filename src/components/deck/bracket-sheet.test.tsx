@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { COMMANDER } from "@/lib/games/mtg/formats";
 import {
+  basicLands,
   card,
   cardMap,
   commanderDeck,
@@ -20,10 +21,15 @@ import {
   type MtgCard,
 } from "@/lib/games/mtg/test-fixtures";
 import { getAdapter } from "@/lib/games/registry";
-import type { DeckGoals } from "@/lib/decks/goals";
+import { goalsPatchBody, type DeckGoals } from "@/lib/decks/goals";
 import type { FitEstimate } from "@/lib/recommend/fit";
 import { addMorePhrase, deckProgress } from "@/lib/decks/progress";
-import type { BracketFreshness, BracketRead, CompleteCombo } from "@/lib/games/types";
+import type {
+  BracketFreshness,
+  BracketRead,
+  BracketSpeedFacts,
+  CompleteCombo,
+} from "@/lib/games/types";
 
 import { BracketSheet } from "./bracket-sheet";
 
@@ -60,13 +66,17 @@ const kikiCombo: CompleteCombo = {
   popularity: 28185,
 };
 
-function spec(specials: MtgCard[], size = 100) {
-  const fill = fillers(Math.max(0, size - 1 - specials.length));
+/** Kiki-Jiki, the specials, a real list's lands (36 unless said; BRACKET-SPEED counts them), fillers to `size`. */
+function spec(specials: MtgCard[], size = 100, landCount = 36) {
+  const room = Math.max(0, size - 1 - specials.length);
+  const lands = basicLands(Math.min(landCount, room));
+  const fill = fillers(room - lands.length);
+  const main = [...specials, ...lands, ...fill];
   const deck = commanderDeck(
     [kiki],
-    [...specials, ...fill].map((c) => entry(c)),
+    main.map((c) => entry(c)),
   );
-  return { deck, cards: cardMap([kiki, ...specials, ...fill]) };
+  return { deck, cards: cardMap([kiki, ...main]) };
 }
 
 function sheet(
@@ -80,6 +90,7 @@ function sheet(
     onGoalsChange,
     onSwapCard,
     canSwap,
+    speed = mtg.brackets!.speed!.facts(list.deck, list.cards),
   }: {
     combos?: CompleteCombo[] | null;
     freshness?: BracketFreshness | null;
@@ -92,6 +103,8 @@ function sheet(
     /** Y7b: the callout's swaps. */
     onSwapCard?: (cardId: string) => void;
     canSwap?: (cardId: string) => boolean;
+    /** BRACKET-SPEED: the list's facts, as the editor and the share page hand them (the adapter's by default). */
+    speed?: BracketSpeedFacts | null;
   } = {},
 ) {
   const read: BracketRead = mtg.brackets!.assess({
@@ -125,6 +138,7 @@ function sheet(
       onGoalsChange={onGoalsChange}
       onSwapCard={onSwapCard}
       canSwap={canSwap}
+      speed={speed}
       onClose={onClose}
     />,
   );
@@ -547,6 +561,166 @@ describe("Y4b — the player's side of the sheet", () => {
   });
 });
 
+describe("BRACKET-SPEED — How fast it looks, and the owner's nudge", () => {
+  const rock = (i: number) =>
+    named(`Mox ${i}`, { roles: ["mana-rock"], type_line: "Artifact" }, { costValue: 1 });
+  const demonic = named("Demonic Tutor", { roles: ["tutor"], type_line: "Sorcery" });
+  const speedBlock = () => dialog().querySelector<HTMLElement>("[data-slot=bracket-speed]");
+  const nudge = () => dialog().querySelector<HTMLElement>("[data-slot=bracket-speed-nudge]");
+  const howItPlays = () => within(dialog()).getByRole("button", { name: /How it plays/ });
+  const rows = () =>
+    [...speedBlock()!.querySelectorAll("[data-speed]")].map((el) => el.textContent);
+
+  it("the block after What the cards show: the three facts with their plain meaning, and the sentence that agrees with the read's assumption", () => {
+    const { read } = sheet(spec([]), { combos: [] });
+    const block = speedBlock()!;
+    expect(
+      within(block).getByRole("heading", { level: 3, name: "How fast it looks" }),
+    ).toBeTruthy();
+    expect(rows()).toEqual([
+      "Fast mana: 0 (mana sources costing 1 or less)",
+      "Tutors: 0 (cards that search for other cards, land tutors aside)",
+      "Curve: average mana value 3.43, 36 lands",
+    ]);
+    expect(block.textContent).toContain(
+      "These show how fast the list looks. They don't change the bracket.",
+    );
+    expect(read.assumptions).toContain(
+      "Tutors and fast mana don't change the read. Wizards dropped tutor limits in October 2025.",
+    );
+    // After What the cards show, before What this read assumes.
+    const cardsShow = block.ownerDocument.getElementById(
+      within(dialog()).getByRole("heading", { name: "What the cards show" }).id,
+    )!.parentElement!;
+    expect(
+      cardsShow.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      block.compareDocumentPosition(
+        within(dialog()).getByRole("heading", { name: "What this read assumes" }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("the facts count what the list holds: fast mana at 1 or less, tutors, the curve with the lands", () => {
+    sheet(spec([rock(1), rock(2), demonic], 100, 30), { combos: [] });
+    expect(rows()).toEqual([
+      "Fast mana: 2 (mana sources costing 1 or less)",
+      "Tutors: 1 (cards that search for other cards, land tutors aside)",
+      "Curve: average mana value 3.41, 30 lands",
+    ]);
+  });
+
+  it("no facts handed in (a game or a caller without them): no block", () => {
+    sheet(spec([]), { combos: [], speed: null });
+    expect(speedBlock()).toBeNull();
+    expect(nudge()).toBeNull();
+  });
+
+  it("the nudge: owner only, when the facts look tuned and the cEDH question is unanswered — How it plays opens with it, pointing at that question", () => {
+    const onGoalsChange = vi.fn();
+    sheet(spec([rock(1), rock(2), rock(3), rock(4), rock(5), rock(6)]), {
+      combos: [],
+      goals: null,
+      onGoalsChange,
+    });
+    expect(howItPlays().getAttribute("aria-expanded")).toBe("true");
+    expect(nudge()!.textContent).toBe("6 fast mana look like a cEDH list. If it is, say so below.");
+    const cedh = dialog().querySelector<HTMLElement>("[data-play=cedh]")!;
+    expect(cedh.hasAttribute("data-nudged")).toBe(true);
+    expect(dialog().querySelectorAll("[data-nudged]")).toHaveLength(1);
+    // The answer goes the way every How it plays answer goes: the same key, the same body.
+    fireEvent.click(
+      within(within(cedh).getByRole("group", { name: "Tuned for the cEDH metagame?" })).getByRole(
+        "button",
+        { name: "Yes" },
+      ),
+    );
+    const next = onGoalsChange.mock.lastCall![0] as DeckGoals;
+    expect(next).toEqual({ v: 1, answers: { rulesetVersion: 1, play: { cedh: "yes" } } });
+    expect(goalsPatchBody(next)).toBe(
+      '{"goals":{"answers":{"play":{"cedh":"yes"},"rulesetVersion":1},"v":1}}',
+    );
+  });
+
+  it("lands at 33 or fewer nudge too; the sentence names only what crossed", () => {
+    sheet(spec([], 100, 33), { combos: [], goals: null, onGoalsChange: vi.fn() });
+    expect(nudge()!.textContent).toBe("33 lands look like a cEDH list. If it is, say so below.");
+    cleanup();
+    sheet(spec([rock(1), rock(2), rock(3), rock(4), rock(5), rock(6)], 100, 26), {
+      combos: [],
+      goals: null,
+      onGoalsChange: vi.fn(),
+    });
+    expect(nudge()!.textContent).toBe(
+      "6 fast mana and 26 lands look like a cEDH list. If it is, say so below.",
+    );
+  });
+
+  it("no nudge below the cuts: 5 fast mana and 34 lands, How it plays stays collapsed", () => {
+    sheet(spec([rock(1), rock(2), rock(3), rock(4), rock(5)], 100, 34), {
+      combos: [],
+      goals: null,
+      onGoalsChange: vi.fn(),
+    });
+    expect(speedBlock()).toBeTruthy();
+    expect(nudge()).toBeNull();
+    expect(howItPlays().getAttribute("aria-expanded")).toBe("false");
+    expect(dialog().querySelector("[data-nudged]")).toBeNull();
+  });
+
+  it.each(["yes", "no", "unsure"] as const)(
+    "once the cEDH question has an answer (%s) the nudge is gone and the block is collapsed again",
+    (answer) => {
+      sheet(spec([], 100, 26), {
+        combos: [],
+        goals: { v: 1, answers: { rulesetVersion: 1, play: { cedh: answer } } },
+        onGoalsChange: vi.fn(),
+      });
+      expect(speedBlock()).toBeTruthy();
+      expect(nudge()).toBeNull();
+      expect(howItPlays().getAttribute("aria-expanded")).toBe("false");
+    },
+  );
+
+  it("an answer to another question does not quiet it", () => {
+    sheet(spec([], 100, 26), {
+      combos: [],
+      goals: { v: 1, answers: { rulesetVersion: 1, play: { fast: "yes" } } },
+      onGoalsChange: vi.fn(),
+    });
+    expect(nudge()).toBeTruthy();
+  });
+
+  it("a draft is never nudged — every unfinished list has few lands — but its facts show", () => {
+    const { read } = sheet(spec([], 60, 20), { combos: [], goals: null, onGoalsChange: vi.fn() });
+    expect(read.status).toBe("draft");
+    expect(rows()[2]).toBe("Curve: average mana value 3.38, 20 lands");
+    expect(nudge()).toBeNull();
+    expect(howItPlays().getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("a visitor (no way to change goals) reads the facts and is never asked", () => {
+    sheet(spec([rock(1), rock(2), rock(3), rock(4), rock(5), rock(6)], 100, 26), { combos: [] });
+    expect(speedBlock()).toBeTruthy();
+    expect(nudge()).toBeNull();
+    expect(dialog().querySelector("[data-slot=bracket-how-it-plays]")).toBeNull();
+    expect(within(dialog()).queryByText(/cEDH list/)).toBeNull();
+  });
+
+  it("the words: no em or en dash, at most one middle dot a line, no notation", () => {
+    sheet(spec([rock(1), rock(2), rock(3), rock(4), rock(5), rock(6)], 100, 26), {
+      combos: [],
+      goals: null,
+      onGoalsChange: vi.fn(),
+    });
+    const lines = [...rows(), nudge()!.textContent!, speedBlock()!.textContent!];
+    expect(lines.filter((l) => /[\u2013\u2014]|\d-\d/.test(l))).toEqual([]);
+    expect(lines.filter((l) => l.split(" · ").length > 2)).toEqual([]);
+    expect(lines.filter((l) => /\d\+|est\./i.test(l))).toEqual([]);
+  });
+});
+
 describe("the sheet's shape", () => {
   it("from md: the Modal, titled by the adapter's noun", () => {
     sheet(spec([]));
@@ -595,6 +769,14 @@ describe("copy guard (WAVE4 D0) — everything the sheet renders", () => {
     ["questions", () => sheet(spec([liliana, timeWarp, temporal]), { combos: [] })],
     ["gaps", () => sheet(spec([rhystic]), { combos: null, freshness: null })],
     ["a draft", () => sheet(spec([conscripts], 2))],
+    [
+      "BRACKET-SPEED: a tuned-looking owner's list, the facts and the nudge",
+      () => {
+        sheet(spec([rhystic], 100, 26), { combos: [], goals: null, onGoalsChange: vi.fn() });
+        expect(document.querySelector("[data-slot=bracket-speed]")).toBeTruthy();
+        expect(document.querySelector("[data-slot=bracket-speed-nudge]")).toBeTruthy();
+      },
+    ],
     [
       "Y4b: a target below the cards, answers under older rules, How it plays open",
       () => {

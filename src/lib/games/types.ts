@@ -903,6 +903,60 @@ export interface BracketsMeta<A = Record<string, unknown>> {
     /** A factor's or question's source page by its id; null = none (a combo links its walkthrough instead). */
     source(id: string): string | null;
   };
+  /**
+   * How fast the list looks (BRACKET-SPEED, DECKCHECK-STUDY §2.2 and §2.3):
+   * counts anyone holding the list can check, shown beside the read in the
+   * Why sheet and on "At the table", and never part of it — `assess` reads
+   * none of them (`flagPaths` is still all it takes). Optional: a game
+   * without it shows no speed block and asks nothing (One Piece).
+   */
+  speed?: BracketSpeedMeta<A>;
+}
+
+/** One row of the sheet's speed block: a label, its value, and its plain meaning when the label alone would not say. */
+export interface BracketSpeedRow {
+  id: string;
+  label: string;
+  value: string;
+  /** "mana sources costing 1 or less" — what the label counts; absent when the label says it. */
+  meaning?: string;
+}
+
+/**
+ * The speed facts, said (BRACKET-SPEED). The numbers themselves are the
+ * adapter's (its own module keeps them); core renders these words and
+ * decides nothing from them but whether to show the nudge.
+ */
+export interface BracketSpeedFacts {
+  /** The sheet's rows, in the adapter's order. */
+  rows: readonly BracketSpeedRow[];
+  /** "At the table"'s one line: "12 fast mana, 10 tutors, average mana value 2.07, 26 lands". */
+  line: string;
+  /**
+   * The facts sit past a cut no precon crosses (the calibration's). Says
+   * nothing about the read — a tuned-looking list reads what its cards
+   * read; it is why the owner is asked.
+   */
+  tuned: boolean;
+  /**
+   * The owner's nudge when `tuned`, naming the facts that crossed a cut —
+   * "12 fast mana and 26 lands look like a cEDH list. If it is, say so
+   * below." — null otherwise.
+   */
+  nudge: string | null;
+}
+
+export interface BracketSpeedMeta<A = Record<string, unknown>> {
+  /** Pure: the list's speed facts; null for a list with no main-zone cards. */
+  facts(deck: DeckSnapshot, cards: ReadonlyMap<string, CardData<A>>): BracketSpeedFacts | null;
+  /** "At the table"'s label for the speed line, with its named source. */
+  label: string;
+  /**
+   * The "How it plays" question tuned-looking facts open — its key in
+   * `questions`. Core shows the nudge to the owner while that answer is
+   * unset, on a full list, and never to a visitor.
+   */
+  asks: string;
 }
 
 // ---------------------------------------------------------------------------

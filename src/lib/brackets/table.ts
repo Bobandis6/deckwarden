@@ -12,8 +12,10 @@
  *   (goals.ts' `tableGoals`). Null where there is no read: a game without
  *   `brackets` (One Piece) or a list without a commander.
  * - `tableSummary` — "At the table"'s rows: the adapter's evidence rows,
- *   then what the owner said (How it plays, the read's questions they
- *   answered, the table's exceptions).
+ *   the speed line when the adapter has one (BRACKET-SPEED: "12 fast mana,
+ *   10 tutors, average mana value 2.07, 26 lands", numbers anyone holding
+ *   the list can check), then what the owner said (How it plays, the
+ *   read's questions they answered, the table's exceptions).
  * - `tableText` — D6's "Copy for the table": the deck and its format, the
  *   line with the date its evidence was checked, every row with its named
  *   source, the owner's plan (their description, never generated), the
@@ -36,6 +38,7 @@ import type {
   BracketLineContext,
   BracketRead,
   BracketsMeta,
+  BracketSpeedFacts,
   CompleteCombo,
   FormatDef,
   GameAdapter,
@@ -47,6 +50,13 @@ export interface TableBracket {
   ctx: BracketLineContext;
   /** What of the owner's goals the page shows (target, exceptions, the answers the read used). */
   goals: TableDeckGoals | null;
+  /**
+   * BRACKET-SPEED: how fast the list looks, from the same cards (the wire
+   * carries every card's roles) — the sheet's block and "At the table"'s
+   * speed line; null where the adapter declares none or the list has no
+   * main-zone cards. Never an input to the read.
+   */
+  speed: BracketSpeedFacts | null;
 }
 
 export function tableBracket({
@@ -99,6 +109,7 @@ export function tableBracket({
       read,
       brackets.questions.map((q) => q.key),
     ),
+    speed: brackets.speed?.facts(deck, cards) ?? null,
   };
 }
 
@@ -153,10 +164,15 @@ export function tableSummary(
   read: BracketRead,
   goals: TableDeckGoals | null,
   names: ReadonlyMap<string, { name: string }>,
+  /** BRACKET-SPEED: the list's speed facts (tableBracket's `speed`); one line after the evidence rows, before the owner's. */
+  speed: BracketSpeedFacts | null = null,
 ): TableLine[] {
   const lines: TableLine[] = brackets
     .table(read)
     .map((row) => ({ id: row.id, label: row.label, items: row.items, text: row.empty }));
+  if (speed && brackets.speed) {
+    lines.push({ id: "speed", label: brackets.speed.label, items: [], text: speed.line });
+  }
   const play = goals?.answers?.play ?? {};
   for (const q of brackets.questions) {
     const answer = play[q.key];

@@ -20,7 +20,8 @@
  * public account Magic deck is 8 (6 before Y5), a precon 6 (4), a One
  * Piece deck 5 and a Magic list without a commander 4 (unchanged), the
  * private gate 1. Signed in adds engagement 1 and the collection check 1;
- * a fork adds its credit 1.
+ * a fork adds its credit 1. BRACKET-SPEED (2026-10-22) adds none: the
+ * speed facts count the cards wire's own attrs (roles, type lines).
  *
  * Access (share-access.ts, S6 — SECURITY-AUDIT-report.md L4): public and
  * unlisted decks render server-side for everyone. A private ACCOUNT deck

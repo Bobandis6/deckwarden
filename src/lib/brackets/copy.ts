@@ -10,7 +10,9 @@
  * exceptions, How it plays, the answers, and "Rules changed since you
  * answered". Y6a adds goals in Suggestions: the goals line ("Your goals:
  * Bracket 2 (Core), ≤ $5 a card" and Change), the hidden count, the saved
- * budget. Y6b adds the Combo Radar's "above your target".
+ * budget. Y6b adds the Combo Radar's "above your target". BRACKET-SPEED
+ * adds the speed block's heading and its sentence; the facts themselves
+ * are the adapter's words (they name card kinds).
  */
 import type { BracketsMeta } from "@/lib/games/types";
 
@@ -98,6 +100,16 @@ export const BRACKET_COPY = {
   // Y6b (WAVE4 D7) — the Combo Radar's badges, beside the adapter's words.
   /** After a combo's badge when either of its levels is above the deck's target. */
   aboveTargetInline: "above your target",
+
+  // BRACKET-SPEED (DECKCHECK-STUDY §2.2 and §2.3) — the speed block in the sheet.
+  /** The block's heading; its rows are the adapter's words (the facts name card kinds). */
+  speed: "How fast it looks",
+  /**
+   * The block's one sentence, agreeing with the read's assumption line
+   * ("Tutors and fast mana don't change the read"): "These show how fast
+   * the list looks. They don't change the bracket."
+   */
+  speedNote: (noun: string) => `These show how fast the list looks. They don't change the ${noun}.`,
 } as const;
 
 /**

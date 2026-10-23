@@ -408,7 +408,7 @@ export function DeckShareView({
   const factsIn = facts.state === "ready" || facts.state === "over";
   const tableLines =
     brackets && table && factsIn && hasTableRead(table.read)
-      ? tableSummary(brackets, table.read, table.goals, cardMap)
+      ? tableSummary(brackets, table.read, table.goals, cardMap, table.speed)
       : null;
   const copyForTable =
     brackets && table && tableLines
@@ -755,6 +755,7 @@ export function DeckShareView({
           cards={cardMap}
           phone={tier === "phone"}
           goals={table.goals}
+          speed={table.speed}
           onClose={() => setWhyOpen(false)}
         />
       )}

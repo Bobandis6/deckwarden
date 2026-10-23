@@ -53,6 +53,20 @@
  * which saves it like any edit (a draft mints its row) — and never asks
  * for the combo facts again: goals don't change the card set.
  *
+ * BRACKET-SPEED (DECKCHECK-STUDY §2.2 and §2.3): "How fast it looks" —
+ * one block after What the cards show, for owner and visitors alike, when
+ * the adapter declares `speed` and the caller hands the sheet the list's
+ * facts: the adapter's rows (fast mana, tutors, the curve with the lands)
+ * and one sentence that agrees with the assumption line (they show how
+ * fast the list looks; they don't change the read). The nudge is the
+ * owner's only (`onGoalsChange`): when the facts look tuned, the list is
+ * not a draft (every unfinished list has few lands) and the adapter's
+ * `asks` question has no answer yet, How it plays opens itself with the
+ * adapter's sentence naming the facts that crossed a cut; the answer goes
+ * through the same `withAnswer` and the same PATCH as any other, and the
+ * nudge is gone once the question has any answer. Visitors never see a
+ * question.
+ *
  * Attribution (D0) rides each line's source: Wizards' Game Changers list
  * (via Scryfall) and the Scryfall Tagger tag pages link out through the
  * adapter's `links`; combos credit Commander Spellbook. Every word here is
@@ -83,6 +97,7 @@ import type {
   BracketQuestion,
   BracketRead,
   BracketsMeta,
+  BracketSpeedFacts,
   CompleteCombo,
   GameAdapter,
 } from "@/lib/games/types";
@@ -113,6 +128,7 @@ export function BracketSheet({
   openAt = null,
   onSwapCard,
   canSwap,
+  speed = null,
   onClose,
 }: {
   adapter: GameAdapter;
@@ -137,9 +153,12 @@ export function BracketSheet({
   onSwapCard?: (cardId: string) => void;
   /** Y7b: which of a finding's cards the editor can swap. */
   canSwap?: (cardId: string) => boolean;
+  /** BRACKET-SPEED: the list's speed facts (the adapter's `speed.facts`); null = no block. */
+  speed?: BracketSpeedFacts | null;
   onClose: () => void;
 }) {
   const cardsId = useId();
+  const speedId = useId();
   const assumesId = useId();
   const targetRef = useRef<HTMLElement>(null);
   /** Your target's pressed choice ("Not set" when none), else the block. */
@@ -168,6 +187,19 @@ export function BracketSheet({
           }),
         )
     : undefined;
+  // BRACKET-SPEED: the owner's nudge — tuned-looking facts on a full list,
+  // the adapter's question still unanswered. A visitor's sheet has no
+  // onGoalsChange and so never a nudge; a draft is never nudged (every
+  // unfinished list has 33 or fewer lands).
+  const speedMeta = brackets.speed;
+  const nudge =
+    onGoalsChange &&
+    speedMeta &&
+    speed?.tuned &&
+    read.status !== "draft" &&
+    (goals?.answers?.play ?? {})[speedMeta.asks] === undefined
+      ? speed.nudge
+      : null;
 
   const content = (
     <div className="space-y-4">
@@ -265,6 +297,28 @@ export function BracketSheet({
         )}
       </section>
 
+      {speed && speedMeta && (
+        <section aria-labelledby={speedId} data-slot="bracket-speed" className="space-y-2">
+          <h3 id={speedId} className={SECTION_HEADING}>
+            {BRACKET_COPY.speed}
+          </h3>
+          <dl className="space-y-1 text-sm">
+            {speed.rows.map((row) => (
+              <div key={row.id} data-speed={row.id} className="break-words">
+                <dt className="text-muted-foreground inline">{row.label}:</dt>{" "}
+                <dd className="inline">
+                  {row.value}
+                  {row.meaning && (
+                    <span className="text-muted-foreground text-xs"> ({row.meaning})</span>
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className="text-muted-foreground text-xs">{BRACKET_COPY.speedNote(brackets.noun)}</p>
+        </section>
+      )}
+
       {onGoalsChange && (
         <TargetBlock
           brackets={brackets}
@@ -284,6 +338,7 @@ export function BracketSheet({
           stale={read.answersStale}
           goals={goals}
           onGoalsChange={onGoalsChange}
+          nudge={nudge}
         />
       )}
 
@@ -479,24 +534,32 @@ function TargetBlock({
   );
 }
 
-/** How it plays (Y4b): optional and collapsed — open by itself only when the rules changed. */
+/**
+ * How it plays (Y4b): optional and collapsed — open by itself only when the
+ * rules changed, or (BRACKET-SPEED) when the speed facts nudge the owner:
+ * then the adapter's sentence leads, and the question it points at is the
+ * one it names (`brackets.speed.asks`).
+ */
 function HowItPlays({
   brackets,
   stale,
   goals,
   onGoalsChange,
+  nudge = null,
 }: {
   brackets: BracketsMeta;
   stale: boolean;
   goals: DeckGoals | null;
   onGoalsChange: (next: DeckGoals | null) => void;
+  /** BRACKET-SPEED: the adapter's nudge, when the facts look tuned and its question is unanswered. */
+  nudge?: string | null;
 }) {
   const headingId = useId();
   const play = goals?.answers?.play ?? {};
   const answered = brackets.questions.filter((q) => play[q.key] !== undefined).length;
   return (
     <Collapsible
-      defaultOpen={stale && answered > 0}
+      defaultOpen={(stale && answered > 0) || nudge !== null}
       render={<section aria-labelledby={headingId} data-slot="bracket-how-it-plays" />}
     >
       <h3 id={headingId}>
@@ -512,10 +575,23 @@ function HowItPlays({
         </CollapsibleTrigger>
       </h3>
       <CollapsibleContent className="space-y-2 pt-2">
+        {nudge && (
+          <p
+            data-slot="bracket-speed-nudge"
+            className="rounded-lg border border-dashed px-2.5 py-2 text-sm"
+          >
+            {nudge}
+          </p>
+        )}
         <p className="text-muted-foreground text-xs">{BRACKET_COPY.howItPlaysLead}</p>
         <ul className="space-y-2">
           {brackets.questions.map((q) => (
-            <li key={q.key} data-play={q.key} className="space-y-1">
+            <li
+              key={q.key}
+              data-play={q.key}
+              data-nudged={nudge && q.key === brackets.speed?.asks ? "" : undefined}
+              className="space-y-1"
+            >
               <p className="text-sm">{q.question}</p>
               <Segmented
                 ariaLabel={q.question}

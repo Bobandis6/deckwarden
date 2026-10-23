@@ -1975,6 +1975,16 @@ export function DeckEditor({
         : null,
     [bracketsOn, adapter, snapshot, cards, bracketFacts.combos, bracketFacts.freshness, goals],
   );
+  // BRACKET-SPEED: how fast the list looks, from the same card wires (they
+  // carry every card's roles) — the sheet's block and its owner nudge. Never
+  // an input to the read above.
+  const bracketSpeed = useMemo(
+    () =>
+      bracketsOn && adapter?.brackets?.speed && snapshot
+        ? adapter.brackets.speed.facts(snapshot, cards)
+        : null,
+    [bracketsOn, adapter, snapshot, cards],
+  );
   const bracketCtx = useMemo(
     () =>
       snapshot && format
@@ -2454,6 +2464,7 @@ export function DeckEditor({
               openAt={sheetAt}
               onSwapCard={swapMeta ? swapFromCallout : undefined}
               canSwap={canSwapId}
+              speed={bracketSpeed}
               onClose={() => setDialog(null)}
             />
           )}

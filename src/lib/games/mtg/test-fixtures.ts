@@ -207,6 +207,24 @@ export function fillers(n: number): MtgCard[] {
 }
 
 /**
+ * `n` basic Forests, distinct cards each (BRACKET-SPEED's lists carry a land
+ * count a real list has; the bracket read ignores them). Mana value 0, like
+ * ingest writes a land.
+ */
+export function basicLands(n: number): MtgCard[] {
+  return Array.from({ length: n }, (_, i) =>
+    card({
+      name: `Forest ${i + 1}`,
+      primaryType: "Land",
+      costValue: 0,
+      ciMask: 16,
+      cheapestUsd: 0.05,
+      attrs: { type_line: "Basic Land — Forest", oracle_text: "({T}: Add {G}.)" },
+    }),
+  );
+}
+
+/**
  * The owner's real Moxfield "Plain text" export (2026-09-14 phone dry run,
  * P2.8b) — verbatim, never edit. The shape under test: the commander is the
  * FIRST line, unmarked; the other 79 follow under Moxfield's locale collation

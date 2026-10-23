@@ -12,7 +12,7 @@ import { tableGoals, type DeckGoals } from "@/lib/decks/goals";
 import { addMorePhrase, deckProgress } from "@/lib/decks/progress";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { COMMANDER } from "@/lib/games/mtg/formats";
-import { atraxa, card, fillers, type MtgCard } from "@/lib/games/mtg/test-fixtures";
+import { atraxa, basicLands, card, fillers, type MtgCard } from "@/lib/games/mtg/test-fixtures";
 import { getAdapter } from "@/lib/games/registry";
 import type { BracketFreshness, CompleteCombo } from "@/lib/games/types";
 
@@ -62,14 +62,18 @@ const kikiCombo: CompleteCombo = {
   popularity: 28185,
 };
 
-function list(specials: MtgCard[], size = 100) {
-  const fill = fillers(Math.max(0, size - 1 - specials.length));
+/** Atraxa, the specials, then a real list's 36 lands (BRACKET-SPEED counts them) and fillers to `size`. */
+function list(specials: MtgCard[], size = 100, landCount = 36) {
+  const room = Math.max(0, size - 1 - specials.length);
+  const lands = basicLands(Math.min(landCount, room));
+  const fill = fillers(room - lands.length);
+  const main = [...specials, ...lands, ...fill];
   const entries: EditorEntry[] = [
     { cardId: atraxa.id, zone: commanderZone, qty: 1, tags: [] },
-    ...[...specials, ...fill].map((c) => ({ cardId: c.id, zone: mainZone, qty: 1, tags: [] })),
+    ...main.map((c) => ({ cardId: c.id, zone: mainZone, qty: 1, tags: [] })),
   ];
   const cards = new Map<string, EditorCard>(
-    [atraxa, ...specials, ...fill].map((c) => [c.id, { ...c, image: null }]),
+    [atraxa, ...main].map((c) => [c.id, { ...c, image: null }]),
   );
   return { entries, cards };
 }
@@ -253,7 +257,7 @@ describe("Copy for the table — D6's text", () => {
 
   function copied(l: ReturnType<typeof list>, goals: DeckGoals | null, plan: string | null = null) {
     const t = table(l, goals);
-    const lines = tableSummary(brackets, t.read, t.goals, l.cards);
+    const lines = tableSummary(brackets, t.read, t.goals, l.cards, t.speed);
     return tableText({
       deckName: "Atraxa Superfriends",
       formatLabel: COMMANDER.label,
@@ -301,6 +305,8 @@ describe("Copy for the table — D6's text", () => {
       "Game Changers (Wizards' list): Cyclonic Rift, Rhystic Study",
       "Combos (Commander Spellbook): none found",
       "Land denial / extra turns (Scryfall Tagger): none",
+      // BRACKET-SPEED: the speed line after the evidence rows, before the owner's.
+      "Speed (Scryfall Tagger roles): 0 fast mana, 0 tutors, average mana value 3.41, 36 lands",
       "Pace (owner): doesn't usually win before turn 6",
       "Exceptions (owner): one thematic Game Changer — ask me",
       "Reads the card list only; combos via Commander Spellbook.",
@@ -316,6 +322,7 @@ describe("Copy for the table — D6's text", () => {
       "Game Changers (Wizards' list): none",
       "Combos (Commander Spellbook): none found",
       "Land denial / extra turns (Scryfall Tagger): none",
+      "Speed (Scryfall Tagger roles): 0 fast mana, 0 tutors, average mana value 3.43, 36 lands",
       "Reads the card list only; combos via Commander Spellbook.",
       url,
     ]);
@@ -330,7 +337,7 @@ describe("Copy for the table — D6's text", () => {
     const t = table(l, { v: 1, answers: { rulesetVersion: v, calls: { [chain.id]: "no" } } }, [
       kikiCombo,
     ]);
-    const lines = tableSummary(brackets, t.read, t.goals, l.cards);
+    const lines = tableSummary(brackets, t.read, t.goals, l.cards, t.speed);
     const text = tableText({
       deckName: "Kiki Combo",
       formatLabel: COMMANDER.label,
@@ -396,6 +403,124 @@ describe("Copy for the table — D6's text", () => {
     expect(text).not.toMatch(/approv/i);
     expect(text).not.toMatch(/ruthless|spicy|powerful|oddball|precon appropriate|casual/i);
   });
+});
+
+describe("BRACKET-SPEED — the speed facts beside the read, and the table's speed line", () => {
+  const solRing = card({
+    name: "Sol Ring",
+    primaryType: "Artifact",
+    costValue: 1,
+    attrs: { type_line: "Artifact", oracle_text: "", roles: ["mana-rock"] },
+  });
+  const demonic = card({
+    name: "Demonic Tutor",
+    costValue: 2,
+    attrs: { type_line: "Sorcery", oracle_text: "", roles: ["tutor"] },
+  });
+
+  it("tableBracket's speed is the adapter's facts over the same cards the read took", () => {
+    const l = list([solRing, demonic, rhystic]);
+    const t = table(l, null);
+    expect(t.speed).toEqual(
+      brackets.speed!.facts(toDeckSnapshot("mtg", COMMANDER, l.entries), l.cards),
+    );
+    expect(t.speed!.line).toBe("1 fast mana, 1 tutor, average mana value 3.41, 36 lands");
+    expect(t.speed!.tuned).toBe(false);
+    expect(t.speed!.nudge).toBeNull();
+    // Never an input to the read: the same read as the fixture without roles.
+    const stripped = new Map(
+      [...l.cards].map(([id, c]) => {
+        const attrs = { ...(c.attrs as { roles?: unknown }) };
+        delete attrs.roles;
+        return [id, { ...c, attrs }];
+      }),
+    );
+    expect(
+      tableBracket({
+        adapter: mtg,
+        format: COMMANDER,
+        entries: l.entries,
+        cards: stripped as ReadonlyMap<string, EditorCard>,
+        combos: [],
+        freshness: FRESH,
+        goals: null,
+      })!.read,
+    ).toEqual(t.read);
+  });
+
+  it("the speed line, in both voices, after the evidence rows and before the owner's", () => {
+    const l = list([solRing, demonic], 100, 26);
+    const goals: DeckGoals = { v: 1, answers: { rulesetVersion: v, play: { cedh: "yes" } } };
+    const pod = table(l, goals);
+    const lines = tableSummary(brackets, pod.read, pod.goals, l.cards, pod.speed);
+    expect(lines.map((x) => x.id)).toEqual([
+      "game-changers",
+      "combos",
+      "land-denial-extra-turns",
+      "speed",
+      "play:cedh",
+    ]);
+    const speed = lines.find((x) => x.id === "speed")!;
+    expect(speed.label).toBe("Speed (Scryfall Tagger roles)");
+    expect(speed.items).toEqual([]);
+    expect(speed.text).toBe("1 fast mana, 1 tutor, average mana value 3.41, 26 lands");
+    expect(lineValue(speed, l.cards)).toBe(speed.text);
+    // The owner's voice (a precon): the same line, the same words.
+    const owner = tableBracket({
+      adapter: mtg,
+      format: COMMANDER,
+      entries: l.entries,
+      cards: l.cards,
+      combos: [],
+      freshness: FRESH,
+      goals: null,
+      voice: "owner",
+    })!;
+    expect(
+      tableSummary(brackets, owner.read, owner.goals, l.cards, owner.speed).find(
+        (x) => x.id === "speed",
+      ),
+    ).toEqual(speed);
+    // Tuned (26 lands): the facts say so, and the table says nothing more than the numbers.
+    expect(pod.speed!.tuned).toBe(true);
+    expect(pod.speed!.nudge).toBe("26 lands look like a cEDH list. If it is, say so below.");
+    expect(lines.map((x) => x.text).join("\n")).not.toContain("cEDH list");
+  });
+
+  it("no facts handed in, no line — the callers before this package read as they did", () => {
+    const l = list([]);
+    const t = table(l, null);
+    expect(tableSummary(brackets, t.read, t.goals, l.cards).map((x) => x.id)).toEqual([
+      "game-changers",
+      "combos",
+      "land-denial-extra-turns",
+    ]);
+    expect(
+      tableSummary(brackets, t.read, t.goals, l.cards, null).some((x) => x.id === "speed"),
+    ).toBe(false);
+  });
+
+  it("the copied text carries the line with its source, numbers anyone holding the list can check", () => {
+    const text = copiedWithSpeed(list([solRing, demonic], 100, 30));
+    expect(text.split("\n")[5]).toBe(
+      "Speed (Scryfall Tagger roles): 1 fast mana, 1 tutor, average mana value 3.41, 30 lands",
+    );
+  });
+
+  function copiedWithSpeed(l: ReturnType<typeof list>) {
+    const t = table(l, null);
+    return tableText({
+      deckName: "Atraxa Superfriends",
+      formatLabel: COMMANDER.label,
+      line: brackets.line(t.read, t.ctx),
+      checkedAt: FRESH.readAt,
+      lines: tableSummary(brackets, t.read, t.goals, l.cards, t.speed),
+      names: l.cards,
+      plan: null,
+      note: brackets.tableNote,
+      url: "https://deckwarden.gg/d/uwvrnv2pv4t6",
+    });
+  }
 });
 
 describe("itemSeparator — names with commas never run together", () => {

@@ -90,6 +90,7 @@ import {
 import { BRACKET_RULESET, type BracketLevel } from "./bracket-ruleset";
 import { mtgFormat } from "./formats";
 import { bracketTagOf, type SpellbookBracketTag } from "./spellbook-tags";
+import { mtgBracketSpeed } from "./speed";
 import { legalityIssue } from "./validate";
 
 type MtgCard = CardData<MtgAttrs>;
@@ -1220,4 +1221,6 @@ export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   impact: mtgBracketImpact,
   shellNotes: mtgShellNotes,
   comboBadge: mtgComboBadge,
+  // BRACKET-SPEED: the three speed facts beside the read, never in it (./speed.ts).
+  speed: mtgBracketSpeed,
 };

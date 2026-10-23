@@ -23,7 +23,16 @@ import {
 import { BRACKET_RULESET } from "./bracket-ruleset";
 import { assessBracket, mtgBrackets } from "./brackets";
 import { COMMANDER } from "./formats";
-import { card, cardMap, commanderDeck, entry, fillers, type MtgCard } from "./test-fixtures";
+import { MTG_SPEED_LABEL, mtgBracketSpeed } from "./speed";
+import {
+  basicLands,
+  card,
+  cardMap,
+  commanderDeck,
+  entry,
+  fillers,
+  type MtgCard,
+} from "./test-fixtures";
 
 const AT = "2026-10-04T15:29:34.768Z";
 const FRESH: BracketFreshness = {
@@ -613,16 +622,52 @@ describe("copy guard (WAVE4 D0) — every line the adapter can say", () => {
     add(list([]), [], { freshness: null });
     // Y4b: every read again beside each target, and answers with a call still open.
     add(list([liliana]), [], { answers: { rulesetVersion: 1, play: { quality: "yes" } } });
-    return reads.flatMap(([spec, r]) => [
-      line(spec, r),
-      ...[1, 2, 3, 4, 5].map((target) => line(spec, r, target)),
-      // Y5: the share page's voice, every read and target again.
-      line(spec, r, null, "table"),
-      ...[1, 2, 3, 4, 5].map((target) => line(spec, r, target, "table")),
-      ...mtgBracketTable(r).flatMap((row) => [row.label, row.empty]),
-      // LATER row 151: the filter's band labels.
-      ...mtgBracketBands(r).map((b) => b.label),
-    ]);
+    // BRACKET-SPEED: the speed facts' words for a precon shape and a cEDH
+    // shape (the fixture lists above hold no lands, so their facts nudge).
+    const rock = (i: number) =>
+      card({
+        name: `Mox ${i}`,
+        costValue: 1,
+        attrs: { type_line: "Artifact", oracle_text: "", roles: ["mana-rock"] },
+      });
+    const shapes = [
+      [...basicLands(36), ...fillers(63)],
+      [...basicLands(26), ...[1, 2, 3, 4, 5, 6].map(rock), ...fillers(67)],
+    ].map((main) => ({
+      deck: commanderDeck(
+        [commander],
+        main.map((c) => entry(c)),
+      ),
+      cards: cardMap([commander, ...main]),
+    }));
+    const speedWords = [...shapes, ...reads.map(([spec]) => spec)].flatMap((spec) => {
+      const f = mtgBracketSpeed.facts(spec.deck, spec.cards);
+      return f
+        ? [
+            f.line,
+            ...(f.nudge ? [f.nudge] : []),
+            ...f.rows.flatMap((row) => [
+              row.label,
+              row.value,
+              ...(row.meaning ? [row.meaning] : []),
+            ]),
+          ]
+        : [];
+    });
+    return [
+      MTG_SPEED_LABEL,
+      ...speedWords,
+      ...reads.flatMap(([spec, r]) => [
+        line(spec, r),
+        ...[1, 2, 3, 4, 5].map((target) => line(spec, r, target)),
+        // Y5: the share page's voice, every read and target again.
+        line(spec, r, null, "table"),
+        ...[1, 2, 3, 4, 5].map((target) => line(spec, r, target, "table")),
+        ...mtgBracketTable(r).flatMap((row) => [row.label, row.empty]),
+        // LATER row 151: the filter's band labels.
+        ...mtgBracketBands(r).map((b) => b.label),
+      ]),
+    ];
   }
 
   it("reads real lines: every status the read has", () => {

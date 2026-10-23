@@ -7,7 +7,17 @@
  */
 import { describe, expect, it } from "vitest";
 
+import {
+  atraxa,
+  basicLands,
+  card,
+  cardMap,
+  commanderDeck,
+  entry,
+  fillers,
+} from "@/lib/games/mtg/test-fixtures";
 import { getAdapter } from "@/lib/games/registry";
+import type { BracketSpeedFacts } from "@/lib/games/types";
 
 import { budgetLabel } from "@/components/deck/goals-line";
 
@@ -26,7 +36,38 @@ const BUILDERS = [
   "checked",
   "noTarget",
   "hiddenByGoals",
+  "speedNote",
 ];
+
+/**
+ * BRACKET-SPEED: the adapter's facts for two lists — a precon's shape (36
+ * lands, nothing fast) and a cEDH shape (26 lands, six rocks at 1, a
+ * tutor), so the guard reads the rows, the line and the nudge.
+ */
+function speedFacts(): BracketSpeedFacts[] {
+  const speed = getAdapter("mtg").brackets!.speed!;
+  const rock = (i: number) =>
+    card({
+      name: `Mox ${i}`,
+      costValue: 1,
+      attrs: { type_line: "Artifact", oracle_text: "", roles: ["mana-rock"] },
+    });
+  const tutor = card({
+    name: "Demonic Tutor",
+    attrs: { type_line: "Sorcery", oracle_text: "", roles: ["tutor"] },
+  });
+  const lists = [
+    [...basicLands(36), ...fillers(63)],
+    [...basicLands(26), ...[1, 2, 3, 4, 5, 6].map(rock), tutor, ...fillers(66)],
+  ];
+  return lists.map((main) => {
+    const deck = commanderDeck(
+      [atraxa],
+      main.map((c) => entry(c)),
+    );
+    return speed.facts(deck, cardMap([atraxa, ...main]))!;
+  });
+}
 
 /** Every string the table can produce, its builders called with real inputs. */
 function everyString(): string[] {
@@ -61,6 +102,15 @@ function everyString(): string[] {
     ...mtg.levels.flatMap((l) =>
       goalsParts(mtg, { targetLevel: l.level, budget: { perCardUsd: 5 } }, budgetLabel),
     ),
+    // BRACKET-SPEED: the block's sentence, the table's label, and the
+    // adapter's rows, line and nudge for a precon shape and a cEDH shape.
+    C.speedNote(mtg.noun),
+    mtg.speed!.label,
+    ...speedFacts().flatMap((f) => [
+      f.line,
+      ...(f.nudge ? [f.nudge] : []),
+      ...f.rows.flatMap((r) => [r.label, r.value, ...(r.meaning ? [r.meaning] : [])]),
+    ]),
   ];
 }
 
@@ -168,6 +218,41 @@ describe("Y6a's words — the goals line and the hidden count", () => {
     expect(BRACKET_COPY.noTarget("bracket")).toBe("No bracket target yet");
     expect(BRACKET_COPY.hiddenByGoals(3)).toBe("3 hidden by your goals");
     expect(BRACKET_COPY.saveBudget).toBe("Save as this deck's budget");
+  });
+});
+
+describe("BRACKET-SPEED's words — the block's heading and its sentence", () => {
+  it("the heading, and the sentence agreeing with the read's assumption line", () => {
+    const mtg = getAdapter("mtg").brackets!;
+    expect(BRACKET_COPY.speed).toBe("How fast it looks");
+    expect(BRACKET_COPY.speedNote(mtg.noun)).toBe(
+      "These show how fast the list looks. They don't change the bracket.",
+    );
+    expect(mtg.speed!.label).toBe("Speed (Scryfall Tagger roles)");
+    // The guard reads both shapes: one nudges, one does not.
+    const [precon, cedh] = speedFacts();
+    expect(precon.tuned).toBe(false);
+    expect(precon.nudge).toBeNull();
+    expect(cedh.tuned).toBe(true);
+    expect(cedh.nudge).toBe(
+      "6 fast mana and 26 lands look like a cEDH list. If it is, say so below.",
+    );
+  });
+
+  it("the new strings carry no em or en dash and at most one middle dot (WAVE5's rule)", () => {
+    const mtg = getAdapter("mtg").brackets!;
+    const words = [
+      BRACKET_COPY.speed,
+      BRACKET_COPY.speedNote(mtg.noun),
+      mtg.speed!.label,
+      ...speedFacts().flatMap((f) => [
+        f.line,
+        f.nudge ?? "",
+        ...f.rows.flatMap((r) => [r.label, r.value, r.meaning ?? ""]),
+      ]),
+    ];
+    expect(words.filter((w) => /[\u2013\u2014]|\d-\d/.test(w))).toEqual([]);
+    expect(words.filter((w) => w.split(" · ").length > 2)).toEqual([]);
   });
 });
 
