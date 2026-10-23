@@ -40,6 +40,7 @@ const BUILDERS = [
   "previewShows",
   "previewShowsNone",
   "declare",
+  "targetShown",
 ];
 
 /**
@@ -88,6 +89,9 @@ function everyString(): string[] {
     ...mtg.levels.map((l) => C.aboveTargetLead(levelLabel(mtg, l.level))),
     C.answered(1),
     C.answered(4),
+    // LATER row 306: Your target's note, with link previews and without.
+    C.targetShown(true),
+    C.targetShown(false),
     // The adapter's words the Y4b blocks render beside core's.
     mtg.exceptionsHint,
     // BRACKETS-PAGE: What this read assumes links the site's guide by the adapter's label.
@@ -157,7 +161,6 @@ describe("BRACKET_COPY — D5's own lines and the sheet's words", () => {
       "Not sure",
     ]);
     expect(BRACKET_COPY.rulesChanged).toBe("Rules changed since you answered");
-    expect(BRACKET_COPY.shownOnSharePage).toBe("Shown on your share page.");
     expect(BRACKET_COPY.exceptions).toBe("Table exceptions");
     expect(mtg.exceptionsHint).toBe("e.g. one thematic Game Changer, ask me");
     expect(BRACKET_COPY.aboveTargetLead(levelLabel(mtg, 2))).toBe(
@@ -287,6 +290,24 @@ describe("DECK-PREVIEW-BRACKET's words — the Share dialog's line", () => {
 
   it("no em or en dash, at most one middle dot, and nothing that promises an old preview changes", () => {
     const words = previewWords();
+    expect(words.filter((w) => /[–—]|\d-\d/.test(w))).toEqual([]);
+    expect(words.filter((w) => w.split(" · ").length > 2)).toEqual([]);
+    expect(words.filter((w) => /updat|refresh|already|will /i.test(w))).toEqual([]);
+  });
+});
+
+describe("LATER row 306's words — Your target's note says where the target shows", () => {
+  it("the share page, then the target where the deck is listed, and in link previews unless the deck is private", () => {
+    expect(BRACKET_COPY.targetShown(true)).toBe(
+      "Shown on your share page. Your target also shows in link previews and where the deck is listed.",
+    );
+    expect(BRACKET_COPY.targetShown(false)).toBe(
+      "Shown on your share page. Your target also shows where the deck is listed.",
+    );
+  });
+
+  it("no em or en dash, at most one middle dot, and nothing that promises an old preview changes", () => {
+    const words = [BRACKET_COPY.targetShown(true), BRACKET_COPY.targetShown(false)];
     expect(words.filter((w) => /[–—]|\d-\d/.test(w))).toEqual([]);
     expect(words.filter((w) => w.split(" · ").length > 2)).toEqual([]);
     expect(words.filter((w) => /updat|refresh|already|will /i.test(w))).toEqual([]);

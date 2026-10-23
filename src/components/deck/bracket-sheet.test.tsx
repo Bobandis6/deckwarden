@@ -91,6 +91,7 @@ function sheet(
     onSwapCard,
     canSwap,
     speed = mtg.brackets!.speed!.facts(list.deck, list.cards),
+    linkPreviews,
   }: {
     combos?: CompleteCombo[] | null;
     freshness?: BracketFreshness | null;
@@ -105,6 +106,8 @@ function sheet(
     canSwap?: (cardId: string) => boolean;
     /** BRACKET-SPEED: the list's facts, as the editor and the share page hand them (the adapter's by default). */
     speed?: BracketSpeedFacts | null;
+    /** LATER row 306: the deck's link previews draw its target (the editor: any deck but a private one). */
+    linkPreviews?: boolean;
   } = {},
 ) {
   const read: BracketRead = mtg.brackets!.assess({
@@ -139,6 +142,7 @@ function sheet(
       onSwapCard={onSwapCard}
       canSwap={canSwap}
       speed={speed}
+      linkPreviews={linkPreviews}
       onClose={onClose}
     />,
   );
@@ -359,7 +363,33 @@ describe("Y4b — the player's side of the sheet", () => {
     expect(within(target).getByText("Bracket 3 (Upgraded)")).toBeTruthy();
     fireEvent.click(within(group).getByRole("button", { name: "Not set" }));
     expect(onGoalsChange).toHaveBeenLastCalledWith({ v: 1, exceptions: "Ask me" });
-    expect(within(target).getByText("Shown on your share page.")).toBeTruthy();
+  });
+
+  it("LATER row 306: the note says where the target shows; link previews only when they draw it (never for a private deck)", () => {
+    const goals: DeckGoals = { v: 1, targetLevel: 3 };
+    sheet(spec([]), { combos: [], goals, onGoalsChange: vi.fn(), linkPreviews: true });
+    expect(
+      within(block("Your target")).getByText(
+        "Shown on your share page. Your target also shows in link previews and where the deck is listed.",
+      ),
+    ).toBeTruthy();
+    cleanup();
+
+    // The editor passes false for a private deck, and so does a caller that says nothing.
+    sheet(spec([]), { combos: [], goals, onGoalsChange: vi.fn() });
+    const target = block("Your target");
+    expect(
+      within(target).getByText(
+        "Shown on your share page. Your target also shows where the deck is listed.",
+      ),
+    ).toBeTruthy();
+    expect(target.textContent).not.toContain("link previews");
+    cleanup();
+
+    // The share page's sheet only reads: no target block, so no note at all.
+    sheet(spec([]), { combos: [], goals, linkPreviews: true });
+    expect(dialog().textContent).not.toContain("Shown on your share page");
+    expect(dialog().textContent).not.toContain("link previews");
   });
 
   it("the conflict callout lists the read's conflicts — each finding's sentence and what would change it", () => {

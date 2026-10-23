@@ -26,7 +26,8 @@
  * - **Your target** — `Segmented` 1–5 · Not set, the conflict callout (the
  *   findings above the target, each with its reason and what would change
  *   it; Y7b adds "Swap…"), the table-exceptions line, and the note that the
- *   share page shows them;
+ *   share page shows them (LATER row 306: and the target also where the deck
+ *   is listed and, unless it's private, in link previews, `linkPreviews`);
  * - **How it plays** — optional and collapsed: the adapter's four
  *   questions, Yes / No / Not sure each. Answers only ever raise the read
  *   and are never asked again after ordinary edits.
@@ -134,6 +135,7 @@ export function BracketSheet({
   onSwapCard,
   canSwap,
   speed = null,
+  linkPreviews = false,
   onClose,
 }: {
   adapter: GameAdapter;
@@ -160,6 +162,12 @@ export function BracketSheet({
   canSwap?: (cardId: string) => boolean;
   /** BRACKET-SPEED: the list's speed facts (the adapter's `speed.facts`); null = no block. */
   speed?: BracketSpeedFacts | null;
+  /**
+   * LATER row 306: the deck's link previews draw its declared target (any
+   * deck but a private one; a draft mints unlisted). Your target's note
+   * names them only then.
+   */
+  linkPreviews?: boolean;
   onClose: () => void;
 }) {
   const cardsId = useId();
@@ -334,6 +342,7 @@ export function BracketSheet({
           cards={cards}
           onSwapCard={onSwapCard}
           canSwap={canSwap}
+          linkPreviews={linkPreviews}
         />
       )}
 
@@ -436,6 +445,7 @@ function TargetBlock({
   cards,
   onSwapCard,
   canSwap,
+  linkPreviews,
 }: {
   brackets: BracketsMeta;
   read: BracketRead;
@@ -447,6 +457,8 @@ function TargetBlock({
   cards: ReadonlyMap<string, { name: string }>;
   onSwapCard?: (cardId: string) => void;
   canSwap?: (cardId: string) => boolean;
+  /** LATER row 306: the note names link previews (never for a private deck). */
+  linkPreviews: boolean;
 }) {
   const headingId = useId();
   const exceptionsId = useId();
@@ -544,7 +556,7 @@ function TargetBlock({
           }}
         />
       </div>
-      <p className="text-muted-foreground text-xs">{BRACKET_COPY.shownOnSharePage}</p>
+      <p className="text-muted-foreground text-xs">{BRACKET_COPY.targetShown(linkPreviews)}</p>
     </section>
   );
 }

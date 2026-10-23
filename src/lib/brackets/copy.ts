@@ -13,7 +13,8 @@
  * budget. Y6b adds the Combo Radar's "above your target". BRACKET-SPEED
  * adds the speed block's heading and its sentence; the facts themselves
  * are the adapter's words (they name card kinds). DECK-PREVIEW-BRACKET adds
- * the Share dialog's line: what link previews say about the bracket.
+ * the Share dialog's line: what link previews say about the bracket. LATER
+ * row 306 makes Your target's note say where else the target shows.
  */
 import type { BracketsMeta } from "@/lib/games/types";
 
@@ -49,8 +50,17 @@ export const BRACKET_COPY = {
   /** "Your target is Bracket 2 (Core). These put the deck above it:" */
   aboveTargetLead: (level: string) => `Your target is ${level}. These put the deck above it:`,
   exceptions: "Table exceptions",
-  /** What visitors will see of the target block (the deck wire's public goals; the share page from Y5). */
-  shownOnSharePage: "Shown on your share page.",
+  /**
+   * Where the target block shows (LATER row 306): all of it on the share page
+   * (the deck wire's public goals, Y5), and the target alone on the deck's
+   * tile wherever it is listed and in its link previews ("Bracket 3
+   * (declared)", Y5). A private deck's preview is the generic image, so
+   * `previews` is false there and the note leaves them out.
+   */
+  targetShown: (previews: boolean) =>
+    previews
+      ? "Shown on your share page. Your target also shows in link previews and where the deck is listed."
+      : "Shown on your share page. Your target also shows where the deck is listed.",
   howItPlays: "How it plays",
   howItPlaysLead: "Optional: answer what you know. An answer can only raise the read.",
   /** "2 answered" — beside the collapsed How it plays. */

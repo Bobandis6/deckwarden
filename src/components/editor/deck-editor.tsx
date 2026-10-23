@@ -2519,6 +2519,9 @@ export function DeckEditor({
               onSwapCard={swapMeta ? swapFromCallout : undefined}
               canSwap={canSwapId}
               speed={bracketSpeed}
+              // LATER row 306: a private deck's link preview is the generic
+              // image; a draft has no row yet and mints unlisted.
+              linkPreviews={share?.visibility !== "private"}
               onClose={closeBracket}
             />
           )}

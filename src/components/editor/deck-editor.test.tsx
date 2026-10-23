@@ -3126,6 +3126,10 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       expect(slot().hasAttribute("data-draft")).toBe(true);
 
       const dialog = await openSheet();
+      // LATER row 306: a draft has no row yet and mints unlisted, so its link previews will draw the target.
+      expect(within(dialog).getByRole("region", { name: "Your target" }).textContent).toContain(
+        "Your target also shows in link previews and where the deck is listed.",
+      );
       fireEvent.click(targetButton(dialog, "3"));
       await settle(1500);
       await act(async () => {});
@@ -3832,6 +3836,32 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       fireEvent.keyDown(again, { key: "Escape" });
       await pollFor(() => (sheet() ? null : document.body));
       expect(shareDialog()).toBeNull();
+    });
+
+    it("LATER row 306: Your target's note names link previews while the deck is unlisted, and drops them once the Share dialog makes it private", async () => {
+      const note = (dialog: HTMLElement) =>
+        within(dialog).getByRole("region", { name: "Your target" }).lastElementChild!.textContent;
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Bracket 3 or 4 · one card is your call Why?");
+      const first = await openSheet();
+      expect(note(first)).toBe(
+        "Shown on your share page. Your target also shows in link previews and where the deck is listed.",
+      );
+      fireEvent.keyDown(first, { key: "Escape" });
+      await pollFor(() => (sheet() ? null : document.body));
+
+      const share = await openShare();
+      fireEvent.click(within(share).getByRole("radio", { name: /^Private/ }));
+      await pollFor(() => (previewLine() ? null : document.body));
+      expect(patchBodies()).toEqual([{ visibility: "private" }]);
+      fireEvent.keyDown(share, { key: "Escape" });
+      await pollFor(() => (shareDialog() ? null : document.body));
+
+      const again = await openSheet();
+      expect(note(again)).toBe(
+        "Shown on your share page. Your target also shows where the deck is listed.",
+      );
     });
 
     it("no line where the sheet can't open: a Magic list with no commander, and One Piece", async () => {
