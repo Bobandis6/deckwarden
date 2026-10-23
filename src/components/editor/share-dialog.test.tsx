@@ -10,6 +10,11 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { GAME_ID } from "@/db/seed-data";
+import { BRACKET_COPY, declaredLabel } from "@/lib/brackets/copy";
+import { getAdapter } from "@/lib/games/registry";
+import { deckOgLabels } from "@/lib/og/labels";
+
 import { ShareDialog } from "./share-dialog";
 
 afterEach(() => {
@@ -92,5 +97,102 @@ describe("ShareDialog (Y1)", () => {
     expect(screen.getByRole("status").textContent).toBe(
       "Couldn't copy. Select the link and copy it.",
     );
+  });
+});
+
+/**
+ * DECK-PREVIEW-BRACKET (DECKCHECK-STUDY §2.4): the link preview's bracket
+ * line — what the deck's unfurl says about the bracket, in the image's own
+ * words (pinned against `deckOgLabels`' declared stat, which labels.test.ts
+ * pins to `declaredLabel`), and the action the editor wires to the Why
+ * sheet's Your target. No line while private, nor without `bracket`.
+ */
+describe("ShareDialog — the link preview's bracket line (DECK-PREVIEW-BRACKET)", () => {
+  const mtg = getAdapter("mtg").brackets!;
+  const image = deckOgLabels(GAME_ID.mtg).declared!;
+  const line = () => document.querySelector<HTMLElement>("[data-slot=share-bracket]");
+  const sentence = () => line()!.querySelector("span")!.textContent;
+  const withBracket = (targetLevel: number | null, onDeclare = vi.fn()) => ({
+    bracket: { brackets: mtg, targetLevel, onDeclare },
+  });
+
+  it("with a target, at every level the game has: the image's declared stat word for word, then Change", () => {
+    for (const { level } of mtg.levels) {
+      renderDialog(withBracket(level));
+      expect(sentence()).toBe(BRACKET_COPY.previewShows(image(level)!));
+      expect(sentence()).toBe(`Link previews show ${declaredLabel(mtg, level)}.`);
+      expect(line()!.textContent).toBe(`Link previews show Bracket ${level} (declared). Change`);
+      cleanup();
+    }
+  });
+
+  it("without a target: no bracket, and Declare a bracket — and a level the game doesn't have reads as none, as the image draws none", () => {
+    for (const level of [null, 0, 6, 2.5]) {
+      renderDialog(withBracket(level));
+      expect(line()!.textContent).toBe("Link previews show no bracket. Declare a bracket");
+      if (level !== null) expect(image(level)).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("the action calls onDeclare once, its name plain and the sentence its description", () => {
+    const onDeclare = vi.fn();
+    renderDialog(withBracket(null, onDeclare));
+    const action = screen.getByRole("button", { name: "Declare a bracket" });
+    expect(document.getElementById(action.getAttribute("aria-describedby")!)!.textContent).toBe(
+      "Link previews show no bracket.",
+    );
+    fireEvent.click(action);
+    expect(onDeclare).toHaveBeenCalledTimes(1);
+  });
+
+  it("a private deck has no line (its preview is the generic image) and keeps the private line; Unlisted brings it back", () => {
+    const bracket = withBracket(3);
+    const view = render(
+      <ShareDialog
+        publicId="uwvrnv2pv4t6"
+        visibility="private"
+        accountDeck
+        onSetVisibility={() => Promise.resolve()}
+        onClose={() => {}}
+        {...bracket}
+      />,
+    );
+    expect(line()).toBeNull();
+    expect(screen.getByText("The link only works for you while the deck is private.")).toBeTruthy();
+    view.rerender(
+      <ShareDialog
+        publicId="uwvrnv2pv4t6"
+        visibility="unlisted"
+        accountDeck
+        onSetVisibility={() => Promise.resolve()}
+        onClose={() => {}}
+        {...bracket}
+      />,
+    );
+    expect(sentence()).toBe("Link previews show Bracket 3 (declared).");
+    expect(screen.queryByText("The link only works for you while the deck is private.")).toBeNull();
+  });
+
+  it("without `bracket` (One Piece, or a list with no commander) there is no line, public or unlisted", () => {
+    renderDialog({ visibility: "public" });
+    expect(line()).toBeNull();
+    cleanup();
+    renderDialog();
+    expect(line()).toBeNull();
+    expect(screen.getByRole("dialog").textContent).not.toContain("Link previews");
+  });
+
+  it("openAt bracket (back from the Why sheet) lands focus on the line's action; a plain open does not", async () => {
+    renderDialog({ ...withBracket(3), openAt: "bracket" });
+    const change = screen.getByRole("button", { name: "Change" });
+    await vi.waitFor(() => expect(document.activeElement).toBe(change));
+    cleanup();
+    renderDialog(withBracket(3));
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    });
+    expect(document.activeElement).not.toBe(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
   });
 });

@@ -3727,6 +3727,160 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
       ).toEqual(["Swap Mana Vault…"]);
     });
   });
+
+  // ------------------------------------------------- DECK-PREVIEW-BRACKET
+  describe("the Share dialog's bracket line (DECK-PREVIEW-BRACKET)", () => {
+    const shareDialog = () => screen.queryByRole("dialog", { name: "Share deck" });
+    const previewLine = () => document.querySelector<HTMLElement>("[data-slot=share-bracket]");
+    const headerShare = () => screen.getByRole("button", { name: "Share" });
+    async function openShare() {
+      fireEvent.click(await pollFor(() => screen.queryByRole("button", { name: "Share" })));
+      return pollFor(shareDialog);
+    }
+
+    it("wide: Declare a bracket swaps the Share dialog for the sheet, focus on Your target; the sheet's close brings it back saying what previews now show, focus on Change; ONE goals PATCH; Escape hands focus to the header's Share", async () => {
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Bracket 3 or 4 · one card is your call Why?");
+      const share = await openShare();
+      expect(previewLine()!.textContent).toBe("Link previews show no bracket. Declare a bracket");
+
+      fireEvent.click(within(share).getByRole("button", { name: "Declare a bracket" }));
+      const dialog = await pollFor(sheet);
+      expect(shareDialog()).toBeNull();
+      await pollFor(() =>
+        document.activeElement === targetButton(dialog, "Not set") ? true : null,
+      );
+      fireEvent.click(targetButton(dialog, "3"));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+
+      const back = await pollFor(shareDialog);
+      expect(sheet()).toBeNull();
+      expect(previewLine()!.textContent).toBe("Link previews show Bracket 3 (declared). Change");
+      const change = within(back).getByRole("button", { name: "Change" });
+      await pollFor(() => (document.activeElement === change ? true : null));
+      expect(line()!.textContent).toBe(
+        "Your target: Bracket 3 · the cards say 3 or 4, one card is your call Why?",
+      );
+
+      await settle(1500);
+      await act(async () => {});
+      expect(patchBodies()).toEqual([{ goals: { v: 1, targetLevel: 3 } }]);
+      expect(puts()).toBe(0);
+      expect(posts()).toBe(0);
+
+      fireEvent.keyDown(back, { key: "Escape" });
+      await pollFor(() => (shareDialog() ? null : document.body));
+      await pollFor(() => (document.activeElement === headerShare() ? true : null));
+    });
+
+    it("on a phone: a declared target reads Bracket 3 (declared); Change opens the Drawer on 3; Not set and its close bring the Share dialog back with no bracket, focus on Declare a bracket", async () => {
+      deckGoals = { v: 1, targetLevel: 3 };
+      stubViewport(375);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Your target: Bracket 3 · the cards say 3 or 4, one card is your call Why?");
+      const share = await openShare();
+      expect(previewLine()!.textContent).toBe("Link previews show Bracket 3 (declared). Change");
+
+      fireEvent.click(within(share).getByRole("button", { name: "Change" }));
+      const dialog = await pollFor(sheet);
+      expect(dialog.getAttribute("data-slot")).toBe("drawer-popup");
+      await pollFor(() => (document.activeElement === targetButton(dialog, "3") ? true : null));
+      fireEvent.click(targetButton(dialog, "Not set"));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+
+      const back = await pollFor(shareDialog);
+      expect(previewLine()!.textContent).toBe("Link previews show no bracket. Declare a bracket");
+      const declare = within(back).getByRole("button", { name: "Declare a bracket" });
+      await pollFor(() => (document.activeElement === declare ? true : null));
+      await settle(1500);
+      await act(async () => {});
+      expect(patchBodies()).toEqual([{ goals: null }]);
+    });
+
+    it("a Swap… from that sheet goes the swap sheet's way (focus back on the bracket line), and the next Why? closes to the deck, never to the Share dialog", async () => {
+      deckGoals = { v: 1, targetLevel: 2 };
+      fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input) === "/api/alternatives" && init?.method === "POST"
+          ? ok({
+              cardId: vault.id,
+              roles: [],
+              alternatives: [],
+              hidden: [],
+              combosTruncated: false,
+              tradeoff: null,
+            })
+          : y4bRoute(input, init),
+      );
+      stubViewport(1440);
+      render(<DeckEditor deckId="deck-1" />);
+      await lineIs("Your target: Bracket 2 · the cards say 3 or 4, one card is your call Why?");
+      const share = await openShare();
+      fireEvent.click(within(share).getByRole("button", { name: "Change" }));
+      const dialog = await pollFor(sheet);
+      fireEvent.click(within(dialog).getByRole("button", { name: "Swap Mana Vault…" }));
+      const swapEl = await pollFor(() => screen.queryByRole("dialog", { name: "Swap Mana Vault" }));
+      expect(shareDialog()).toBeNull();
+      fireEvent.keyDown(swapEl, { key: "Escape" });
+      await pollFor(() =>
+        screen.queryByRole("dialog", { name: "Swap Mana Vault" }) ? null : document.body,
+      );
+      expect(shareDialog()).toBeNull();
+      await pollFor(() => (line()!.contains(document.activeElement) ? true : null));
+
+      const again = await openSheet();
+      fireEvent.keyDown(again, { key: "Escape" });
+      await pollFor(() => (sheet() ? null : document.body));
+      expect(shareDialog()).toBeNull();
+    });
+
+    it("no line where the sheet can't open: a Magic list with no commander, and One Piece", async () => {
+      fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === "/api/decks/deck-1" && (init?.method ?? "GET") === "GET") {
+          const saved = savedDeck(null);
+          return ok({
+            ...saved,
+            deck: { ...saved.deck, leaderIds: [] },
+            cards: listCards.slice(1),
+          });
+        }
+        return y4bRoute(input, init);
+      });
+      stubViewport(1440);
+      const view = render(<DeckEditor deckId="deck-1" />);
+      await openShare();
+      expect(previewLine()).toBeNull();
+      expect(shareDialog()!.textContent).not.toContain("Link previews");
+      view.unmount();
+
+      const nami: CardWire = {
+        ...card({ name: "Nami", primaryType: "Leader", isLeaderCandidate: true, costValue: 5 }),
+        image: null,
+      };
+      const usopp: CardWire = {
+        ...card({ name: "Usopp", primaryType: "Character", costValue: 2 }),
+        image: null,
+      };
+      fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === "/api/decks/deck-1" && (init?.method ?? "GET") === "GET") {
+          const saved = savedDeck(null);
+          return ok({
+            ...saved,
+            deck: { ...saved.deck, game: "optcg", format: "standard", leaderIds: [nami.id] },
+            cards: [
+              { cardId: nami.id, zone: "leader", qty: 1, tags: [], printingId: null, card: nami },
+              { cardId: usopp.id, zone: "main", qty: 50, tags: [], printingId: null, card: usopp },
+            ],
+          });
+        }
+        return y4bRoute(input, init);
+      });
+      render(<DeckEditor deckId="deck-1" />);
+      await openShare();
+      expect(previewLine()).toBeNull();
+      expect(shareDialog()!.textContent).not.toContain("Link previews");
+    });
+  });
 });
 
 // ------------------------------------------------------------------- Y7a

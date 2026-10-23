@@ -12,7 +12,8 @@
  * Bracket 2 (Core), ≤ $5 a card" and Change), the hidden count, the saved
  * budget. Y6b adds the Combo Radar's "above your target". BRACKET-SPEED
  * adds the speed block's heading and its sentence; the facts themselves
- * are the adapter's words (they name card kinds).
+ * are the adapter's words (they name card kinds). DECK-PREVIEW-BRACKET adds
+ * the Share dialog's line: what link previews say about the bracket.
  */
 import type { BracketsMeta } from "@/lib/games/types";
 
@@ -83,7 +84,7 @@ export const BRACKET_COPY = {
   // Y6a (WAVE4 D7) — goals in Suggestions and atop the Why sheet.
   /** Before the goals: "Your goals: Bracket 2 (Core), ≤ $5 a card". */
   goalsLead: "Your goals:",
-  /** The goals line's action — the Why sheet at Your target. */
+  /** The goals line's action — the Why sheet at Your target (the Share dialog's too, with a target). */
   changeGoals: "Change",
   /** No target and no budget (LATER row 175's door): "No bracket target yet" and "Set one". */
   noTarget: (noun: string) => `No ${noun} target yet`,
@@ -110,6 +111,15 @@ export const BRACKET_COPY = {
    * the list looks. They don't change the bracket."
    */
   speedNote: (noun: string) => `These show how fast the list looks. They don't change the ${noun}.`,
+
+  // DECK-PREVIEW-BRACKET (DECKCHECK-STUDY §2.4) — the Share dialog's line: what
+  // the deck's link preview says about the bracket, in the image's own words.
+  /** "Link previews show Bracket 3 (declared)." — the declared label the unfurl draws. */
+  previewShows: (declared: string) => `Link previews show ${declared}.`,
+  /** No target: the unfurl says nothing about the bracket. */
+  previewShowsNone: (noun: string) => `Link previews show no ${noun}.`,
+  /** The line's action without a target (with one, `changeGoals`): the Why sheet at Your target. */
+  declare: (noun: string) => `Declare a ${noun}`,
 } as const;
 
 /**
@@ -143,7 +153,8 @@ export function nounLabel(brackets: Pick<BracketsMeta, "noun">): string {
 
 /**
  * "Bracket 3 (declared)" — the owner's target on tiles and unfurls (Y5,
- * D6): declared, never computed, and said so.
+ * D6): declared, never computed, and said so. DECK-PREVIEW-BRACKET: the
+ * Share dialog quotes it, so the dialog and the image say the same words.
  */
 export function declaredLabel(brackets: Pick<BracketsMeta, "noun">, level: number): string {
   return `${nounLabel(brackets)} ${level} (declared)`;

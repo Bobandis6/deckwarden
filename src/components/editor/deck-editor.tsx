@@ -89,6 +89,12 @@
  * a win · Undo"; Undo deletes the game, and the played snapshot it minted
  * when no other game was played with it.
  *
+ * DECK-PREVIEW-BRACKET (DECKCHECK-STUDY §2.4): the Share dialog says what
+ * link previews show about the bracket whenever the Why sheet can open; its
+ * action opens that sheet at Your target, and closing the sheet brings the
+ * Share dialog back (focus on the action), whose close hands focus to the
+ * header's Share.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
@@ -391,6 +397,11 @@ export function DeckEditor({
   // Where the Why sheet opens (Y6a): at Your target when the goals line's
   // "Change" opened it, at its top from "Why?".
   const [sheetAt, setSheetAt] = useState<"target" | null>(null);
+  // DECK-PREVIEW-BRACKET: who opened the sheet — the Share dialog's bracket
+  // line, whose dialog the sheet's close brings back — and where that
+  // dialog's focus lands on open (back from the sheet: the line's action).
+  const [sheetFrom, setSheetFrom] = useState<"share" | null>(null);
+  const [shareAt, setShareAt] = useState<"bracket" | null>(null);
   // The swap sheets (Y7b): whose alternatives "swap" shows and who asked (a
   // deck row or the conflict callout); what "swap-in" brings in, and from
   // where (search or a panel). `closeFocusRef` says where focus goes once
@@ -1133,6 +1144,8 @@ export function DeckEditor({
   const openFromHeader = useCallback((next: EditorDialog) => {
     // More → Autofill… is the plain sheet, never a combo's (X3).
     if (next === "autofill") setAutofillPin(null);
+    // The header's Share opens the dialog at its top (DECK-PREVIEW-BRACKET).
+    if (next === "share") setShareAt(null);
     setDialogFromMenu(next !== "share");
     setDialog(next);
   }, []);
@@ -1548,6 +1561,7 @@ export function DeckEditor({
   // opened from the deck pane rather than the More menu.
   const openShare = useCallback(() => {
     setDialogFromMenu(false);
+    setShareAt(null);
     setDialog("share");
   }, []);
   // The bracket line's "Why?" (Y4a, WAVE4 D5): the Why sheet, opened from
@@ -1556,6 +1570,7 @@ export function DeckEditor({
   const openBracket = useCallback(() => {
     setDialogFromMenu(false);
     setSheetAt(null);
+    setSheetFrom(null);
     setDialog("bracket");
   }, []);
   // The goals line's "Change" / "Set one" in Suggestions (Y6a, WAVE4 D7 —
@@ -1565,8 +1580,34 @@ export function DeckEditor({
   const openGoals = useCallback(() => {
     setDialogFromMenu(false);
     setSheetAt("target");
+    setSheetFrom(null);
     setDialog("bracket");
   }, []);
+  // The Share dialog's bracket line (DECK-PREVIEW-BRACKET): "Declare a
+  // bracket" / "Change" open the same sheet at Your target, one dialog at a
+  // time. Closing the sheet brings the Share dialog back with focus on that
+  // action, so the owner reads what link previews now say and copies the
+  // link; once the Share dialog closes, focus goes to the header's Share
+  // (the dialog's own opener is gone by then), never to the page.
+  const focusShareButton = useCallback(
+    () => document.querySelector<HTMLElement>("[data-slot=primary-slot] button"),
+    [],
+  );
+  const declareFromShare = useCallback(() => {
+    closeFocusRef.current = focusShareButton;
+    setDialogFromMenu(false);
+    setSheetAt("target");
+    setSheetFrom("share");
+    setDialog("bracket");
+  }, [focusShareButton]);
+  const closeBracket = useCallback(() => {
+    if (sheetFrom === "share") {
+      setShareAt("bracket");
+      setDialog("share");
+    } else {
+      setDialog(null);
+    }
+  }, [sheetFrom]);
   // The goals line's "Fit my budget" in Suggestions (Y8): the Fit sheet —
   // More's "Fit my budget…" opens the same one through openFromHeader (focus
   // back to More). From the line, focus goes back to the line once the sheet
@@ -2446,6 +2487,19 @@ export function DeckEditor({
               visibility={share.visibility}
               accountDeck={share.accountDeck}
               onSetVisibility={setVisibility}
+              // DECK-PREVIEW-BRACKET: what link previews say about the bracket,
+              // whenever the Why sheet below can open (One Piece never can).
+              bracket={
+                bracketRead && bracketCtx && load.adapter.brackets
+                  ? {
+                      brackets: load.adapter.brackets,
+                      targetLevel: goals?.targetLevel ?? null,
+                      onDeclare: declareFromShare,
+                    }
+                  : undefined
+              }
+              openAt={shareAt}
+              finalFocus={sheetFinalFocus}
               onClose={() => setDialog(null)}
             />
           )}
@@ -2465,7 +2519,7 @@ export function DeckEditor({
               onSwapCard={swapMeta ? swapFromCallout : undefined}
               canSwap={canSwapId}
               speed={bracketSpeed}
-              onClose={() => setDialog(null)}
+              onClose={closeBracket}
             />
           )}
           {/* Y7b: the swap sheets — a card's alternatives, and "Swap in…". */}

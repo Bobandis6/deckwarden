@@ -37,6 +37,9 @@ const BUILDERS = [
   "noTarget",
   "hiddenByGoals",
   "speedNote",
+  "previewShows",
+  "previewShowsNone",
+  "declare",
 ];
 
 /**
@@ -113,6 +116,19 @@ function everyString(): string[] {
       ...(f.nudge ? [f.nudge] : []),
       ...f.rows.flatMap((r) => [r.label, r.value, ...(r.meaning ? [r.meaning] : [])]),
     ]),
+    // DECK-PREVIEW-BRACKET: the Share dialog's line at every level and with none, and its action.
+    ...previewWords(),
+  ];
+}
+
+/** DECK-PREVIEW-BRACKET: every word the Share dialog's bracket line can say. */
+function previewWords(): string[] {
+  const mtg = getAdapter("mtg").brackets!;
+  return [
+    ...mtg.levels.map((l) => BRACKET_COPY.previewShows(declaredLabel(mtg, l.level))),
+    BRACKET_COPY.previewShowsNone(mtg.noun),
+    BRACKET_COPY.declare(mtg.noun),
+    BRACKET_COPY.changeGoals,
   ];
 }
 
@@ -255,6 +271,25 @@ describe("BRACKET-SPEED's words — the block's heading and its sentence", () =>
     ];
     expect(words.filter((w) => /[\u2013\u2014]|\d-\d/.test(w))).toEqual([]);
     expect(words.filter((w) => w.split(" · ").length > 2)).toEqual([]);
+  });
+});
+
+describe("DECK-PREVIEW-BRACKET's words — the Share dialog's line", () => {
+  it("what link previews show, in the image's declared label, and the two actions", () => {
+    const mtg = getAdapter("mtg").brackets!;
+    expect(BRACKET_COPY.previewShows(declaredLabel(mtg, 3))).toBe(
+      "Link previews show Bracket 3 (declared).",
+    );
+    expect(BRACKET_COPY.previewShowsNone(mtg.noun)).toBe("Link previews show no bracket.");
+    expect(BRACKET_COPY.declare(mtg.noun)).toBe("Declare a bracket");
+    expect(BRACKET_COPY.changeGoals).toBe("Change");
+  });
+
+  it("no em or en dash, at most one middle dot, and nothing that promises an old preview changes", () => {
+    const words = previewWords();
+    expect(words.filter((w) => /[–—]|\d-\d/.test(w))).toEqual([]);
+    expect(words.filter((w) => w.split(" · ").length > 2)).toEqual([]);
+    expect(words.filter((w) => /updat|refresh|already|will /i.test(w))).toEqual([]);
   });
 });
 
