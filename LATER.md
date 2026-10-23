@@ -2,7 +2,7 @@
 
 The scope-discipline file. Anything that threatens a milestone's package list lands here
 with one line on when it earns its way back. Nothing on this list is a "no" — it's a
-"not until the trigger fires." (See [deckwarden-build-plan.md](deckwarden-build-plan.md).)
+"not until the trigger fires." (See [deckwarden-build-plan.md](deckwarden-build-plan.md).) Row numbers are line numbers, so this header never grows a line. Rows that cite `SECURITY-AUDIT-report.md`, `SECURITY-AUDIT-session-prompt.md` or `SECURITY-FIXES-handoff.md` point at files that are not in this repository: the security audit record is untracked by the owner's decision of 2026-10-20 (the report's L14 and S7); the live copies sit in this folder on the owner's machine, listed in `.git/info/exclude` since 2026-10-23 so they never show as untracked and cannot be swept into a commit, with backup copies in `~/Documents/Claude/deckwarden-private/` (its README says how to refresh them); a fresh clone has neither, so ask the owner.
 
 ## Deferred features
 
