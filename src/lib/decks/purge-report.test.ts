@@ -28,7 +28,7 @@ const OPTS: PurgeReportOptions = {
 
 const SECRETS = {
   id: "9d1c6c0e-2f4b-4a35-9b0e-5f1d2c3b4a56",
-  publicId: "7sm_66hjm3g4",
+  publicId: "xxxxxxxx1111",
   name: "P1.3 Eyeball Deck",
 };
 
@@ -47,8 +47,8 @@ function candidate(over: Partial<PurgeCandidate> = {}): PurgeCandidate {
 
 const ROWS: PurgeCandidate[] = [
   candidate(),
-  candidate({ id: "b", publicId: "pshzt7a6pwjb", name: "Untitled", reason: "empty" }),
-  candidate({ id: "c", publicId: "86vxk_qvpaj3", name: "Old", cardRows: 14, reason: "untouched" }),
+  candidate({ id: "b", publicId: "wwwwwwww2222", name: "Untitled", reason: "empty" }),
+  candidate({ id: "c", publicId: "vvvvvvvv3333", name: "Old", cardRows: 14, reason: "untouched" }),
 ];
 
 describe("summarizePurge", () => {
@@ -70,7 +70,7 @@ describe("purgeReportLines", () => {
     ]);
     const text = lines.join("\n");
     for (const secret of Object.values(SECRETS)) expect(text).not.toContain(secret);
-    expect(text).not.toContain("pshzt7a6pwjb");
+    expect(text).not.toContain("wwwwwwww2222");
     expect(text).not.toContain("Untitled");
   });
 
