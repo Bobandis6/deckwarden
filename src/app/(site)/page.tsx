@@ -78,7 +78,12 @@ export default async function Home() {
     <main id="main" className="max-w-wide mx-auto w-full flex-1 px-4">
       <JsonLd data={websiteJsonLd()} />
 
+      {/* data-slot="home-hero": the home intro's target (HOME-INTRO,
+          2026-10-22): the root layout's pre-paint gate and globals.css's rule
+          animate this section's h1 and the <p> right after it, once per tab,
+          and nothing else in it. */}
       <section
+        data-slot="home-hero"
         className={cn(
           "grid items-center gap-10 pt-16 pb-12",
           magic.fan.length > 0 && "xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]",

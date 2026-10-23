@@ -4,6 +4,7 @@ import "./globals.css";
 
 import { SkipLink } from "@/components/skip-link";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { introScript } from "@/lib/home/intro-gate";
 import { siteOrigin } from "@/lib/seo/site";
 import { dark } from "@/lib/theme/tokens";
 
@@ -79,6 +80,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             routes carry a compact attribution line instead. The site header
             is on every page: the (site) layout's, the root 404's and error
             page's own, and decks/layout.tsx's since 2026-10-17. */}
+        {/* The home intro's gate (HOME-INTRO, 2026-10-22; DECKCHECK-STUDY.md
+            §2.1): a pre-paint script, the first child of <body> so it runs
+            during parsing, before the hero exists and before first paint, and
+            in the ROOT layout because a client navigation never re-creates it
+            (a page's <script> would be inserted inert on every client return,
+            with a development error from React 19). It does nothing off `/`;
+            on home's first document load in a tab it sets data-intro="play"
+            on <html> (suppressHydrationWarning above covers it, as it does
+            next-themes' class) and removes it when the hero's two animations
+            have ended. A <script> is not focusable: Skip to content stays the
+            first focusable. */}
+        <script dangerouslySetInnerHTML={{ __html: introScript() }} />
         {/* Skip to content (U8): the first focusable on every page, editor
             routes included; it targets the page's <main id="main">. */}
         <SkipLink />

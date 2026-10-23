@@ -175,6 +175,13 @@ describe("home (U5, home B)", () => {
       "Keyboard-first deck building for Commander and the One Piece Card Game. Free, no account needed.";
     expect(html).toContain(sentence);
     expect(sentence.split(" ")).toHaveLength(15);
+    // The intro's target (HOME-INTRO): the hero section carries its slot, and
+    // the sentence is the <p> right after the h1 (globals.css keys `h1 + p`).
+    expect(html).toMatch(
+      /<section data-slot="home-hero" class="grid items-center gap-10 pt-16 pb-12[^"]*">/,
+    );
+    expect(html).toMatch(/<\/h1><p class="text-muted-foreground[^"]*">Keyboard-first/);
+    expect(html.match(/data-slot="home-hero"/g)).toHaveLength(1);
     const hero = html.slice(html.indexOf("<h1"), html.indexOf('data-slot="hero-fan"'));
     expect(
       [...hero.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/g)].map((m) => [m[2], m[1]]),

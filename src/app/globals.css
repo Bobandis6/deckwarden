@@ -757,6 +757,35 @@
   }
 }
 
+/* The home intro (HOME-INTRO, 2026-10-22, the owner's call of 2026-10-20;
+   amends WAVE5.md D6's "no entry animation" for this one moment): on the
+   first document load of home in a tab, the headline settles in from half
+   opacity and 0.3em below over 400 ms on the one-off slot, the sentence
+   60 ms behind it, through U2's dw-in; the buttons and the fan never move
+   (on a cold cache the fan's images land 500 to 740 ms after the H1, after
+   the intro is over). The gate is the root layout's pre-paint script
+   (src/lib/home/intro-gate.ts): it sets data-intro="play" on <html> before
+   the hero is parsed and removes it once these two animations have ended,
+   so a reload or a client return never replays; it never sets the attribute
+   under reduced motion, which the media query here pins a second time.
+   Half opacity, not zero, and no blur: at 390 the H1 is the LCP element,
+   and the from-state sits on screen while hydration holds the main thread.
+   The dw-in parameters are set on the animated elements themselves
+   (registered, not inherited). */
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    :root[data-intro="play"] [data-slot="home-hero"] h1,
+    :root[data-intro="play"] [data-slot="home-hero"] h1 + p {
+      --dw-opacity: 0.5;
+      --dw-y: 0.3em;
+      animation: dw-in 400ms var(--ease-settle-400) both;
+    }
+    :root[data-intro="play"] [data-slot="home-hero"] h1 + p {
+      animation-delay: 60ms;
+    }
+  }
+}
+
 /* A sideways-scrolling row's cue (LATER row 244: the phone's Tools strip,
    whose scrollbar is hidden): the edge with more past it fades, 1.5rem of
    mask on that side and none on a side already at its end. Each width
