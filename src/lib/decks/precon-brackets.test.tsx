@@ -2,7 +2,9 @@
  * LATER row 151 — a precon's bracket read for its /precons tile: the share
  * page's words (the owner's voice, no goals, the facts ready), the bands
  * the filter reads, the share page's own BracketLine saying the same text,
- * and no read where the share page shows none.
+ * and no read where the share page shows none. BRACKETS-PAGE: the read
+ * itself rides along, and `preconSpread` counts the same reads for the
+ * /brackets guide (each line as the tiles say it, the adapter's reasons).
  */
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -10,12 +12,13 @@ import { describe, expect, it } from "vitest";
 import { BracketLine } from "@/components/deck/bracket-line";
 import { tableBracket } from "@/lib/brackets/table";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
+import type { PreconBracketFacts } from "@/lib/decks/precons";
 import { COMMANDER } from "@/lib/games/mtg/formats";
 import { card, fillers, type MtgCard } from "@/lib/games/mtg/test-fixtures";
 import { getAdapter } from "@/lib/games/registry";
 import type { BracketFreshness, CompleteCombo } from "@/lib/games/types";
 
-import { preconBracket } from "./precon-brackets";
+import { preconBracket, preconSpread, type PreconBracket } from "./precon-brackets";
 
 const mtg = getAdapter("mtg");
 const AT = "2026-10-04T15:29:34.768Z";
@@ -69,25 +72,28 @@ const read = (
   freshness: BracketFreshness | null = FRESH,
 ) => preconBracket({ adapter: mtg, format: COMMANDER, ...list, combos, freshness });
 
+/** The tile's two fields (BRACKETS-PAGE added `read` beside them). */
+const said = (b: PreconBracket | null) => b && { line: b.line, bands: b.bands };
+
 describe("preconBracket", () => {
   it("says each read in the share page's words, with the bands the filter reads", () => {
-    expect(read(precon([]))).toEqual({
+    expect(said(read(precon([])))).toEqual({
       line: "Bracket 1 to 2 · nothing here goes past Core",
       bands: [{ level: 1, label: "1 to 2" }],
     });
-    expect(read(precon([rhystic]))).toEqual({
+    expect(said(read(precon([rhystic])))).toEqual({
       line: "At least Bracket 3 (Upgraded)",
       bands: [{ level: 3, label: "3" }],
     });
     // A precon has no owner: the reader is the one who'd play it ("your call").
-    expect(read(precon([pieceA, pieceB, pieceC]), [spicy])).toEqual({
+    expect(said(read(precon([pieceA, pieceB, pieceC]), [spicy]))).toEqual({
       line: "Bracket 3 or 4 · one combo is your call",
       bands: [
         { level: 3, label: "3" },
         { level: 4, label: "4" },
       ],
     });
-    expect(read(precon([dockside]))).toEqual({
+    expect(said(read(precon([dockside])))).toEqual({
       line: "Bracket read needs a legal list · 1 banned card",
       bands: [],
     });
@@ -128,6 +134,8 @@ describe("preconBracket", () => {
         .querySelector("[data-slot=bracket-line]")!
         .textContent!.replace(/\s*Why\?$/, "");
       expect(read(list, combos)?.line).toBe(shown);
+      // BRACKETS-PAGE: the read itself is the share page's.
+      expect(read(list, combos)?.read).toEqual(table.read);
       unmount();
     }
   });
@@ -152,5 +160,97 @@ describe("preconBracket", () => {
     const big = precon([pieceA, pieceB, pieceC], 210);
     expect(read(big, [spicy])?.line).toBe("Bracket read incomplete · Couldn't check combos");
     expect(read(precon([pieceA, pieceB, pieceC]), [spicy])?.line).toContain("your call");
+  });
+});
+
+describe("preconSpread (BRACKETS-PAGE): every precon's read, counted for the guide", () => {
+  const [twoA, twoB] = ["Two A", "Two B"].map((n) => card({ name: `Piece ${n}` }));
+  // Relevant, two cards, nothing else rated: Wizards' two-card rule alone puts it at 3.
+  const twoCard: CompleteCombo = {
+    key: "1-2",
+    cardPieces: [twoA.id, twoB.id].sort(),
+    templates: [],
+    tag: "E",
+    relevant: true,
+    results: ["Infinite damage"],
+    popularity: 500,
+  };
+  /** The page's facts for these precons, keyed by an id per precon. */
+  function facts(lists: { specials: MtgCard[]; combos?: CompleteCombo[] }[]): PreconBracketFacts {
+    const entries = new Map<string, EditorEntry[]>();
+    const cards = new Map<string, EditorCard>();
+    const combos = new Map<string, CompleteCombo[]>();
+    lists.forEach(({ specials, combos: held }, i) => {
+      const list = precon(specials);
+      const id = `precon-${i}`;
+      entries.set(id, list.entries);
+      for (const [cardId, c] of list.cards) cards.set(cardId, c);
+      if (held) combos.set(id, held);
+    });
+    return { entries, cards, combos, freshness: FRESH };
+  }
+
+  it("each line as the tiles say it, lowest band first, then the most precons; a blocked list last", () => {
+    const spread = preconSpread({
+      adapter: mtg,
+      format: COMMANDER,
+      facts: facts([
+        { specials: [dockside] },
+        { specials: [rhystic] },
+        { specials: [] },
+        { specials: [pieceA, pieceB, pieceC], combos: [spicy] },
+        { specials: [] },
+      ]),
+    })!;
+    expect(spread.total).toBe(5);
+    expect(spread.lines).toEqual([
+      { line: "Bracket 1 to 2 · nothing here goes past Core", count: 2 },
+      { line: "At least Bracket 3 (Upgraded)", count: 1 },
+      { line: "Bracket 3 or 4 · one combo is your call", count: 1 },
+      { line: "Bracket read needs a legal list · 1 banned card", count: 1 },
+    ]);
+    expect(spread.base).toEqual({ level: 1, label: "1 to 2" });
+  });
+
+  it("the adapter's reasons, a precon counted once per reason, the most first; a blocked list's cards never count", () => {
+    const spread = preconSpread({
+      adapter: mtg,
+      format: COMMANDER,
+      facts: facts([
+        { specials: [rhystic] },
+        { specials: [rhystic, twoA, twoB], combos: [twoCard] },
+        { specials: [twoA, twoB], combos: [twoCard] },
+        { specials: [rhystic, dockside] },
+        { specials: [] },
+      ]),
+    })!;
+    // Rhystic + the combo holds both; the banned list's Rhystic Study is no reason.
+    expect(spread.past).toBe(3);
+    expect(spread.reasons).toEqual([
+      { reason: "A Game Changer", count: 2 },
+      { reason: "A two-card combo", count: 2 },
+    ]);
+    // A three-card combo Spellbook rates "3 or 4" is firm at 3 (the 4 is the open question): its rating is the reason.
+    const open = preconSpread({
+      adapter: mtg,
+      format: COMMANDER,
+      facts: facts([{ specials: [pieceA, pieceB, pieceC], combos: [spicy] }]),
+    })!;
+    expect(open.past).toBe(1);
+    expect(open.reasons).toEqual([
+      { reason: "A combo Commander Spellbook rates Bracket 3 or higher", count: 1 },
+    ]);
+  });
+
+  it("no precons, no lines; a game without brackets, no spread", () => {
+    expect(preconSpread({ adapter: mtg, format: COMMANDER, facts: facts([]) })).toEqual({
+      total: 0,
+      lines: [],
+      base: null,
+      past: 0,
+      reasons: [],
+    });
+    const optcg = getAdapter("optcg");
+    expect(preconSpread({ adapter: optcg, format: optcg.formats[0], facts: facts([]) })).toBeNull();
   });
 });

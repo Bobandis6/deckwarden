@@ -71,8 +71,13 @@
  * (via Scryfall) and the Scryfall Tagger tag pages link out through the
  * adapter's `links`; combos credit Commander Spellbook. Every word here is
  * the adapter's or BRACKET_COPY's (D0's copy guard reads both).
+ *
+ * BRACKETS-PAGE: when the adapter has a guide page (`links.guide`, Magic's
+ * "How brackets work" → /brackets), What this read assumes links it on a
+ * line of its own, inside the site (no new tab), for owner and visitors.
  */
 import { ArrowUpRightIcon, ChevronDownIcon, XIcon } from "lucide-react";
+import Link from "next/link";
 import { useId, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { GoalsLine } from "@/components/deck/goals-line";
@@ -351,6 +356,16 @@ export function BracketSheet({
             <li key={assumption}>{assumption}</li>
           ))}
         </ul>
+        {/* BRACKETS-PAGE: the site's own guide, a line of its own (the
+            sources line below already holds its one middle dot), inside the
+            site, so no new tab and no arrow. */}
+        {brackets.links.guide && (
+          <p className="text-xs">
+            <Link href={brackets.links.guide.href} className="underline underline-offset-2">
+              {brackets.links.guide.label}
+            </Link>
+          </p>
+        )}
         <p className="text-muted-foreground text-xs leading-relaxed">
           <ExternalLink href={brackets.links.rules.href}>
             {BRACKET_COPY.rules(brackets.links.rules.label, dateLabel(read.ruleset.asOf))}

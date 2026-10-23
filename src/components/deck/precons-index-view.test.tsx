@@ -365,4 +365,25 @@ describe("PreconsIndexView — the bracket filter (LATER row 151)", () => {
     // The color filter's All is the page's only one.
     expect(screen.getAllByRole("button", { name: "All" })).toHaveLength(1);
   });
+
+  it("BRACKETS-PAGE: the row ends with the guide link when the page passes one, never a chip", () => {
+    const guide = { label: "How brackets work", href: "/brackets" };
+    const { unmount } = render(
+      <PreconsIndexView items={BRACKETED} bracketLabel="Bracket" bracketGuide={guide} />,
+    );
+    const group = bracketGroup();
+    const link = within(group).getByRole("link", { name: "How brackets work" });
+    expect(link.getAttribute("href")).toBe("/brackets");
+    expect(link.getAttribute("target")).toBeNull();
+    expect(group.lastElementChild).toBe(link);
+    // The chips are unchanged: the link is not a filter.
+    expect(
+      within(group)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["All", "1 to 2", "3", "4"]);
+    unmount();
+    render(<PreconsIndexView items={BRACKETED} bracketLabel="Bracket" />);
+    expect(within(bracketGroup()).queryByRole("link")).toBeNull();
+  });
 });

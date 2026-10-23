@@ -900,6 +900,12 @@ export interface BracketsMeta<A = Record<string, unknown>> {
   /** Where the Why sheet links (Y4a): the rules' own page, and an evidence line's source by its id. */
   links: {
     rules: { label: string; href: string };
+    /**
+     * The game's own guide page (BRACKETS-PAGE): "How brackets work" →
+     * /brackets, a link inside the site where `rules` leaves it. Absent =
+     * no guide page.
+     */
+    guide?: { label: string; href: string };
     /** A factor's or question's source page by its id; null = none (a combo links its walkthrough instead). */
     source(id: string): string | null;
   };
@@ -911,6 +917,62 @@ export interface BracketsMeta<A = Record<string, unknown>> {
    * without it shows no speed block and asks nothing (One Piece).
    */
   speed?: BracketSpeedMeta<A>;
+  /**
+   * The public guide page's words (BRACKETS-PAGE, DECKCHECK-STUDY §2.2):
+   * the levels said for strangers from the same ruleset the read applies,
+   * the named list the read counts, the read's own assumptions, and what
+   * puts a read past the levels the cards can't tell apart. The adapter's
+   * words, because they name card kinds; core lays them out and loads the
+   * list's cards. Optional: a game without it has no guide page.
+   */
+  guide?: BracketGuideMeta;
+}
+
+/** One level on the guide page: what it allows, as rows under its name (`levels`' own). */
+export interface BracketGuideLevel {
+  level: number;
+  /** "Game Changers: Up to three", "Games last: At least 6 turns", in the adapter's order. */
+  rows: readonly { label: string; value: string }[];
+}
+
+/**
+ * The card list a level counts by name (Magic: Wizards' Game Changers),
+ * as the guide page shows it: the cards come from the database by the
+ * declared flag (core's loader), the revision from the reviewed ruleset.
+ */
+export interface BracketGuideList {
+  /** "Game Changers". */
+  label: string;
+  /** The attrs flag that marks a card on the list (one of `flagPaths`), loaded by containment: `{ [path]: true }`. */
+  path: readonly [string];
+  /** The `freshness` feed that says when the flags were last read. */
+  feed: string;
+  /** The list's revision as reviewed (ISO date) and how many cards it held then. */
+  asOf: string;
+  count: number;
+  /** The list's own page. */
+  href: string;
+  /** What each level allows of it, one sentence: "Brackets 1 and 2 allow none, Bracket 3 up to three, Brackets 4 and 5 any number." */
+  allowance: string;
+}
+
+export interface BracketGuideMeta {
+  /** The reviewed rules' own date (ISO), beside the list's revision. */
+  rulesAsOf: string;
+  /** Each level, lowest first. */
+  levels: readonly BracketGuideLevel[];
+  /** Under the levels: what a list with none of the cards they name reads, and why. */
+  levelsNote: string;
+  list: BracketGuideList;
+  /** Pure: the read's own assumption lines (the Why sheet's "What this read assumes") at this freshness. */
+  assumptions(freshness: BracketFreshness | null): string[];
+  /**
+   * Pure: what puts a read past the levels a list with none of the named
+   * cards reads ("A Game Changer", "A two-card combo"), each kind once, in
+   * plain words; empty when nothing does. The guide's precon spread counts
+   * them.
+   */
+  reasons(read: BracketRead): string[];
 }
 
 /** One row of the sheet's speed block: a label, its value, and its plain meaning when the label alone would not say. */

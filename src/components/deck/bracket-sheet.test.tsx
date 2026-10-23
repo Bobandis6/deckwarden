@@ -273,6 +273,31 @@ describe("the Why sheet — What this read assumes", () => {
     });
     expect(credit.getAttribute("href")).toBe("https://commanderspellbook.com");
   });
+
+  it("BRACKETS-PAGE: How brackets work links the site's guide, on its own line, in the same tab", () => {
+    sheet(spec([conscripts]));
+    const assumes = block("What this read assumes");
+    const guide = within(assumes).getByRole("link", { name: "How brackets work" });
+    expect(guide.getAttribute("href")).toBe("/brackets");
+    expect(guide.getAttribute("target")).toBeNull();
+    // Its own paragraph: the sources line keeps its one middle dot and its two links.
+    expect(guide.closest("p")!.textContent).toBe("How brackets work");
+    const sources = within(assumes)
+      .getByRole("link", { name: /Wizards' Commander Brackets/ })
+      .closest("p")!;
+    expect(sources.querySelectorAll("a")).toHaveLength(2);
+    expect(sources.textContent!.split(" · ")).toHaveLength(2);
+    // Every link in the block: the guide, then Wizards' rules, then the combo credit.
+    expect(
+      within(assumes)
+        .getAllByRole("link")
+        .map((a) => a.getAttribute("href")),
+    ).toEqual([
+      "/brackets",
+      "https://magic.wizards.com/en/formats/commander#brackets",
+      "https://commanderspellbook.com",
+    ]);
+  });
 });
 
 describe("Y4b — the player's side of the sheet", () => {

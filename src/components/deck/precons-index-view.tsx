@@ -35,7 +35,12 @@
  * line names none (a banned card) shows under All alone. Chips only for the
  * bands some precon is in; no bands, or no label, and no bracket filter.
  * Ephemeral like the rest: never in the URL.
+ *
+ * BRACKETS-PAGE: the filter's row ends with the adapter's guide link
+ * (`bracketGuide`, "How brackets work" → /brackets) after a gap, when the
+ * page passes one.
  */
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { ColorChipButton } from "@/components/color-chip";
@@ -89,10 +94,13 @@ const SELECT_CLASS =
 export function PreconsIndexView({
   items,
   bracketLabel,
+  bracketGuide,
 }: {
   items: PreconItem[];
   /** The bracket filter's label, the adapter's noun ("Bracket"); absent = no bracket filter. */
   bracketLabel?: string;
+  /** BRACKETS-PAGE: the adapter's guide link at the end of the bracket filter's row; absent = none. */
+  bracketGuide?: { label: string; href: string };
 }) {
   const [q, setQ] = useState("");
   const [letters, setLetters] = useState("");
@@ -246,6 +254,14 @@ export function PreconsIndexView({
                 {b.label}
               </Chip>
             ))}
+            {bracketGuide && (
+              <Link
+                href={bracketGuide.href}
+                className="text-muted-foreground hover:text-foreground ml-1 text-sm underline underline-offset-4"
+              >
+                {bracketGuide.label}
+              </Link>
+            )}
           </div>
         )}
         <label className="flex items-center gap-1.5 text-sm">

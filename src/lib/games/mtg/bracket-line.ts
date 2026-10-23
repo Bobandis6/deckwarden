@@ -84,6 +84,8 @@ const UNFLAGGED = LEVELS.filter(
 const UNFLAGGED_LOW = UNFLAGGED[0];
 const UNFLAGGED_TOP = UNFLAGGED[UNFLAGGED.length - 1];
 const UNFLAGGED_RANGE = `${UNFLAGGED_LOW.level} to ${UNFLAGGED_TOP.level}`;
+/** The same pair for the guide page's note and its precon reasons (BRACKETS-PAGE): one definition. */
+export const MTG_UNFLAGGED = { low: UNFLAGGED_LOW, top: UNFLAGGED_TOP, range: UNFLAGGED_RANGE };
 
 const NUMBER_WORDS = [
   "zero",
@@ -394,9 +396,13 @@ export function mtgBracketTable(read: BracketRead): BracketTableRow[] {
 /** A Scryfall Tagger tag's page, by the slug data/mtg/tagger-overrides.json pins (bracket-line.test.ts checks both). */
 const taggerTag = (slug: string) => `https://tagger.scryfall.com/tags/card/${slug}`;
 
-/** `mtgBrackets.links`: Wizards' pages for the rules and the Game Changers; Tagger's tag pages for its two flags. */
+/**
+ * `mtgBrackets.links`: Wizards' pages for the rules and the Game Changers;
+ * Tagger's tag pages for its two flags; the site's own guide (BRACKETS-PAGE).
+ */
 export const MTG_BRACKET_LINKS: BracketsMeta<MtgAttrs>["links"] = {
   rules: { label: "Wizards' Commander Brackets", href: BRACKET_RULESET.sources.brackets },
+  guide: { label: "How brackets work", href: "/brackets" },
   source(id) {
     // A factor's id, a question's (`land-denial:<oracle id>`), or a gap's (`unchecked:<feed>`).
     switch (id.replace(/^unchecked:/, "").split(":")[0]) {

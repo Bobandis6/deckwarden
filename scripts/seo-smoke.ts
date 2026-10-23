@@ -201,6 +201,8 @@ async function main() {
     check("core sitemap lists /tournaments", core.text.includes("/tournaments</loc>"));
     // X4b: the Sets index (its rows' /cards?set= links canonicalize to /cards).
     check("core sitemap lists /sets", core.text.includes("/sets</loc>"));
+    // BRACKETS-PAGE: the Commander brackets guide (not in the Browse menu).
+    check("core sitemap lists /brackets", core.text.includes("/brackets</loc>"));
     check("core sitemap never lists event pages", !/\/tournaments\/\d/.test(core.text));
     const [anyEvent] = await sql<{ id: number }[]>`
       SELECT id FROM tournaments ORDER BY start_date DESC LIMIT 1`;
@@ -210,6 +212,20 @@ async function main() {
       check("event page is noindex (W10, D9)", NOINDEX_RE.test(eventPage.text));
     }
     check("junk event id → 404", (await page("/tournaments/999999999")).status === 404);
+
+    // BRACKETS-PAGE: the guide answers with its own canonical, links the
+    // Game Changers' card pages, and its door is the editor's paste import.
+    const bracketsPage = await page("/brackets");
+    check("/brackets 200", bracketsPage.status === 200, bracketsPage.status);
+    check("/brackets canonical tag", hasCanonical(bracketsPage.text, "/brackets"));
+    check(
+      "/brackets links the Game Changers' card pages",
+      /href="\/cards\/[0-9a-f-]{36}"/.test(bracketsPage.text),
+    );
+    check(
+      "/brackets door is the paste import",
+      bracketsPage.text.includes('href="/decks/new?game=mtg&amp;import=1"'),
+    );
 
     const hubMap = await page("/c/sitemap.xml");
     check("hub sitemap 200", hubMap.status === 200, hubMap.status);

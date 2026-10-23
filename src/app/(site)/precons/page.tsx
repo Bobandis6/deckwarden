@@ -17,7 +17,9 @@
  *
  * The bracket read (LATER row 151, WAVE4 F): each tile says its precon's
  * read in its share page's words (precon-brackets.ts), in the server HTML,
- * and the island filters by its bands. Premium never gates it.
+ * and the island filters by its bands. Premium never gates it. The
+ * filter's row links the adapter's guide page, /brackets (BRACKETS-PAGE),
+ * whose precon spread counts these same reads.
  *
  * Cold-start rule (WAVE2 §F): precons render AS product lists — the tiles
  * carry "Released Nov 2016", never "Updated", and no community counts.
@@ -114,6 +116,7 @@ export default async function PreconsPage() {
       <PreconsIndexView
         items={items}
         bracketLabel={adapter.brackets ? nounLabel(adapter.brackets) : undefined}
+        bracketGuide={adapter.brackets?.links.guide}
       />
 
       <p className="text-muted-foreground mt-12 text-xs">

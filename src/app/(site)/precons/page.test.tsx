@@ -123,6 +123,9 @@ describe("/precons", () => {
       ["1 to 2", "false"],
       ["3", "false"],
     ]);
+    // BRACKETS-PAGE: the row ends with the adapter's guide link, in the server HTML.
+    const row = group.slice(0, group.indexOf("</div>"));
+    expect(row).toMatch(/<a[^>]*href="\/brackets"[^>]*>How brackets work<\/a>$/);
   });
 
   it("is ISR for a day, with its own title and canonical", () => {

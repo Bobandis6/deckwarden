@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * The core sitemap's hand list (P2.6, W8b, W10, X4b): every static page,
+ * The core sitemap's hand list (P2.6, W8b, W10, X4b, BRACKETS-PAGE): every static page,
  * in order, before the public decks, folders and profiles the three
  * queries add — run over the REAL drizzle builders and a fake postgres.js
  * client that answers each query with no rows.
@@ -26,7 +26,7 @@ vi.mock("@/db", async (importOriginal) => ({
 const { default: sitemap } = await import("./sitemap");
 
 describe("core sitemap", () => {
-  it("lists the static pages — /sets beside /cards (X4b)", async () => {
+  it("lists the static pages — /sets beside /cards (X4b), /brackets after the tournaments (BRACKETS-PAGE)", async () => {
     const paths = (await sitemap()).map((entry) => {
       const url = new URL(entry.url);
       return url.pathname + url.search;
@@ -41,6 +41,7 @@ describe("core sitemap", () => {
       "/sets",
       "/tournaments",
       "/tournaments?game=optcg",
+      "/brackets",
       "/legal",
       "/privacy",
     ]);

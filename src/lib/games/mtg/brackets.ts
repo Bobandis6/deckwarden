@@ -69,6 +69,7 @@ import type {
   BracketConflict,
   BracketFactor,
   BracketFreshness,
+  BracketGuideMeta,
   BracketImpactInput,
   BracketInput,
   BracketQuestion,
@@ -80,9 +81,11 @@ import type {
   IngestRunFacts,
 } from "../types";
 import type { MtgAttrs } from "./attrs";
+import { MTG_BRACKET_GUIDE } from "./bracket-guide";
 import {
   MTG_BRACKET_LINKS,
   MTG_TABLE_NOTE,
+  MTG_UNFLAGGED,
   mtgBracketBands,
   mtgBracketLine,
   mtgBracketTable,
@@ -1202,6 +1205,55 @@ export function mtgComboBadge(
   return { level, callLevel, words, source };
 }
 
+// --- The guide (BRACKETS-PAGE): the read said for strangers --------------------------
+
+/** The level a reason must get past: the top of the pair a list with nothing flagged reads (Core). */
+const PAST_UNFLAGGED = MTG_UNFLAGGED.top.level;
+
+/** The guide's reasons, in the order its precon spread names them when their counts tie. */
+const REASONS = {
+  gameChangers: "A Game Changer",
+  twoCard: "A two-card combo",
+  combo: `A combo Commander Spellbook rates Bracket ${PAST_UNFLAGGED + 1} or higher`,
+  landDenial: "Mass land denial",
+  extraTurns: "An extra-turn card",
+} as const;
+
+/**
+ * What puts a read past Core — `mtgBrackets.guide.reasons` (the guide's
+ * precon spread): each kind of evidence the read found above the unflagged
+ * pair, once, in REASONS' order. A two-card combo is the one whose top rule
+ * is Wizards' (`BRACKET_SOURCES.twoCard`); a combo past Core for any other
+ * rule was rated by Commander Spellbook. Extra turns alone never get past
+ * Core today (chaining them is a question), so that reason only speaks if
+ * a reviewed ruleset ever moves them.
+ */
+export function mtgBracketReasons(read: BracketRead): string[] {
+  const found = new Set<string>();
+  for (const f of read.factors) {
+    if (f.atLeast === null || f.atLeast <= PAST_UNFLAGGED) continue;
+    if (f.id === "game-changers") found.add(REASONS.gameChangers);
+    else if (f.id === "land-denial") found.add(REASONS.landDenial);
+    else if (f.id === "extra-turns") found.add(REASONS.extraTurns);
+    else if (f.combo !== undefined) {
+      found.add(f.source === BRACKET_SOURCES.twoCard ? REASONS.twoCard : REASONS.combo);
+    }
+  }
+  return Object.values(REASONS).filter((r) => found.has(r));
+}
+
+/**
+ * `mtgBrackets.guide` (BRACKETS-PAGE): the levels, the note and the list
+ * from ./bracket-guide.ts; from here the read's own assumption lines (the
+ * same function every read calls, so the page and the Why sheet never
+ * disagree) and its reasons.
+ */
+export const mtgBracketGuide: BracketGuideMeta = {
+  ...MTG_BRACKET_GUIDE,
+  assumptions: (freshness) => assumptionsFor(freshness?.feeds.gameChangers?.asOf ?? null),
+  reasons: mtgBracketReasons,
+};
+
 /** The Magic adapter's `brackets` declaration (Y3b; the line and the sheet's links, Y4a). */
 export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   noun: "bracket",
@@ -1223,4 +1275,6 @@ export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   comboBadge: mtgComboBadge,
   // BRACKET-SPEED: the three speed facts beside the read, never in it (./speed.ts).
   speed: mtgBracketSpeed,
+  // BRACKETS-PAGE: the public /brackets page's words (./bracket-guide.ts and above).
+  guide: mtgBracketGuide,
 };

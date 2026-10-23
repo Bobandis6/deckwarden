@@ -87,6 +87,8 @@ function everyString(): string[] {
     C.answered(4),
     // The adapter's words the Y4b blocks render beside core's.
     mtg.exceptionsHint,
+    // BRACKETS-PAGE: What this read assumes links the site's guide by the adapter's label.
+    mtg.links.guide!.label,
     ...mtg.questions.map((q) => q.question),
     // Y5: the share page's words — the declared chip, the checked date, and
     // the adapter's table labels, answers and closing note.

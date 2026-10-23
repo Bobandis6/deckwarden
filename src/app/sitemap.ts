@@ -66,6 +66,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // W10: the tournament INDEX only — event pages are noindex v1 (D9).
     { url: absUrl("/tournaments") },
     { url: absUrl("/tournaments?game=optcg") },
+    // BRACKETS-PAGE: the Commander brackets guide (not in the Browse menu,
+    // the owner's call of 2026-10-23; the bracket sheet and /precons link it).
+    { url: absUrl("/brackets") },
     { url: absUrl("/legal") },
     { url: absUrl("/privacy") },
   ];
