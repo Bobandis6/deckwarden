@@ -6,7 +6,7 @@
  * to 127), every deployment starts its own empty ISR cache, and one
  * crawler sweep cost ~210K. Each route is dynamic with no ISR export left
  * behind (an empty `generateStaticParams` beside `revalidate` is what made
- * them ISR, LATER row 69), and the previews render as JPEG under their
+ * them ISR, LATER row 71), and the previews render as JPEG under their
  * CDN header — real satori, real sharp; the deck preview keeps its
  * never-at-the-CDN header. The hubs, leaders and tournament pages stay ISR
  * (their own page tests pin `revalidate`).

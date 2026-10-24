@@ -12,7 +12,7 @@
  * state (the budget toggle filters client-side for exactly this reason).
  * Rendered on first request, then cached: generateStaticParams returns []
  * (~4k leaders would bloat the build for nothing), and that empty export
- * is what makes the revalidate real (LATER row 69).
+ * is what makes the revalidate real (LATER row 71).
  *
  * R5b (REDESIGN.md §2 "Hubs", G3): the accent band with the commander's
  * art-crop banner and its visible credit (R2's resolver — one Scryfall call
@@ -74,7 +74,7 @@ import { loadTopFinishes, TOP_FINISHES_SHOWN } from "@/lib/tournaments/queries";
 
 export const revalidate = 3600;
 
-// ISR needs this (LATER row 69, fired in R1b): `revalidate` alone renders on
+// ISR needs this (LATER row 71, fired in R1b): `revalidate` alone renders on
 // every request — Next treats a dynamic route as ISR only when
 // generateStaticParams exists, and an empty array means "nothing at build
 // time, everything on first request, then cached for `revalidate`". Looks

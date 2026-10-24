@@ -9,8 +9,8 @@
  * Access: folder ownership is session-based (folders exist only for
  * accounts), so unlike the deck page there's no client token gate — the
  * server can answer "is this the owner" directly. Private folders render a
- * denial shell (HTTP 200, same status posture as private decks — see
- * LATER.md). Deck rows are filtered per-viewer (folderDeckVisibilities, S6,
+ * denial shell (HTTP 200, noindex; private account decks 404 since S6 —
+ * LATER row 41). Deck rows are filtered per-viewer (folderDeckVisibilities, S6,
  * SECURITY-AUDIT-report.md L5): non-owners of an UNLISTED folder see its
  * public + unlisted decks (sharing a folder link shares its decks' links —
  * same reachability class); non-owners of a PUBLIC folder see its public

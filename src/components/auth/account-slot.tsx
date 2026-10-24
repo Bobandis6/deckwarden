@@ -7,7 +7,7 @@
  * session — My decks · Bookmarks · Collection · Profile & settings as
  * links into /account's sections, then Sign out. Client-side on purpose —
  * reading the session on the server would mean headers() in the (site)
- * layout, which turns every ISR page dynamic (LATER row 69). The server
+ * layout, which turns every ISR page dynamic (LATER row 71). The server
  * HTML and the first client render both show the guest shape (useSession
  * starts pending with no data), so hydration matches and the swap happens
  * after the session fetch. account-delete-smoke's "Sign in" pin on the

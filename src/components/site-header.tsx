@@ -12,7 +12,7 @@
  * client, and the server HTML always carries the signed-out shape. It is the
  * only island that does since X1 — My decks is /account for everyone.
  * headers() or cookies() anywhere in this tree would make /c/, /l/ and
- * /cards/[id] dynamic again — LATER row 69's ISR fix is the yardstick this
+ * the event pages dynamic again — LATER row 71's ISR fix is the yardstick this
  * header is measured against.
  *
  * Phones (< md): the nav links collapse into one Base UI Menu behind a

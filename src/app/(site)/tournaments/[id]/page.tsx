@@ -9,7 +9,7 @@
  * Caching intent: ISR, revalidate daily — standings only move on ingest's
  * 14-day trailing re-fetch, no per-viewer state. Rendered on first
  * request, then cached: generateStaticParams returns [] (that's what makes
- * the revalidate real — LATER row 69). The 404 gate for junk ids lives in
+ * the revalidate real — LATER row 71). The 404 gate for junk ids lives in
  * this segment's layout, above the loading boundary (R6).
  *
  * SEO: `robots: { index: false }` — D9's explicit v1 decision (thin pages
@@ -30,7 +30,7 @@ import { getEvent } from "./event";
 
 export const revalidate = 86400;
 
-// ISR needs this (LATER row 69, fired in R1b): `revalidate` alone renders on
+// ISR needs this (LATER row 71, fired in R1b): `revalidate` alone renders on
 // every request for a dynamic-params route. The route becomes ISR only when
 // generateStaticParams exists, and an empty array means "nothing at build
 // time, everything on first request, then cached for `revalidate`".

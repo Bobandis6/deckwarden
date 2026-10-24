@@ -20,7 +20,7 @@
  * Caching intent: ISR, revalidate hourly — same reasoning as /c/[slug]:
  * card data changes once nightly, no per-viewer state, rendered on first
  * request then cached (generateStaticParams [] makes the revalidate real —
- * LATER row 69).
+ * LATER row 71).
  *
  * R5b (REDESIGN.md §2 "Hubs", G3): the accent band above the hero card. The
  * art goes through R2's adapter gate, which answers null for One Piece
@@ -56,7 +56,7 @@ import { loadTopFinishes, TOP_FINISHES_SHOWN } from "@/lib/tournaments/queries";
 
 export const revalidate = 3600;
 
-// ISR needs this (LATER row 69, fired in R1b): `revalidate` alone renders on
+// ISR needs this (LATER row 71, fired in R1b): `revalidate` alone renders on
 // every request — Next treats a dynamic route as ISR only when
 // generateStaticParams exists, and an empty array means "nothing at build
 // time, everything on first request, then cached for `revalidate`". Looks
