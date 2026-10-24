@@ -22,9 +22,22 @@ export function databaseUrl(): string {
   return url;
 }
 
+/**
+ * Connections per process. One suits a serverless function instance (the
+ * note above). A long-lived server (the VPS, EXIT-RUNBOOK.md) answers every
+ * concurrent request from one process, where one connection queues each
+ * request's queries behind every other's: `DB_POOL_MAX` raises it there.
+ * Anything but a whole number from 1 to 50 keeps the default, so a typo can
+ * never open more connections than intended.
+ */
+export function poolMax(value: string | undefined = process.env.DB_POOL_MAX): number {
+  const n = Number(value);
+  return value && Number.isInteger(n) && n >= 1 && n <= 50 ? n : 1;
+}
+
 export function createDb(url = databaseUrl()) {
   const client = postgres(url, {
-    max: 1,
+    max: poolMax(),
     prepare: false,
     // Dev-only statement log (R5a): `DB_LOG=1 pnpm dev` prints one line per
     // statement so a page's query budget is counted, not estimated. Unset

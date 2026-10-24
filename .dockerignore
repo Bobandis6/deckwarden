@@ -1,0 +1,29 @@
+# The image's build context (EXIT-RUNBOOK.md). A file left out here is a file
+# `docker build` never sees: the image installs its own node_modules from the
+# lockfile and runs its own `next build`, so nothing built on the host leaks in.
+
+# Installed and built inside the image.
+node_modules
+.next
+*.tsbuildinfo
+next-env.d.ts
+
+# Never in an image: history, secrets, session files, scratch output.
+.git
+.env*
+.vercel
+.claude
+.topdeck-raw
+.optcg-images
+scripts/.tmp
+coverage
+
+# The planning corpus. Tailwind's automatic source detection reads every
+# text file in the context for class names, and these quote classes no
+# component uses (LATER.md row 217), so the image's CSS is the clean one:
+# smaller than the Vercel build's by exactly those dead rules.
+**/*.md
+
+# Read by the Docker CLI, not by the build.
+Dockerfile
+.dockerignore
