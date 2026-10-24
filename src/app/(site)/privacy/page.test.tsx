@@ -3,7 +3,9 @@
  * L16 and L17): every stored field group is named, with the numbers the
  * code enforces — created_ip cleared after 30 days (created-ip-retention.ts),
  * backups kept 35 days (backups/retention.ts), sessions seven days — and the
- * sentences the audit found untrue stay gone.
+ * sentences the audit found untrue stay gone. Since LATER.md row 313
+ * (2026-10-24) it names Cloudflare Web Analytics, its two hosts and what
+ * the beacon sends, and "no analytics" is gone.
  */
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -49,6 +51,15 @@ describe("the privacy page", () => {
       "without cookies, request headers, or your IP address",
       // The One Piece image host.
       "img.deckwarden.gg",
+      // Cloudflare Web Analytics (row 313): its two hosts, what the beacon
+      // sends (no query string or fragment), no cookie or storage, totals only.
+      "Page views and page speed are counted by Cloudflare Web Analytics",
+      "from static.cloudflareinsights.com and sends its report to cloudflareinsights.com",
+      "cut off before any “?” or “#”",
+      "your IP address and browser identifier (user agent)",
+      "Cloudflare sees it with each analytics report",
+      "The script sets no cookies and stores nothing in your browser",
+      "never an individual visitor or an IP address",
     ]) {
       expect(text, phrase).toContain(phrase);
     }
@@ -63,6 +74,9 @@ describe("the privacy page", () => {
       "permanently and immediately",
       "browser version",
       "encrypted backups",
+      // Untrue since row 313: page views are counted.
+      "no analytics",
+      "Nothing tracks you",
     ]) {
       expect(text, phrase).not.toContain(phrase);
     }

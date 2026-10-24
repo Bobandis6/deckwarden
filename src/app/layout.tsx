@@ -96,6 +96,30 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             routes included; it targets the page's <main id="main">. */}
         <SkipLink />
         <ThemeProvider>{children}</ThemeProvider>
+        {/* Cloudflare Web Analytics (LATER.md row 313, the owner's pick of
+            2026-10-23): Cloudflare's JS snippet as issued, the last element
+            this layout renders in <body> ("before the ending body tag",
+            Cloudflare's setup guide; only Next's own scripts follow it).
+            The DNS records are DNS-only, so Cloudflare cannot inject the
+            beacon and the page carries it. A plain <script>, not next/script:
+            the server HTML carries it, so it loads without waiting for
+            hydration (next/script's afterInteractive inserts it after
+            hydration and preloads it without CORS, which a module script
+            cannot reuse), and in the ROOT layout it runs once per document,
+            like the intro gate above. A module script is deferred, so its
+            place in <body> changes when it is fetched, never when it runs.
+            The beacon counts client navigations itself (History API), sets
+            no cookie and stores nothing, and strips the query string and
+            fragment from the URLs it sends. The token is public and ships in
+            every page; next.config.ts' CSP allows the script's host and the
+            host it posts to. No request data is read, so every static page
+            stays static. */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts -- a module script is deferred by spec; the rule looks only for async or defer. */}
+        <script
+          type="module"
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "d20931217390412fba404d4cc52f17dd"}'
+        />
       </body>
     </html>
   );

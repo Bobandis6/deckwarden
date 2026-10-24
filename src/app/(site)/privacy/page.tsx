@@ -13,8 +13,13 @@
  * Sentry error reports with no cookie, header or IP (S2); nightly backups
  * kept 35 days (backups/retention.ts); the anonymous-deck purge is a
  * policy, worded as one — it runs dry until the owner arms it. Still no
- * ads, no analytics. page.test.tsx pins the field groups and that the
- * untrue sentences stay gone.
+ * ads. Since LATER.md row 313 (2026-10-24) Cloudflare Web Analytics counts
+ * page views and page speed: a script from static.cloudflareinsights.com
+ * on every page (the root layout) that reports to cloudflareinsights.com
+ * the page's URL and referrer without their query strings and fragments,
+ * plus timings, and sets no cookie and stores nothing (read in its
+ * beacon.min.js); the owner sees totals only. page.test.tsx pins the field
+ * groups and that the untrue sentences stay gone.
  *
  * Caching intent: fully static (no dynamic APIs, no data fetching).
  */
@@ -32,8 +37,10 @@ export default function PrivacyPage() {
     <main id="main" className="max-w-reading mx-auto w-full flex-1 px-4 py-12 text-sm">
       <h1 className="type-title">Privacy</h1>
       <p className="text-muted-foreground mt-2">
-        Deckwarden has optional sign-in, no ads, and no analytics. Cookies exist only to sign you in
-        and keep you signed in. Nothing tracks you. This page lists everything it does store.
+        Deckwarden has optional sign-in and no ads. Cookies exist only to sign you in and keep you
+        signed in. Page views and page speed are counted by Cloudflare Web Analytics, which sets no
+        cookies and does not follow you across sites. This page lists everything Deckwarden does
+        store.
       </p>
 
       <section className="mt-8 space-y-3">
@@ -124,7 +131,34 @@ export default function PrivacyPage() {
           When a deck is created, signed in or not, we record the creating IP address for spam
           control and abuse cleanup, and nightly housekeeping clears it 30 days later. Rate-limit
           counters keyed by IP are kept for at most two days. A sign-in session records the IP
-          address it was made from (see Accounts). Our hosting providers keep standard server logs.
+          address it was made from (see Accounts). Cloudflare sees it with each analytics report
+          (see Analytics). Our hosting providers keep standard server logs.
+        </p>
+      </section>
+
+      <section className="mt-8 space-y-3">
+        <h2 className="type-section">Analytics</h2>
+        <p>
+          Every page loads a small script from Cloudflare Web Analytics that counts page views and
+          measures how fast pages load. Your browser fetches it from static.cloudflareinsights.com
+          and sends its report to cloudflareinsights.com: the page’s address and the address of the
+          page that linked you there, both cut off before any “?” or “#” so your searches are not
+          sent, plus performance measurements such as how long the page took to load and respond.
+          Like any request, the report carries your IP address and browser identifier (user agent);
+          Cloudflare uses them for its country, browser, and device counts, and says it does not use
+          them to fingerprint you or follow you across sites. The script sets no cookies and stores
+          nothing in your browser. We see totals only (page views, visits, referring sites,
+          countries, pages, devices, and page speed), never an individual visitor or an IP address.
+          What Cloudflare keeps is governed by{" "}
+          <a
+            href="https://www.cloudflare.com/privacypolicy/"
+            className="underline"
+            rel="noreferrer"
+            target="_blank"
+          >
+            Cloudflare’s privacy policy
+          </a>
+          .
         </p>
       </section>
 
@@ -151,9 +185,9 @@ export default function PrivacyPage() {
       <section className="mt-8 space-y-3">
         <h2 className="type-section">Where things run</h2>
         <p>
-          Hosting is on Vercel, the database on Neon (US region), and backups on Cloudflare R2.
-          Magic card images load directly from Scryfall’s CDN, so your browser makes requests to
-          scryfall.io when viewing cards, governed by{" "}
+          Hosting is on Vercel, the database on Neon (US region), backups on Cloudflare R2, and
+          analytics on Cloudflare Web Analytics. Magic card images load directly from Scryfall’s
+          CDN, so your browser makes requests to scryfall.io when viewing cards, governed by{" "}
           <a
             href="https://scryfall.com/docs/privacy"
             className="underline"

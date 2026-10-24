@@ -8,7 +8,9 @@
  * is proven to catch card pages and nothing beside them. Since S5 (M5)
  * every response carries the security header set and the Content Security
  * Policy — report-only for the S5 day, enforcing since LATER.md row 286
- * fired on 2026-10-20 — and `x-powered-by` is off.
+ * fired on 2026-10-20 — and `x-powered-by` is off. Since row 313
+ * (2026-10-24) the policy names Cloudflare Web Analytics' two hosts: the
+ * beacon's script host and the host its reports post to.
  */
 import { buildCustomRoute } from "next/dist/lib/build-custom-route";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -17,11 +19,11 @@ import nextConfig from "../../next.config";
 
 const PRODUCTION_CSP =
   "default-src 'self'; " +
-  "script-src 'self' 'unsafe-inline'; " +
+  "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; " +
   "style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data: https://cards.scryfall.io https://img.deckwarden.gg https://cdn.discordapp.com https://lh3.googleusercontent.com; " +
   "font-src 'self'; " +
-  "connect-src 'self'; " +
+  "connect-src 'self' https://cloudflareinsights.com; " +
   "object-src 'none'; " +
   "base-uri 'self'; " +
   "form-action 'self'; " +
@@ -96,11 +98,16 @@ describe("next.config", () => {
     );
     const [siteWide] = await nextConfig.headers!();
     const csp = headerValue(siteWide, "Content-Security-Policy")!;
-    expect(csp).toContain("connect-src 'self' https://o4500000.ingest.us.sentry.io; ");
+    expect(csp).toContain(
+      "connect-src 'self' https://cloudflareinsights.com https://o4500000.ingest.us.sentry.io; ",
+    );
     expect(csp).not.toContain("examplePublicKey");
     expect(csp).not.toContain("4500000001");
     expect(
-      csp.replace("connect-src 'self' https://o4500000.ingest.us.sentry.io", "connect-src 'self'"),
+      csp.replace(
+        "connect-src 'self' https://cloudflareinsights.com https://o4500000.ingest.us.sentry.io",
+        "connect-src 'self' https://cloudflareinsights.com",
+      ),
     ).toBe(PRODUCTION_CSP);
   });
 

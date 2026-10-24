@@ -48,7 +48,8 @@ const SECURITY_HEADERS = [
  * Content Security Policy, enforcing since LATER.md row 286 fired (S5
  * shipped it report-only on 2026-10-20; the switch landed the same day on
  * the owner's call). Every source is what the browser loads from this
- * tree on 2026-10-20, nothing speculative:
+ * tree on 2026-10-20, nothing speculative, plus Cloudflare Web Analytics'
+ * two hosts since 2026-10-24 (LATER.md row 313):
  *   img-src — card images from Scryfall's CDN, the One Piece images at
  *     img.deckwarden.gg (P4.9), the provider pictures Discord and Google
  *     hand Better Auth (users.image; the chosen card art is a Scryfall
@@ -56,8 +57,14 @@ const SECURITY_HEADERS = [
  *     server only and tagger.scryfall.com is a link target, so neither is
  *     a source. The avatars' r2.dev era never renders (images.ts).
  *   font-src 'self' — the three faces are self-hosted by next/font.
- *   connect-src — every client fetch is same-origin; the browser Sentry
- *     SDK (src/instrumentation-client.ts) posts to the ingest host of
+ *   connect-src — every client fetch is same-origin, beside two hosts.
+ *     The analytics beacon posts each page view's report (the page's URL
+ *     and its referrer without their query strings, the timings) to
+ *     https://cloudflareinsights.com, by XHR and by navigator.sendBeacon
+ *     when the tab hides: a site whose records are DNS-only has no
+ *     /cdn-cgi/rum of its own, so the snippet posts to Cloudflare's host
+ *     (Cloudflare's CSP FAQ). The browser Sentry SDK
+ *     (src/instrumentation-client.ts) posts to the ingest host of
  *     NEXT_PUBLIC_SENTRY_DSN when that is set, so its origin joins the list
  *     at build time (the public key in the DSN never does).
  *   style-src 'unsafe-inline' — Base UI and shadcn position with inline
@@ -71,7 +78,10 @@ const SECURITY_HEADERS = [
  *     write budget (847e999). The trade-off and its trigger are LATER.md
  *     row 285. 'unsafe-eval' joins it in development only: React rebuilds
  *     server error stacks with eval there (Next's CSP guide), never in
- *     production.
+ *     production. https://static.cloudflareinsights.com is the analytics
+ *     beacon's host (beacon.min.js, the root layout's last <script>), named
+ *     by host like every other source here; Cloudflare's FAQ names the
+ *     file.
  *   object-src 'none', base-uri 'self', form-action 'self' (every form
  *     posts or GETs here; the OAuth hops are navigations, not forms),
  *     frame-ancestors 'none'.
@@ -89,12 +99,20 @@ const SECURITY_HEADERS = [
  */
 function contentSecurityPolicy(): string {
   const development = process.env.NODE_ENV === "development";
-  const connect = ["'self'"];
+  const connect = ["'self'", "https://cloudflareinsights.com"];
   const sentryIngest = sentryIngestOrigin(process.env.NEXT_PUBLIC_SENTRY_DSN);
   if (sentryIngest) connect.push(sentryIngest);
   const directives: Array<[string, string[]]> = [
     ["default-src", ["'self'"]],
-    ["script-src", ["'self'", "'unsafe-inline'", ...(development ? ["'unsafe-eval'"] : [])]],
+    [
+      "script-src",
+      [
+        "'self'",
+        "'unsafe-inline'",
+        ...(development ? ["'unsafe-eval'"] : []),
+        "https://static.cloudflareinsights.com",
+      ],
+    ],
     ["style-src", ["'self'", "'unsafe-inline'"]],
     [
       "img-src",
