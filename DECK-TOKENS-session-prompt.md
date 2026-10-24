@@ -1,6 +1,23 @@
 # DECK-TOKENS session prompt — a fixed card-type order, and a Tokens list outside the 100
 
-*Status: **implemented and verified on the dev branch 2026-10-24**, written and executed in the same session at the owner's request. Anchors verified against `40706f2`; re-grep lines, trust the shapes. Add a dated ship note at the top of this file when the package ships.*
+*Status: **shipped 2026-10-24** as `71c4df1` (rebased onto `43bcbd2`), written and executed in the same session at the owner's request. Anchors verified against `40706f2`; re-grep lines, trust the shapes.*
+
+## Ship note (2026-10-24)
+
+- **One commit:** code, tests and docs.
+  - CI (`check`) passed, and Vercel's production deploy reported success on the full sha.
+  - `pnpm check` on the rebased tree passed: 2,950 tests in 277 files, TypeScript 6, the same 6 warnings. This package adds 66 tests in 5 new files.
+  - `pnpm build`'s route table is unchanged.
+- **Production, read from outside:**
+  - The precon "Calling All Angels" now reads Creature 33, Sorcery 7, Instant 5, Artifact 11, Enchantment 5, Land 38. Lands led it before.
+  - Its "Card types" chart follows the same order.
+  - Card search for "treasure" returns cards only.
+  - `tokens=1` returns nothing yet: production gets the token catalog and `attrs.tokens` from the **first nightly ingest after the deploy** (10:37 UTC), or from a dispatch. Until then the Tokens section shows "No tokens yet" with nothing to suggest.
+- **What the nightly will do:**
+  - add about 972 token identities and 3,100 printings, about 3 MB; production was 292.8 MB on 10-24, so it lands near LATER row 36's 300 MB pruning trigger;
+  - write `attrs.tokens` on about 4,900 cards;
+  - un-candidate Mechtitan, whose `/c/mechtitan` page and sitemap entry then 404.
+- **Docs:** `LATER.md` rows 320 to 328, the build plan's ingest lines, a REDESIGN.md record, and this file's census appendix.
 
 ## The owner's ask (2026-10-24)
 
