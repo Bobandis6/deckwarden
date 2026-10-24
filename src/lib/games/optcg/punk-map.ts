@@ -38,6 +38,7 @@ import { GAME_ID } from "@/db/seed-data";
 import { normalizeCardName } from "@/lib/cards/normalize";
 
 import type { OptcgAttrs } from "./adapter";
+import { OPTCG_COLOR_BIT } from "./colors";
 
 // --- punk-records input (minimal shape we consume) ---------------------------
 
@@ -113,21 +114,13 @@ export function decodeHtmlEntities(text: string): string {
 // --- Colors ------------------------------------------------------------------
 
 /**
- * The six OP colors on the shared schema bits (W1 U2 B4 R8 G16 C32) — THE one
- * place this mapping lives. Colors that exist in both games keep their bit
- * (Red 8, Green 16, Blue 2, Black 4); Yellow takes W's bit 1 and Purple takes
- * C's bit 32. Query-side, the colorset grammar (translate.ts) speaks MTG
- * letters, so OP color filters spell Yellow as W and Purple as C — disclosed
- * here and in the adapter until an OP search UI needs friendlier letters.
+ * The six OP colors' mask bits live in colors.ts (the bit story is there):
+ * this module imports `node:crypto` for the printing uuid, and the browser
+ * must never reach it for a constant (LATER.md row 287,
+ * src/lib/client-graph.test.ts). Re-exported so the ingest and the tests
+ * keep their import path.
  */
-export const OPTCG_COLOR_BIT: Record<string, number> = {
-  Red: 8,
-  Green: 16,
-  Blue: 2,
-  Black: 4,
-  Yellow: 1,
-  Purple: 32,
-};
+export { OPTCG_COLOR_BIT };
 
 export function optcgColorsToMask(colors: string[] | null | undefined): number {
   let mask = 0;

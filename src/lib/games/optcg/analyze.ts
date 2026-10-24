@@ -24,7 +24,7 @@
  */
 import type { AnalyticsBlock, CardData, DeckSnapshot } from "../types";
 import type { OptcgAttrs } from "./adapter";
-import { OPTCG_COLOR_BIT } from "./punk-map";
+import { OPTCG_COLOR_BIT } from "./colors";
 
 type OptcgCard = CardData<OptcgAttrs>;
 

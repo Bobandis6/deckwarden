@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { OPTCG_COLOR_BIT as COLORS_OPTCG_COLOR_BIT } from "./colors";
 import {
   baseCardId,
   decodeHtmlEntities,
@@ -96,6 +97,19 @@ describe("colors", () => {
     expect(optcgColorsToMask(["Red", "Green"])).toBe(24);
     expect(optcgColorsToMask(["Yellow", "Purple"])).toBe(33);
     expect(optcgColorsToMask(null)).toBe(0);
+  });
+
+  it("re-exports colors.ts's object, not a copy (the bits moved there, LATER.md row 287)", () => {
+    expect(OPTCG_COLOR_BIT).toBe(COLORS_OPTCG_COLOR_BIT);
+    // The insertion order feeds analyze.ts's color tally; the move kept it.
+    expect(Object.keys(OPTCG_COLOR_BIT)).toEqual([
+      "Red",
+      "Green",
+      "Blue",
+      "Black",
+      "Yellow",
+      "Purple",
+    ]);
   });
 });
 

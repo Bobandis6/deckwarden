@@ -1,6 +1,6 @@
 /**
  * OP color display helpers (P4.4). The schema stores OP colors on the shared
- * mask bits (punk-map.OPTCG_COLOR_BIT: Red 8, Green 16, Blue 2, Black 4,
+ * mask bits (OPTCG_COLOR_BIT below: Red 8, Green 16, Blue 2, Black 4,
  * Yellow 1, Purple 32) — but the shared pip renderer speaks MTG letters, and
  * "W" on a Yellow leader would be wrong. Display order follows Bandai's
  * conventional Red/Green/Blue/Purple/Black/Yellow.
@@ -8,7 +8,28 @@
  * Pure module (no IO), importable from client components and OP-specific
  * pages alike — the same precedent as MTG pages importing topdeck-map.
  */
-import { OPTCG_COLOR_BIT } from "./punk-map";
+
+/**
+ * The six OP colors on the shared schema bits (W1 U2 B4 R8 G16 C32) — THE one
+ * place this mapping lives. Colors that exist in both games keep their bit
+ * (Red 8, Green 16, Blue 2, Black 4); Yellow takes W's bit 1 and Purple takes
+ * C's bit 32. Query-side, the colorset grammar (translate.ts) speaks MTG
+ * letters, so OP color filters spell Yellow as W and Purple as C — disclosed
+ * here and in the adapter until an OP search UI needs friendlier letters.
+ * Written by the ingest (punk-map.optcgColorsToMask, which re-exports this
+ * object) into card_identities.colors_mask; the insertion order feeds
+ * analyze.ts's color tally. Defined here, not in punk-map, since 2026-10-24:
+ * punk-map imports `node:crypto`, and reaching it from the browser for this
+ * constant shipped a ~510 KB polyfill chunk (LATER.md row 287).
+ */
+export const OPTCG_COLOR_BIT: Record<string, number> = {
+  Red: 8,
+  Green: 16,
+  Blue: 2,
+  Black: 4,
+  Yellow: 1,
+  Purple: 32,
+};
 
 export interface OptcgColorDef {
   name: "Red" | "Green" | "Blue" | "Purple" | "Black" | "Yellow";

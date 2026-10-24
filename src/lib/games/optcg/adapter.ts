@@ -18,7 +18,7 @@ import { validateOptcg } from "./validate";
  * generated column hardcodes (schema.ts) — the cross-game FTS contract —
  * so the type line and effect text are stored once, under those names.
  * Colors on the shared mask bits: Red 8, Green 16, Blue 2, Black 4,
- * Yellow 1 (W's bit), Purple 32 (C's bit) — punk-map.OPTCG_COLOR_BIT is
+ * Yellow 1 (W's bit), Purple 32 (C's bit) — colors.OPTCG_COLOR_BIT is
  * the one source of truth.
  */
 export type OptcgAttrs = {
@@ -88,7 +88,7 @@ const SEARCH_FIELDS: SearchFieldDef[] = [
     ],
   },
   // Colorset grammar speaks MTG letters (translate.ts COLOR_BIT): Red=R,
-  // Green=G, Blue=U, Black=B, Yellow=W, Purple=C — see punk-map.OPTCG_COLOR_BIT.
+  // Green=G, Blue=U, Black=B, Yellow=W, Purple=C — see colors.OPTCG_COLOR_BIT.
   { key: "color", label: "Color", kind: "colorset", target: { column: "colors_mask" } },
   {
     key: "traits",

@@ -96,6 +96,8 @@ const SECURITY_HEADERS = [
  * 287) — both try/catch feature detection that falls back by design, so an
  * enforcing policy costs two console lines per page and no behaviour;
  * asn1.js's `vm.runInThisContext` in the same chunk has the same fallback.
+ * The polyfill chunk left the client bundle on 2026-10-24 (CRYPTO-POLYFILL,
+ * row 287), so the one console line left per page is zod's.
  */
 function contentSecurityPolicy(): string {
   const development = process.env.NODE_ENV === "development";

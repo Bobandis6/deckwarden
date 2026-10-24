@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { maskToOptcgColorNames, maskToOptcgLetters, OPTCG_COLORS } from "./colors";
-import { OPTCG_COLOR_BIT } from "./punk-map";
+import { maskToOptcgColorNames, maskToOptcgLetters, OPTCG_COLOR_BIT, OPTCG_COLORS } from "./colors";
 
 describe("OPTCG_COLORS", () => {
-  it("covers every punk-map color bit exactly once", () => {
+  it("covers every color bit exactly once", () => {
     const bits = OPTCG_COLORS.map((c) => c.bit).sort((a, b) => a - b);
     expect(bits).toEqual(Object.values(OPTCG_COLOR_BIT).sort((a, b) => a - b));
   });
