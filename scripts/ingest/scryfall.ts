@@ -29,9 +29,9 @@
  *
  * Run: pnpm ingest:scryfall
  */
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../../src/lib/load-env";
 
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 import { readFileSync } from "node:fs";
 import path from "node:path";

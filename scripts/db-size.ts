@@ -2,9 +2,9 @@
  * Free-tier fuel gauge: prints pg_database_size and FAILS (exit 1) above ~350MB —
  * a red nightly Action run is the alert channel (plan §9). pnpm db:size
  */
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../src/lib/load-env";
 
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 import postgres from "postgres";
 

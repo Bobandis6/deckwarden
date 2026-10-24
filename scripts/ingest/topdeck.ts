@@ -28,9 +28,9 @@
  * IMPORTANT: uses the DIRECT (non `-pooler`) connection — temp tables and
  * pg_advisory_lock are session state, which transaction-mode pooling breaks.
  */
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../../src/lib/load-env";
 
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 import { gzipSync } from "node:zlib";
 import { mkdirSync, writeFileSync } from "node:fs";

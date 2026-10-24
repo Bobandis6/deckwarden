@@ -26,9 +26,9 @@
  * (the reversible-name bug's 271 skips) aggregate here even though their
  * standings rows were never stored.
  */
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../../src/lib/load-env";
 
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 import { gunzipSync } from "node:zlib";
 import { readdirSync, readFileSync } from "node:fs";

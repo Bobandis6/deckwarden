@@ -8,6 +8,7 @@
  * the /precons pin: filtering never touches the URL.
  */
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import type { ReleasedSet } from "@/lib/sets/lines";
@@ -76,6 +77,17 @@ describe("SetsIndexView", () => {
     const promos = container.querySelector('a[href="/cards?set=pblb"]')!;
     expect((promos.closest("li") as HTMLLIElement).hidden).toBe(true);
     expect(screen.getByRole("status").textContent).toBe("Showing 6 of 9 sets");
+  });
+
+  it("names the Main sets only box in the server HTML, before hydration (LATER row 266)", () => {
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(<SetsIndexView sets={SETS} />);
+    const checkbox = host.querySelector('[role="checkbox"]');
+    const label = [...host.querySelectorAll("label")].find(
+      (element) => element.textContent === "Main sets only",
+    );
+    expect(checkbox?.id).toBeTruthy();
+    expect(label?.getAttribute("for")).toBe(checkbox?.id);
   });
 
   it("groups by year, newest first, and hides a year with no row to show", () => {

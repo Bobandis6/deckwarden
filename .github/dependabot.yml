@@ -19,6 +19,15 @@ updates:
       time: "11:00"
       timezone: Etc/UTC
     open-pull-requests-limit: 5
+    # @types/node follows the Node runtime, not the registry: ci.yml and the
+    # nightly run `node-version: 22`, so its majors wait for a runtime move and
+    # come with it (the owner closed #4, 20.x → 26.x, on 2026-10-23; the next
+    # dependency package moved it to 22.x on 2026-10-24). Its minors and
+    # patches still arrive in the group below.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
     groups:
       minor-and-patch:
         patterns:

@@ -24,9 +24,9 @@
  * Uses the DIRECT (non -pooler) connection like every ingest: the advisory
  * lock is session state.
  */
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../../src/lib/load-env";
 
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 import { createHash } from "node:crypto";
 

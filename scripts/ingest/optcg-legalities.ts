@@ -17,7 +17,6 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { config as loadEnv } from "dotenv";
 import type postgres from "postgres";
 import type { Sql } from "postgres";
 
@@ -27,6 +26,7 @@ import {
   parseOverlay,
   type CurrentRow,
 } from "../../src/lib/games/optcg/legalities-overlay";
+import { loadEnv } from "../../src/lib/load-env";
 
 const OVERLAY_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -95,7 +95,7 @@ export async function applyOptcgLegalities(sql: Sql): Promise<OverlayApplyStats>
 
 // Manual entry point: pnpm ingest:optcg-legalities
 async function runStandalone() {
-  loadEnv({ path: [".env.local", ".env"], quiet: true });
+  loadEnv();
   const { default: postgres } = await import("postgres");
   const url = (process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL)?.replace(
     "-pooler.",

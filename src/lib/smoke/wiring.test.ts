@@ -89,7 +89,8 @@ const NIGHTLY = [
   "ruleset-watch.ts",
 ];
 
-const LOAD_ENV = 'loadEnv({ path: [".env.local", ".env"], quiet: true });';
+/** The env load (`src/lib/load-env.ts`, which replaced dotenv's `config` on 2026-10-24, LATER row 293). */
+const LOAD_ENV = "loadEnv();";
 
 const firstImport = (text: string) => text.split("\n").find((line) => line.startsWith("import "));
 
@@ -165,7 +166,7 @@ describe("the shared session minting", () => {
     expect(text).toContain('from "../../src/lib/smoke/session-cookie"');
     expect(text).not.toContain("console.");
     expect(text).not.toContain("process.exit");
-    // the secret is read by a function, not at module level (module level runs before dotenv)
+    // the secret is read by a function, not at module level (module level runs before loadEnv)
     const moduleLevel = text
       .split("\n")
       .filter((line) => !line.startsWith(" ") && !line.startsWith("\t") && !line.startsWith("*"));

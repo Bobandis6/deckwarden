@@ -104,8 +104,8 @@ export async function assignOpLeaderSlugs(sql: postgres.Sql): Promise<number> {
 // Standalone backfill entry point.
 if (process.argv[1]?.endsWith("assign-leader-slugs.ts")) {
   void (async () => {
-    const { config: loadEnv } = await import("dotenv");
-    loadEnv({ path: [".env.local", ".env"], quiet: true });
+    const { loadEnv } = await import("../../src/lib/load-env");
+    loadEnv();
     const { default: postgresClient } = await import("postgres");
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL is not set.");

@@ -34,9 +34,9 @@ import { guardDatabaseUrl } from "./smoke/db";
 
 import { randomBytes } from "node:crypto";
 
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../src/lib/load-env";
 
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 guardDatabaseUrl(); // right after the env load: a production DATABASE_URL exits 1 here
 
 import postgres from "postgres";

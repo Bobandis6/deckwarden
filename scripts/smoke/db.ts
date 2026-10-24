@@ -9,7 +9,7 @@
  * acts on the answer.
  *
  * Unlike `./guard` (the host guard, a side effect of its import, which runs
- * before dotenv fills `.env.local` in), this is a FUNCTION: `DATABASE_URL`
+ * before `loadEnv()` fills `.env.local` in), this is a FUNCTION: `DATABASE_URL`
  * and `PRODUCTION_DB_ENDPOINT` come from `.env.local`, so the check can only
  * run after the script's `loadEnv`. Nothing is read at module level. A
  * passing check prints nothing; the two informational lines — the check is

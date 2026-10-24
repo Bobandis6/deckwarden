@@ -26,10 +26,9 @@
  *   PURGE_VERBOSE=1 pnpm decks:purge    # dry run, one line per candidate (local)
  *   PURGE_APPLY=true pnpm decks:purge   # delete
  */
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../src/lib/load-env";
 
-// Next.js convention: .env.local overrides .env (first file in the list wins).
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 import { sql } from "drizzle-orm";
 

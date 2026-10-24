@@ -25,9 +25,9 @@
  * unchanged sha, e.g. after a mapper fix), R2_PUBLIC_IMAGE_BASE (serve card
  * images from the R2 mirror instead of hotlinking Bandai — an owner flip).
  */
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../../src/lib/load-env";
 
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 import postgres from "postgres";
 

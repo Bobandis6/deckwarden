@@ -1,7 +1,7 @@
 /**
  * The host guard every `BASE_URL`-taking script imports FIRST (S9,
  * SECURITY-AUDIT-report.md L19): it runs when the module is evaluated —
- * before the script's own body, so before `dotenv` reads `.env.local` and
+ * before the script's own body, so before `loadEnv()` reads `.env.local` and
  * before any `fetch` — and a non-local target ends the process with one
  * sentence on stderr and exit code 1 unless `SMOKE_ALLOW_REMOTE=1` is set
  * for that one run. The decision is `src/lib/smoke/host-guard.ts` (tested);
@@ -10,7 +10,7 @@
  * The scripts build their URLs on the exported `BASE` rather than reading
  * `process.env.BASE_URL` again after their env load: the value the guard
  * checked is the value they use, so a `BASE_URL` line in `.env.local` can
- * never slip past it (dotenv fills an unset variable after this ran).
+ * never slip past it (`loadEnv()` fills an unset variable after this ran).
  */
 import { checkSmokeTarget } from "../../src/lib/smoke/host-guard";
 

@@ -38,7 +38,7 @@ export interface MintedSession {
   cookie: string;
 }
 
-/** Read after dotenv has loaded — never at import time, which runs before it. */
+/** Read after `loadEnv()` has run — never at import time, which runs before it. */
 function smokeSecret(): string {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret) throw new Error("BETTER_AUTH_SECRET is not set — see .env.example.");

@@ -218,15 +218,14 @@ export function SetsIndexView({ sets }: { sets: ReleasedSet[] }) {
             spellCheck={false}
           />
         </div>
-        {/* U10a (WAVE5.md D10): the Checkbox primitive in a horizontal Field;
-            explicit ids so the server HTML carries the association. */}
+        {/* U10a (WAVE5.md D10): the Checkbox primitive in a horizontal Field,
+            which wires the label to the box with its own id, so the server HTML
+            carries the association. No explicit ids: since Base UI 1.8 a
+            Checkbox inside a Field, like an Input, renders an explicit id only
+            after hydration (LATER row 266). */}
         <Field orientation="horizontal" className="w-auto pointer-coarse:min-h-11">
-          <Checkbox
-            id="sets-main-only"
-            checked={mainOnly}
-            onCheckedChange={(next) => setMainOnly(next)}
-          />
-          <FieldLabel htmlFor="sets-main-only">Main sets only</FieldLabel>
+          <Checkbox checked={mainOnly} onCheckedChange={(next) => setMainOnly(next)} />
+          <FieldLabel>Main sets only</FieldLabel>
         </Field>
         <p role="status" className="text-muted-foreground text-xs sm:ml-auto">
           {shown.size === sets.length

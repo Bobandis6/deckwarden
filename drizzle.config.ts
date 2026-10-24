@@ -1,7 +1,6 @@
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "./src/lib/load-env";
 
-// Next.js convention: .env.local overrides .env (first file in the list wins).
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 import { defineConfig } from "drizzle-kit";
 

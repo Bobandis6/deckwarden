@@ -93,4 +93,21 @@ describe("dependabot.yml", () => {
       );
     }
   });
+
+  it("holds @types/node to the runtime's major: its majors are ignored and package.json names the workflows' Node", () => {
+    const [npm, actions] = text.split(/^\s+- package-ecosystem: /m).slice(1);
+    expect(npm).toMatch(
+      /^\s+ignore:\n\s+- dependency-name: "@types\/node"\n\s+update-types:\n\s+- version-update:semver-major$/m,
+    );
+    expect(actions).not.toMatch(/ignore:/);
+
+    const majors = ["ci.yml", "nightly-ingest.yml"].map(
+      (file) => /^\s+node-version: (\d+)$/m.exec(read(file))?.[1],
+    );
+    expect(majors).toEqual(["22", "22"]);
+    const { devDependencies } = JSON.parse(
+      readFileSync(join(process.cwd(), "package.json"), "utf8"),
+    ) as { devDependencies: Record<string, string> };
+    expect(devDependencies["@types/node"]).toBe(`^${majors[0]}`);
+  });
 });

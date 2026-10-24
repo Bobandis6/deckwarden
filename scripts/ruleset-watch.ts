@@ -5,9 +5,9 @@
  * like the DB gauge. The flags have already updated themselves; this step
  * exists so a rules change is read by a person. pnpm ruleset:watch
  */
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../src/lib/load-env";
 
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 import postgres from "postgres";
 

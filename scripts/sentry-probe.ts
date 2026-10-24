@@ -27,9 +27,9 @@
  * reaches Sentry through src/instrumentation.ts — for that, throw from a
  * throwaway local route on a dev server, never a committed one.
  */
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../src/lib/load-env";
 
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 import * as Sentry from "@sentry/nextjs";
 import type { NodeOptions } from "@sentry/nextjs";

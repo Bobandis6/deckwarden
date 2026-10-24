@@ -12,9 +12,9 @@
  */
 import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
 
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../src/lib/load-env";
 
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 let failures = 0;
 function check(label: string, ok: boolean, detail?: unknown) {

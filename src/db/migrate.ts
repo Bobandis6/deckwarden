@@ -4,10 +4,9 @@
  * Uses drizzle's migrator (tracks applied files in `drizzle.__drizzle_migrations`),
  * so it is safe against a fresh DB and a no-op when up to date.
  */
-import { config as loadEnv } from "dotenv";
+import { loadEnv } from "../lib/load-env";
 
-// Next.js convention: .env.local overrides .env (first file in the list wins).
-loadEnv({ path: [".env.local", ".env"], quiet: true });
+loadEnv();
 
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 
