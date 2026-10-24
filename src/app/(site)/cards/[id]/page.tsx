@@ -32,6 +32,7 @@ import { SURFACE_BAND, SurfaceHeader } from "@/components/surface-header";
 import { GAME_ID, GAMES } from "@/db/seed-data";
 import { withPartner } from "@/lib/buy/links";
 import { INLINE_PRINTINGS_MAX, toGalleryPrinting } from "@/lib/cards/printings";
+import { isTokenCard } from "@/lib/cards/tokens";
 import { COMBOS_SHOWN, loadCombosForCard } from "@/lib/combos/queries";
 import { getAdapter } from "@/lib/games/registry";
 import type { CardData } from "@/lib/games/types";
@@ -70,6 +71,11 @@ export async function generateMetadata({ params }: PageProps<"/cards/[id]">): Pr
     alternates: { canonical: `/cards/${id}` },
     openGraph: { title: data.identity.name, description, type: "website" },
     twitter: { card: "summary_large_image" },
+    // DECK-TOKENS: a token's page renders (a share page's Tokens rows link it)
+    // but stays out of search, like it stays out of the cards sitemap.
+    ...(isTokenCard({ attrs: data.identity.attrs as Record<string, unknown> })
+      ? { robots: { index: false, follow: true } }
+      : {}),
   };
 }
 

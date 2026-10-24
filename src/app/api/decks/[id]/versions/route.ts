@@ -25,7 +25,8 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { LIST_HASH_PREFIX, playableListHash } from "@/lib/decks/list-hash";
-import { requireOwnedDeck, requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
+import { playableZoneIds } from "@/lib/decks/playable";
+import { deckFormat, requireOwnedDeck, requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
 import {
   listVersions,
   loadVersion,
@@ -41,12 +42,18 @@ import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
+/** The zones a version's "N cards" counts (DECK-TOKENS: the playable list, never Tokens). */
+function countedZoneIds(deck: { gameId: number; formatId: number }): string[] | undefined {
+  const fmt = deckFormat(deck);
+  return fmt ? playableZoneIds(fmt.format) : undefined;
+}
+
 export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[id]/versions">) {
   const { id } = await ctx.params;
   const access = await requireOwnedDeck(request.headers, id);
   if (access instanceof NextResponse) return access;
   const [versions, cells] = await Promise.all([
-    listVersions(access.deck.id),
+    listVersions(access.deck.id, countedZoneIds(access.deck)),
     loadRecordCells(getDb(), access.deck.id),
   ]);
   const tallies = tallyByVersion(cells);
@@ -87,7 +94,7 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/decks/[
   if (body instanceof NextResponse) return body;
 
   try {
-    const saved = await saveVersion(access.deck.id, body.note || null);
+    const saved = await saveVersion(access.deck.id, body.note || null, countedZoneIds(access.deck));
     return noStoreJson({ ...saved, cap: MAX_VERSIONS_PER_DECK }, { status: 201 });
   } catch (err) {
     if (err instanceof VersionCapError) {

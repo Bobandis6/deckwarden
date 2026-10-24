@@ -6,6 +6,7 @@
  * and (later) P1.7's share pages. Game knowledge stays in the adapter — this
  * module only reshapes entries and indexes the adapter's ValidationIssues.
  */
+import { isPlayableZone } from "@/lib/decks/playable";
 import type {
   DeckEntry,
   DeckSnapshot,
@@ -23,10 +24,13 @@ export interface SnapshotEntry {
 }
 
 /**
- * Entries → DeckSnapshot. Every format zone is present in `zones` even when
- * empty — the adapter's zone-minimum checks (empty commander zone) only fire
- * for keys that exist. Zones the format doesn't define pass through so
- * ZONE_UNKNOWN fires too.
+ * Entries → DeckSnapshot of the PLAYABLE list (DECK-TOKENS,
+ * src/lib/decks/playable.ts): every leader or counted format zone is present
+ * in `zones` even when empty — the adapter's zone-minimum checks (empty
+ * commander zone) only fire for keys that exist — and a zone that is neither
+ * (Magic's Tokens) is left out, so validate, analyze, the bracket read and
+ * the export never see a token. Zones the format doesn't define pass through
+ * so ZONE_UNKNOWN fires too.
  */
 export function toDeckSnapshot(
   gameId: GameId,
@@ -34,8 +38,9 @@ export function toDeckSnapshot(
   entries: readonly SnapshotEntry[],
 ): DeckSnapshot {
   const zones: Record<string, DeckEntry[]> = {};
-  for (const zone of format.zones) zones[zone.id] = [];
+  for (const zone of format.zones) if (isPlayableZone(format, zone.id)) zones[zone.id] = [];
   for (const e of entries) {
+    if (!isPlayableZone(format, e.zone)) continue;
     (zones[e.zone] ??= []).push({
       cardId: e.cardId,
       qty: e.qty,

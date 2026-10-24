@@ -25,6 +25,7 @@ import { schema, type DbExecutor } from "@/db";
 import { GAME_ID } from "@/db/seed-data";
 import { embeddablePrintingImageUrl, thumbnailUrl } from "@/lib/cards/images";
 import { searchIdPrefix } from "@/lib/cards/resolve-token";
+import { notTokenSql } from "@/lib/cards/tokens-sql";
 import { NAME_MIN_CHARS, nameKey } from "@/lib/search/name-key";
 import {
   nameMatchCondition,
@@ -70,7 +71,8 @@ export interface SuggestOptions {
 }
 
 function baseConditions(game: SuggestGame, scope: SuggestScope): SQL[] {
-  const conditions = [eq(ci.gameId, GAME_ID[game]), eq(ci.isRemoved, false)];
+  // Never a token (DECK-TOKENS): the dropdowns pick cards, and a typed "Mutavault" means the land.
+  const conditions = [eq(ci.gameId, GAME_ID[game]), eq(ci.isRemoved, false), notTokenSql(ci.attrs)];
   if (scope === "leaders") {
     conditions.push(eq(ci.isLeaderCandidate, true), sql`${ci.slug} IS NOT NULL`);
   }

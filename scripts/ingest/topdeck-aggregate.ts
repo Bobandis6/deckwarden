@@ -35,15 +35,22 @@ import { GAME_ID } from "../../src/db/seed-data";
 export const TRAILING_REFETCH_DAYS = 14;
 
 /**
- * Resolver maps over ALL identities (not the ingest's leaders-only map):
- * oracle id (external_key), exact name_norm, and per-face names from
+ * Resolver maps over ALL deck-card identities (not the ingest's leaders-only
+ * map): oracle id (external_key), exact name_norm, and per-face names from
  * attrs.faces. Popularity order makes duplicate-name collisions
  * deterministic (most-played identity wins), matching the leader map.
+ * Tokens never enter either map (DECK-TOKENS, src/lib/cards/tokens.ts): a
+ * list's "Mutavault" is the land, and commander_card_stats is cumulative, so
+ * a token that once won a name would stay in the aggregate for good. The
+ * flag's document is a SQL literal here, never a bound parameter: postgres.js
+ * JSON-encodes a string sent to a jsonb parameter, so `@> $1::jsonb` would
+ * test against a JSON string and exclude nothing (measured on the dev
+ * branch, 2026-10-24: 0 of 972 tokens matched).
  */
 export async function loadListCardMaps(sql: postgres.Sql): Promise<ListCardMaps> {
   const rows = await sql<{ external_key: string; name_norm: string; id: string }[]>`
     SELECT external_key, name_norm, id::text AS id FROM card_identities
-    WHERE game_id = ${GAME_ID.mtg} AND NOT is_removed
+    WHERE game_id = ${GAME_ID.mtg} AND NOT is_removed AND NOT (attrs @> '{"is_token": true}')
     ORDER BY popularity ASC NULLS LAST`;
   const byExternalKey = new Map<string, string>();
   const byNameNorm = new Map<string, string>();
@@ -56,7 +63,7 @@ export async function loadListCardMaps(sql: postgres.Sql): Promise<ListCardMaps>
     SELECT id::text AS id,
            ARRAY(SELECT jsonb_array_elements(attrs->'faces')->>'name') AS face_names
     FROM card_identities
-    WHERE game_id = ${GAME_ID.mtg} AND NOT is_removed
+    WHERE game_id = ${GAME_ID.mtg} AND NOT is_removed AND NOT (attrs @> '{"is_token": true}')
       AND jsonb_typeof(attrs->'faces') = 'array'
     ORDER BY popularity ASC NULLS LAST`;
   const byFaceNorm = new Map<string, string>();

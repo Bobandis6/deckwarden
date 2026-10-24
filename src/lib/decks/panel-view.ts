@@ -9,6 +9,7 @@
  * snapshotBody builds from the same facts the key reads.
  */
 import type { DeckGoals } from "@/lib/decks/goals";
+import { isPlayableZone } from "@/lib/decks/playable";
 import type { FormatDef, GameId } from "@/lib/games/types";
 
 /** The entry fields the deck-derived server computations actually depend on. */
@@ -53,7 +54,9 @@ export interface SnapshotBody {
 /**
  * The Suggestions panel's draft request (Y2b): what a deck row would hold —
  * the leader-zone ids in entry order (the decks row's `leader_ids` order)
- * and every other entry with its copies (the ranker's curve counts them) —
+ * and every other PLAYABLE entry with its copies (the ranker's curve counts
+ * them; DECK-TOKENS: the body carries no zones, so a token here would land
+ * in the server's main deck) —
  * built from the same (card, zone, qty) facts deckStateKey keys on, so an
  * unchanged draft never asks twice. `budgetUsd` is the GET's `budget`;
  * absent = no budget. `goals` (Y6a) rides along when there are any.
@@ -71,7 +74,7 @@ export function snapshotBody(
     format: format.code,
     leaderIds: entries.filter((e) => leaderZones.has(e.zone)).map((e) => e.cardId),
     entries: entries
-      .filter((e) => !leaderZones.has(e.zone))
+      .filter((e) => !leaderZones.has(e.zone) && isPlayableZone(format, e.zone))
       .map((e) => ({ cardId: e.cardId, qty: e.qty })),
     ...(budgetUsd !== undefined ? { budget: budgetUsd } : {}),
     ...(goals ? { goals } : {}),

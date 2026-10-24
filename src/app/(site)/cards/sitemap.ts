@@ -27,6 +27,7 @@ import type { MetadataRoute } from "next";
 
 import { getDb, schema } from "@/db";
 import { GAME_ID } from "@/db/seed-data";
+import { notTokenSql } from "@/lib/cards/tokens-sql";
 import { absUrl, CARDS_SITEMAP_CHUNK } from "@/lib/seo/site";
 
 export const revalidate = 86400;
@@ -38,10 +39,12 @@ const { cardIdentities } = schema;
 // browse/search surface exists to link them" — /cards?game=optcg, /leaders
 // and /l/ hubs shipped in P4.4, so OP card pages stopped being orphans in
 // the same session). robots.ts mirrors this WHERE for its chunk count —
-// change them together or the math drifts.
+// change them together or the math drifts. Tokens (DECK-TOKENS) are left
+// out: a token's page renders for the share page's links but is noindex.
 const SITEMAP_GAMES = and(
   inArray(cardIdentities.gameId, [GAME_ID.mtg, GAME_ID.optcg]),
   eq(cardIdentities.isRemoved, false),
+  notTokenSql(cardIdentities.attrs),
 );
 
 export async function generateSitemaps(): Promise<Array<{ id: number }>> {

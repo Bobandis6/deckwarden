@@ -267,6 +267,14 @@ describe("POST /api/decks/autofill — goals (Y6b)", () => {
     expect(mocks.gatherSignals).not.toHaveBeenCalled();
   });
 
+  it("a keep in the Tokens zone answers 400 before any read (DECK-TOKENS: no part of the plan)", async () => {
+    const keep = [{ cardId: "00000000-0000-4000-8000-0000000000aa", zone: "tokens", qty: 3 }];
+    const { res, body } = await post({ ...BASE, keep });
+    expect(res.status).toBe(400);
+    expect(body.error).toBe('Zone "tokens" is not part of the plan');
+    expect(mocks.loadEntryFacts).not.toHaveBeenCalled();
+  });
+
   it("One Piece answers 400 whatever its goals — no autofill, nothing read", async () => {
     const { res } = await post({ ...BASE, game: "optcg", format: "standard", goals: { v: 1 } });
     expect(res.status).toBe(400);

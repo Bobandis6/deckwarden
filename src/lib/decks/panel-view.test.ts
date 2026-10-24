@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { COMMANDER } from "@/lib/games/mtg/formats";
 import type { FormatDef } from "@/lib/games/types";
 import { deckStateKey, hasLeader, snapshotBody } from "./panel-view";
 
@@ -84,6 +85,14 @@ describe("snapshotBody — a draft's Suggestions request (Y2b)", () => {
         { cardId: "sol", qty: 1 },
       ],
     });
+  });
+
+  it("never sends a token (DECK-TOKENS): the body has no zones, so the server would read it as main", () => {
+    const withTokens = [...entries, { cardId: "treasure", zone: "tokens", qty: 4 }];
+    expect(snapshotBody("mtg", COMMANDER, withTokens).entries).toEqual([
+      { cardId: "rats", qty: 20 },
+      { cardId: "sol", qty: 1 },
+    ]);
   });
 
   it("a budget rides as USD; none means no field at all", () => {

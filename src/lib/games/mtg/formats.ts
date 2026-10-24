@@ -7,6 +7,11 @@ import type { FormatDef } from "../types";
  *
  * main.defaultCopyLimit is null = singleton with the adapter's exemption logic
  * (basics, "a deck can have any number…" cards).
+ *
+ * tokens (DECK-TOKENS): the tokens, emblems and game pieces kept with the
+ * deck — outside the 100 (countsTowardSize false), any number of each, never
+ * validated. Last on purpose: "the first non-leader zone" means main
+ * wherever the core looks one up.
  */
 export const COMMANDER: FormatDef = {
   code: "commander",
@@ -28,6 +33,15 @@ export const COMMANDER: FormatDef = {
       max: null,
       countsTowardSize: true,
       defaultCopyLimit: null,
+    },
+    {
+      id: "tokens",
+      label: "Tokens",
+      min: 0,
+      max: null,
+      countsTowardSize: false,
+      defaultCopyLimit: null,
+      holds: "tokens",
     },
   ],
   deckSize: { min: 100, max: 100 },

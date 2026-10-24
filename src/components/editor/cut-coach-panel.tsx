@@ -46,6 +46,7 @@ import { ConfidenceChip, sourceMeta } from "@/components/editor/recommendations-
 import type { DeckComboView } from "@/lib/combos/queries";
 import { deckSizeCount, type EditorCard, type EditorEntry } from "@/lib/decks/editor-state";
 import { deckStateKey, hasLeader } from "@/lib/decks/panel-view";
+import { playableEntries } from "@/lib/decks/playable";
 import { DECK_TOKEN_HEADER, getDeckToken } from "@/lib/decks/token-store";
 import {
   completeCombosByCard,
@@ -93,7 +94,7 @@ export function CutCoachPanel({
   const total = deckSizeCount(entries, format);
   const overBy = max !== null ? total - max : 0;
   const leader = hasLeader(entries, format);
-  const fetchKey = `${deckStateKey(entries)}§n:${nonce}`;
+  const fetchKey = `${deckStateKey(playableEntries(entries, format))}§n:${nonce}`;
 
   // Combo membership via the Radar's route — same fetch policy, PLUS the
   // over-limit gate: under the limit nothing here needs combo data at all.
@@ -136,7 +137,8 @@ export function CutCoachPanel({
   const ranking = useMemo(() => {
     if (overBy <= 0) return null;
     const cutEntries: CutEntryInput[] = [];
-    for (const e of entries) {
+    // The playable list (DECK-TOKENS): cutting a token never brings the 100 down.
+    for (const e of playableEntries(entries, format)) {
       const card = cards.get(e.cardId);
       if (card) cutEntries.push({ card, zone: e.zone, qty: e.qty, tags: e.tags });
     }

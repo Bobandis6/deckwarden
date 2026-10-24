@@ -6,6 +6,7 @@
  */
 import type { CardWire, EditorEntry } from "@/lib/decks/editor-state";
 import { MAX_QTY } from "@/lib/decks/editor-state";
+import { isPlayableZone } from "@/lib/decks/playable";
 import type { FormatDef } from "@/lib/games/types";
 
 /** adapter.parseDecklist line (structural match with the contract's type). */
@@ -106,7 +107,9 @@ export interface ImportOutcome {
 }
 
 /**
- * Apply reviewed items to the deck. mode "replace" starts from an empty list;
+ * Apply reviewed items to the deck. mode "replace" starts from an empty list
+ * — empty of the playable list, that is: the Tokens zone stays (DECK-TOKENS;
+ * a paste can't carry tokens, and replacing the 100 isn't replacing them);
  * "add" folds into the existing entries. Duplicate (zone, card) pairs merge
  * quantities (capped at MAX_QTY, matching the PUT route's bound). Overflow in
  * a zone with a card-count maximum (the commander zone) spills into the
@@ -125,7 +128,9 @@ export function applyImport(
   const zoneMax = new Map(format.zones.map((z) => [z.id, z.max]));
   const zoneLabel = new Map(format.zones.map((z) => [z.id, z.label]));
 
-  const entries: EditorEntry[] = mode === "replace" ? [] : existing.map((e) => ({ ...e }));
+  const entries: EditorEntry[] = (
+    mode === "replace" ? existing.filter((e) => !isPlayableZone(format, e.zone)) : existing
+  ).map((e) => ({ ...e }));
   const zoneQty = new Map<string, number>();
   for (const e of entries) zoneQty.set(e.zone, (zoneQty.get(e.zone) ?? 0) + e.qty);
 

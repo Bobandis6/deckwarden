@@ -8,7 +8,9 @@
  *
  * Zones are validated against the adapter's FormatDef via the registry (the
  * route knows nothing game-specific); card/printing ids are verified against
- * the deck's game before any row is written. The decks-table denorms
+ * the deck's game before any row is written, and the token rule with them
+ * (DECK-TOKENS, cards.ts tokenZoneIssues: a token only in a tokens zone, a
+ * card never there) — 400 with the cards, like every structural refusal. The decks-table denorms
  * (leader_ids, ci_mask, updated_at) update in the same transaction, via
  * src/lib/decks/save-cards.ts — shared with version restore (P3.6).
  *
@@ -32,7 +34,8 @@ import { z } from "zod";
 import { getDb, schema } from "@/db";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
 import { noStoreJson, parseJsonBody } from "@/lib/api/json";
-import { cardListIssues, type DeckCardInput } from "@/lib/decks/cards";
+import { isTokenCard } from "@/lib/cards/tokens";
+import { cardListIssues, tokenZoneIssues, type DeckCardInput } from "@/lib/decks/cards";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import { requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
 import { writeDeckCards } from "@/lib/decks/save-cards";
@@ -117,6 +120,18 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   if (unknownCards.length > 0) {
     return noStoreJson(
       { error: "Unknown card ids for this game", issues: unknownCards },
+      { status: 400 },
+    );
+  }
+  const tokenIds = new Set(
+    cardRows
+      .filter((r) => isTokenCard({ attrs: r.attrs as Record<string, unknown> }))
+      .map((r) => r.id),
+  );
+  const misplaced = tokenZoneIssues(entries, formatDef, (cid) => tokenIds.has(cid));
+  if (misplaced.length > 0) {
+    return noStoreJson(
+      { error: "Tokens and cards in the wrong zone", issues: misplaced },
       { status: 400 },
     );
   }

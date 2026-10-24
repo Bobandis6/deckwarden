@@ -46,6 +46,12 @@
  * the bytes are what they were — the default order, the row shape and the
  * One Piece id pass included (pinned by route.test.ts).
  *
+ * Tokens (DECK-TOKENS): rows are deck cards — never a token-catalog object
+ * (`attrs.is_token`, src/lib/cards/tokens.ts), or quick-add's Enter would
+ * put a Treasure token in the 100 and an exact "Mutavault" would race the
+ * land's token — unless `tokens=1` asks for the catalog instead (the Tokens
+ * section's "Add a token" box). Same filters, sorts and wire either way.
+ *
  * Bounds and a limiter (S4, SECURITY-AUDIT-report.md M6): the translator
  * refuses a filter value past SEARCH_VALUE_MAX_CHARS or a multiselect past
  * SEARCH_MULTISELECT_MAX_VALUES — the route answers 400 with the refusals
@@ -64,6 +70,7 @@ import { getDb, schema } from "@/db";
 import { findFormat, GAME_ID } from "@/db/seed-data";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { searchIdPrefix } from "@/lib/cards/resolve-token";
+import { notTokenSql, tokenSql } from "@/lib/cards/tokens-sql";
 import { clientIp } from "@/lib/decks/access";
 import { fetchLegalityMap } from "@/lib/decks/legality";
 import { getAdapter } from "@/lib/games/registry";
@@ -85,6 +92,8 @@ const QUERY = z.object({
   dir: z.enum(["asc", "desc"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).max(10000).default(0),
+  /** "1" = the token catalog instead of deck cards (docblock). */
+  tokens: z.literal("1").optional(),
 });
 
 /** Why a scoped request found nothing — the warning's words, per the sets row. */
@@ -106,7 +115,7 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
-  const { game, format, sort, dir, limit, offset } = parsed.data;
+  const { game, format, sort, dir, limit, offset, tokens } = parsed.data;
 
   const seededFormat = format ? findFormat(game, format) : undefined;
   if (format && !seededFormat) {
@@ -181,7 +190,12 @@ export async function GET(request: NextRequest) {
     attrs: ci.attrs,
   };
   const total = sql<number>`count(*) over()::int`;
-  const where = and(eq(ci.gameId, GAME_ID[game]), eq(ci.isRemoved, false), ...conditions);
+  const where = and(
+    eq(ci.gameId, GAME_ID[game]),
+    eq(ci.isRemoved, false),
+    tokens ? tokenSql(ci.attrs) : notTokenSql(ci.attrs),
+    ...conditions,
+  );
 
   const db = getDb();
   const rows = inSet

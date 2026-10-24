@@ -75,6 +75,11 @@
  * reading width, Sample hand and Analytics (the share variant: thin curve
  * bars and one stacked bar per breakdown). The cost groups' h3s are the
  * page's only uppercase labels.
+ *
+ * DECK-TOKENS: the groups read in the adapter's `typeOrder` (the editor's),
+ * and a deck holding tokens shows its Tokens section after them, inside
+ * Cards — read-only, closed until opened, in the page's View, its open state
+ * not remembered (the rule above for every toggle here).
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -96,6 +101,7 @@ import { OwnerShareRow } from "@/components/deck/owner-share-row";
 import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { useBracketFacts } from "@/components/deck/use-bracket-facts";
+import { TokensSection } from "@/components/deck/tokens-section";
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { useTier } from "@/components/editor/use-tier";
 import { EmptyState } from "@/components/empty-state";
@@ -124,6 +130,7 @@ import {
 import type { ForkCredit } from "@/lib/decks/fork-credit";
 import { readGoals, type DeckGoals } from "@/lib/decks/goals";
 import { hasLeader } from "@/lib/decks/panel-view";
+import { playableEntries, tokenZoneOf } from "@/lib/decks/playable";
 import { releasedLabel, type PreconInfo } from "@/lib/decks/precon-info";
 import { getDeckToken } from "@/lib/decks/token-store";
 import { issueSeverityByCard, toDeckSnapshot } from "@/lib/decks/validation";
@@ -251,6 +258,7 @@ export function DeckShareView({
   const format = adapter?.formats.find((f) => f.code === deck.format);
 
   const [view, setView] = useState<DeckViewMode>("text");
+  const [tokensOpen, setTokensOpen] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupKey>(
     adapter?.display.defaultGroupBy ?? "primaryType",
   );
@@ -319,7 +327,11 @@ export function DeckShareView({
 
   // The bracket read (Y5): the page's facts, or the client's ask (the
   // private gate) — the editor's hook, the editor's GET.
-  const factsIdList = useMemo(() => factsIds(entries), [entries]);
+  // The playable list's ids (DECK-TOKENS), like the editor's.
+  const factsIdList = useMemo(
+    () => factsIds(format ? playableEntries(entries, format) : entries),
+    [entries, format],
+  );
   const clientFacts = useBracketFacts({
     game: adapter?.id ?? "mtg",
     enabled:
@@ -377,8 +389,13 @@ export function DeckShareView({
     );
   }
 
-  const { leader, rest } = splitLeaderEntries(entries, format);
-  const groups = groupDeckEntries(rest, cardMap, groupBy, sortBy);
+  const { leader, rest, aside } = splitLeaderEntries(entries, format);
+  const groups = groupDeckEntries(rest, cardMap, groupBy, sortBy, adapter.display.typeOrder);
+  const tokenZone = tokenZoneOf(format);
+  const tokenItems = aside.flatMap((entry) => {
+    const card = entry.zone === tokenZone?.id ? cardMap.get(entry.cardId) : undefined;
+    return card ? [{ entry, card }] : [];
+  });
   const severity = issueSeverityByCard(issues);
   const leaderItems = leader.flatMap((entry) => {
     const card = cardMap.get(entry.cardId);
@@ -713,6 +730,20 @@ export function DeckShareView({
             onPreview={onPreview}
             owned={owned}
             adapter={adapter}
+          />
+        )}
+        {tokenZone && tokenItems.length > 0 && (
+          <TokensSection
+            className="mt-2"
+            adapter={adapter}
+            zone={tokenZone}
+            items={tokenItems}
+            view={view}
+            open={tokensOpen}
+            onOpenChange={setTokensOpen}
+            onPreview={onPreview}
+            owned={owned}
+            preview
           />
         )}
       </section>

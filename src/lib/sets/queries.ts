@@ -6,6 +6,7 @@
 import { and, asc, desc, eq, exists, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
+import { notTokenSql } from "@/lib/cards/tokens-sql";
 import { placeSets, type ReleasedSet } from "@/lib/sets/lines";
 import { releasedPaperSet } from "@/lib/sets/sql";
 
@@ -35,7 +36,10 @@ export async function loadReleasedSets(gameId: number): Promise<ReleasedSet[]> {
           db
             .select({ one: sql`1` })
             .from(ci)
-            .where(and(eq(ci.id, cp.cardIdentityId), eq(ci.isRemoved, false))),
+            // Cards, not tokens (DECK-TOKENS): token sets stay off /sets and the Set picker.
+            .where(
+              and(eq(ci.id, cp.cardIdentityId), eq(ci.isRemoved, false), notTokenSql(ci.attrs)),
+            ),
         ),
       ),
     )

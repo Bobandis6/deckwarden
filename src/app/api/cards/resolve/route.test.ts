@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
+import { TOKEN_DOC } from "@/lib/cards/tokens";
 
 interface Statement {
   sql: string;
@@ -72,7 +73,7 @@ describe("pass 2's LIKE patterns", () => {
     expect(res.status).toBe(200);
     const stmt = pass2();
     expect(stmt.sql).toContain(
-      '"card_identities"."name_norm" LIKE ANY(ARRAY[$4, $5, $6, $7]::text[])',
+      '"card_identities"."name_norm" LIKE ANY(ARRAY[$5, $6, $7, $8]::text[])',
     );
     expect(patterns(stmt)).toEqual([
       "100\\% %",
@@ -82,6 +83,22 @@ describe("pass 2's LIKE patterns", () => {
     ]);
     // Every pattern still ends in the literal " %" the front-face match needs.
     for (const p of patterns(stmt)) expect(String(p).endsWith(" %")).toBe(true);
+  });
+
+  it("the name passes never return a token; pass 0 may (DECK-TOKENS)", async () => {
+    await post({ names: ["Mutavault", "Fable of the Mirror-Breaker"] });
+    const guard = 'NOT ("card_identities"."attrs" @> $';
+    const byName = statements.filter((s) => s.sql.includes("name_norm"));
+    expect(byName.length).toBeGreaterThan(0);
+    for (const s of byName) {
+      expect(s.sql).toContain(guard);
+      expect(s.params).toContain(TOKEN_DOC);
+    }
+    statements = [];
+    await post({ names: ["c983338d-ae6b-4c42-b1df-1fd1ed1ee7a4"] });
+    const byKey = statements.find((s) => s.sql.includes('"external_key" in'));
+    expect(byKey).toBeDefined();
+    expect(byKey!.sql).not.toContain(guard);
   });
 
   it("a name with none of the three binds exactly as before", async () => {

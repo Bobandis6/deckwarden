@@ -120,6 +120,20 @@ describe("applyImport", () => {
     expect(cards.map((c) => c.name)).toContain("Island");
   });
 
+  it("replace mode keeps the Tokens zone (DECK-TOKENS): a paste replaces the 100, not the tokens", () => {
+    const existing = [
+      { cardId: "old", zone: "main", qty: 5, tags: [] },
+      { cardId: "treasure", zone: "tokens", qty: 3, tags: [] },
+    ];
+    const { entries } = applyImport(existing, items, COMMANDER, "replace");
+    expect(entries.map((e) => `${e.zone}:${e.cardId}`)).toEqual([
+      "tokens:treasure",
+      `commander:${atraxa.id}`,
+      `main:${solRing.id}`,
+      `main:${island.id}`,
+    ]);
+  });
+
   it("add mode merges quantities into existing entries", () => {
     const existing = [{ cardId: island.id, zone: "main", qty: 2, tags: ["mana"] }];
     const { entries } = applyImport(existing, items, COMMANDER, "add");

@@ -20,6 +20,7 @@
 import { and, asc, desc, eq, inArray, notInArray, sql, type SQL } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
+import { notTokenSql } from "@/lib/cards/tokens-sql";
 import { loadCombosNearDeck } from "@/lib/combos/queries";
 import type { BracketsMeta, RecommendMeta } from "@/lib/games/types";
 import type { TournamentContext, TournamentSignal } from "./rank";
@@ -131,6 +132,8 @@ export function candidateConditions(f: CandidateFilter): SQL[] {
     sql`${cardIdentities.gameId} = ${f.gameId}`,
     sql`${cardIdentities.isRemoved} = false`,
     sql`${cardIdentities.isPreview} = false`,
+    // Never a token (DECK-TOKENS) — said here, not left to tokens' not_legal rows.
+    notTokenSql(cardIdentities.attrs),
     // ::int disambiguates ~ (bitwise NOT) from ~ (regex) on the untyped param.
     sql`(${cardIdentities.ciMask} & ~${f.deckCiMask}::int) = 0`,
     sql`NOT EXISTS (

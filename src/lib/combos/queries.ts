@@ -333,11 +333,20 @@ export async function loadCompleteCombos(
     .orderBy(sql`${combos.popularity} DESC NULLS LAST`, combos.id);
 }
 
-/** The deck's distinct card identities (all zones) — detection input. */
-export async function loadDeckCardIds(deckId: string): Promise<string[]> {
+/**
+ * The deck's distinct card identities — detection input. `zones` narrows it
+ * to the playable list (DECK-TOKENS: src/lib/decks/playable.ts — a token
+ * completes no combo); absent = every zone.
+ */
+export async function loadDeckCardIds(
+  deckId: string,
+  zones?: readonly string[],
+): Promise<string[]> {
   const rows = await getDb()
     .selectDistinct({ id: deckCards.cardIdentityId })
     .from(deckCards)
-    .where(eq(deckCards.deckId, deckId));
+    .where(
+      and(eq(deckCards.deckId, deckId), zones ? inArray(deckCards.zone, [...zones]) : undefined),
+    );
   return rows.map((r) => r.id);
 }

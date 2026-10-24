@@ -47,6 +47,34 @@ export function cardListIssues(entries: DeckCardInput[], format: FormatDef): str
 }
 
 /**
+ * The token rule (DECK-TOKENS): a zone that holds tokens (`ZoneDef.holds`)
+ * takes only token-catalog objects, and every other zone takes none — so a
+ * token never enters the 100 and the Tokens zone never becomes a maybeboard.
+ * Game-ignorant like cardListIssues: `isToken` says what each card is, read
+ * by the caller from the rows it already holds; unknown zones are
+ * cardListIssues' to report. [] = ok.
+ */
+export function tokenZoneIssues(
+  entries: readonly DeckCardInput[],
+  format: FormatDef,
+  isToken: (cardId: string) => boolean,
+): string[] {
+  const holds = new Map(format.zones.map((z) => [z.id, z.holds ?? "cards"]));
+  const issues: string[] = [];
+  for (const entry of entries) {
+    const zoneHolds = holds.get(entry.zone);
+    if (zoneHolds === undefined) continue;
+    const token = isToken(entry.cardId);
+    if (zoneHolds === "tokens" && !token) {
+      issues.push(`Card ${entry.cardId} is not a token; zone "${entry.zone}" holds tokens only`);
+    } else if (zoneHolds === "cards" && token) {
+      issues.push(`Card ${entry.cardId} is a token, which zone "${entry.zone}" can't hold`);
+    }
+  }
+  return issues;
+}
+
+/**
  * The decks-table denorms driven by the command zone: leader_ids (order
  * preserved — partners) and deck ci_mask = OR of the leaders' color identity.
  */

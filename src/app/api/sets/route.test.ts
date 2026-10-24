@@ -11,6 +11,7 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
+import { TOKEN_DOC } from "@/lib/cards/tokens";
 
 interface Statement {
   sql: string;
@@ -76,7 +77,9 @@ describe("GET /api/sets", () => {
       `(NOT "sets"."digital" AND "sets"."released_at" <= (now() AT TIME ZONE 'UTC')::date)`,
     );
     expect(s.sql).toMatch(/order by "sets"\."released_at" desc, "cards" desc, "sets"\."name" asc$/);
-    expect(s.params).toEqual([1, false, false, 1]);
+    // DECK-TOKENS: a set counts its cards, never its tokens (token sets stay off /sets).
+    expect(s.sql).toContain(`and NOT ("card_identities"."attrs" @> $`);
+    expect(s.params).toEqual([1, false, false, TOKEN_DOC, 1]);
     expect(body.sets).toEqual([
       {
         code: "blb",

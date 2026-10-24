@@ -8,7 +8,9 @@
  * The client sends ids only; every fact (type, cost, color identity,
  * legality, price) is read server-side, so a crafted body can't smuggle a
  * wrong ciMask past the deterministic filter. `leaderIds` owns the command
- * zone — keep entries there answer 400.
+ * zone — keep entries there answer 400, and so do keep entries in a zone
+ * outside the playable list (DECK-TOKENS: the Tokens zone is no part of the
+ * 100 the plan fills).
  *
  * A game whose adapter declares no `recommend.autofill` answers 400 (One
  * Piece — that IS the OP deliverable; no apology copy, it's an API).
@@ -41,6 +43,7 @@ import { loadCompleteCombos } from "@/lib/combos/queries";
 import { clientIp } from "@/lib/decks/access";
 import { cardListIssues, type DeckCardInput } from "@/lib/decks/cards";
 import { goalsSchema, type DeckGoals } from "@/lib/decks/goals";
+import { isPlayableZone } from "@/lib/decks/playable";
 import { toDeckSnapshot } from "@/lib/decks/validation";
 import { getAdapter } from "@/lib/games/registry";
 import type { CardData, DeckEntry } from "@/lib/games/types";
@@ -116,6 +119,8 @@ export async function POST(request: NextRequest) {
   if (keep.some((k) => k.zone === leaderZone.id)) {
     return badRequest(`Leaders go in leaderIds, not keep (zone "${leaderZone.id}")`);
   }
+  const aside = keep.find((k) => !isPlayableZone(formatDef, k.zone));
+  if (aside) return badRequest(`Zone "${aside.zone}" is not part of the plan`);
   const goals =
     body.goals === undefined || body.goals === null
       ? null

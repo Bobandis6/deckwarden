@@ -51,7 +51,8 @@ import { z } from "zod";
 
 import { getDb, schema, type DbExecutor, type Tx } from "@/db";
 import type { DeckVersionKind } from "@/db/schema";
-import { cardListIssues, type DeckCardInput } from "@/lib/decks/cards";
+import { tokenSql } from "@/lib/cards/tokens-sql";
+import { cardListIssues, tokenZoneIssues, type DeckCardInput } from "@/lib/decks/cards";
 import type { FrozenCard } from "@/lib/decks/diff";
 import { playableListHash } from "@/lib/decks/list-hash";
 import { MAX_PLAYED_SNAPSHOTS_PER_DECK } from "@/lib/journal/limits";
@@ -135,18 +136,43 @@ export interface VersionDetail extends VersionSummary {
   cards: FrozenCard[];
 }
 
-/** The versions list, newest first, with each row's playable-list hash (Y10: the versions GET's "No card changes since vN"). */
+/**
+ * A frozen list's size: its copies in the given zones — the playable list
+ * (DECK-TOKENS: "100 cards", never 100 plus the Tokens zone; a One Piece
+ * list still counts its leader, as it always has) — or every copy when the
+ * caller can't say which zones count.
+ */
+export function frozenCount(
+  cards: readonly { zone: string; qty: number }[],
+  counted?: readonly string[],
+): number {
+  return cards.reduce((n, c) => (!counted || counted.includes(c.zone) ? n + c.qty : n), 0);
+}
+
+/**
+ * The versions list, newest first, with each row's playable-list hash (Y10:
+ * the versions GET's "No card changes since vN"). `counted` = the zones
+ * frozenCount counts (DECK-TOKENS).
+ */
 export async function listVersions(
   deckId: string,
+  counted?: readonly string[],
 ): Promise<(VersionSummary & { listHash: string | null })[]> {
   const db = getDb();
+  const zoneFilter =
+    counted && counted.length > 0
+      ? sql` where c->>'zone' in (${sql.join(
+          counted.map((z) => sql`${z}`),
+          sql`, `,
+        )})`
+      : sql``;
   return db
     .select({
       version: deckVersions.version,
       note: deckVersions.note,
       kind: deckVersions.kind,
       createdAt: deckVersions.createdAt,
-      cardCount: sql<number>`coalesce((select sum((c->>'qty')::int) from jsonb_array_elements(${deckVersions.cards}) c), 0)::int`,
+      cardCount: sql<number>`coalesce((select sum((c->>'qty')::int) from jsonb_array_elements(${deckVersions.cards}) c${zoneFilter}), 0)::int`,
       listHash: deckVersions.listHash,
     })
     .from(deckVersions)
@@ -230,6 +256,7 @@ export async function lockDeck(tx: Tx, deckId: string): Promise<boolean> {
  * hash. Caller holds the row lock (lockDeck) — the count check is only safe
  * under it. Each kind counts against its own ceiling: `saved` the 50 cap
  * (VersionCapError), `played` the allowance (PlayedAllowanceError).
+ * `counted` sizes the returned cardCount (frozenCount).
  */
 export async function insertVersion(
   tx: Tx,
@@ -237,6 +264,7 @@ export async function insertVersion(
   cards: readonly FrozenCard[],
   note: string | null,
   kind: DeckVersionKind = "saved",
+  counted?: readonly string[],
 ): Promise<{ version: number; cardCount: number }> {
   const [{ n }] = await tx
     .select({ n: sql<number>`count(*)::int` })
@@ -257,19 +285,20 @@ export async function insertVersion(
     listHash: playableListHash(cards),
     kind,
   });
-  return { version: bumped.version, cardCount: cards.reduce((c, e) => c + e.qty, 0) };
+  return { version: bumped.version, cardCount: frozenCount(cards, counted) };
 }
 
-/** "Save version": snapshot the live list under a note. */
+/** "Save version": snapshot the live list under a note; `counted` sizes the toast's count. */
 export async function saveVersion(
   deckId: string,
   note: string | null,
+  counted?: readonly string[],
 ): Promise<{ version: number; cardCount: number }> {
   const db = getDb();
   return db.transaction(async (tx) => {
     await lockDeck(tx, deckId);
     const cards = await loadLiveFrozen(tx, deckId);
-    return insertVersion(tx, deckId, cards, note);
+    return insertVersion(tx, deckId, cards, note, "saved", counted);
   });
 }
 
@@ -382,7 +411,11 @@ export async function restoreVersion(
     const [identityRows, printingRows] = await Promise.all([
       cardIds.length > 0
         ? tx
-            .select({ id: cardIdentities.id, ciMask: cardIdentities.ciMask })
+            .select({
+              id: cardIdentities.id,
+              ciMask: cardIdentities.ciMask,
+              isToken: sql<boolean>`${tokenSql(cardIdentities.attrs)}`,
+            })
             .from(cardIdentities)
             .where(and(inArray(cardIdentities.id, cardIds), eq(cardIdentities.gameId, deck.gameId)))
         : Promise.resolve([]),
@@ -399,7 +432,12 @@ export async function restoreVersion(
       new Set(ciMaskByCard.keys()),
       new Map(printingRows.map((r) => [r.id, r.cardIdentityId])),
     );
-    const issues = cardListIssues(resolved.entries, format);
+    // The save route's token rule too (DECK-TOKENS): a restore writes rows the same way.
+    const tokenIds = new Set(identityRows.filter((r) => r.isToken).map((r) => r.id));
+    const issues = [
+      ...cardListIssues(resolved.entries, format),
+      ...tokenZoneIssues(resolved.entries, format, (id) => tokenIds.has(id)),
+    ];
     if (issues.length > 0) return { ok: false, error: "invalid", issues } as const;
 
     // Safety snapshot BEFORE the replace, so the restore itself is undoable.

@@ -72,6 +72,7 @@ import { BRACKET_COPY } from "@/lib/brackets/copy";
 import type { EditorCard } from "@/lib/decks/editor-state";
 import { goalsPatchBody, suggestionGoals, withBudget, type DeckGoals } from "@/lib/decks/goals";
 import { deckStateKey, hasLeader, snapshotBody } from "@/lib/decks/panel-view";
+import { playableEntries } from "@/lib/decks/playable";
 import { DECK_TOKEN_HEADER, getDeckToken } from "@/lib/decks/token-store";
 import type { GoalConflict } from "@/lib/recommend/goals";
 import type { Confidence, Recommendation } from "@/lib/recommend/types";
@@ -159,7 +160,7 @@ export function RecommendationsPanel({
   // alone (the exceptions line) never asks again; one that changes them does.
   const sentGoals = useMemo(() => suggestionGoals(goals), [goals]);
   const goalsKey = goalsPatchBody(sentGoals);
-  const fetchKey = `${deckStateKey(entries)}§b:${budget}§o:${wantOwned ? 1 : 0}§g:${goalsKey}§n:${nonce}`;
+  const fetchKey = `${deckStateKey(playableEntries(entries, format))}§b:${budget}§o:${wantOwned ? 1 : 0}§g:${goalsKey}§n:${nonce}`;
   // A draft's request (Y2b): a string, so an edit that leaves the snapshot
   // alone (a tag, a printing) leaves the effect alone too.
   const draftBody = useMemo(

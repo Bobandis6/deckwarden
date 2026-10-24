@@ -14,9 +14,11 @@ import { describe, expect, it, vi } from "vitest";
 import * as schema from "@/db/schema";
 
 // 38,192 MTG + OP identities on production (2026-10-18): four card chunks.
+const statements: { sql: string; params: unknown[] }[] = [];
 const fakeClient = {
   options: { parsers: {}, serializers: {} },
-  unsafe() {
+  unsafe(sql: string, params: unknown[]) {
+    statements.push({ sql, params });
     return { values: async () => [["38192"]], then: undefined };
   },
 };
@@ -55,6 +57,12 @@ function groupFor(token: string) {
 const STAR_RULES = ["Allow: /", "Disallow: /api/", "Disallow: /decks/", "Disallow: /account"];
 
 describe("robots.txt", () => {
+  it("counts the sitemap's cards, never tokens (DECK-TOKENS: a token page is noindex)", () => {
+    expect(statements).toHaveLength(1);
+    expect(statements[0].sql).toContain('NOT ("card_identities"."attrs" @> $');
+    expect(statements[0].params).toContain('{"is_token":true}');
+  });
+
   it("shuts the three AI training crawlers out of the whole site", () => {
     for (const token of ["Reflectionbot", "ClaudeBot", "GPTBot"]) {
       expect(groupFor(token)?.agents, token).not.toContain("*");

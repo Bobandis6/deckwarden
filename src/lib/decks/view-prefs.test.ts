@@ -17,6 +17,15 @@ describe("parseViewPrefs", () => {
     });
   });
 
+  it("keeps the Tokens section's open state only as a boolean (DECK-TOKENS)", () => {
+    expect(parseViewPrefs('{"view":"text","tokensOpen":true}')).toEqual({
+      view: "text",
+      tokensOpen: true,
+    });
+    expect(parseViewPrefs('{"tokensOpen":false}')).toEqual({ tokensOpen: false });
+    expect(parseViewPrefs('{"tokensOpen":"yes"}')).toEqual({});
+  });
+
   it("returns empty prefs for null, junk JSON, and non-objects", () => {
     expect(parseViewPrefs(null)).toEqual({});
     expect(parseViewPrefs("not json")).toEqual({});

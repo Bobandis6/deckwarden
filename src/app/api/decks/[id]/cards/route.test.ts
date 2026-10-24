@@ -94,8 +94,31 @@ const deck: Record<string, unknown> = {
 };
 const deckRow = COLUMNS.map((c) => deck[c]);
 
+/** The fake's one token identity (DECK-TOKENS): a Treasure. */
+const TREASURE = U(9);
+
 /** A card row in the route's select order (id … attrs). */
 function cardRow(id: string, commander = false): unknown[] {
+  if (id === TREASURE) {
+    return [
+      id,
+      "Treasure",
+      `key-${id}`,
+      "Artifact",
+      0,
+      0,
+      0,
+      false,
+      false,
+      "0.10",
+      null,
+      {
+        type_line: "Token Artifact — Treasure",
+        oracle_text: "{T}, Sacrifice this token: Add one mana of any color.",
+        is_token: true,
+      },
+    ];
+  }
   return [
     id,
     commander ? "Atraxa, Praetors' Voice" : `Card ${id.slice(-2)}`,
@@ -131,9 +154,14 @@ function answer(sql: string, params: unknown[], tx: Tx | null, who: string): unk
     log.push(`${who}:legality`);
     return [];
   }
-  if (sql.startsWith('select "id", "ci_mask" from "card_identities"')) {
+  if (
+    sql.startsWith(
+      'select "id", "ci_mask", "card_identities"."attrs" @> $1::jsonb from "card_identities"',
+    )
+  ) {
+    // restoreVersion's read (DECK-TOKENS adds isToken, its document bound first).
     log.push(`${who}:identities`);
-    return (params.slice(0, -1) as string[]).map((id) => [id, 0]);
+    return (params.slice(1, -1) as string[]).map((id) => [id, 0, id === TREASURE]);
   }
   if (sql.includes('from "card_identities"')) {
     log.push(`${who}:cards`);
@@ -157,7 +185,14 @@ function answer(sql: string, params: unknown[], tx: Tx | null, who: string): unk
         "2026-10-01T00:00:00.000Z",
         [
           { cardId: U(1), zone: "commander", qty: 1, tags: [], printingId: null },
-          { cardId: U(3), zone: "main", qty: 1, tags: [], printingId: null },
+          // Version 9 (DECK-TOKENS): a Treasure frozen in main, which no save could write now.
+          {
+            cardId: params[1] === 9 ? TREASURE : U(3),
+            zone: "main",
+            qty: 1,
+            tags: [],
+            printingId: null,
+          },
         ],
       ],
     ];
@@ -358,6 +393,56 @@ describe("the limiter around the gate (M1)", () => {
     }
     expect(counters.keys()).toEqual([]);
     expect(log).toEqual([]);
+  });
+});
+
+describe("the token rule (DECK-TOKENS)", () => {
+  it("a Treasure in the tokens zone saves beside the 100", async () => {
+    const res = await put({
+      ip: OWNER_IP,
+      token: TOKEN,
+      body: { cards: [...PUT_LIST, { cardId: TREASURE, zone: "tokens", qty: 5 }] },
+    });
+    expect(res.status).toBe(200);
+    expect(committed()).toContain("tokens|" + TREASURE);
+  });
+
+  it("a Treasure in main is a 400 naming it, and nothing is written", async () => {
+    const res = await put({
+      ip: OWNER_IP,
+      token: TOKEN,
+      body: { cards: [...PUT_LIST, { cardId: TREASURE, zone: "main", qty: 1 }] },
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "Tokens and cards in the wrong zone",
+      issues: [`Card ${TREASURE} is a token, which zone "main" can't hold`],
+    });
+    expect(log.some((l) => l.endsWith(":begin"))).toBe(false);
+    expect(committed()).toEqual(["commander|" + U(1), "main|" + U(2)]);
+  });
+
+  it("a restore refuses a version holding a token in the 100, before any write", async () => {
+    const format = deckFormat({ gameId: GAME_ID.mtg, formatId: 1 })!.format;
+    const restored = await restoreVersion({ id: DECK, gameId: GAME_ID.mtg }, 9, format);
+    expect(restored).toEqual({
+      ok: false,
+      error: "invalid",
+      issues: [`Card ${TREASURE} is a token, which zone "main" can't hold`],
+    });
+    expect(log.some((l) => l.endsWith(":delete"))).toBe(false);
+  });
+
+  it("a card in the tokens zone is a 400 too", async () => {
+    const res = await put({
+      ip: OWNER_IP,
+      token: TOKEN,
+      body: { cards: [...PUT_LIST, { cardId: U(5), zone: "tokens", qty: 1 }] },
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).issues).toEqual([
+      `Card ${U(5)} is not a token; zone "tokens" holds tokens only`,
+    ]);
   });
 });
 

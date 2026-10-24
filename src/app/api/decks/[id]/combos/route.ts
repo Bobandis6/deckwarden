@@ -31,6 +31,7 @@ import { noStoreJson } from "@/lib/api/json";
 import { loadCombosNearDeck, loadDeckCardIds } from "@/lib/combos/queries";
 import { deckComboStatus } from "@/lib/combos/view";
 import { clientIp } from "@/lib/decks/access";
+import { playableZoneIds } from "@/lib/decks/playable";
 import { deckFormat, requireReadableDeck } from "@/lib/decks/route-helpers";
 import type { TournamentCutSignals } from "@/lib/recommend/cuts";
 import { loadTournamentSignals } from "@/lib/recommend/queries";
@@ -47,7 +48,12 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   if (access instanceof NextResponse) return access;
   const { deck } = access;
 
-  const cardIds = await loadDeckCardIds(deck.id);
+  // The playable list only (DECK-TOKENS): the Tokens zone completes nothing.
+  const playable = deckFormat(deck);
+  const cardIds = await loadDeckCardIds(
+    deck.id,
+    playable ? playableZoneIds(playable.format) : undefined,
+  );
   const found = await loadCombosNearDeck(cardIds, deck.ciMask, { includeComplete: true });
 
   // Bucketed by the one shared classifier: template-gated combos stay in
@@ -63,7 +69,7 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   // so a zero there would be fabricated, and the Coach never ranks the
   // leader zone anyway. Games without tournaments meta (OP) skip the reads
   // entirely and answer the honest empty shape.
-  const meta = deckFormat(deck)?.adapter.recommend;
+  const meta = playable?.adapter.recommend;
   let tournaments: TournamentCutSignals = { context: null, byCard: {} };
   if (meta?.tournaments) {
     const signals = await loadTournamentSignals(deck.leaderIds, cardIds);

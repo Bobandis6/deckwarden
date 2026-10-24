@@ -13,6 +13,13 @@
  * Results are CardWire-shaped (attrs + image + legality when `format` given)
  * so the editor can drop them straight into its card map.
  *
+ * Tokens (DECK-TOKENS): the name passes never return a token-catalog object
+ * — 90 token names are also card names (a pasted "Mutavault" is the land)
+ * and 105 name several tokens (fifteen Soldiers), so a pasted token line
+ * stays a miss rather than a guess. Pass 0 does return them: an oracle id
+ * names exactly one object, and the Tokens section's "From your cards"
+ * hydrates its keys (a card's `attrs.tokens`) here.
+ *
  * Caching intent: dynamic (POST body-driven); responses are no-store — the
  * import dialog is a one-shot flow, not a hot path.
  */
@@ -25,6 +32,7 @@ import { findFormat, GAME_ID } from "@/db/seed-data";
 import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { normalizeCardName } from "@/lib/cards/normalize";
 import { classifyResolveToken, isBareIdToken } from "@/lib/cards/resolve-token";
+import { notTokenSql } from "@/lib/cards/tokens-sql";
 import { toWire, wireSelect, type WireRow } from "@/lib/cards/wire";
 import { clientIp } from "@/lib/decks/access";
 import { fetchLegalityMap } from "@/lib/decks/legality";
@@ -69,6 +77,8 @@ export async function POST(request: NextRequest) {
 
   const db = getDb();
   const gameCond = and(eq(ci.gameId, GAME_ID[game]), eq(ci.isRemoved, false));
+  // The name passes' scope: deck cards only (docblock).
+  const nameCond = and(gameCond, notTokenSql(ci.attrs));
 
   const norms = [...new Set(names.map(normalizeCardName))].filter(Boolean);
 
@@ -101,7 +111,7 @@ export async function POST(request: NextRequest) {
 
   // Pass 1: exact normalized-name match, one query for the whole paste.
   if (norms.length > 0) {
-    const rows = await wireSelect(db).where(and(gameCond, inArray(ci.nameNorm, norms)));
+    const rows = await wireSelect(db).where(and(nameCond, inArray(ci.nameNorm, norms)));
     for (const row of rows) {
       const prev = matchByNorm.get(row.nameNorm);
       matchByNorm.set(row.nameNorm, prev ? better(prev, row) : row);
@@ -125,7 +135,7 @@ export async function POST(request: NextRequest) {
     );
     const rows = await wireSelect(db).where(
       and(
-        gameCond,
+        nameCond,
         sql`${ci.name} LIKE '% // %'`,
         sql`${ci.nameNorm} LIKE ANY(ARRAY[${patterns}]::text[])`,
       ),
@@ -150,7 +160,7 @@ export async function POST(request: NextRequest) {
       .slice(0, FUZZY_LIMIT)
       .map(async (miss) => {
         const rows = await wireSelect(db)
-          .where(and(gameCond, sql`${ci.nameNorm} % ${miss}`))
+          .where(and(nameCond, sql`${ci.nameNorm} % ${miss}`))
           .orderBy(
             sql`similarity(${ci.nameNorm}, ${miss}) DESC`,
             sql`${ci.popularity} ASC NULLS LAST`,

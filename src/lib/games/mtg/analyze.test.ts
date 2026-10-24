@@ -54,14 +54,20 @@ describe("analyzeMtg", () => {
     expect(stat.value).toBe("2.00"); // (1 + 1 + 4) / 3
   });
 
-  it("counts lands and breaks down types by quantity", () => {
+  it("counts lands and breaks down types in the deck list's type order (DECK-TOKENS)", () => {
     const lands = block(blocks, "lands");
     if (lands.kind !== "stat") throw new Error("wrong kind");
     expect(lands.value).toBe("30");
 
+    // Not biggest-first: the 30 Islands stay last, as Lands do in the list.
     const types = block(blocks, "types");
     if (types.kind !== "breakdown") throw new Error("wrong kind");
-    expect(types.slices[0]).toEqual({ label: "Land", value: 30 });
+    expect(types.slices).toEqual([
+      { label: "Creature", value: 1 },
+      { label: "Instant", value: 1 },
+      { label: "Artifact", value: 1 },
+      { label: "Land", value: 30 },
+    ]);
   });
 
   it("tallies mana sources by color, lands split from other producers", () => {

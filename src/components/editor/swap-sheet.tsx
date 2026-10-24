@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { BracketFactsState } from "@/lib/brackets/facts";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
+import { playableEntries } from "@/lib/decks/playable";
 import type { CompleteCombo, FormatDef, GameAdapter } from "@/lib/games/types";
 import { completeCombosByCard, type CutEntryInput } from "@/lib/recommend/cuts";
 import { cutCombosFromFacts, planSwapIn, type SwapInOption } from "@/lib/recommend/swap-in";
@@ -140,7 +141,8 @@ export function SwapInSheet({
   const plan = useMemo(() => {
     if (!recommend || !mainZone) return null;
     const cutEntries: CutEntryInput[] = [];
-    for (const e of entries) {
+    // The playable list (DECK-TOKENS): a token is no curve slot and no cut partner.
+    for (const e of playableEntries(entries, format)) {
       const card = cards.get(e.cardId);
       if (card) cutEntries.push({ card, zone: e.zone, qty: e.qty, tags: e.tags });
     }
@@ -156,7 +158,7 @@ export function SwapInSheet({
       incoming,
       zone: mainZone.id,
     });
-  }, [recommend, mainZone, entries, cards, adapter, leaderZones, combos, incoming]);
+  }, [recommend, mainZone, entries, format, cards, adapter, leaderZones, combos, incoming]);
 
   if (!meta || !plan) return null;
   const max = format.deckSize.max;

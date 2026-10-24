@@ -16,6 +16,7 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { GAME_ID } from "@/db/seed-data";
+import { notTokenSql } from "@/lib/cards/tokens-sql";
 import { getAdapter } from "@/lib/games/registry";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +54,10 @@ export async function GET(request: NextRequest) {
   const rows = await getDb()
     .selectDistinct({ value: sql<string>`jsonb_array_elements_text(${ci.attrs}->${path[0]})` })
     .from(ci)
-    .where(sql`${ci.gameId} = ${GAME_ID[game]} AND NOT ${ci.isRemoved}`)
+    // Deck cards' options only (DECK-TOKENS): a token's keyword is no filter value.
+    .where(
+      sql`${ci.gameId} = ${GAME_ID[game]} AND NOT ${ci.isRemoved} AND ${notTokenSql(ci.attrs)}`,
+    )
     .orderBy(sql`1`);
 
   return NextResponse.json(

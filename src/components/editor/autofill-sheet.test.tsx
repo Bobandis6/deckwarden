@@ -260,6 +260,27 @@ describe("AutofillSheet", () => {
     expect(apply.entries).toHaveLength(4);
   });
 
+  it("tokens are neither kept, counted nor sent, and Apply carries them through either way (DECK-TOKENS)", async () => {
+    const tokenEntry: EditorEntry = { cardId: "treasure-token", zone: "tokens", qty: 4, tags: [] };
+    const onApply = vi.fn();
+    render(sheet({ entries: [leaderEntry, keptEntry, tokenEntry], onApply }));
+    await screen.findByText("Lands · 12");
+    // "Keep my 1 card": the Signet, not the four Treasures.
+    expect(screen.getByRole("checkbox", { name: "Keep my 1 card" })).toBeTruthy();
+    expect(bodies()[0].keep).toEqual([{ cardId: signet.id, zone: "main", qty: 1 }]);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep my 1 card" }));
+    await screen.findByText("Lands · 12");
+    expect(bodies().at(-1)?.keep).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Add 13 cards" }));
+    const apply = onApply.mock.calls[0][0] as AutofillApply;
+    // The plan replaces the 100's non-leader cards, never the Tokens zone.
+    expect(apply.entries.slice(0, 2)).toEqual([leaderEntry, tokenEntry]);
+    // W9b's replace (the unchecked test above: leader + 3 picks) plus the tokens, the kept row gone.
+    expect(apply.entries).toHaveLength(5);
+    expect(apply.entries).not.toContainEqual(keptEntry);
+  });
+
   it("budget chips re-POST with budgetUsd (absent / 5 / 1) and still no seed; Reroll re-POSTs the same body", async () => {
     render(sheet());
     await screen.findByText("Lands · 12");

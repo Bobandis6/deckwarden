@@ -67,19 +67,21 @@ export function artRequestPath(target: LeaderArtTarget): string {
 /**
  * Leader-zone entries in `leaderIds` order (the decks-row denorm, i.e. the
  * order of the last save) ahead of the rest in their given order — ids the
- * denorm does not know keep their relative order after the known ones.
+ * denorm does not know keep their relative order after the known ones. The
+ * entries set aside (DECK-TOKENS: the Tokens zone) follow, in their order:
+ * this rebuilds the WHOLE list the editor loads and saves back.
  */
 export function orderLeadersBy<E extends { zone: string; cardId: string }>(
   entries: readonly E[],
   format: FormatDef,
   leaderIds: readonly string[],
 ): E[] {
-  const { leader, rest } = splitLeaderEntries(entries, format);
-  if (leader.length < 2) return [...leader, ...rest];
+  const { leader, rest, aside } = splitLeaderEntries(entries, format);
+  if (leader.length < 2) return [...leader, ...rest, ...aside];
   const rank = new Map(leaderIds.map((id, i) => [id, i] as const));
   const unknown = leaderIds.length;
   const ordered = [...leader].sort(
     (a, b) => (rank.get(a.cardId) ?? unknown) - (rank.get(b.cardId) ?? unknown),
   );
-  return [...ordered, ...rest];
+  return [...ordered, ...rest, ...aside];
 }

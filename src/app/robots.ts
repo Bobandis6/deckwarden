@@ -25,6 +25,7 @@ import type { MetadataRoute } from "next";
 
 import { getDb, schema } from "@/db";
 import { GAME_ID } from "@/db/seed-data";
+import { notTokenSql } from "@/lib/cards/tokens-sql";
 import { absUrl, CARDS_SITEMAP_CHUNK } from "@/lib/seo/site";
 
 export const revalidate = 86400;
@@ -38,12 +39,14 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   const [{ n }] = await getDb()
     .select({ n: count() })
     .from(schema.cardIdentities)
-    // Must mirror cards/sitemap.ts's scope (MTG + OP since P4.4) or the
-    // chunk count here drifts from the chunks that actually exist.
+    // Must mirror cards/sitemap.ts's scope (MTG + OP since P4.4, tokens out
+    // since DECK-TOKENS) or the chunk count here drifts from the chunks that
+    // actually exist.
     .where(
       and(
         inArray(schema.cardIdentities.gameId, [GAME_ID.mtg, GAME_ID.optcg]),
         eq(schema.cardIdentities.isRemoved, false),
+        notTokenSql(schema.cardIdentities.attrs),
       ),
     );
   const chunks = Math.max(1, Math.ceil(n / CARDS_SITEMAP_CHUNK));

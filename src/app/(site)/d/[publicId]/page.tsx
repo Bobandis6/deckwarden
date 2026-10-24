@@ -54,6 +54,7 @@ import { forkCredit } from "@/lib/decks/forks";
 import { readGoals } from "@/lib/decks/goals";
 import { loadDeckLeaderArt } from "@/lib/decks/leader-art";
 import { hasLeader } from "@/lib/decks/panel-view";
+import { playableEntries } from "@/lib/decks/playable";
 import { loadPreconByDeckId } from "@/lib/decks/precons";
 import { deckFormat } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
@@ -134,7 +135,8 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
   // route answers from. Past FACTS_MAX_IDS distinct cards the combos aren't
   // asked ("over": the read says it couldn't check them). A load that fails
   // is left to the client, which asks the facts route like the editor.
-  const ids = factsIds(cards);
+  // The playable list's ids (DECK-TOKENS): tokens complete no combo.
+  const ids = factsIds(fmt ? playableEntries(cards, fmt.format) : cards);
   const bracketsOn = fmt?.adapter.brackets !== undefined && hasLeader(cards, fmt.format);
   const over = ids.length > FACTS_MAX_IDS;
   // "You own N/100 · missing ≈ $Y" (P3.7) — the signed-in viewer's OWN

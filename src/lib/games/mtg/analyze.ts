@@ -4,9 +4,11 @@
  * curve math. colorVar names are CSS custom properties the core's theme defines.
  */
 import { COLOR_BIT } from "../colors";
+import { typeGroupRank } from "../type-order";
 import type { AnalyticsBlock, CardData, DeckSnapshot } from "../types";
 import type { MtgAttrs } from "./attrs";
 import { MTG_CURVE_TEMPLATE } from "./recommend";
+import { MTG_TYPE_ORDER } from "./type-order";
 
 type MtgCard = CardData<MtgAttrs>;
 
@@ -113,8 +115,13 @@ export function analyzeMtg(
       kind: "breakdown",
       id: "types",
       title: "Card types",
+      // DECK-TOKENS: the deck list's type order (one constant), not biggest-first.
       slices: [...typeQty.entries()]
-        .sort((a, b) => b[1] - a[1])
+        .sort(
+          ([a], [b]) =>
+            typeGroupRank(MTG_TYPE_ORDER, a) - typeGroupRank(MTG_TYPE_ORDER, b) ||
+            a.localeCompare(b),
+        )
         .map(([label, value]) => ({ label, value })),
     },
     {

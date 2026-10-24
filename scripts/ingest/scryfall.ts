@@ -24,6 +24,13 @@
  * with the flags' fallback (a role that can't be read keeps its stored cards)
  * and its own switch in the overrides file; stats.tagger.roles says which.
  *
+ * Tokens (DECK-TOKENS): the token catalog streams in with everything else
+ * (scryfall-map.ts says which objects and why). A card's `all_parts` names
+ * token PRINTINGS, which may stream after the card, so the stream only
+ * collects — each catalog printing's oracle id, each other card's linked
+ * printing ids — and `attrs.tokens` is written into staging after it, before
+ * the identity merge; stats.tokens counts both sides.
+ *
  * IMPORTANT: uses the DIRECT (non `-pooler`) connection — temp tables and
  * pg_advisory_lock are session state, which transaction-mode pooling breaks.
  *
@@ -53,10 +60,13 @@ import {
 } from "./tagger-read";
 import {
   gameChangerDigest,
+  isTokenObject,
   mapIdentity,
   mapPrinting,
   oracleId,
+  resolveTokenLinks,
   skipReason,
+  tokenLinkPrintings,
   type IdentityRow,
   type PrintingRow,
   type ScryfallCard,
@@ -192,6 +202,8 @@ interface Stats {
   };
   /** Y3a: the ruleset watch compares md5 with src/lib/games/mtg/bracket-ruleset.ts. */
   game_changers: { count: number; md5: string } | null;
+  /** DECK-TOKENS: the catalog streamed, and the cards whose `attrs.tokens` it resolved. */
+  tokens: { printings: number; identities: number; linked_cards: number; links: number } | null;
   tagger: TaggerStats | null;
   duration_ms: number;
   db_size_bytes: number;
@@ -282,6 +294,7 @@ async function main() {
         image_overrides: 0,
       },
       game_changers: null,
+      tokens: null,
       tagger: null,
       duration_ms: 0,
       db_size_bytes: 0,
@@ -292,6 +305,9 @@ async function main() {
     let gameChangerMissing = 0;
     let gameChangerMissingExample = "";
     const unreviewedNames: string[] = [];
+    // DECK-TOKENS: catalog printing → oracle id, and each card's linked printing ids.
+    const tokenOracleByPrinting = new Map<string, string>();
+    const tokenLinks = new Map<string, Set<string>>();
     // Formats this game tracks; card.legalities keys match format codes.
     const formats = await sql<{ id: number; code: string; default_legality: string }[]>`
       SELECT id, code, default_legality FROM formats WHERE game_id = ${GAME_ID.mtg}`;
@@ -333,6 +349,15 @@ async function main() {
         gameChangerMissingExample ||= `${card.name} (${card.set} ${card.collector_number})`;
       }
       const oid = oracleId(card)!;
+      if (isTokenObject(card)) {
+        tokenOracleByPrinting.set(card.id, oid);
+      } else {
+        for (const printing of tokenLinkPrintings(card)) {
+          let links = tokenLinks.get(oid);
+          if (!links) tokenLinks.set(oid, (links = new Set()));
+          links.add(printing);
+        }
+      }
       if (!seenOracle.has(oid)) {
         seenOracle.add(oid);
         if (card.game_changer === true) gameChangers.push(oid);
@@ -391,6 +416,32 @@ async function main() {
           `data/mtg/tagger-overrides.json (read as edge until reviewed): ${unreviewedNames.join(", ")}`,
       );
     }
+
+    // attrs.tokens (DECK-TOKENS): every token printing has streamed now, so the
+    // links resolve to oracle ids; staged attrs gain the key before the merge,
+    // whose attrs compare then updates only the cards whose list moved.
+    const tokensByOracle = resolveTokenLinks(tokenLinks, tokenOracleByPrinting);
+    stats.tokens = {
+      printings: tokenOracleByPrinting.size,
+      identities: new Set(tokenOracleByPrinting.values()).size,
+      linked_cards: tokensByOracle.size,
+      links: [...tokensByOracle.values()].reduce((n, list) => n + list.length, 0),
+    };
+    await sql`CREATE TEMP TABLE stage_tokens (external_key text PRIMARY KEY, tokens text)`;
+    const tokenRows = [...tokensByOracle].map(([external_key, list]) => ({
+      external_key,
+      tokens: JSON.stringify(list),
+    }));
+    for (let i = 0; i < tokenRows.length; i += BATCH_SIZE) {
+      await sql`INSERT INTO stage_tokens ${sql(tokenRows.slice(i, i + BATCH_SIZE))}`;
+    }
+    await sql`
+      UPDATE stage_ci s SET attrs = (s.attrs::jsonb || jsonb_build_object('tokens', t.tokens::jsonb))::text
+      FROM stage_tokens t WHERE t.external_key = s.external_key`;
+    console.log(
+      `tokens: ${stats.tokens.identities} catalog identities (${stats.tokens.printings} printings); ` +
+        `${stats.tokens.linked_cards} cards link ${stats.tokens.links} of them`,
+    );
 
     // Merge identities: update only when content actually changed (tuple compare).
     const ciRes = await sql<{ inserted: boolean }[]>`

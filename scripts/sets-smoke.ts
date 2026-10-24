@@ -67,6 +67,10 @@ interface SearchBody {
 /** "Released", as src/lib/sets/sql.ts states it. */
 const RELEASED = `NOT s.digital AND s.released_at <= (now() AT TIME ZONE 'UTC')::date`;
 
+// DECK-TOKENS: "a live card" is a live DECK card — token printings (the token
+// catalog, attrs.is_token) never make a set appear, as the app's own query
+// says (src/lib/sets/queries.ts). A literal, never a bound document:
+// postgres.js JSON-encodes a string bound to a jsonb parameter.
 async function main() {
   console.log(`X4a + X4b set smoke against ${BASE}\n`);
   const sql = postgres(DB_URL!, { max: 1, prepare: false });
@@ -82,6 +86,7 @@ async function main() {
         FROM sets s
         JOIN card_printings p ON p.set_id = s.id AND NOT p.is_removed
         JOIN card_identities ci ON ci.id = p.card_identity_id AND NOT ci.is_removed
+          AND NOT (ci.attrs @> '{"is_token": true}')
         WHERE s.game_id = 1 AND ${RELEASED}
         GROUP BY s.id`);
       const hidden = await tx.unsafe<{ code: string }[]>(`
@@ -147,7 +152,8 @@ async function main() {
         WHERE s.game_id = 1 AND s.set_type = 'expansion' AND ${RELEASED}
           AND s.released_at <= (SELECT released_at FROM sets WHERE game_id = 1 AND code = 'emn')
           AND EXISTS (SELECT 1 FROM card_printings p JOIN card_identities ci ON ci.id = p.card_identity_id
-                      WHERE p.set_id = s.id AND NOT p.is_removed AND NOT ci.is_removed)`);
+                      WHERE p.set_id = s.id AND NOT p.is_removed AND NOT ci.is_removed
+                        AND NOT (ci.attrs @> '{"is_token": true}'))`);
       check(
         `Eldritch Moon's place = its line's release days up to it (${days}; the owner's "71st")`,
         emn?.ordinal === days,
@@ -172,6 +178,7 @@ async function main() {
         FROM sets s
         JOIN card_printings p ON p.set_id = s.id AND NOT p.is_removed
         JOIN card_identities ci ON ci.id = p.card_identity_id AND NOT ci.is_removed
+          AND NOT (ci.attrs @> '{"is_token": true}')
         WHERE s.game_id = 1 AND s.set_type = 'expansion' AND ${RELEASED}
         GROUP BY s.id ORDER BY s.released_at DESC LIMIT 1`);
       const walk: SearchBody["results"] = [];

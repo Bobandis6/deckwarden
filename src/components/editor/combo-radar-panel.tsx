@@ -71,6 +71,7 @@ import {
 import { toEditorCard, type CardWire, type EditorCard } from "@/lib/decks/editor-state";
 import type { DeckGoals } from "@/lib/decks/goals";
 import { deckStateKey, hasLeader } from "@/lib/decks/panel-view";
+import { playableEntries } from "@/lib/decks/playable";
 import { DECK_TOKEN_HEADER, getDeckToken } from "@/lib/decks/token-store";
 import type { BracketComboBadge, FormatDef, GameAdapter } from "@/lib/games/types";
 
@@ -175,7 +176,7 @@ export function ComboRadarPanel({
 
   const combosMeta = adapter.capabilities.combos;
   const leader = hasLeader(entries, format);
-  const fetchKey = `${deckStateKey(entries)}§n:${nonce}`;
+  const fetchKey = `${deckStateKey(playableEntries(entries, format))}§n:${nonce}`;
 
   // "With your commander" (W9c): keyed on (anchor, fit) only — a deck edit
   // never refetches; a leader swap or a partner landing (fit widens) does.

@@ -66,6 +66,14 @@
  * tier (the card at 160 px, 45 % at most, its facts beside it). View stays
  * one Segmented while Group and Sort fold into a "Group · Sort" popover
  * (`phone`, the editor's tier), so the controls are one 44 px row on touch.
+ *
+ * DECK-TOKENS: the type groups read in the adapter's `typeOrder` (Magic:
+ * Creatures, Sorceries, Instants, Artifacts, Enchantments, Planeswalkers,
+ * Battles, Lands), and the format's token zone follows them as the Tokens
+ * section (tokens-section.tsx) — collapsed until opened, the open state kept
+ * with the view preferences, "From your cards" loading only while open. It
+ * waits for the first card like View / Group / Sort do (the quiet first
+ * screen), unless the deck already holds a token.
  */
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
@@ -77,6 +85,8 @@ import { DeckGridView } from "@/components/deck/deck-grid-view";
 import { DeckTextView } from "@/components/deck/deck-text-view";
 import { LeaderZone } from "@/components/deck/leader-zone";
 import { SampleHand } from "@/components/deck/sample-hand";
+import { TokensSection } from "@/components/deck/tokens-section";
+import { useTokenSuggestions } from "@/components/deck/use-token-suggestions";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { useCountUp } from "@/components/editor/use-count-up";
@@ -92,6 +102,7 @@ import {
   type EditorEntry,
 } from "@/lib/decks/editor-state";
 import { deckProgress, progressLine, toGoPhrase } from "@/lib/decks/progress";
+import { tokenZoneOf } from "@/lib/decks/playable";
 import type { StartDoor } from "@/lib/decks/start-doors";
 import { issueSeverityByCard } from "@/lib/decks/validation";
 import {
@@ -162,6 +173,8 @@ interface DeckListPaneProps {
   seeding?: boolean;
   /** The phone tier (U4a): Group and Sort fold into the "Group · Sort" popover beside View. */
   phone?: boolean;
+  /** DECK-TOKENS: adds into the token zone (one, or Add all's several); absent = the section is read-only. */
+  onAddTokens?: (cards: EditorCard[]) => string | undefined;
 }
 
 export function DeckListPane({
@@ -192,6 +205,7 @@ export function DeckListPane({
   extras = true,
   seeding = false,
   phone = false,
+  onAddTokens,
 }: DeckListPaneProps) {
   // Stored preference wins; absent fields fall back (group to the adapter's
   // default). Read once — this pane only mounts client-side, after deck load.
@@ -201,6 +215,7 @@ export function DeckListPane({
     stored.groupBy ?? adapter.display.defaultGroupBy,
   );
   const [sortBy, setSortBy] = useState<SortKey>(stored.sortBy ?? "name");
+  const [tokensOpen, setTokensOpen] = useState(stored.tokensOpen ?? false);
   const [error, setError] = useState<string | null>(null);
 
   // The badge pop (F3): the one row whose quantity grew since the previous
@@ -214,8 +229,13 @@ export function DeckListPane({
     if (key) setPop((p) => ({ key, nonce: (p?.nonce ?? 0) + 1 }));
   }
 
-  const persist = (next: { view?: DeckViewMode; groupBy?: GroupKey; sortBy?: SortKey }) => {
-    saveViewPrefs({ view, groupBy, sortBy, ...next });
+  const persist = (next: {
+    view?: DeckViewMode;
+    groupBy?: GroupKey;
+    sortBy?: SortKey;
+    tokensOpen?: boolean;
+  }) => {
+    saveViewPrefs({ view, groupBy, sortBy, tokensOpen, ...next });
   };
 
   const total = deckSizeCount(entries, format);
@@ -230,8 +250,21 @@ export function DeckListPane({
   const sizeWords = toGo ? ` · ${toGo}` : " cards";
   const progress = progressLine(deckProgress(entries, format), adapter.display.leaderNoun);
 
-  const { leader, rest } = splitLeaderEntries(entries, format);
-  const groups = groupDeckEntries(rest, cards, groupBy, sortBy);
+  const { leader, rest, aside } = splitLeaderEntries(entries, format);
+  const groups = groupDeckEntries(rest, cards, groupBy, sortBy, adapter.display.typeOrder);
+  const tokenZone = tokenZoneOf(format);
+  const tokenItems = aside.flatMap((entry) => {
+    const card = entry.zone === tokenZone?.id ? cards.get(entry.cardId) : undefined;
+    return card ? [{ entry, card }] : [];
+  });
+  const tokenSuggestions = useTokenSuggestions({
+    adapter,
+    format,
+    zone: tokenZone,
+    entries,
+    cards,
+    enabled: tokensOpen && onAddTokens !== undefined,
+  });
   const severity = issueSeverityByCard(issues);
   const leaderZoneDef = format.zones.find((z) => z.isLeaderZone);
   const leaderItems = leader.flatMap((entry) => {
@@ -526,6 +559,37 @@ export function DeckListPane({
           owned={owned}
           adapter={adapter}
           stickyHeaders
+        />
+      )}
+
+      {/* DECK-TOKENS: after the 100, never part of it; waits for the first card unless it holds one. */}
+      {tokenZone && (listed || tokenItems.length > 0) && (
+        <TokensSection
+          className="mt-2"
+          adapter={adapter}
+          zone={tokenZone}
+          items={tokenItems}
+          view={view}
+          open={tokensOpen}
+          onOpenChange={(open) => {
+            setTokensOpen(open);
+            persist({ tokensOpen: open });
+          }}
+          onPreview={onPreview}
+          owned={owned}
+          onSetQty={setQtyChecked}
+          onRemove={onRemove}
+          onAdd={onAddTokens}
+          suggestions={
+            onAddTokens
+              ? {
+                  count: tokenSuggestions.count,
+                  items: tokenSuggestions.suggestions,
+                  state: tokenSuggestions.state,
+                  retry: tokenSuggestions.retry,
+                }
+              : undefined
+          }
         />
       )}
 

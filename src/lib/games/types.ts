@@ -37,6 +37,14 @@ export interface ZoneDef {
    * decks.leader_ids / ci_mask denorms — the core's only zone-role knowledge.
    */
   isLeaderZone?: boolean;
+  /**
+   * What the zone holds (DECK-TOKENS): deck cards (absent, the default) or
+   * token-catalog objects (`attrs.is_token`, src/lib/cards/tokens.ts) —
+   * Magic's Tokens zone. The save route refuses a token anywhere else and a
+   * card here; a tokens zone never counts toward the size, so nothing that
+   * reads the playable list (src/lib/decks/playable.ts) sees it.
+   */
+  holds?: "cards" | "tokens";
 }
 
 export interface FormatDef {
@@ -1080,6 +1088,14 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
     cards: readonly (Omit<CardData<A>, "legality"> | null)[],
   ): number[];
 
+  /**
+   * The token catalog's links (DECK-TOKENS): the external keys of the
+   * tokens, emblems and game pieces a card makes or uses — Magic's
+   * `attrs.tokens`, from Scryfall's `all_parts`. The Tokens section's "From
+   * your cards" unions them over the playable list. Absent = no suggestions.
+   */
+  tokenLinks?(card: Omit<CardData<A>, "legality">): readonly string[];
+
   display: {
     /** Mana pips / DON!! cost / IKZ — an HTML string, rendered by the core. */
     costHtml(card: CardData<A>): string;
@@ -1105,6 +1121,14 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
      */
     colorSwatches?(mask: number): string[];
     defaultGroupBy: "primaryType" | "costValue" | "tags";
+    /**
+     * The display order of the primaryType groups (DECK-TOKENS): the deck
+     * pane, the share page and the game's own type breakdown read it through
+     * src/lib/games/type-order.ts — types it doesn't list follow by name,
+     * cards without a type last. Display only: which group a card is in is
+     * ingest's primary_type. Absent = biggest group first (One Piece).
+     */
+    typeOrder?: readonly string[];
     /** 'Commander' / 'Leader'. */
     leaderNoun: string;
     /**
@@ -1128,6 +1152,15 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
      * legality-free wire shape, hence the Omit. Absent = names identify.
      */
     idBadge?(card: Omit<CardData<A>, "legality">): string | null;
+    /**
+     * What tells one token from another (DECK-TOKENS) — Magic's "1/1 white,
+     * flying", because token names don't identify tokens (fifteen Soldiers).
+     * Rendered beside token names only: the Tokens section's text rows,
+     * suggestions and search results (a grid tile shows the printed token). Null = the name is enough
+     * (Treasure). Not idBadge, which also means "show printed keys" (the
+     * Games dialog). Absent = a game without tokens.
+     */
+    tokenCaption?(card: Omit<CardData<A>, "legality">): string | null;
     /** Search-box placeholder in the editor — game-true example syntax. */
     searchPlaceholder: string;
     /** Import-dialog textarea placeholder — game-true example lines. */

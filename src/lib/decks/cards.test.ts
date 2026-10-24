@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { COMMANDER } from "@/lib/games/mtg/formats";
 
-import { cardListIssues, leaderDenorm, type DeckCardInput } from "./cards";
+import { cardListIssues, leaderDenorm, tokenZoneIssues, type DeckCardInput } from "./cards";
 
 const entry = (over: Partial<DeckCardInput>): DeckCardInput => ({
   cardId: "card-a",
@@ -45,6 +45,46 @@ describe("cardListIssues", () => {
   it("enforces zone maximums by quantity (3 commanders)", () => {
     const issues = cardListIssues([entry({ zone: "commander", qty: 3 })], COMMANDER);
     expect(issues.some((i) => /"commander" holds 3.*maximum is 2/.test(i))).toBe(true);
+  });
+});
+
+describe("tokenZoneIssues (DECK-TOKENS)", () => {
+  const tokens = new Set(["treasure", "monarch"]);
+  const isToken = (id: string) => tokens.has(id);
+
+  it("a 100 with its tokens beside it is fine; the tokens zone has no maximum", () => {
+    const entries = [
+      entry({ cardId: "cmd", zone: "commander" }),
+      entry({ cardId: "card-a", qty: 99 }),
+      entry({ cardId: "treasure", zone: "tokens", qty: 12 }),
+      entry({ cardId: "monarch", zone: "tokens" }),
+    ];
+    expect(tokenZoneIssues(entries, COMMANDER, isToken)).toEqual([]);
+    expect(cardListIssues(entries, COMMANDER)).toEqual([]);
+  });
+
+  it("refuses a token in the 100 — main or the command zone", () => {
+    const issues = tokenZoneIssues(
+      [entry({ cardId: "treasure" }), entry({ cardId: "monarch", zone: "commander" })],
+      COMMANDER,
+      isToken,
+    );
+    expect(issues).toEqual([
+      'Card treasure is a token, which zone "main" can\'t hold',
+      'Card monarch is a token, which zone "commander" can\'t hold',
+    ]);
+  });
+
+  it("refuses a card in the tokens zone — it is no maybeboard", () => {
+    expect(
+      tokenZoneIssues([entry({ cardId: "card-a", zone: "tokens" })], COMMANDER, isToken),
+    ).toEqual(['Card card-a is not a token; zone "tokens" holds tokens only']);
+  });
+
+  it("leaves unknown zones to cardListIssues", () => {
+    expect(
+      tokenZoneIssues([entry({ cardId: "treasure", zone: "sideboard" })], COMMANDER, isToken),
+    ).toEqual([]);
   });
 });
 

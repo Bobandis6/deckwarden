@@ -12,6 +12,8 @@ import { parseMtgDecklist, serializeMtgDecklist } from "./decklist";
 import { MTG_FORMATS } from "./formats";
 import { mtgImportLeaderGuess } from "./import-guess";
 import { mtgRecommend } from "./recommend";
+import { mtgTokenCaption, mtgTokenLinks } from "./tokens";
+import { MTG_TYPE_ORDER } from "./type-order";
 import { validateMtg } from "./validate";
 
 type MtgCard = CardData<MtgAttrs>;
@@ -139,6 +141,8 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
   serializeDecklist: serializeMtgDecklist,
   // Positional Moxfield-shape guess (P2.8b) — never per-card promotion.
   importLeaderGuess: mtgImportLeaderGuess,
+  // DECK-TOKENS: the tokens a card makes or uses, from Scryfall's all_parts.
+  tokenLinks: mtgTokenLinks,
 
   display: {
     costHtml: (card: MtgCard) => manaCostHtml(card.attrs.mana_cost),
@@ -162,12 +166,15 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
         : ["var(--mana-c)"];
     },
     defaultGroupBy: "primaryType",
+    typeOrder: MTG_TYPE_ORDER,
     leaderNoun: "Commander",
     // W4: the empty leader zone's browse destination (D3).
     leaderBrowse: { href: "/commanders", label: "Browse commanders" },
     // Y2b: the start doors' precon door (the W8b index, then a product's
     // "Start from this precon").
     preconBrowse: { href: "/precons", label: "Start from a precon" },
+    // DECK-TOKENS: P/T, colors, first keywords — token names don't tell tokens apart.
+    tokenCaption: mtgTokenCaption,
     searchPlaceholder: "Add cards: try “4 Sol Ring”",
     importPlaceholder:
       "1 Sol Ring\n1 Arcane Signet (AFC) 95\n…paste from Moxfield, Arena, Archidekt, anywhere.",

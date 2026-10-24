@@ -11,6 +11,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
+import { TOKEN_DOC } from "@/lib/cards/tokens";
 
 type Call = { sql: string; params: unknown[] };
 let calls: Call[] = [];
@@ -82,7 +83,9 @@ describe("loadDeckOgData", () => {
       rest.some((sql) => /from "card_identities" where "card_identities"\."id" in/.test(sql)),
     ).toBe(true);
     const cards = calls.find((c) => c.sql.includes('from "deck_cards"'));
-    expect(cards?.params).toEqual([DECK_ID]);
+    // DECK-TOKENS: the count, price and curve never read a token.
+    expect(cards?.sql).toContain('NOT ("card_identities"."attrs" @> $2::jsonb)');
+    expect(cards?.params).toEqual([DECK_ID, TOKEN_DOC]);
   });
 
   it("an unlisted deck reads like a public one (unlisted means unlisted, not secret)", async () => {

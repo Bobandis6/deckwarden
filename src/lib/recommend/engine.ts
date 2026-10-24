@@ -38,6 +38,7 @@
  * share page's pattern without its freshness read, which moves no level.
  */
 import type { DeckGoals } from "@/lib/decks/goals";
+import { playableEntries } from "@/lib/decks/playable";
 import { loadCompleteCombos } from "@/lib/combos/queries";
 import { findAdapter } from "@/lib/games/registry";
 import { findFormatById, gameCodeById } from "@/db/seed-data";
@@ -401,13 +402,15 @@ export async function recommendForDeck(
   const adapter = adapterFor(deck.gameId);
   if (!adapter?.recommend) return NO_RESULT;
   const entries = await loadDeckEntries(deck.id, adapter.brackets?.flagPaths);
+  // The playable list (DECK-TOKENS): a token is no curve slot, combo piece or read fact.
+  const format = adapter.formats.find((f) => f.code === findFormatById(deck.formatId)?.code);
   return recommendForSnapshot(
     {
       gameId: deck.gameId,
       formatId: deck.formatId,
       ciMask: deck.ciMask,
       leaderIds: deck.leaderIds,
-      entries,
+      entries: format ? playableEntries(entries, format) : entries,
     },
     opts,
   );

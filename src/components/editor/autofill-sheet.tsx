@@ -66,6 +66,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { alsoNeedsLine, type ComboPin } from "@/lib/combos/view";
 import type { CardWire, EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import { suggestionGoals, type DeckGoals } from "@/lib/decks/goals";
+import { isPlayableZone, playableEntries } from "@/lib/decks/playable";
 import type { FormatDef, GameAdapter, ValidationIssue } from "@/lib/games/types";
 import type { ShellGroup, ShellPick } from "@/lib/recommend/autofill";
 import type { FitEstimate } from "@/lib/recommend/fit";
@@ -145,9 +146,10 @@ export function AutofillSheet({
     () => (leaderZone ? entries.filter((e) => e.zone === leaderZone.id) : []),
     [entries, leaderZone],
   );
+  // The playable list's non-leader cards (DECK-TOKENS): tokens are neither kept nor counted.
   const keeps = useMemo(
-    () => (leaderZone ? entries.filter((e) => e.zone !== leaderZone.id) : [...entries]),
-    [entries, leaderZone],
+    () => playableEntries(entries, format).filter((e) => e.zone !== leaderZone?.id),
+    [entries, format, leaderZone],
   );
   // Pinned (X3): the combo's pieces among the keeps — always sent, always
   // applied. "Keep my N cards" counts and governs only the rest.
@@ -294,16 +296,32 @@ export function AutofillSheet({
     // Keep checked: picks land on top of the whole current list. Unchecked:
     // the plan was built without the non-leader cards, so Apply replaces
     // them — leaders + picks (see the module doc; pinned in tests) — except
-    // a pinned combo's pieces, which the plan was built around (X3).
+    // a pinned combo's pieces, which the plan was built around (X3), and the
+    // Tokens zone (DECK-TOKENS), which was never part of the 100 it rebuilt.
     const base = keepChecked
       ? [...entries]
-      : entries.filter((e) => (leaderZone && e.zone === leaderZone.id) || pinnedIds.has(e.cardId));
+      : entries.filter(
+          (e) =>
+            (leaderZone && e.zone === leaderZone.id) ||
+            pinnedIds.has(e.cardId) ||
+            !isPlayableZone(format, e.zone),
+        );
     const next: EditorEntry[] = [
       ...base,
       ...checkedPicks.map((p) => ({ cardId: p.cardId, zone: p.zone, qty: p.qty, tags: [] })),
     ];
     onApply({ entries: next, cards: shell.cards, added: addedCount });
-  }, [shell, addedCount, keepChecked, entries, leaderZone, pinnedIds, checkedPicks, onApply]);
+  }, [
+    shell,
+    addedCount,
+    keepChecked,
+    entries,
+    format,
+    leaderZone,
+    pinnedIds,
+    checkedPicks,
+    onApply,
+  ]);
 
   const leaderNames = leaders
     .map((e) => cards.get(e.cardId)?.name)

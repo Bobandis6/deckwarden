@@ -124,8 +124,12 @@ async function main() {
         AND EXISTS (SELECT 1 FROM card_printings p
                     WHERE p.card_identity_id = ci.id AND p.is_default)
       ORDER BY ci.popularity ASC LIMIT 1`;
+    // DECK-TOKENS: the card sitemap and robots leave the token catalog out (a
+    // token's page is noindex), so the mirror does too — a SQL literal, never
+    // a bound document (postgres.js JSON-encodes a string bound to jsonb).
     const [{ n: cardCount }] = await sql`
-      SELECT count(*)::int AS n FROM card_identities WHERE NOT is_removed`;
+      SELECT count(*)::int AS n FROM card_identities
+      WHERE NOT is_removed AND NOT (attrs @> '{"is_token": true}')`;
     const [privateDeck] = await sql<{ publicId: string }[]>`
       SELECT public_id AS "publicId" FROM decks WHERE visibility = 'private' LIMIT 1`;
     console.log(`  using leader="${leader?.name}" card="${card?.name}" (${cardCount} cards)`);
@@ -427,7 +431,8 @@ async function main() {
     // leader's chunk by its position in the shared id order and look inside.
     const [{ before }] = await sql<{ before: number }[]>`
       SELECT count(*)::int AS before FROM card_identities
-      WHERE NOT is_removed AND game_id IN (1, 2) AND id < ${opLeader.id}::uuid`;
+      WHERE NOT is_removed AND game_id IN (1, 2) AND id < ${opLeader.id}::uuid
+        AND NOT (attrs @> '{"is_token": true}')`;
     const opChunk = Math.floor(before / 10_000);
     const opChunkMap = await page(`/cards/sitemap/${opChunk}.xml`);
     check(

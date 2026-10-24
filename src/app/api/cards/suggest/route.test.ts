@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
+import { TOKEN_DOC } from "@/lib/cards/tokens";
 
 interface Statement {
   sql: string;
@@ -161,6 +162,17 @@ describe("GET /api/cards/suggest", () => {
       },
       expect.objectContaining({ name: "Solemn Simulacrum", image: null }),
     ]);
+  });
+
+  it("never suggests a token (DECK-TOKENS): both statements carry the guard, every scope", async () => {
+    answers = [[], []];
+    await get("game=mtg&scope=cards&q=treasure");
+    await get("game=mtg&scope=leaders&q=marit");
+    expect(statements.length).toBeGreaterThanOrEqual(3);
+    for (const s of statements) {
+      expect(s.sql).toContain('NOT ("card_identities"."attrs" @> $');
+      expect(s.params).toContain(TOKEN_DOC);
+    }
   });
 
   it("scope=leaders is the hub scope: leader candidates with a slug", async () => {

@@ -106,7 +106,7 @@ Full SQL sketches in Appendix A. The decisions that matter:
 **Lean rows — the 0.5GB budget is a design input.**
 - **No raw Scryfall JSON stored.** Bulk files are re-downloadable; the DB stores only what queries touch.
 - **No image URLs stored for MTG.** Derived from the printing ID via Scryfall's CDN pattern; a nullable `image_override` holds the rare mismatches (ingest verifies).
-- English printings only; token/art-series layouts skipped.
+- English printings only; art-series layouts skipped. **Token layouts are ingested since DECK-TOKENS (2026-10-24, the owner's ask: a Tokens list outside the 100)** as the token catalog: tokens, double-faced tokens, emblems and game pieces such as The Monarch, marked by a sparse `attrs.is_token` (no column, so no migration) and never leader candidates; World Championship and minigame inserts and checklists stay out. About 1,100 identities and 3,300 printings (~3 MB). Cards carry `attrs.tokens`, the catalog objects Scryfall's `all_parts` links them to. Every deck-card query excludes the catalog (`src/lib/cards/tokens-sql.ts`); `DECK-TOKENS-session-prompt.md` has the census and the measurements.
 - **Current prices only** as JSONB on the printing (Scryfall refreshes ~daily: usd/usd_foil/usd_etched/eur/eur_foil). A per-printing-per-day history table is dead on arrival (~300k rows/day). Price *trends* are a LATER feature via a weekly or deck-referenced-only side table.
 - Budget: ~35k identities (~110MB with tsvector + GIN) + printings at lean width (~75–120MB + slim indexes) ≈ **250–350MB total**. Nightly `pg_database_size()` is logged with an alert threshold at ~350MB.
 
@@ -131,7 +131,7 @@ Full SQL sketches in Appendix A. The decisions that matter:
 **Scryfall (nightly, GitHub Actions).** Initial load and nightly refresh are the *same code path* — a full-bulk upsert with hash-skip. That makes the pipeline idempotent and **self-healing**: a missed night or a bug is corrected by the next run, by construction. (Scryfall's newer `/cards/manifest` incremental endpoint is deliberately skipped in v1; adopt it only if job time or Neon compute hours become a measured problem.)
 
 1. `GET /bulk-data` (custom User-Agent) → `default_cards` JSONL URL. Stream: fetch → gunzip → readline. O(1) memory.
-2. Per line: filter (English; skip token/art-series layouts), map to identity + printing rows, pre-normalize attrs, compute `content_hash` over card fields **excluding prices**.
+2. Per line: filter (English; skip art-series layouts, and the token catalog's memorabilia/minigame inserts and checklists), map to identity + printing rows, pre-normalize attrs, compute `content_hash` over card fields **excluding prices**. Token links (`all_parts` → `attrs.tokens`) resolve after the stream, because a link names a token printing that may not have streamed yet (DECK-TOKENS).
 3. Batch ~1–2k rows into temp staging tables (per-row statements over public-net latency to Neon are unusable), then merge:
    - Card data: `INSERT … ON CONFLICT DO UPDATE … WHERE content_hash IS DISTINCT FROM excluded.content_hash` — unchanged cards cost nothing.
    - Prices: separate blind `UPDATE` (they change daily for most cards; never let them dirty the content hash).

@@ -1,6 +1,8 @@
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
+import { TOKEN_DOC } from "@/lib/cards/tokens";
+
 import {
   candidateConditions,
   candidatePoolOrder,
@@ -24,6 +26,13 @@ const BASE: CandidateFilter = {
 };
 
 describe("candidateConditions", () => {
+  it("never offers a token (DECK-TOKENS): the containment guard is a base condition", () => {
+    const q = new PgDialect().sqlToQuery(candidateConditions(BASE)[3]);
+    expect(q.sql).toContain("NOT (");
+    expect(q.sql).toContain("@>");
+    expect(q.params).toEqual([TOKEN_DOC]);
+  });
+
   it("owned-cards hook is off when undefined (the contract P3.7's ?owned=1 relies on)", () => {
     const off = candidateConditions(BASE);
     const alsoOff = candidateConditions({ ...BASE, ownedCardIds: undefined });

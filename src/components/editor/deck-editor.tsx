@@ -186,6 +186,7 @@ import type { LogResult } from "@/lib/journal/games";
 import type { ImportOutcome } from "@/lib/decks/import";
 import { clearPickIntent, pickIntentFor, writePickIntent } from "@/lib/decks/leader-pick-intent";
 import { hasLeader, snapshotBody } from "@/lib/decks/panel-view";
+import { playableEntries, tokenZoneOf } from "@/lib/decks/playable";
 import { addMorePhrase, deckProgress } from "@/lib/decks/progress";
 import { startDoors } from "@/lib/decks/start-doors";
 import {
@@ -1658,6 +1659,28 @@ export function DeckEditor({
     [applyListSwap],
   );
 
+  // DECK-TOKENS: the Tokens section's adds, into the format's token zone —
+  // one through handleAdd (its "Added X" toast and Undo, the Card tab showing
+  // it), Add all as one whole-list swap with one Undo, like Import. Tokens
+  // never count toward the size, so a full 100 never turns these into Swap in….
+  const handleAddTokens = useCallback(
+    (tokens: EditorCard[]): string | undefined => {
+      if (!format) return "Deck not loaded yet";
+      const zone = tokenZoneOf(format);
+      if (!zone) return "This deck has no token list";
+      if (tokens.length === 1) return handleAdd(tokens[0], zone.id, 1);
+      let next: EditorEntry[] = entriesRef.current;
+      for (const card of tokens) {
+        const result = addCard(next, format, zone.id, card.id, 1);
+        if (result.error) return result.error;
+        next = result.entries;
+      }
+      applyListSwap(next, tokens, `Added ${tokens.length} tokens`);
+      return undefined;
+    },
+    [format, handleAdd, applyListSwap],
+  );
+
   // The empty deck state's autofill door (W9b): never from the More menu,
   // so focus falls back to Base UI's default on close (the button may be
   // gone once the shell applies). No combo pinned — and no argument: the
@@ -1993,7 +2016,12 @@ export function DeckEditor({
   // plus the combo facts — one GET per settled id set while a commander is
   // present, drafts included (useBracketFacts). A game without `brackets`
   // asks nothing and shows nothing.
-  const bracketIds = useMemo(() => factsIds(entries), [entries]);
+  // The playable list's ids (DECK-TOKENS): a token completes no combo, and
+  // a long token list must not push the set past FACTS_MAX_IDS.
+  const bracketIds = useMemo(
+    () => factsIds(format ? playableEntries(entries, format) : entries),
+    [entries, format],
+  );
   const bracketsOn =
     adapter?.brackets !== undefined && format !== null && hasLeader(entries, format);
   const bracketFacts = useBracketFacts({
@@ -2635,6 +2663,7 @@ export function DeckEditor({
           seeding={draftSeed !== null && !seedSettled}
           owned={hasCollection ? owned : undefined}
           ownership={ownership}
+          onAddTokens={tokenZoneOf(load.format) ? handleAddTokens : undefined}
         />
       }
       tools={toolsContent}

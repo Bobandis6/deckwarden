@@ -47,4 +47,18 @@ export type MtgAttrs = {
    * Not a bracket flag — the read never takes it.
    */
   roles?: MtgRoleKey[];
+  /**
+   * A token-catalog object (DECK-TOKENS): a token, double-faced token or
+   * emblem — or a game piece such as The Monarch — that lives in a deck's
+   * Tokens zone, outside the 100. Written only when true; core queries that
+   * pick deck cards exclude it (src/lib/cards/tokens.ts).
+   */
+  is_token?: true;
+  /**
+   * The token-catalog objects Scryfall links this card to (`all_parts`:
+   * what it makes, and the emblems and game pieces it uses), as their oracle
+   * ids — the token identities' external keys — sorted. The Tokens section's
+   * "From your cards" reads it. Absent when the card links to none.
+   */
+  tokens?: string[];
 };

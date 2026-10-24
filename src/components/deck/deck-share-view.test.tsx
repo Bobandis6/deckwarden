@@ -465,8 +465,8 @@ describe("DeckShareView — the heading tree and the blocks (U6, WAVE5 D7)", () 
     expect(stacked).toHaveLength(2);
     for (const bar of stacked) expect(bar.getAttribute("aria-hidden")).toBe("true");
     const legends = [...analytics.querySelectorAll<HTMLElement>("[data-slot=breakdown-legend]")];
-    // Card types counts the commander too, largest first.
-    expect(legends[0].textContent).toBe("Artifact99Creature1");
+    // Card types counts the commander too, in the list's type order (DECK-TOKENS), not largest first.
+    expect(legends[0].textContent).toBe("Creature1Artifact99");
     // No filled track behind any bar.
     expect(analytics.querySelector(".bg-muted")).toBeNull();
   });

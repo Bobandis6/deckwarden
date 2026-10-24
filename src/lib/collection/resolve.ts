@@ -23,6 +23,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { schema, type DbExecutor } from "@/db";
 import { normalizeCardName } from "@/lib/cards/normalize";
+import { notTokenSql } from "@/lib/cards/tokens-sql";
 import {
   resolvePrintingsBySetNumber,
   setNumberKey,
@@ -163,7 +164,10 @@ async function resolveDefaultPrintingsByName(
       .from(ci)
       .leftJoin(cp, and(eq(cp.cardIdentityId, ci.id), eq(cp.isDefault, true)))
       .$dynamic();
-  const gameCond = and(eq(ci.gameId, gameId), eq(ci.isRemoved, false));
+  // Names resolve to deck cards, never a same-named token (DECK-TOKENS): a
+  // CSV's "Mutavault" is the land. Tokens still resolve by printing id or set
+  // + number above — an owned token is owned.
+  const gameCond = and(eq(ci.gameId, gameId), eq(ci.isRemoved, false), notTokenSql(ci.attrs));
 
   for (let i = 0; i < distinct.length; i += CHUNK) {
     const rows = await select().where(

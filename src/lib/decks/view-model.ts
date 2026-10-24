@@ -6,6 +6,8 @@
  * adapter — the only card fields consumed are core CardData ones (name,
  * primaryType, costValue, cheapestUsd); group labels are game-neutral.
  */
+import { isPlayableZone } from "@/lib/decks/playable";
+import { NO_TYPE_LABEL, typeGroupRank } from "@/lib/games/type-order";
 import type { FormatDef } from "@/lib/games/types";
 
 /** The three GameAdapter defaultGroupBy keys (types.ts display.defaultGroupBy). */
@@ -43,16 +45,26 @@ export interface DeckGroup<E extends ViewEntry, C extends ViewCard> {
   items: ViewItem<E, C>[];
 }
 
-/** Entries in the format's leader zone(s) vs. everything else. */
+/**
+ * Entries in the format's leader zone(s), the rest of the playable list, and
+ * the entries set aside in zones that don't count toward the size (DECK-TOKENS:
+ * Magic's Tokens) — so `rest` is the deck as played everywhere it's read (the
+ * groups, the sample hand, ambient art) and `aside` is the token list.
+ */
 export function splitLeaderEntries<E extends { zone: string }>(
   entries: readonly E[],
   format: FormatDef,
-): { leader: E[]; rest: E[] } {
+): { leader: E[]; rest: E[]; aside: E[] } {
   const leaderZones = new Set(format.zones.filter((z) => z.isLeaderZone).map((z) => z.id));
   const leader: E[] = [];
   const rest: E[] = [];
-  for (const e of entries) (leaderZones.has(e.zone) ? leader : rest).push(e);
-  return { leader, rest };
+  const aside: E[] = [];
+  for (const e of entries) {
+    if (leaderZones.has(e.zone)) leader.push(e);
+    else if (isPlayableZone(format, e.zone)) rest.push(e);
+    else aside.push(e);
+  }
+  return { leader, rest, aside };
 }
 
 /** nulls sort last in either direction. */
@@ -84,7 +96,10 @@ function compareItems<E extends ViewEntry, C extends ViewCard>(
  * map are skipped (the caller's map is built from the same response as the
  * entries, so this is a hydration race at worst, not data loss).
  *
- * Group order: primaryType → biggest group first (label tiebreak); costValue →
+ * Group order: primaryType → the adapter's `typeOrder` when it declares one
+ * (DECK-TOKENS: listed types in that order, unlisted ones after them by
+ * label, "Other" last — the same rank the game's type breakdown sorts by),
+ * otherwise biggest group first (label tiebreak; One Piece); costValue →
  * ascending, cost-less last; tags → alphabetical, "Untagged" last. Cards with
  * several tags appear in each of those tag groups, so tag-group quantities can
  * sum past the deck size — by design, tags are overlapping categories.
@@ -94,8 +109,9 @@ export function groupDeckEntries<E extends ViewEntry, C extends ViewCard>(
   cards: ReadonlyMap<string, C>,
   groupBy: GroupKey,
   sortBy: SortKey,
+  typeOrder?: readonly string[],
 ): DeckGroup<E, C>[] {
-  // order: primaryType ignores it (qty decides); costValue = the cost; tags = 0/1 untagged-last.
+  // order: primaryType = the declared rank (without one, qty decides); costValue = the cost; tags = 0/1 untagged-last.
   const groups = new Map<string, DeckGroup<E, C> & { order: number }>();
   const put = (key: string, label: string, order: number, item: ViewItem<E, C>) => {
     let group = groups.get(key);
@@ -112,8 +128,8 @@ export function groupDeckEntries<E extends ViewEntry, C extends ViewCard>(
     if (!card) continue;
     const item = { entry, card };
     if (groupBy === "primaryType") {
-      const type = card.primaryType ?? "Other";
-      put(`type:${type}`, type, 0, item);
+      const type = card.primaryType ?? NO_TYPE_LABEL;
+      put(`type:${type}`, type, typeOrder ? typeGroupRank(typeOrder, type) : 0, item);
     } else if (groupBy === "costValue") {
       const cost = card.costValue;
       if (cost === null) put("cost:none", "No cost", Number.POSITIVE_INFINITY, item);
@@ -128,7 +144,7 @@ export function groupDeckEntries<E extends ViewEntry, C extends ViewCard>(
   const list = [...groups.values()];
   for (const group of list) group.items.sort((a, b) => compareItems(sortBy, a, b));
   list.sort((a, b) => {
-    if (groupBy === "primaryType") {
+    if (groupBy === "primaryType" && !typeOrder) {
       if (a.qty !== b.qty) return b.qty - a.qty;
     } else if (a.order !== b.order) {
       return a.order - b.order;

@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
+import { TOKEN_DOC } from "@/lib/cards/tokens";
 
 interface Statement {
   sql: string;
@@ -53,10 +54,10 @@ const { GET } = await import("./route");
 const SELECT_CARD = `select "card_identities"."id", "card_identities"."name", "card_identities"."external_key", "card_identities"."primary_type", "card_identities"."cost_value", "card_identities"."colors_mask", "card_identities"."ci_mask", "card_identities"."cheapest_usd", "card_identities"."popularity", "card_identities"."is_leader_candidate", "card_identities"."is_preview", "card_identities"."attrs"`;
 
 /** /cards' first request before X4a — 69636a4's statement, verbatim. */
-const CARDS_FIRST_PAGE = `${SELECT_CARD}, "card_printings"."id", "card_printings"."image_override", count(*) over()::int from "card_identities" left join "card_printings" on ("card_printings"."card_identity_id" = "card_identities"."id" and "card_printings"."is_default" = $1) where ("card_identities"."game_id" = $2 and "card_identities"."is_removed" = $3) order by "card_identities"."popularity" ASC NULLS LAST, "card_identities"."name_norm" limit $4`;
+const CARDS_FIRST_PAGE = `${SELECT_CARD}, "card_printings"."id", "card_printings"."image_override", count(*) over()::int from "card_identities" left join "card_printings" on ("card_printings"."card_identity_id" = "card_identities"."id" and "card_printings"."is_default" = $1) where ("card_identities"."game_id" = $2 and "card_identities"."is_removed" = $3 and NOT ("card_identities"."attrs" @> $4::jsonb)) order by "card_identities"."popularity" ASC NULLS LAST, "card_identities"."name_norm" limit $5`;
 
 /** The editor's One Piece id pass (`OP01-02`) before X4a, verbatim. */
-const OP_ID_PASS = `${SELECT_CARD}, "card_printings"."id", "card_printings"."image_override", count(*) over()::int from "card_identities" left join "card_printings" on ("card_printings"."card_identity_id" = "card_identities"."id" and "card_printings"."is_default" = $1) where ("card_identities"."game_id" = $2 and "card_identities"."is_removed" = $3 and "card_identities"."external_key" LIKE $4) order by "card_identities"."external_key" ASC, "card_identities"."name_norm" limit $5`;
+const OP_ID_PASS = `${SELECT_CARD}, "card_printings"."id", "card_printings"."image_override", count(*) over()::int from "card_identities" left join "card_printings" on ("card_printings"."card_identity_id" = "card_identities"."id" and "card_printings"."is_default" = $1) where ("card_identities"."game_id" = $2 and "card_identities"."is_removed" = $3 and NOT ("card_identities"."attrs" @> $4::jsonb) and "card_identities"."external_key" LIKE $5) order by "card_identities"."external_key" ASC, "card_identities"."name_norm" limit $6`;
 
 const PRINTING = "f791876a-f3fb-45b8-90a9-af846d8b8f74";
 
@@ -150,14 +151,27 @@ describe("GET /api/cards/search — without a set, what it was", () => {
     await get("game=mtg&limit=60");
     expect(statements).toHaveLength(1);
     expect(statements[0].sql).toBe(CARDS_FIRST_PAGE);
-    expect(statements[0].params).toEqual([true, 1, false, 60]);
+    expect(statements[0].params).toEqual([true, 1, false, TOKEN_DOC, 60]);
+  });
+
+  it("never a token (DECK-TOKENS); tokens=1 asks for the catalog instead, every other clause the same", async () => {
+    await get("game=mtg&limit=12&tokens=1");
+    expect(statements[0].sql).toBe(
+      CARDS_FIRST_PAGE.replace(
+        'NOT ("card_identities"."attrs" @> $4::jsonb)',
+        '"card_identities"."attrs" @> $4::jsonb',
+      ),
+    );
+    expect(statements[0].params).toEqual([true, 1, false, TOKEN_DOC, 12]);
+    const bad = await get("game=mtg&tokens=yes");
+    expect(bad.res.status).toBe(400);
   });
 
   it("the One Piece id pass, with or without a `set` (One Piece declares no set field)", async () => {
     await get("game=optcg&format=standard&name=OP01-02&limit=20");
     await get("game=optcg&format=standard&name=OP01-02&limit=20&set=op01");
     expect(statements.map((s) => s.sql)).toEqual([OP_ID_PASS, OP_ID_PASS]);
-    expect(statements[1].params).toEqual([true, 2, false, "OP01-02%", 20]);
+    expect(statements[1].params).toEqual([true, 2, false, TOKEN_DOC, "OP01-02%", 20]);
   });
 
   it("the rows carry no printingId; the image is the default printing's", async () => {
@@ -270,7 +284,9 @@ describe("GET /api/cards/search — a set scope", () => {
   it("a malformed code: one statement that matches nothing, and a warning — never every card", async () => {
     const { body } = await get("game=mtg&limit=60&set=bl%25b");
     expect(statements).toHaveLength(1);
-    expect(statements[0].sql).toContain(`"card_identities"."is_removed" = $3 and false)`);
+    expect(statements[0].sql).toContain(
+      `"card_identities"."is_removed" = $3 and NOT ("card_identities"."attrs" @> $4::jsonb) and false)`,
+    );
     expect(statements[0].sql).not.toContain("in_set");
     expect(body.warnings).toEqual([`set: "bl%b" is not a set code`]);
     expect(body.results[0] ?? null).toBeNull();

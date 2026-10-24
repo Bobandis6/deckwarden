@@ -328,3 +328,66 @@ describe("DeckListPane — the phone Deck tab (U4a, WAVE5 D5)", () => {
     expect(screen.queryByRole("button", { name: "Group · Sort" })).toBeNull();
   });
 });
+
+describe("DeckListPane — the type order (DECK-TOKENS)", () => {
+  const typed = (primaryType: string, name: string) =>
+    toEditorCard({
+      ...card({ name, primaryType, attrs: { type_line: primaryType, oracle_text: "" } }),
+      image: null,
+    });
+  const list = [
+    typed("Land", "Command Tower"),
+    typed("Enchantment", "Rhystic Study"),
+    typed("Artifact", "Arcane Signet"),
+    typed("Instant", "Swords to Plowshares"),
+    typed("Sorcery", "Demonic Tutor"),
+    typed("Creature", "Birds of Paradise"),
+  ];
+  const typedEntries: EditorEntry[] = [
+    ...entries,
+    ...list.map((c) => ({
+      cardId: c.id,
+      zone: "main",
+      qty: c.primaryType === "Land" ? 37 : 1,
+      tags: [],
+    })),
+  ];
+  const typedCards = new Map([[kozilek.id, kozilek], ...list.map((c) => [c.id, c] as const)]);
+
+  it.each(["text", "grid"] as const)(
+    "the %s view reads the commander first, then Creatures, Sorceries, Instants, Artifacts, Enchantments, Lands",
+    (view) => {
+      window.localStorage.setItem(
+        "deckwarden:deck-view",
+        JSON.stringify({ view, groupBy: "primaryType", sortBy: "name" }),
+      );
+      render(
+        <DeckListPane
+          adapter={mtg}
+          format={COMMANDER}
+          entries={typedEntries}
+          cards={typedCards}
+          issues={[]}
+          analytics={[]}
+          onSetQty={() => undefined}
+          onRemove={() => {}}
+          onPreview={() => {}}
+          extras={false}
+        />,
+      );
+      // The commander's zone heads the list; then the owner's order, the 37 lands
+      // last of the 100 — and the Tokens section after them, outside it.
+      const sequence = [...document.querySelectorAll("h3")].map((h) => h.textContent);
+      expect(sequence).toEqual([
+        "Commander1",
+        "Creature1",
+        "Sorcery1",
+        "Instant1",
+        "Artifact1",
+        "Enchantment1",
+        "Land37",
+        "Tokens0",
+      ]);
+    },
+  );
+});

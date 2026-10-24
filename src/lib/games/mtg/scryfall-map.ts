@@ -6,6 +6,14 @@
  * Lean-row rules applied here (build plan §4): no raw Scryfall JSON is kept —
  * only the fields queries touch; attrs numerics pre-normalized (power_num etc.);
  * prices stripped of null entries; content_hash excludes prices.
+ *
+ * Tokens (DECK-TOKENS, 2026-10-24 — the plan's "token layouts skipped" line
+ * retired at the owner's ask): token, double-faced token and emblem objects
+ * are ingested as the token catalog, marked `attrs.is_token` and never leader
+ * candidates; World Championship and minigame inserts and checklists stay
+ * out. Cards carry `attrs.tokens`, the catalog objects Scryfall's `all_parts`
+ * links them to — resolved by the ingest after the stream (resolveTokenLinks),
+ * because a link names a token PRINTING that may not have streamed yet.
  */
 import { createHash } from "node:crypto";
 
@@ -41,6 +49,8 @@ export interface ScryfallCard {
   set: string;
   set_name?: string;
   collector_number: string;
+  /** Scryfall's set classification ("token", "memorabilia", "minigame", …) — the token catalog's junk filter reads it. */
+  set_type?: string;
   rarity?: string;
   finishes?: string[];
   digital?: boolean;
@@ -61,20 +71,62 @@ export interface ScryfallCard {
   prices?: Record<string, string | null>;
   image_uris?: Record<string, string>;
   card_faces?: ScryfallCardFace[];
+  /** Related objects (DECK-TOKENS): the tokens, emblems and game pieces a card makes or uses. */
+  all_parts?: ScryfallRelatedCard[];
+}
+
+/** One `all_parts` entry: a related object, named by its PRINTING id. */
+export interface ScryfallRelatedCard {
+  id: string;
+  /** "token" | "combo_piece" | "meld_part" | "meld_result". */
+  component: string;
+  name: string;
+  type_line?: string;
 }
 
 // --- Skip filter -------------------------------------------------------------
 
-/** Layouts that are not deck cards (plan: token/art-series skipped). */
-const SKIPPED_LAYOUTS = new Set(["token", "double_faced_token", "emblem", "art_series"]);
+/** Layouts that are not cards at all (art cards); everything else maps. */
+const SKIPPED_LAYOUTS = new Set(["art_series"]);
 
-export type SkipReason = "non_english" | "layout" | "no_oracle_id" | null;
+/** The token catalog's layouts (DECK-TOKENS): tokens, double-faced tokens, emblems. */
+const TOKEN_LAYOUTS = new Set(["token", "double_faced_token", "emblem"]);
+
+/**
+ * Set types whose token-catalog printings are souvenirs, not game pieces:
+ * World Championship bios, decklists and ads, minigame inserts, Theros
+ * challenge-deck cards (120 objects at 2026-10-24, every one only there).
+ */
+const NON_PIECE_SET_TYPES = new Set(["memorabilia", "minigame"]);
+
+export type SkipReason = "non_english" | "layout" | "no_oracle_id" | "token_extra" | null;
 
 export function skipReason(card: ScryfallCard): SkipReason {
   if (card.lang !== "en") return "non_english";
   if (SKIPPED_LAYOUTS.has(card.layout)) return "layout";
   if (!oracleId(card)) return "no_oracle_id";
+  if (isTokenObject(card) && (NON_PIECE_SET_TYPES.has(card.set_type ?? "") || isChecklist(card)))
+    return "token_extra";
   return null;
+}
+
+/**
+ * A token-catalog object (DECK-TOKENS): a token, double-faced token or
+ * emblem layout, or any object whose front face carries the Token supertype
+ * — Scryfall prints Role tokens on `flip` and Mechtitan on `reversible_card`,
+ * which is how seven tokens (Mechtitan a "commander") reached the catalog
+ * before this rule.
+ */
+export function isTokenObject(card: ScryfallCard): boolean {
+  if (TOKEN_LAYOUTS.has(card.layout)) return true;
+  const front = foldFaces(card, "type_line", " // ").split(" // ")[0];
+  return front.split(" — ")[0].split(" ").includes("Token");
+}
+
+/** Set checklists ship in token sets as "Card"-typed inserts; they are lists, not pieces. */
+function isChecklist(card: ScryfallCard): boolean {
+  const front = foldFaces(card, "type_line", " // ").split(" // ")[0];
+  return front === "Card" && /\bChecklist\b/.test(card.name);
 }
 
 export function oracleId(card: ScryfallCard): string | undefined {
@@ -205,6 +257,8 @@ export interface PrintingRow {
  * Typed as MtgAttrs (LATER row, fired by P2.5) so the attrs contract can't drift from ingest.
  * Bracket facts are sparse (Y3a): `game_changer` only when true, Tagger flags only when given.
  * Swap Lab's roles (Y7a) likewise: written only when the card has at least one.
+ * `is_token` (DECK-TOKENS) likewise: only on token-catalog objects. `tokens` is
+ * the ingest's to add after the stream (resolveTokenLinks), never mapped here.
  */
 function buildAttrs(card: ScryfallCard, flags: TaggerCardFlags): MtgAttrs {
   const faces = card.card_faces;
@@ -242,6 +296,7 @@ function buildAttrs(card: ScryfallCard, flags: TaggerCardFlags): MtgAttrs {
   if (flags.mld) attrs.mld = flags.mld;
   if (flags.extra_turn) attrs.extra_turn = true;
   if (flags.roles?.length) attrs.roles = [...flags.roles];
+  if (isTokenObject(card)) attrs.is_token = true;
   return attrs;
 }
 
@@ -309,7 +364,8 @@ export function mapIdentity(
     cost_value: clampCost(card.cmc),
     colors_mask: colorsToMask(colors),
     ci_mask: colorsToMask(card.color_identity),
-    is_leader_candidate: isLeaderCandidate(card),
+    // A token is never a commander, legendary or not (Marit Lage, Ragavan, Mechtitan).
+    is_leader_candidate: !isTokenObject(card) && isLeaderCandidate(card),
     popularity: card.edhrec_rank ?? null,
     is_preview: (card.released_at ?? "") > todayIso,
     attrs: JSON.stringify(buildAttrs(card, flags)),
@@ -325,6 +381,44 @@ export function gameChangerDigest(oracleIds: Iterable<string>): string {
   return createHash("md5")
     .update([...oracleIds].sort().join("\n"))
     .digest("hex");
+}
+
+/**
+ * The printing ids a card's `all_parts` links it to that could be catalog
+ * objects (DECK-TOKENS): "token" (what it makes) and "combo_piece" (emblems
+ * and game pieces it uses — The Monarch, Energy Reserve, Day // Night — but
+ * also partner cards, which resolveTokenLinks drops for not being in the
+ * catalog). Meld links are cards, never tokens. A card's link to its own
+ * printing is skipped.
+ */
+export function tokenLinkPrintings(card: ScryfallCard): string[] {
+  return (card.all_parts ?? [])
+    .filter((p) => p.id !== card.id && (p.component === "token" || p.component === "combo_piece"))
+    .map((p) => p.id);
+}
+
+/**
+ * `attrs.tokens` per card (DECK-TOKENS): each card's linked printing ids
+ * (gathered across all its printings) mapped through the token catalog's
+ * printing → oracle id table, deduped and sorted so the identity merge's
+ * IS DISTINCT FROM sees the same list every night. Links to anything outside
+ * the catalog (cards, skipped inserts, other languages) and to the card's own
+ * oracle id drop out; a card left with none gets no entry.
+ */
+export function resolveTokenLinks(
+  linksByOracle: ReadonlyMap<string, ReadonlySet<string>>,
+  tokenOracleByPrinting: ReadonlyMap<string, string>,
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const [oracle, printings] of linksByOracle) {
+    const tokens = new Set<string>();
+    for (const printing of printings) {
+      const token = tokenOracleByPrinting.get(printing);
+      if (token && token !== oracle) tokens.add(token);
+    }
+    if (tokens.size > 0) out.set(oracle, [...tokens].sort());
+  }
+  return out;
 }
 
 /** True when the printing has a distinct back face image (transform/MDFC/etc.). */

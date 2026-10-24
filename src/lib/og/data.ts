@@ -4,10 +4,15 @@
  * printing images for 100 cards. Uses only promoted cross-game fields so
  * the renderer stays game-agnostic (convention: game logic in adapters —
  * curve semantics live in og/curve.ts, mirrored from analyze.ts).
+ *
+ * DECK-TOKENS: the card read leaves token identities out — a token can only
+ * sit in a deck's Tokens zone (the save route's rule), so the count, the
+ * price and the curve stay the playable list's without an adapter import.
  */
 import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
+import { notTokenSql } from "@/lib/cards/tokens-sql";
 import { goalsTargetLevel } from "@/lib/decks/collections";
 import { ogCurveBuckets } from "@/lib/og/curve";
 
@@ -67,7 +72,7 @@ export async function loadDeckOgData(publicId: string): Promise<DeckOgRead | nul
       })
       .from(deckCards)
       .innerJoin(cardIdentities, eq(cardIdentities.id, deckCards.cardIdentityId))
-      .where(eq(deckCards.deckId, deck.id)),
+      .where(and(eq(deckCards.deckId, deck.id), notTokenSql(cardIdentities.attrs))),
     deck.leaderIds.length
       ? db
           .select({ id: cardIdentities.id, name: cardIdentities.name })

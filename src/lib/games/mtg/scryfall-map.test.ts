@@ -8,13 +8,16 @@ import {
   gameChangerDigest,
   hasBack,
   isLeaderCandidate,
+  isTokenObject,
   leanPrices,
   mapIdentity,
   mapPrinting,
   primaryType,
   printingContentHash,
+  resolveTokenLinks,
   skipReason,
   statToNum,
+  tokenLinkPrintings,
   type ScryfallCard,
 } from "./scryfall-map";
 
@@ -85,12 +88,87 @@ describe("normalizeCardName", () => {
   });
 });
 
+/** Token-catalog shapes as Scryfall's default_cards prints them (2026-10-24). */
+const soldierToken: ScryfallCard = {
+  id: "11111111-1111-4111-8111-111111111111",
+  oracle_id: "aaaaaaaa-0000-4000-8000-000000000001",
+  lang: "en",
+  layout: "token",
+  name: "Soldier",
+  set: "tblb",
+  set_type: "token",
+  collector_number: "2",
+  cmc: 0,
+  type_line: "Token Creature — Soldier",
+  oracle_text: "",
+  power: "1",
+  toughness: "1",
+  colors: ["W"],
+  color_identity: ["W"],
+  game_changer: false,
+};
+const maritLage: ScryfallCard = {
+  ...soldierToken,
+  id: "11111111-1111-4111-8111-111111111112",
+  oracle_id: "aaaaaaaa-0000-4000-8000-000000000002",
+  name: "Marit Lage",
+  type_line: "Token Legendary Creature — Avatar",
+  oracle_text: "Flying, indestructible",
+  power: "20",
+  toughness: "20",
+  colors: ["B"],
+  color_identity: ["B"],
+};
+const roleToken: ScryfallCard = {
+  ...soldierToken,
+  id: "11111111-1111-4111-8111-111111111113",
+  oracle_id: "aaaaaaaa-0000-4000-8000-000000000003",
+  layout: "flip",
+  name: "Wicked // Cursed",
+  type_line: "Token Enchantment — Aura Role // Token Enchantment — Aura Role",
+};
+const mechtitan: ScryfallCard = {
+  ...soldierToken,
+  id: "11111111-1111-4111-8111-111111111114",
+  oracle_id: "aaaaaaaa-0000-4000-8000-000000000004",
+  layout: "reversible_card",
+  name: "Mechtitan",
+  type_line: "Token Legendary Artifact Creature — Construct",
+};
+const chandraEmblem: ScryfallCard = {
+  ...soldierToken,
+  id: "11111111-1111-4111-8111-111111111115",
+  oracle_id: "aaaaaaaa-0000-4000-8000-000000000005",
+  layout: "emblem",
+  name: "Chandra, Torch of Defiance Emblem",
+  type_line: "Emblem — Chandra",
+  power: undefined,
+  toughness: undefined,
+  colors: [],
+  color_identity: [],
+};
+
 describe("skip filter", () => {
   it("keeps normal english cards", () => expect(skipReason(bolt)).toBeNull());
-  it("skips non-english and token layouts", () => {
+  it("skips non-english cards and art cards", () => {
     expect(skipReason({ ...bolt, lang: "ja" })).toBe("non_english");
-    expect(skipReason({ ...bolt, layout: "token" })).toBe("layout");
     expect(skipReason({ ...bolt, layout: "art_series" })).toBe("layout");
+  });
+  it("keeps the token catalog: tokens, double-faced tokens, emblems (DECK-TOKENS)", () => {
+    expect(skipReason(soldierToken)).toBeNull();
+    expect(skipReason({ ...soldierToken, layout: "double_faced_token" })).toBeNull();
+    expect(skipReason(chandraEmblem)).toBeNull();
+    expect(skipReason({ ...soldierToken, name: "The Monarch", type_line: "Card" })).toBeNull();
+  });
+  it("drops the catalog's souvenirs: memorabilia and minigame inserts, checklists", () => {
+    const bio = { ...soldierToken, name: "Jon Finkel Bio", type_line: "Card", set: "wc00" };
+    expect(skipReason({ ...bio, set_type: "memorabilia" })).toBe("token_extra");
+    expect(skipReason({ ...bio, name: "Booster Blitz", set_type: "minigame" })).toBe("token_extra");
+    expect(skipReason({ ...soldierToken, name: "Innistrad Checklist", type_line: "Card" })).toBe(
+      "token_extra",
+    );
+    // A memorabilia printing of a real card is still a card.
+    expect(skipReason({ ...bolt, set_type: "memorabilia" })).toBeNull();
   });
   it("skips cards with no oracle_id anywhere", () => {
     expect(skipReason({ ...bolt, oracle_id: undefined })).toBe("no_oracle_id");
@@ -358,6 +436,92 @@ describe("mapIdentity", () => {
     expect(JSON.parse(mapIdentity(bolt, TODAY).attrs)).not.toHaveProperty("roles");
     const both = JSON.parse(mapIdentity(bolt, TODAY, { extra_turn: true, roles }).attrs);
     expect(both).toMatchObject({ extra_turn: true, roles });
+  });
+});
+
+describe("token catalog (DECK-TOKENS)", () => {
+  it("isTokenObject: the token layouts, and the Token supertype on any layout", () => {
+    expect(isTokenObject(soldierToken)).toBe(true);
+    expect(isTokenObject(chandraEmblem)).toBe(true);
+    // Scryfall prints Role tokens on `flip` and Mechtitan on `reversible_card`.
+    expect(isTokenObject(roleToken)).toBe(true);
+    expect(isTokenObject(mechtitan)).toBe(true);
+    expect(isTokenObject(bolt)).toBe(false);
+    expect(isTokenObject(dfc)).toBe(false);
+    // "Token" in a NAME is not the supertype.
+    expect(isTokenObject({ ...bolt, name: "Token Gesture", type_line: "Instant" })).toBe(false);
+  });
+
+  it("marks tokens is_token, maps their types, and never makes one a commander", () => {
+    const soldier = mapIdentity(soldierToken, TODAY);
+    expect(JSON.parse(soldier.attrs)).toMatchObject({ is_token: true, power: "1", toughness: "1" });
+    expect(soldier.primary_type).toBe("Creature");
+    expect(soldier.colors_mask).toBe(1);
+    for (const legendary of [maritLage, mechtitan]) {
+      expect(isLeaderCandidate(legendary)).toBe(true); // the card rule alone would say yes
+      expect(mapIdentity(legendary, TODAY).is_leader_candidate).toBe(false);
+    }
+    expect(mapIdentity(chandraEmblem, TODAY).primary_type).toBe("Emblem");
+  });
+
+  it("writes no token keys on a card", () => {
+    const attrs = JSON.parse(mapIdentity(bolt, TODAY).attrs);
+    expect(attrs).not.toHaveProperty("is_token");
+    expect(attrs).not.toHaveProperty("tokens");
+  });
+
+  it("tokenLinkPrintings: token and combo_piece links, never meld parts or the card itself", () => {
+    const tithe: ScryfallCard = {
+      ...bolt,
+      all_parts: [
+        { id: bolt.id, component: "combo_piece", name: "Lightning Bolt" },
+        { id: soldierToken.id, component: "token", name: "Soldier" },
+        {
+          id: chandraEmblem.id,
+          component: "combo_piece",
+          name: "Chandra, Torch of Defiance Emblem",
+        },
+        { id: "22222222-2222-4222-8222-222222222222", component: "meld_part", name: "Bruna" },
+      ],
+    };
+    expect(tokenLinkPrintings(tithe)).toEqual([soldierToken.id, chandraEmblem.id]);
+    expect(tokenLinkPrintings(dfc)).toEqual([]);
+  });
+
+  it("resolveTokenLinks: catalog printings → sorted, deduped oracle ids; the rest drop out", () => {
+    const catalog = new Map([
+      [soldierToken.id, soldierToken.oracle_id!],
+      ["33333333-3333-4333-8333-333333333333", soldierToken.oracle_id!], // a reprint of the same token
+      [chandraEmblem.id, chandraEmblem.oracle_id!],
+    ]);
+    const links = new Map([
+      // Two printings of one card link the same token twice and a partner card once.
+      [
+        "maker",
+        new Set([
+          chandraEmblem.id,
+          soldierToken.id,
+          "33333333-3333-4333-8333-333333333333",
+          bolt.id,
+        ]),
+      ],
+      ["partner-only", new Set([bolt.id])],
+      // A token linking itself is no link.
+      [soldierToken.oracle_id!, new Set([soldierToken.id])],
+    ]);
+    expect([...resolveTokenLinks(links, catalog)]).toEqual([
+      ["maker", [soldierToken.oracle_id!, chandraEmblem.oracle_id!].sort()],
+    ]);
+    // Sorted whatever the streaming order (the merge compares attrs night to night).
+    for (const order of [
+      [soldierToken.id, chandraEmblem.id],
+      [chandraEmblem.id, soldierToken.id],
+    ]) {
+      expect(resolveTokenLinks(new Map([["m", new Set(order)]]), catalog).get("m")).toEqual([
+        soldierToken.oracle_id!,
+        chandraEmblem.oracle_id!,
+      ]);
+    }
   });
 });
 

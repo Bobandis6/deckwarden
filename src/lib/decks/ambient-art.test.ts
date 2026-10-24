@@ -70,6 +70,27 @@ describe("artTargetKey / artRequestPath", () => {
 });
 
 describe("orderLeadersBy", () => {
+  it("keeps the Tokens zone (DECK-TOKENS): it rebuilds the whole list the editor loads and saves", () => {
+    const wire = [
+      entry(THRASIOS, "commander"),
+      entry(TYMNA, "commander"),
+      entry(SOL, "main"),
+      entry(ALT, "tokens"),
+    ];
+    expect(orderLeadersBy(wire, COMMANDER, [TYMNA, THRASIOS]).map((e) => e.cardId)).toEqual([
+      TYMNA,
+      THRASIOS,
+      SOL,
+      ALT,
+    ]);
+    // One leader takes the early return: the tokens still come back.
+    expect(orderLeadersBy(wire.slice(1), COMMANDER, [TYMNA]).map((e) => e.cardId)).toEqual([
+      TYMNA,
+      SOL,
+      ALT,
+    ]);
+  });
+
   it("restores the decks-row leader order over a name-sorted wire and leaves the rest alone", () => {
     const wire = [entry(THRASIOS, "commander"), entry(TYMNA, "commander"), entry(SOL, "main")];
     const ordered = orderLeadersBy(wire, COMMANDER, [TYMNA, THRASIOS]);

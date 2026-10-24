@@ -40,6 +40,8 @@ interface DeckGridViewProps {
   adapter?: GameAdapter;
   /** Editor: group headers stick to the top of the scrolling pane (C12). */
   stickyHeaders?: boolean;
+  /** False = no group headings (the Tokens section, whose disclosure is its heading). */
+  headings?: boolean;
 }
 
 const BADGE_CLASS =
@@ -52,14 +54,20 @@ export function DeckGridView({
   owned,
   adapter,
   stickyHeaders = false,
+  headings = true,
 }: DeckGridViewProps) {
   const idPrefix = useId();
   return (
     <>
       {groups.map((group) => (
         <section key={group.key}>
-          <GroupHeading label={group.label} qty={group.qty} sticky={stickyHeaders} />
-          <ul className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2">
+          {headings && <GroupHeading label={group.label} qty={group.qty} sticky={stickyHeaders} />}
+          <ul
+            className={cn(
+              "grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2",
+              headings && "mt-2",
+            )}
+          >
             {group.items.map(({ entry, card }) => {
               const badge = adapter?.display.idBadge?.(card);
               const level = severity.get(card.id);

@@ -19,6 +19,12 @@
  * is out of reach and a deliberate one would only mislabel the owner's own
  * game. The `h1:` prefix names this payload + digest; a future change bumps
  * it, and rows under the old prefix re-hash like the pre-0018 NULLs do.
+ *
+ * Every zone, the Tokens zone included (DECK-TOKENS): the diff shows a token
+ * edit, so the hash moves with it — the "equal exactly when the diff is
+ * empty" contract above outranks the name — and a game logged after one
+ * mints a played snapshot like any edit. No stored list held a token before,
+ * so no `h1:` row changes.
  */
 
 /** Anything with a zone, a card and a quantity: frozen snapshots, editor entries. */

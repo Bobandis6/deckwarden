@@ -36,6 +36,7 @@ vi.mock("@/db", async (importOriginal) => ({
 
 const {
   deleteVersion,
+  frozenCount,
   frozenToInputs,
   insertVersion,
   MAX_PLAYED_SNAPSHOTS_PER_DECK,
@@ -226,5 +227,21 @@ describe("resolveFrozenCards (restore guard)", () => {
     const out = resolveFrozenCards(frozen, known, new Map([[U(11), U(1)]]));
     expect(out.cardsDropped).toBe(2);
     expect(out.entries.map((e) => e.cardId)).toEqual([U(1), U(3)]);
+  });
+});
+
+describe("frozenCount (DECK-TOKENS)", () => {
+  const frozen = [
+    { zone: "commander", qty: 1 },
+    { zone: "main", qty: 99 },
+    { zone: "tokens", qty: 6 },
+  ];
+
+  it("a version's size counts the playable list's zones — never the Tokens zone", () => {
+    expect(frozenCount(frozen, ["commander", "main"])).toBe(100);
+  });
+
+  it("every copy when the caller can't say which zones count", () => {
+    expect(frozenCount(frozen)).toBe(106);
   });
 });

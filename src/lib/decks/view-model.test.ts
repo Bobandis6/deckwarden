@@ -12,6 +12,7 @@ import {
   tymna,
 } from "@/lib/games/mtg/test-fixtures";
 import { COMMANDER } from "@/lib/games/mtg/formats";
+import { MTG_TYPE_ORDER } from "@/lib/games/mtg/type-order";
 import { groupDeckEntries, splitLeaderEntries, type SortKey, type ViewEntry } from "./view-model";
 
 /** Editor-shaped entry (zone included) — what both consumers actually pass. */
@@ -52,7 +53,7 @@ describe("splitLeaderEntries", () => {
 describe("groupDeckEntries by primaryType", () => {
   const groups = groupDeckEntries(fixtureEntries, fixtureCards, "primaryType", "name");
 
-  it("groups by card primaryType with quantity counts, biggest group first", () => {
+  it("without a declared typeOrder (One Piece), groups biggest first with quantity counts", () => {
     expect(groups.map((g) => [g.label, g.qty])).toEqual([
       ["Land", 30],
       ["Artifact", 1],
@@ -79,6 +80,85 @@ describe("groupDeckEntries by primaryType", () => {
     const { deck, cards } = legalDeck();
     const groups = groupDeckEntries(deck.zones.main, cards, "primaryType", "name");
     expect(groups.reduce((sum, g) => sum + g.qty, 0)).toBe(99); // 100 minus commander
+  });
+});
+
+describe("groupDeckEntries by primaryType with a declared typeOrder (DECK-TOKENS)", () => {
+  /** One card per type the owner named, plus the two the ask left out, in a shuffled deck. */
+  const byType = (primaryType: string | null, name: string) =>
+    card({ name, primaryType, attrs: { type_line: primaryType ?? "Card", oracle_text: "" } });
+  const typed = [
+    byType("Land", "Command Tower"),
+    byType("Battle", "Invasion of Ikoria"),
+    byType("Enchantment", "Rhystic Study"),
+    byType("Instant", "Swords to Plowshares"),
+    byType("Planeswalker", "Teferi, Hero of Dominaria"),
+    byType("Artifact", "Arcane Signet"),
+    byType("Sorcery", "Demonic Tutor"),
+    byType("Creature", "Birds of Paradise"),
+  ];
+  const typedCards = cardMap(typed);
+  const typedEntries = typed.map((c) => entry(c.id));
+
+  it("orders the groups Creature, Sorcery, Instant, Artifact, Enchantment, Planeswalker, Battle, Land", () => {
+    const groups = groupDeckEntries(
+      typedEntries,
+      typedCards,
+      "primaryType",
+      "name",
+      MTG_TYPE_ORDER,
+    );
+    expect(groups.map((g) => g.label)).toEqual([...MTG_TYPE_ORDER]);
+  });
+
+  it("ignores quantities: the 30 Islands stay last behind single cards", () => {
+    const groups = groupDeckEntries(
+      fixtureEntries,
+      fixtureCards,
+      "primaryType",
+      "name",
+      MTG_TYPE_ORDER,
+    );
+    // The same fixture that reads Land-first above, biggest-first.
+    expect(groups.map((g) => [g.label, g.qty])).toEqual([
+      ["Instant", 1],
+      ["Artifact", 1],
+      ["Land", 30],
+      ["Other", 1],
+    ]);
+  });
+
+  it("puts types the order doesn't list after Lands by name, and typeless cards last", () => {
+    const odd = [
+      byType("Dungeon", "Undercity"),
+      byType("Conspiracy", "Backup Plan"),
+      byType(null, "Mystery"),
+    ];
+    const cards = cardMap([...typed, ...odd]);
+    const groups = groupDeckEntries(
+      [...odd, ...typed].map((c) => entry(c.id)),
+      cards,
+      "primaryType",
+      "name",
+      MTG_TYPE_ORDER,
+    );
+    expect(groups.map((g) => g.label).slice(-4)).toEqual([
+      "Land",
+      "Conspiracy",
+      "Dungeon",
+      "Other",
+    ]);
+  });
+
+  it("keeps the in-group sort and touches no other grouping", () => {
+    const groups = groupDeckEntries(
+      fixtureEntries,
+      fixtureCards,
+      "costValue",
+      "name",
+      MTG_TYPE_ORDER,
+    );
+    expect(groups.map((g) => g.key)).toEqual(["cost:0", "cost:1", "cost:none"]);
   });
 });
 

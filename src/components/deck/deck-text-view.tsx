@@ -207,6 +207,13 @@ interface DeckTextViewProps {
   pop?: { key: string; nonce: number } | null;
   /** Share pages: hover / focus card previews on the name buttons (F5). */
   preview?: boolean;
+  /**
+   * DECK-TOKENS: the words beside a name that tell it apart (the Tokens
+   * section passes `display.tokenCaption`); absent = none.
+   */
+  caption?: (card: EditorCard) => string | null;
+  /** False = no group headings (the Tokens section, whose disclosure is its heading). */
+  headings?: boolean;
 }
 
 export function DeckTextView({
@@ -222,6 +229,8 @@ export function DeckTextView({
   stickyHeaders = false,
   pop = null,
   preview = false,
+  caption,
+  headings = true,
 }: DeckTextViewProps) {
   return (
     <>
@@ -233,13 +242,14 @@ export function DeckTextView({
             stickyHeaders ? ({ "--group-rows": group.items.length } as CSSProperties) : undefined
           }
         >
-          <GroupHeading label={group.label} qty={group.qty} sticky={stickyHeaders} />
-          <ul className="mt-1">
+          {headings && <GroupHeading label={group.label} qty={group.qty} sticky={stickyHeaders} />}
+          <ul className={headings ? "mt-1" : undefined}>
             {group.items.map(({ entry, card }) => {
               const rowKey = `${entry.zone}:${entry.cardId}`;
               const popping = pop !== null && pop.key === rowKey;
               const badge = adapter.display.idBadge?.(card);
               const stats = adapter.display.rowStats?.(card);
+              const words = caption?.(card);
               const nameButton = (
                 <button
                   type="button"
@@ -259,7 +269,8 @@ export function DeckTextView({
                       }`}
                     />
                   )}
-                  <span className="truncate">{card.name}</span>
+                  {/* A captioned name keeps its width; the caption truncates first (DECK-TOKENS). */}
+                  <span className={words ? "shrink-0" : "truncate"}>{card.name}</span>
                   {/* Owned mark (P3.7): inside the truncating name button, so it
                             never shifts the row's steppers or pips. */}
                   {owned?.has(card.id) && (
@@ -277,6 +288,14 @@ export function DeckTextView({
                   {stats && (
                     <span className="text-muted-foreground shrink-0 font-mono text-xs">
                       {stats}
+                    </span>
+                  )}
+                  {words && (
+                    <span
+                      data-slot="caption"
+                      className="text-muted-foreground min-w-0 truncate text-xs"
+                    >
+                      {words}
                     </span>
                   )}
                 </button>
