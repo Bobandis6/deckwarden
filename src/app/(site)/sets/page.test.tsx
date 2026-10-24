@@ -4,7 +4,8 @@
  * `loadReleasedSets(GAME_ID.mtg)` is a link to /cards?set=<code> in the
  * HTML — the other products too, `hidden` by the default "Main sets only" —
  * grouped by year under the serif h1; One Piece is a disabled pill, never a
- * link; the page is ISR (a day) with its own canonical and no request data.
+ * link, and neither it nor its hint promises anything (LATER row 115); the
+ * page is ISR (a day) with its own canonical and no request data.
  */
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -74,10 +75,21 @@ describe("/sets", () => {
   it("names Magic as the game and One Piece as a disabled pill, never a link", async () => {
     const html = renderToString(await SetsPage());
     expect(html).toContain('aria-current="page"');
-    // React separates adjacent text nodes with an empty comment.
-    expect(html).toMatch(/One Piece(<!-- -->)? \(soon\)/);
-    expect(html).toContain("One Piece sets are coming.");
+    // The pill is the game's name alone, and the hint says what the page
+    // leaves out (the owner's call of 2026-10-23).
+    expect(html).toMatch(/aria-disabled="true"[^>]*>One Piece<\/span>/);
+    expect(html).toContain("One Piece sets aren’t listed here.");
     expect(html).not.toMatch(/href="[^"]*game=optcg/);
+  });
+
+  it("the game row promises nothing: no soon, no coming, no dash (LATER row 115, WAVE5's copy rule)", async () => {
+    const html = renderToString(await SetsPage());
+    const row = html.match(/<div role="group" aria-label="Game"[\s\S]*?<\/div>/)?.[0];
+    expect(row).toContain("One Piece");
+    const words = row!.replace(/<[^>]*>/g, " ");
+    expect(words).not.toMatch(/soon|coming|yet|later|will /i);
+    expect(words).not.toMatch(/[–—]/);
+    expect(words.split("·").length).toBeLessThanOrEqual(2);
   });
 
   it("is ISR for a day, with its own title and canonical", () => {

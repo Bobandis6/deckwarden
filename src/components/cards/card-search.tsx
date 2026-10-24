@@ -484,7 +484,7 @@ export function CardSearch({
         <div data-slot="set-header" className="mt-6">
           {chosenSet ? (
             <>
-              <h2 className="font-display text-xl font-semibold tracking-tight">
+              <h2 className="type-section">
                 {chosenSet.name}{" "}
                 <span className="text-muted-foreground font-normal">({setPlace(chosenSet)})</span>
               </h2>

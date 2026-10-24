@@ -115,9 +115,7 @@ export default async function ProfilePage({ params }: PageProps<"/u/[username]">
       <section className="flex items-center gap-4">
         <UserAvatar name={user.name} image={user.image} avatar={avatar} size={64} />
         <div className="min-w-0">
-          <h1 className="font-display truncate text-2xl font-semibold tracking-tight">
-            {user.name}
-          </h1>
+          <h1 className="type-title truncate">{user.name}</h1>
           <p className="text-muted-foreground truncate text-sm">
             @{user.username} · Joined {joinedLabel(user.createdAt)}
           </p>

@@ -255,6 +255,8 @@ describe("CardSearch — the Set group (X4a)", () => {
     expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(
       "Bloomburrow (the 102nd expansion set)",
     );
+    // On the type ladder (LATER row 220): the section step, no tracking of its own.
+    expect(screen.getByRole("heading", { level: 2 }).className).toBe("type-section");
     expect(document.querySelector("[data-slot=set-header] p")!.textContent).toBe(
       "BLB · Released Aug 2, 2024",
     );

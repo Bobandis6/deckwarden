@@ -7,8 +7,10 @@
  * listed to the world — while a stranger on an UNLISTED folder still sees
  * public + unlisted (the folder link is the secret), and the owner sees all
  * three. The folder lookup is stubbed; the session comes from the mock.
+ * The title is `.type-title` like every page h1 (LATER row 220).
  */
 import { drizzle } from "drizzle-orm/postgres-js";
+import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
@@ -123,5 +125,19 @@ describe("the folder page's deck rows", () => {
       searchParams: Promise.resolve({}),
     });
     expect(calls).toEqual([]);
+  });
+});
+
+describe("the folder page's title", () => {
+  it("the folder's name is the page title step, with no tracking of its own (LATER row 220)", async () => {
+    mocks.folder = folder("public");
+    mocks.viewer = STRANGER;
+    const html = renderToString(
+      await page.default({
+        params: Promise.resolve({ publicId: "f0lder0id" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(html).toContain('<h1 class="type-title break-words">cEDH lists</h1>');
   });
 });

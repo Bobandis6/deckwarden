@@ -222,7 +222,7 @@ describe("EditorHeader", () => {
     expect(within(slot()!).queryByRole("button", { name: "Keep this deck" })).toBeNull();
   });
 
-  it("More lists Details, Import, Autofill…, Fit my budget…, Export, Buy (+ History and Games… with a live deck) and the shortcut sheet", async () => {
+  it("More lists Details, Import, Autofill…, Fit my budget…, Export, Buy (+ History and Games… with a live deck) and, from md, the shortcut sheet", async () => {
     const onOpen = vi.fn();
     const { rerender } = render(header({ onOpen }));
     open(screen.getByRole("button", { name: "More" }));
@@ -240,6 +240,16 @@ describe("EditorHeader", () => {
       "Buy this deck…",
       "Keyboard shortcuts?",
     ]);
+    // Below md the shortcut sheet and its separator are hidden (LATER row 239,
+    // the owner's call of 2026-10-23): a phone has no keyboard to use it with.
+    const onPhones = (el: HTMLElement) => !el.className.split(/\s+/).includes("max-md:hidden");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .filter(onPhones)
+        .map((i) => i.textContent),
+    ).toEqual(["Details", "Import", "Autofill…", "Fit my budget…", "Export", "Buy this deck…"]);
+    expect(within(menu).getAllByRole("separator").filter(onPhones)).toEqual([]);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Details" }));
     expect(onOpen).toHaveBeenCalledWith("details");
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
@@ -473,7 +483,7 @@ describe("EditorHeader — the phone header (U4a, WAVE5 D5)", () => {
     expect(within(menu).queryByRole("group", { name: "Appearance" })).toBeNull();
     expect(within(menu).queryByRole("menuitemradio")).toBeNull();
     expect(within(menu).queryByRole("menuitemcheckbox")).toBeNull();
-    // One separator left: between the commands and the shortcut sheet.
+    // One separator left: between the commands and the shortcut sheet (both from md, LATER row 239).
     expect(within(menu).getAllByRole("separator")).toHaveLength(1);
   });
 });

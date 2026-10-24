@@ -9,8 +9,9 @@
  * Import, Autofill…, Fit my budget… (Y8), Export, Buy, History, Games… (Y9a)
  * — History and Games… only with a live deck, Games… only where the
  * adapter declares a journal; Autofill and Fit only where the adapter
- * declares them — and the keyboard-shortcut sheet, so `?` is discoverable
- * by mouse). The appearance menu that ended the row (it retired R1b's
+ * declares them — and from `md` the keyboard-shortcut sheet, so `?` is
+ * discoverable by mouse; a phone has no keyboard, LATER row 239). The
+ * appearance menu that ended the row (it retired R1b's
  * AppearanceRow) is gone since 2026-10-17: the site header above carries the
  * one appearance control per page.
  *
@@ -257,8 +258,11 @@ export function EditorHeader({
             {canHistory && adapter.journal && (
               <DropdownMenuItem onClick={() => onOpen("games")}>Games…</DropdownMenuItem>
             )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onOpen("shortcuts")}>
+            {/* From md only (LATER row 239, the owner's call of 2026-10-23):
+                a phone has no keyboard to use the sheet with. Base UI's arrow
+                keys and typeahead skip a hidden item, so none lands there. */}
+            <DropdownMenuSeparator className="max-md:hidden" />
+            <DropdownMenuItem className="max-md:hidden" onClick={() => onOpen("shortcuts")}>
               Keyboard shortcuts
               <DropdownMenuShortcut>?</DropdownMenuShortcut>
             </DropdownMenuItem>

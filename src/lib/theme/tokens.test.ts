@@ -5,8 +5,8 @@
  * strings tokens.ts exports — same keys, same values. A value edited on one
  * side only fails here with the token's name.
  */
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -36,6 +36,15 @@ function block(selector: string): Record<string, string> {
     if (decl) out[decl[1]] = decl[2].trim().toLowerCase();
   }
   return out;
+}
+
+/** Every .ts and .tsx under `dir` that isn't a test, as absolute paths. */
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFiles(path);
+    return /\.tsx?$/.test(entry.name) && !entry.name.includes(".test.") ? [path] : [];
+  });
 }
 
 describe("theme tokens ↔ globals.css", () => {
@@ -304,6 +313,15 @@ describe("theme tokens ↔ globals.css", () => {
     for (const name of Object.keys(LADDER)) expect(layer, name).toContain(`.${name} {`);
     // Literata's optical size stays auto: nothing pins an axis.
     expect(code).not.toMatch(/font-variation-settings|font-optical-sizing/);
+  });
+
+  it("no heading picks its own tracking: the one `tracking-tight` left in src is the wordmark's (LATER row 220)", () => {
+    // The last bare ones were the three 24 px page h1s and the /cards set
+    // h2, now `.type-title` and `.type-section` (the owner's pick of 2026-10-23).
+    const hits = sourceFiles(join(process.cwd(), "src"))
+      .filter((path) => /\btracking-tight\b/.test(readFileSync(path, "utf8")))
+      .map((path) => relative(process.cwd(), path));
+    expect(hits).toEqual(["src/components/site-header.tsx"]);
   });
 
   it("the theme change eases body's background 250 ms on settle-250, motion-safe, only after hydration (U8)", () => {

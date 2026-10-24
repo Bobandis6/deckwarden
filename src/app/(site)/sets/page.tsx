@@ -19,6 +19,8 @@
  * Magic only: One Piece sets carry Bandai labels and no release dates
  * (LATER row 115), so its pill is disabled with a hint, never a dead link —
  * static markup, not GameSwitch, as on /precons: there is no second page.
+ * Neither promises anything (the owner's call of 2026-10-23): the pill is
+ * the game's name alone, and the hint says only what the page leaves out.
  */
 import type { Metadata } from "next";
 
@@ -51,8 +53,8 @@ export default async function SetsPage() {
         <Chip aria-current="page" pressed>
           {GAME_SWITCH_LABELS.mtg}
         </Chip>
-        <Chip aria-disabled="true">{GAME_SWITCH_LABELS.optcg} (soon)</Chip>
-        <span className="text-muted-foreground text-xs">One Piece sets are coming.</span>
+        <Chip aria-disabled="true">{GAME_SWITCH_LABELS.optcg}</Chip>
+        <span className="text-muted-foreground text-xs">One Piece sets aren’t listed here.</span>
       </div>
 
       <SetsIndexView sets={sets} />

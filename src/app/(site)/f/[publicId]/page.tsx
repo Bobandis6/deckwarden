@@ -111,9 +111,7 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
   return (
     <main id="main" className="max-w-reading mx-auto w-full flex-1 px-4 py-12">
       <header>
-        <h1 className="font-display text-2xl font-semibold tracking-tight break-words">
-          {folder.name}
-        </h1>
+        <h1 className="type-title break-words">{folder.name}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           {owner?.username ? (
             <>

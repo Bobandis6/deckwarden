@@ -263,9 +263,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
           providers={signInProviders}
         />
         <div className="min-w-0">
-          <h1 className="font-display truncate text-2xl font-semibold tracking-tight">
-            {session.user.name}
-          </h1>
+          <h1 className="type-title truncate">{session.user.name}</h1>
           <p className="text-muted-foreground truncate text-sm">
             {profile?.username ? `@${profile.username}` : "No username yet. Pick one in Settings"}
           </p>
