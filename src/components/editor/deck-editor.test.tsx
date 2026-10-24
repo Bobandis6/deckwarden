@@ -182,6 +182,29 @@ async function settle(ms = 250) {
   });
 }
 
+/**
+ * Poll until `query` returns something. RTL's findBy and waitFor hang under
+ * this file's faked setTimeout (their poll interval rides it, unadvanced), so
+ * each round moves both clocks the editor waits on: 50 ms of fake time (the
+ * debounces), then one real animation frame inside act. Base UI opens a menu
+ * on the frame after its mousedown and moves a popup's focus on a frame, and
+ * jsdom runs frames on a real 60 Hz interval. The bound is real time: 40 bare
+ * event-loop turns (89035ab) last ~25 ms on an idle runner, short enough to
+ * give up a frame before the menu or the focus lands (CI on 786520b).
+ */
+async function pollFor<T>(query: () => T | null): Promise<T> {
+  const deadline = performance.now() + 2000;
+  for (;;) {
+    const found = query();
+    if (found) return found;
+    if (performance.now() > deadline) throw new Error("pollFor: never appeared within 2 s");
+    await settle(50);
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    });
+  }
+}
+
 /** A gate a mocked request waits on until the test opens it. */
 function deferred() {
   let resolve!: () => void;
@@ -852,24 +875,6 @@ describe("DeckEditor — Buy this deck (W7, D6)", () => {
     fireEvent.click(trigger, { button: 0 });
   }
 
-  /**
-   * findBy and waitFor hang under this file's faked setTimeout (RTL's poll
-   * interval rides it, unadvanced), and a fixed settle lost the race on the
-   * CI runner (attempts 1+2 of 1b1a7c4). Poll by hand: advance fake time in
-   * slices and yield one REAL event-loop turn per round (setImmediate is
-   * not in toFake), so both fake-timer deferrals and real async boundaries
-   * get covered whatever the runner's speed.
-   */
-  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
-    for (let i = 0; i < 40; i++) {
-      const el = query();
-      if (el) return el;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: element never appeared");
-  }
-
   it("the pane footer gets Buy ↗ and More → Buy this deck… opens the link dialog without writing", async () => {
     stubViewport(1440);
     render(<DeckEditor deckId={null} draftGame="mtg" draftFormat="commander" />);
@@ -966,17 +971,6 @@ describe("DeckEditor — Start from this precon (W8b)", () => {
     if (url === "/api/precons/breed_lethality_c16") return ok(preconResponse);
     if (url.startsWith("/api/precons/")) return { ok: false, status: 404, json: async () => ({}) };
     return route(input, init);
-  }
-
-  /** The last-describe pattern: findBy/waitFor hang under this file's faked setTimeout. */
-  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
-    for (let i = 0; i < 40; i++) {
-      const el = query();
-      if (el) return el;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: element never appeared");
   }
 
   const patches = () =>
@@ -1229,17 +1223,6 @@ describe("DeckEditor — Build around this combo (X3)", () => {
       .map(
         ([, init]) => JSON.parse((init as RequestInit).body as string) as Record<string, unknown>,
       );
-
-  /** The last-describe pattern: findBy/waitFor hang under this file's faked setTimeout. */
-  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
-    for (let i = 0; i < 40; i++) {
-      const el = query();
-      if (el) return el;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: element never appeared");
-  }
 
   it("?leader=&combo=&autofill=1: ONE combo GET seeds the commander and the pieces, and the sheet opens only after they land — its first POST keeps the pieces, never the commander; zero creates", async () => {
     fetchMock.mockImplementation(comboRoute);
@@ -1572,17 +1555,6 @@ describe("DeckEditor — Autofill review sheet + doors (W9b/W9c)", () => {
     return route(input, init);
   }
 
-  /** The last-describe pattern: findBy/waitFor hang under this file's faked setTimeout. */
-  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
-    for (let i = 0; i < 40; i++) {
-      const el = query();
-      if (el) return el;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: element never appeared");
-  }
-
   it("the EmptyState door needs a commander; Apply = ONE create + ONE PUT on the next autosave; the toast's Undo restores the prior list and autosaves", async () => {
     fetchMock.mockImplementation(autofillRoute);
     stubViewport(1440);
@@ -1775,15 +1747,6 @@ describe("DeckEditor — an honest first screen (Y2a)", () => {
   function seedRoute(input: RequestInfo | URL, init?: RequestInit) {
     if (String(input) === "/api/precons/tiny") return ok(seedResponse);
     return route(input, init);
-  }
-  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
-    for (let i = 0; i < 40; i++) {
-      const el = query();
-      if (el) return el;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: element never appeared");
   }
   const progressLine = () =>
     section("Deck list").querySelector<HTMLElement>('[data-slot="progress-line"]');
@@ -2313,15 +2276,6 @@ describe("DeckEditor — start doors, draft Suggestions, the first approval (Y2b
       el.tagName === "A" ? `${el.textContent} → ${el.getAttribute("href")}` : el.textContent,
     );
   };
-  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
-    for (let i = 0; i < 40; i++) {
-      const el = query();
-      if (el) return el;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: element never appeared");
-  }
 
   it("a fresh Magic draft: after Add cards, Paste a list · Start from a precon · Surprise me — and none of them creates a thing", () => {
     stubViewport(1440);
@@ -2706,17 +2660,6 @@ describe("DeckEditor — the bracket line and its Why sheet (Y4a)", () => {
   const line = () => document.querySelector<HTMLElement>("[data-slot=bracket-line]");
   const NOTHING = "Bracket 1 to 2 · nothing here goes past Core Why?";
 
-  /** The last-describe pattern: findBy/waitFor hang under this file's faked setTimeout. */
-  async function pollFor<T>(query: () => T | null): Promise<T> {
-    for (let i = 0; i < 40; i++) {
-      const found = query();
-      if (found) return found;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: never appeared");
-  }
-
   beforeEach(() => {
     fetchMock.mockImplementation(y4aRoute);
   });
@@ -2966,15 +2909,6 @@ describe("DeckEditor — your target and the answers (Y4b)", () => {
     ) as { goals?: unknown; name?: string };
   const sheet = () => screen.queryByRole("dialog", { name: "Why this bracket?" });
 
-  async function pollFor<T>(query: () => T | null): Promise<T> {
-    for (let i = 0; i < 40; i++) {
-      const found = query();
-      if (found) return found;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: never appeared");
-  }
   const lineIs = (text: string) => pollFor(() => (line()?.textContent === text ? line() : null));
   async function openSheet() {
     fireEvent.click(await pollFor(() => screen.queryByRole("button", { name: "Why?" })));
@@ -3997,15 +3931,6 @@ describe("DeckEditor — the Card tab's Alternatives (Y7a, WAVE4 D8)", () => {
     if (url === "/api/alternatives" && init?.method === "POST") return ok(ANSWER);
     return route(input, init);
   }
-  async function pollFor(query: () => HTMLElement | null): Promise<HTMLElement> {
-    for (let i = 0; i < 40; i++) {
-      const el = query();
-      if (el) return el;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: element never appeared");
-  }
   /** The seeded draft, Sol Ring shown in the Card tab — nothing created yet. */
   async function showSolInSeededDraft() {
     fetchMock.mockImplementation(swapRoute);
@@ -4306,15 +4231,6 @@ describe("DeckEditor — swap in place (Y7b, WAVE4 D8)", () => {
     if (url === "/api/alternatives" && method === "POST") return ok(ANSWER);
     return route(input, init);
   }
-  async function pollFor<T>(query: () => T | null): Promise<T> {
-    for (let i = 0; i < 40; i++) {
-      const found = query();
-      if (found) return found;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: never appeared");
-  }
   const deckList = () => section("Deck list");
   const total = (entries: { qty: number }[]) => entries.reduce((n, e) => n + e.qty, 0);
   /** Base UI moves a dialog's initial focus on an animation frame — real, unlike this file's timers. */
@@ -4569,15 +4485,6 @@ describe("DeckEditor — Fit my budget (Y8, WAVE4 D9)", () => {
     fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
     fireEvent.mouseDown(trigger, { button: 0 });
     fireEvent.click(trigger, { button: 0 });
-  }
-  async function pollFor<T>(query: () => T | null): Promise<T> {
-    for (let i = 0; i < 40; i++) {
-      const found = query();
-      if (found) return found;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: never appeared");
   }
   const wire = (over: Parameters<typeof card>[0]): CardWire => ({ ...card(over), image: null });
   const odric = wire({
@@ -4860,15 +4767,6 @@ describe("DeckEditor — Games… (Y9a, WAVE4 D10)", () => {
     fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
     fireEvent.mouseDown(trigger, { button: 0 });
     fireEvent.click(trigger, { button: 0 });
-  }
-  async function pollFor<T>(query: () => T | null): Promise<T> {
-    for (let i = 0; i < 40; i++) {
-      const found = query();
-      if (found) return found;
-      await settle(50);
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    throw new Error("pollFor: never appeared");
   }
   const logged = (over: Record<string, unknown> = {}) => ({
     game: {
