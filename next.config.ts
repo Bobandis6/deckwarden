@@ -144,11 +144,11 @@ const nextConfig: NextConfig = {
   // from being wired, and the images' own hosts keep serving them as before.
   images: { unoptimized: true },
   env: {
-    // W7: pin a BUILD-TIME value ("" = the Hobby norm) so the affiliate
+    // W7: pin a BUILD-TIME value ("" = dark, the norm) so the affiliate
     // branches (`rel="sponsored"`, disclosure lines) fold OUT of client
     // bundles entirely while unset — an undefined NEXT_PUBLIC var is left as
-    // a runtime lookup and its dead branches would ship. Empty on Hobby
-    // always (non-commercial plan); see .env.example.
+    // a runtime lookup and its dead branches would ship. Empty until the
+    // owner switches affiliates on; see .env.example.
     NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE: process.env.NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE ?? "",
   },
   // Caching intent: headers change no route's rendering — the ISR pages

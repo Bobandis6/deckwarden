@@ -30,12 +30,13 @@ follow it or flag the conflict.
 
 Next.js App Router + TypeScript strict · Tailwind v4 + shadcn/ui · Neon Postgres +
 Drizzle · Better Auth (Discord + Google only, no email) · Postgres FTS + pg_trgm ·
-GitHub Actions nightly ingest · Vercel Hobby.
+GitHub Actions nightly ingest · Vercel Pro (since 2026-10-23).
 
 ## Portability rules (non-negotiable in review)
 
-Vercel is a free incubator; the site must move to a VPS in one weekend at the first
-affiliate dollar (Hobby is non-commercial).
+Vercel Pro since 2026-10-23 ($20/month: one seat plus $20 of usage credit, metered past
+it; commercial use is allowed). The site must still be able to move to a VPS in one
+weekend, the exit if Vercel's bill or terms stop fitting.
 
 - **No Vercel-proprietary SDKs**: no @vercel/kv, @vercel/blob, @vercel/postgres.
   (`@vercel/og` is fine — it's satori, runs anywhere.)
@@ -49,8 +50,12 @@ affiliate dollar (Hobby is non-commercial).
   no stored MTG image URLs (derive from printing ID), current prices only.
 - All Scryfall requests send a real `User-Agent` (e.g. `Deckwarden/1.0`) and
   `Accept: application/json` — generic agents get 403'd.
+- Another site's terms decide whether a session may automate against it. deckcheck.co's
+  forbid it, so its pages are read only when the owner opens them, and nothing from them
+  enters the repo.
 - Card images: hotlink Scryfall CDN with `next/image` **unoptimized** (or plain
-  `<img>`) — Vercel Hobby's image-optimization quota dies fast on 100-card grids.
+  `<img>`) — Vercel meters image optimization per transformation, and 100-card grids
+  burn through it.
   Never crop the artist/© line; `art_crop` requires artist + © visible nearby.
 - Premium may never gate card data or prices (Scryfall no-paywall clause).
 - Guest decks are **server-side anonymous decks with a claim_token** — never

@@ -31,7 +31,7 @@ describe("massEntryUrl", () => {
 });
 
 describe("withPartner", () => {
-  it("is the identity while the env var is empty (Hobby posture)", () => {
+  it("is the identity while the env var is empty (affiliates off)", () => {
     expect(withPartner("https://www.tcgplayer.com/massentry?productline=Magic")).toBe(
       "https://www.tcgplayer.com/massentry?productline=Magic",
     );

@@ -9,10 +9,11 @@
  * the Item Options dialog one click from Add to Cart; `productline=` drives
  * the product-line select (checked with a non-default line).
  *
- * Affiliate posture: NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE stays EMPTY on Vercel
- * Hobby (non-commercial plan). `withPartner` is the single wrap point; the
- * length cliff is measured on the FINAL url because the Impact `?u=` wrapper
- * double-encodes the list and long decks hit the copy path more often.
+ * Affiliate posture: NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE stays EMPTY until the
+ * owner switches affiliates on (Vercel Pro allows it). `withPartner` is the
+ * single wrap point; the length cliff is measured on the FINAL url because the
+ * Impact `?u=` wrapper double-encodes the list and long decks hit the copy path
+ * more often.
  */
 import type { GameAdapter } from "@/lib/games/types";
 
@@ -27,7 +28,7 @@ export type BuyCard = Parameters<BuyCapability["massEntryLine"]>[0];
  */
 export const MASS_ENTRY_URL_MAX = 6000;
 
-/** Affiliate wrap: dark (identity) until the env var exists — never on Hobby. */
+/** Affiliate wrap: dark (identity) until the env var exists. */
 export function withPartner(url: string): string {
   const base = process.env.NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE;
   return base ? `${base}${encodeURIComponent(url)}` : url;

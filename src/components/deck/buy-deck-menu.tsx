@@ -13,7 +13,7 @@
  * error toast points at Copy decklist — never a stranded empty tab.
  *
  * Affiliate wiring is DARK until NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE exists
- * (never on Vercel Hobby). The env reads below stay direct property accesses
+ * (the owner's switch). The env reads below stay direct property accesses
  * inside this module so the build inlines them and the `rel="sponsored"` +
  * disclosure branches drop out of the client bundle entirely while unset.
  */

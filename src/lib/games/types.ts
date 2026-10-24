@@ -1214,7 +1214,7 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
      * builds line/URL strings, core (src/lib/buy/) assembles Mass Entry links
      * and renders the menus. Links OUT only — no Deckwarden server ever calls
      * the vendor, and premium never gates any of it. The affiliate wrapper is
-     * core's concern (NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE, empty on Hobby).
+     * core's concern (NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE, empty until switched on).
      * Absent = no buy surface renders anywhere for the game (One Piece), with
      * no apology copy.
      */

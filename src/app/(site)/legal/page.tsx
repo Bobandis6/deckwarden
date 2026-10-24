@@ -83,7 +83,7 @@ export default function LegalPage() {
           and quantities in the link you click. TCGplayer is not affiliated with Deckwarden and
           prices shown on Deckwarden are Scryfall&apos;s daily estimates, not TCGplayer offers.
         </p>
-        {/* Renders only on the affiliate day (never on Vercel Hobby) — the
+        {/* Renders only on the affiliate day (the owner's switch) — the
             server reads the same build-time env that wraps the links. */}
         {process.env.NEXT_PUBLIC_TCGPLAYER_PARTNER_BASE && (
           <p>
