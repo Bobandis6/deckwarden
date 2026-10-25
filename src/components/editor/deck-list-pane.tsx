@@ -380,10 +380,12 @@ export function DeckListPane({
           )}
           {/* Collection line (P3.7): only for owners with an imported
               collection or (PRECON-OWNED) an owned precon — never a fake
-              "0/100" for someone who has neither. */}
+              "0/100" for someone who has neither. Below md it wraps
+              instead of truncating: its end is the price, the part a
+              precon's owner reads it for (320 px cut "nothing missing"). */}
           {ownership && (
             <span
-              className="text-muted-foreground min-w-0 truncate text-xs tabular-nums"
+              className="text-muted-foreground min-w-0 text-xs tabular-nums md:truncate"
               title={ownershipMethod({
                 collection: owned !== undefined,
                 precon: precon?.owns === true,

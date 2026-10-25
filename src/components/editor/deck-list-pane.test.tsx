@@ -499,4 +499,11 @@ describe("DeckListPane — Do you own this precon? (PRECON-OWNED)", () => {
       "Owned = any printing of the card is in your imported collection (quantities not checked). Missing cost = cheapest listed printing per card; cards without a price are excluded and counted.",
     );
   });
+
+  it("the ownership line wraps below md and truncates from md: its end is the price", () => {
+    render(withPrecon({ precon: { name: "Breed Lethality", owns: true }, ownership }));
+    const classes = screen.getByTestId("ownership-line").className.split(" ");
+    expect(classes).toContain("md:truncate");
+    expect(classes).not.toContain("truncate");
+  });
 });
