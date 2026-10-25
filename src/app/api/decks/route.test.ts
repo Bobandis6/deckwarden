@@ -71,6 +71,7 @@ function deckRow(over: Partial<Record<keyof DeckRow, unknown>> = {}): unknown[] 
     currentVersion: 0,
     likesCount: 0,
     goals: null,
+    hiddenTokens: null,
     createdAt: "2026-10-05T00:00:00.000Z",
     updatedAt: "2026-10-05T00:00:00.000Z",
     ...over,

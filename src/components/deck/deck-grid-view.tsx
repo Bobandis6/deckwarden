@@ -42,6 +42,8 @@ interface DeckGridViewProps {
   stickyHeaders?: boolean;
   /** False = no group headings (the Tokens section, whose disclosure is its heading). */
   headings?: boolean;
+  /** False = no ×N badge (TOKEN-FILL: a derived token carries no quantity). */
+  counts?: boolean;
 }
 
 const BADGE_CLASS =
@@ -55,6 +57,7 @@ export function DeckGridView({
   adapter,
   stickyHeaders = false,
   headings = true,
+  counts = true,
 }: DeckGridViewProps) {
   const idPrefix = useId();
   return (
@@ -101,12 +104,14 @@ export function DeckGridView({
                       {level === "error" ? "Has a problem" : "Warning"}
                     </span>
                   )}
-                  <span
-                    aria-label={`${entry.qty} in deck`}
-                    className={cn(BADGE_CLASS, "absolute top-1 right-1")}
-                  >
-                    ×{entry.qty}
-                  </span>
+                  {counts && (
+                    <span
+                      aria-label={`${entry.qty} in deck`}
+                      className={cn(BADGE_CLASS, "absolute top-1 right-1")}
+                    >
+                      ×{entry.qty}
+                    </span>
+                  )}
                   {/* Top-left: the printed id, then the owned badge (P3.7). The
                       bottom of the frame is the artist/© line and stays uncovered (CLAUDE.md). */}
                   {(badge || owned?.has(card.id)) && (

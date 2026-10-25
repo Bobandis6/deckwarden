@@ -59,6 +59,7 @@ import { loadPreconByDeckId } from "@/lib/decks/precons";
 import { deckFormat } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { shareAccess } from "@/lib/decks/share-access";
+import { loadTokenFill } from "@/lib/decks/token-fill-load";
 import { deckJsonLd, JsonLd } from "@/lib/seo/jsonld";
 
 export const dynamic = "force-dynamic";
@@ -145,7 +146,10 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
   // Alongside it, the art leader's crop (R2): resolved here so the page
   // ships with it and the client never asks; a game without ambient art
   // (One Piece) resolves to null before any lookup.
-  const [ownedInfo, art, freshness, combos] = await Promise.all([
+  // The tokens the cards make (TOKEN-FILL): derived from the loaded cards'
+  // links, the hidden ones out, the token cards in one statement — none
+  // when the list links nothing.
+  const [ownedInfo, art, freshness, combos, tokenFill] = await Promise.all([
     sessionUserId
       ? deckOwnedForViewer(
           sessionUserId,
@@ -157,6 +161,7 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
       ? loadBracketFreshness(fmt.adapter).catch(() => undefined)
       : Promise.resolve(undefined),
     bracketsOn && !over ? loadCompleteCombos(ids).catch(() => undefined) : Promise.resolve(null),
+    fmt ? loadTokenFill(deck, cards, fmt) : Promise.resolve([]),
   ]);
   const bracketFacts: ShareBracketFacts | undefined = !bracketsOn
     ? undefined
@@ -209,6 +214,7 @@ export default async function DeckSharePage({ params }: PageProps<"/d/[publicId]
         art={art}
         precon={precon}
         bracketFacts={bracketFacts}
+        tokenFill={tokenFill}
       />
       {/* An OP deck's share page is a grid of Bandai card images — it needs
           the same posture line as /cards (P4.6); the walked funnel found it

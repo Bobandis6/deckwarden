@@ -9,6 +9,9 @@
  * declared target and the table's exceptions (goals.ts' publicGoals) —
  * never the budget, and never the answers, which only the read can tell
  * apart (Y5's share page computes it and shows the ones that changed it).
+ *
+ * Hidden tokens (TOKEN-FILL): the owner alone — the keys of the derived
+ * tokens they hid; the share page applies them on the server.
  */
 import { findFormatById, gameCodeById } from "@/db/seed-data";
 import type { schema } from "@/db";
@@ -32,6 +35,9 @@ export function deckMetaJson(deck: DeckRow, opts: { isOwner: boolean }) {
     // see folder contents solely through a folder page the owner shared.
     folderId: opts.isOwner ? deck.folderId : null,
     goals: opts.isOwner ? readGoals(deck.goals) : publicGoals(readGoals(deck.goals)),
+    // TOKEN-FILL: the hidden token keys are the owner's setting; the share
+    // page applies them server-side, so a visitor's wire never carries them.
+    hiddenTokens: opts.isOwner ? (deck.hiddenTokens ?? null) : null,
     leaderIds: deck.leaderIds,
     ciMask: deck.ciMask,
     currentVersion: deck.currentVersion,

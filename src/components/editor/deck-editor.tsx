@@ -182,6 +182,7 @@ import {
   withTotal,
   type DeckGoals,
 } from "@/lib/decks/goals";
+import { hiddenTokensPatchBody, normalizeHiddenTokens } from "@/lib/decks/token-fill";
 import type { LogResult } from "@/lib/journal/games";
 import type { ImportOutcome } from "@/lib/decks/import";
 import { clearPickIntent, pickIntentFor, writePickIntent } from "@/lib/decks/leader-pick-intent";
@@ -225,6 +226,8 @@ interface DeckResponse {
     leaderIds: string[];
     /** The deck's goals (Y4b) — the owner's wire carries every one. */
     goals?: DeckGoals | null;
+    /** The derived tokens the owner hid (TOKEN-FILL) — the owner's wire alone. */
+    hiddenTokens?: string[] | null;
   };
   cards: {
     cardId: string;
@@ -391,6 +394,8 @@ export function DeckEditor({
   const [details, setDetails] = useState<DeckDetails>({ description: "", notes: "" });
   // The deck's goals (Y4b): what the read is assessed with and the sheet edits.
   const [goals, setGoals] = useState<DeckGoals | null>(null);
+  // The derived tokens the owner hid (TOKEN-FILL): a setting like goals, its own PATCH.
+  const [hiddenTokens, setHiddenTokens] = useState<string[] | null>(null);
   const [entries, setEntries] = useState<EditorEntry[]>([]);
   const [cards, setCards] = useState<ReadonlyMap<string, EditorCard>>(new Map());
   const [preview, setPreview] = useState<EditorCard | null>(null);
@@ -458,11 +463,14 @@ export function DeckEditor({
   const entriesRef = useRef<EditorEntry[]>([]);
   const metaRef = useRef({ name: "", description: "", notes: "" });
   const goalsRef = useRef<DeckGoals | null>(null);
+  const hiddenRef = useRef<string[] | null>(null);
   const lastSavedRef = useRef({
     cards: JSON.stringify({ cards: toSavePayload([]) }),
     meta: metaPatchBody({ name: "", description: "", notes: "" }),
     // Y4b: goals' own baseline — their own PATCH, never the meta one's.
     goals: goalsPatchBody(null),
+    // TOKEN-FILL: the hidden tokens' own baseline, the same way.
+    hidden: hiddenTokensPatchBody(null),
   });
 
   // The live deck id: the prop for existing decks, set by ensureDeck once a
@@ -610,6 +618,19 @@ export function DeckEditor({
       if (!res.ok) throw new Error(`Save failed (${res.status})`);
       lastSavedRef.current.goals = goalsBody;
     }
+    // Hidden tokens (TOKEN-FILL): the same kind of body, the same rule. A
+    // dismiss needs a derived token, which needs cards, so the row exists
+    // (or ensureDeck just minted it) by the time this runs — no create change.
+    const hiddenBody = hiddenTokensPatchBody(hiddenRef.current);
+    if (hiddenBody !== lastSavedRef.current.hidden) {
+      const res = await fetch(`/api/decks/${deckId}`, {
+        method: "PATCH",
+        headers,
+        body: hiddenBody,
+      });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      lastSavedRef.current.hidden = hiddenBody;
+    }
   }, [isBlankDraft, ensureDeck]);
 
   const autosave = useAutosave(save);
@@ -663,13 +684,16 @@ export function DeckEditor({
       notes: json.deck.notes ?? "",
     };
     goalsRef.current = readGoals(json.deck.goals);
+    hiddenRef.current = normalizeHiddenTokens(json.deck.hiddenTokens);
     lastSavedRef.current = {
       cards: JSON.stringify({ cards: toSavePayload(loadedEntries) }),
       meta: metaPatchBody(metaRef.current),
       goals: goalsPatchBody(goalsRef.current),
+      hidden: hiddenTokensPatchBody(hiddenRef.current),
     };
     setEntries(loadedEntries);
     setGoals(goalsRef.current);
+    setHiddenTokens(hiddenRef.current);
     setCards(new Map(json.cards.map((c) => [c.cardId, toEditorCard(c.card)])));
     setDeckName(json.deck.name);
     setDetails({ description: json.deck.description ?? "", notes: json.deck.notes ?? "" });
@@ -1042,7 +1066,7 @@ export function DeckEditor({
       const headers = writeHeaders(deckId);
       const copies: Promise<void>[] = [];
       const send = (
-        field: "cards" | "meta" | "goals",
+        field: "cards" | "meta" | "goals" | "hidden",
         url: string,
         method: "PUT" | "PATCH",
         body: string,
@@ -1067,6 +1091,7 @@ export function DeckEditor({
       );
       send("meta", `/api/decks/${deckId}`, "PATCH", metaPatchBody(metaRef.current));
       send("goals", `/api/decks/${deckId}`, "PATCH", goalsPatchBody(goalsRef.current));
+      send("hidden", `/api/decks/${deckId}`, "PATCH", hiddenTokensPatchBody(hiddenRef.current));
       if (copies.length === 0) return;
       const settled: Promise<void> = Promise.all([keepaliveRef.current, ...copies]).then(() => {
         if (keepaliveRef.current === settled) keepaliveRef.current = null;
@@ -1776,6 +1801,28 @@ export function DeckEditor({
     (next: DeckGoals | null) => {
       goalsRef.current = next;
       setGoals(next);
+      markDirty();
+    },
+    [markDirty],
+  );
+
+  // Hidden tokens (TOKEN-FILL): Hide on a derived row, or a chip's Show —
+  // a setting like the goals, through the same autosave burst, its own PATCH.
+  const handleHideToken = useCallback(
+    (key: string) => {
+      const next = normalizeHiddenTokens([...(hiddenRef.current ?? []), key]);
+      hiddenRef.current = next;
+      setHiddenTokens(next);
+      markDirty();
+    },
+    [markDirty],
+  );
+  const handleShowTokens = useCallback(
+    (keys: string[]) => {
+      const gone = new Set(keys);
+      const next = normalizeHiddenTokens((hiddenRef.current ?? []).filter((k) => !gone.has(k)));
+      hiddenRef.current = next;
+      setHiddenTokens(next);
       markDirty();
     },
     [markDirty],
@@ -2664,6 +2711,9 @@ export function DeckEditor({
           owned={hasCollection ? owned : undefined}
           ownership={ownership}
           onAddTokens={tokenZoneOf(load.format) ? handleAddTokens : undefined}
+          hiddenTokens={hiddenTokens}
+          onHideToken={handleHideToken}
+          onShowTokens={handleShowTokens}
         />
       }
       tools={toolsContent}

@@ -102,6 +102,7 @@ import { SampleHand } from "@/components/deck/sample-hand";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { useBracketFacts } from "@/components/deck/use-bracket-facts";
 import { TokensSection } from "@/components/deck/tokens-section";
+import { useTokenFill } from "@/components/deck/use-token-fill";
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { useTier } from "@/components/editor/use-tier";
 import { EmptyState } from "@/components/empty-state";
@@ -133,6 +134,7 @@ import { hasLeader } from "@/lib/decks/panel-view";
 import { playableEntries, tokenZoneOf } from "@/lib/decks/playable";
 import { releasedLabel, type PreconInfo } from "@/lib/decks/precon-info";
 import { getDeckToken } from "@/lib/decks/token-store";
+import type { TokenFillItem } from "@/lib/decks/token-fill-load";
 import { issueSeverityByCard, toDeckSnapshot } from "@/lib/decks/validation";
 import {
   groupDeckEntries,
@@ -175,6 +177,12 @@ export interface ShareDeckMeta {
    * here the same way. Absent or null = none.
    */
   goals?: DeckGoals | null;
+  /**
+   * The owner's hidden token keys (TOKEN-FILL) — on the owner's own wire
+   * only (the private gate's), where the client derives the fill itself;
+   * the public page's server applies them before anything leaves.
+   */
+  hiddenTokens?: string[] | null;
 }
 
 /**
@@ -224,6 +232,7 @@ export function DeckShareView({
   art = null,
   precon = null,
   bracketFacts,
+  tokenFill,
 }: {
   deck: ShareDeckMeta;
   cards: ShareDeckCard[];
@@ -242,6 +251,12 @@ export function DeckShareView({
   precon?: PreconInfo | null;
   /** The bracket read's facts (Y5); absent = no bracket line. */
   bracketFacts?: ShareBracketFacts;
+  /**
+   * The tokens the deck's cards make (TOKEN-FILL), loaded by the server page
+   * with the hidden ones already out; absent (the private gate) = derived
+   * here and hydrated when the section opens, like the editor.
+   */
+  tokenFill?: TokenFillItem[];
 }) {
   const router = useRouter();
   const appearance = useAppearance();
@@ -289,6 +304,16 @@ export function DeckShareView({
     () => new Map(cards.map((c) => [c.cardId, toEditorCard(c.card)])),
     [cards],
   );
+
+  // TOKEN-FILL: the client path's fill (no request until the section opens, none at all when the server's is here).
+  const clientFill = useTokenFill({
+    adapter,
+    format,
+    entries,
+    cards: cardMap,
+    hidden: deck.hiddenTokens ?? null,
+    enabled: tokensOpen && tokenFill === undefined,
+  });
 
   // The D7 product summary's live half (W8b): est. price today and the five
   // priciest cards, computed at render from the wire's current cheapest
@@ -396,6 +421,15 @@ export function DeckShareView({
     const card = entry.zone === tokenZone?.id ? cardMap.get(entry.cardId) : undefined;
     return card ? [{ entry, card }] : [];
   });
+  const fill =
+    tokenFill !== undefined
+      ? {
+          count: tokenFill.length,
+          items: tokenFill.map((t) => ({ card: toEditorCard(t.card), from: t.from })),
+          hidden: [],
+          state: "idle" as const,
+        }
+      : clientFill;
   const severity = issueSeverityByCard(issues);
   const leaderItems = leader.flatMap((entry) => {
     const card = cardMap.get(entry.cardId);
@@ -732,7 +766,7 @@ export function DeckShareView({
             adapter={adapter}
           />
         )}
-        {tokenZone && tokenItems.length > 0 && (
+        {tokenZone && (tokenItems.length > 0 || fill.count > 0) && (
           <TokensSection
             className="mt-2"
             adapter={adapter}
@@ -743,6 +777,7 @@ export function DeckShareView({
             onOpenChange={setTokensOpen}
             onPreview={onPreview}
             owned={owned}
+            fill={fill}
             preview
           />
         )}

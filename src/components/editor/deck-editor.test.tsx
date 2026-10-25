@@ -4941,3 +4941,117 @@ describe("DeckEditor — Games… (Y9a, WAVE4 D10)", () => {
     expect(within(menu).queryByRole("menuitem", { name: "Games…" })).toBeNull();
   });
 });
+
+describe("the Tokens section's Hide (TOKEN-FILL)", () => {
+  const TREASURE = "aaaaaaaa-0000-4000-8000-00000000f001";
+  const brago: CardWire = {
+    ...card({
+      name: "Brago, King Eternal",
+      primaryType: "Creature",
+      costValue: 4,
+      isLeaderCandidate: true,
+      attrs: { type_line: "Legendary Creature — Spirit", oracle_text: "" },
+    }),
+    image: null,
+  };
+  const tithe: CardWire = {
+    ...card({
+      name: "Smothering Tithe",
+      primaryType: "Enchantment",
+      costValue: 4,
+      attrs: { type_line: "Enchantment", oracle_text: "", tokens: [TREASURE] },
+    }),
+    image: null,
+  };
+  const treasure: CardWire = {
+    ...card({
+      name: "Treasure",
+      externalKey: TREASURE,
+      primaryType: "Artifact",
+      costValue: 0,
+      attrs: { type_line: "Token Artifact — Treasure", oracle_text: "", is_token: true },
+    }),
+    image: null,
+  };
+  let hiddenTokens: string[] | null = null;
+  const deckJson = () => ({
+    deck: {
+      id: "deck-1",
+      publicId: "abcdefgh1234",
+      game: "mtg",
+      format: "commander",
+      name: "Brago",
+      description: null,
+      notes: null,
+      visibility: "unlisted",
+      isOwner: true,
+      forkedFrom: null,
+      leaderIds: [brago.id],
+      goals: null,
+      hiddenTokens,
+    },
+    cards: [
+      { cardId: brago.id, zone: "commander", qty: 1, tags: [], printingId: null, card: brago },
+      { cardId: tithe.id, zone: "main", qty: 1, tags: [], printingId: null, card: tithe },
+    ],
+    owned: [],
+    hasCollection: false,
+  });
+  function fillRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    if (url === "/api/decks/deck-1" && method === "GET") return ok(deckJson());
+    if (url === "/api/cards/resolve") {
+      const { names } = JSON.parse(String(init?.body)) as { names: string[] };
+      return ok({ results: names.map((k) => ({ match: k === TREASURE ? treasure : null })) });
+    }
+    return route(input, init);
+  }
+  const patchBodies = () =>
+    fetchMock.mock.calls
+      .filter(([url, init]) => url === "/api/decks/deck-1" && init?.method === "PATCH")
+      .map(([, init]) => JSON.parse((init as RequestInit).body as string) as unknown);
+
+  beforeEach(() => {
+    hiddenTokens = null;
+    fetchMock.mockImplementation(fillRoute);
+    window.localStorage.setItem("deckwarden:deck-view", JSON.stringify({ tokensOpen: true }));
+  });
+
+  it("Hide on a derived row is ONE PATCH {hiddenTokens} after the debounce — no PUT, no meta PATCH; the chip's Show PATCHes null", async () => {
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    const hide = await pollFor(() => screen.queryByRole("button", { name: "Hide Treasure" }));
+    fireEvent.click(hide);
+    // The row goes at once; the chip stands in — no request for that.
+    expect(screen.queryByRole("button", { name: "Hide Treasure" })).toBeNull();
+    await pollFor(() => screen.queryByRole("button", { name: "Show Treasure" }));
+    expect(patchBodies()).toEqual([]);
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([{ hiddenTokens: [TREASURE] }]);
+    expect(puts()).toBe(0);
+    expect(posts()).toBe(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show Treasure" }));
+    await pollFor(() => screen.queryByRole("button", { name: "Hide Treasure" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([{ hiddenTokens: [TREASURE] }, { hiddenTokens: null }]);
+    expect(puts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+  });
+
+  it("a hidden key survives a reload: the deck GET's keys show the chip, and loading is no edit", async () => {
+    hiddenTokens = [TREASURE];
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await pollFor(() => screen.queryByRole("button", { name: "Show Treasure" }));
+    expect(screen.queryByRole("button", { name: "Hide Treasure" })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Tokens/ }).textContent).toBe("Tokens0");
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([]);
+    expect(puts()).toBe(0);
+  });
+});

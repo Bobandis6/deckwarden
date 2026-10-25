@@ -1,12 +1,14 @@
 /**
- * The Tokens section (DECK-TOKENS) through the editor's deck pane and, read
- * only, on its own as the share page renders it: the disclosure (closed by
- * default, its open state kept with the view preferences), the count and the
- * "N from your cards" hint without a request, "From your cards" in ONE
- * resolve call by oracle id with each row naming its makers, Add and Add
- * all through the pane's one callback, the token rows in text and grid with
- * their captions, the steppers in the tokens zone, the token-only search,
- * and the quiet first screen.
+ * The Tokens section (DECK-TOKENS, TOKEN-FILL) through the editor's deck
+ * pane and, read only, on its own as the share page renders it: the
+ * disclosure (closed by default, its open state kept with the view
+ * preferences), the heading counting the deck's rows AND the tokens its
+ * cards make without a request, "From your cards" hydrated in ONE resolve
+ * call by oracle id (shown and hidden keys together) with each row naming
+ * its makers, Hide and the hidden chips' Show through the pane's two
+ * callbacks, a stored row superseding the derived one, the token rows in
+ * text and grid with their captions, the steppers in the tokens zone, the
+ * token-only search, and the quiet first screen.
  */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
@@ -134,6 +136,8 @@ afterEach(() => {
 
 function pane(over: Partial<React.ComponentProps<typeof DeckListPane>> = {}) {
   const onAddTokens = vi.fn<(c: EditorCard[]) => string | undefined>(() => undefined);
+  const onHideToken = vi.fn<(key: string) => void>();
+  const onShowTokens = vi.fn<(keys: string[]) => void>();
   const onSetQty = vi.fn<(zone: string, id: string, qty: number) => string | undefined>(
     () => undefined,
   );
@@ -149,34 +153,35 @@ function pane(over: Partial<React.ComponentProps<typeof DeckListPane>> = {}) {
       onRemove={() => {}}
       extras={false}
       onAddTokens={onAddTokens}
+      onHideToken={onHideToken}
+      onShowTokens={onShowTokens}
       onSetQty={onSetQty}
       onPreview={onPreview}
       {...over}
     />,
   );
-  return { onAddTokens, onSetQty, onPreview };
+  return { onAddTokens, onHideToken, onShowTokens, onSetQty, onPreview };
 }
 const trigger = () => screen.getByRole("button", { name: /^Tokens/ });
 const section = () => document.querySelector<HTMLElement>("[data-slot=tokens-section]")!;
 
 describe("the Tokens section in the editor (DECK-TOKENS)", () => {
-  it("is closed at first: the heading names the count and what the cards make, and nothing is asked", async () => {
+  it("is closed at first: the heading counts the row AND the three tokens the cards make, and nothing is asked", async () => {
     pane();
     expect(trigger().getAttribute("aria-expanded")).toBe("false");
-    // Three linked tokens the zone lacks (Treasure from two cards counts once).
-    expect(trigger().textContent).toBe("Tokens13 from your cards");
+    // One Spirit row + Treasure (from two cards, counted once), Soldier, the emblem.
+    expect(trigger().textContent).toBe("Tokens4");
     expect(within(section()).queryByText("Spirit")).toBeNull();
     await new Promise((r) => setTimeout(r, 300));
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("opening asks ONE resolve by oracle id, names each token's makers, and remembers the choice", async () => {
-    const { onAddTokens } = pane();
+  it("opening asks ONE resolve by oracle id and shows the derived rows under the deck's own, each naming its makers, with Hide", async () => {
+    const { onHideToken, onPreview } = pane();
     fireEvent.click(trigger());
     await waitFor(() => expect(trigger().getAttribute("aria-expanded")).toBe("true"));
-    const soldierRow = await screen.findByRole("button", {
-      name: "Add Soldier (1/1 white), from Elspeth, Sun's Champion",
-    });
+    const fill = await waitFor(() => screen.getByRole("group", { name: "From your cards" }));
+    const hide = await within(fill).findByRole("button", { name: "Hide Soldier (1/1 white)" });
     expect(resolveCalls()).toHaveLength(1);
     const body = JSON.parse(String(resolveCalls()[0][1]?.body));
     expect(body).toEqual({
@@ -184,25 +189,100 @@ describe("the Tokens section in the editor (DECK-TOKENS)", () => {
       format: "commander",
       names: [KEY.treasure, KEY.soldier, KEY.emblem].sort(),
     });
-    expect(
-      screen.getByRole("button", {
-        name: "Add Treasure, from Dockside Extortionist, Smothering Tithe",
-      }),
-    ).toBeTruthy();
+    // Name order; the makers in name order; no count on a derived row.
+    const rows = within(fill).getAllByRole("listitem");
+    expect(rows.map((r) => r.textContent)).toEqual([
+      "Elspeth, Sun's Champion Emblemfrom Elspeth, Sun's Champion",
+      "Soldier1/1 whitefrom Elspeth, Sun's Champion",
+      "Treasurefrom Dockside Extortionist, Smothering Tithe",
+    ]);
+    expect(within(fill).queryByRole("button", { name: /^One more/ })).toBeNull();
+    // The deck's own Spirit row stays first, with its steppers; the heading still counts 4.
+    const own = within(section()).getByRole("button", { name: "One more Spirit" });
+    expect(own.compareDocumentPosition(fill) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(trigger().textContent).toBe("Tokens4");
     expect(JSON.parse(window.localStorage.getItem("deckwarden:deck-view")!)).toMatchObject({
       tokensOpen: true,
     });
-    // The hint stays a closed heading's: open, the rows say it.
-    expect(trigger().textContent).toBe("Tokens1");
 
-    fireEvent.click(soldierRow);
-    expect(onAddTokens).toHaveBeenLastCalledWith([soldier]);
-    fireEvent.click(screen.getByRole("button", { name: "Add all 3" }));
-    expect(onAddTokens.mock.lastCall![0].map((c: EditorCard) => c.name)).toEqual([
-      "Elspeth, Sun's Champion Emblem",
-      "Soldier",
-      "Treasure",
-    ]);
+    fireEvent.click(within(fill).getByRole("button", { name: /^Treasure/ }));
+    expect(onPreview).toHaveBeenCalledWith(treasure);
+    fireEvent.click(hide);
+    expect(onHideToken).toHaveBeenCalledWith(KEY.soldier);
+  });
+
+  it("a hidden token leaves the rows for the chips, counts no more, and Show hands its key back; Show all hands every one", async () => {
+    window.localStorage.setItem("deckwarden:deck-view", JSON.stringify({ tokensOpen: true }));
+    const { onShowTokens } = pane({ hiddenTokens: [KEY.soldier, KEY.emblem] });
+    const fill = await waitFor(() => screen.getByRole("group", { name: "From your cards" }));
+    await within(fill).findByRole("button", { name: /^Treasure/ });
+    // 1 Spirit + Treasure alone; the two hidden keys rode the same ONE resolve.
+    expect(trigger().textContent).toBe("Tokens2");
+    expect(resolveCalls()).toHaveLength(1);
+    expect(within(fill).queryByRole("button", { name: /^Soldier/ })).toBeNull();
+    const chips = within(fill).getByText("Hidden:").parentElement!;
+    expect(chips.textContent).toBe("Hidden:Elspeth, Sun's Champion EmblemSoldier1/1 whiteShow all");
+    fireEvent.click(within(chips).getByRole("button", { name: "Show Soldier (1/1 white)" }));
+    expect(onShowTokens).toHaveBeenLastCalledWith([KEY.soldier]);
+    fireEvent.click(within(chips).getByRole("button", { name: "Show all" }));
+    expect(onShowTokens).toHaveBeenLastCalledWith([KEY.emblem, KEY.soldier]);
+  });
+
+  it("a hidden key whose makers left the deck shows nothing: no row, no chip", async () => {
+    window.localStorage.setItem("deckwarden:deck-view", JSON.stringify({ tokensOpen: true }));
+    pane({
+      entries: entries.filter((e) => e.cardId !== elspeth.id),
+      hiddenTokens: [KEY.soldier, KEY.emblem],
+    });
+    const fill = await waitFor(() => screen.getByRole("group", { name: "From your cards" }));
+    await within(fill).findByRole("button", { name: /^Treasure/ });
+    expect(within(fill).queryByText("Hidden:")).toBeNull();
+    expect(trigger().textContent).toBe("Tokens2");
+  });
+
+  it("a stored row of the same key supersedes the derived one: Treasure reads once, with steppers", async () => {
+    window.localStorage.setItem("deckwarden:deck-view", JSON.stringify({ tokensOpen: true }));
+    pane({
+      entries: [...entries, { cardId: treasure.id, zone: "tokens", qty: 2, tags: [] }],
+      cards: new Map([...cards, [treasure.id, treasure]]),
+    });
+    const fill = await waitFor(() => screen.getByRole("group", { name: "From your cards" }));
+    await within(fill).findByRole("button", { name: /^Soldier/ });
+    expect(within(fill).queryByRole("button", { name: /^Treasure/ })).toBeNull();
+    expect(within(section()).getAllByRole("button", { name: /^Treasure/ })).toHaveLength(1);
+    expect(within(section()).getByRole("button", { name: "One more Treasure" })).toBeTruthy();
+    // 1 Spirit + 2 Treasure + Soldier + the emblem.
+    expect(trigger().textContent).toBe("Tokens5");
+  });
+
+  it("a deck whose cards make nothing and that holds nothing says so, once", async () => {
+    window.localStorage.setItem("deckwarden:deck-view", JSON.stringify({ tokensOpen: true }));
+    const sol = editorCard(
+      card({
+        name: "Sol Ring",
+        primaryType: "Artifact",
+        attrs: { type_line: "Artifact", oracle_text: "" },
+      }),
+    );
+    pane({
+      entries: [
+        { cardId: commander.id, zone: "commander", qty: 1, tags: [] },
+        { cardId: sol.id, zone: "main", qty: 1, tags: [] },
+      ],
+      cards: new Map([
+        [commander.id, commander],
+        [sol.id, sol],
+      ]),
+    });
+    expect(trigger().textContent).toBe("Tokens0");
+    expect(
+      await within(section()).findByText(
+        "No tokens yet. The ones your cards make show up here; they don't count toward the deck's size.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "From your cards" })).toBeNull();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(resolveCalls()).toHaveLength(0);
   });
 
   it("the deck's tokens in the text view: captioned rows whose steppers work in the tokens zone", async () => {
@@ -214,7 +294,7 @@ describe("the Tokens section in the editor (DECK-TOKENS)", () => {
     expect(onSetQty).toHaveBeenCalledWith("tokens", spirit.id, 2);
   });
 
-  it("follows the pane's View: the grid shows each printed token, no badge over its name", async () => {
+  it("follows the pane's View: the grid shows each printed token, no badge over its name; a derived tile carries no count", async () => {
     window.localStorage.setItem(
       "deckwarden:deck-view",
       JSON.stringify({ view: "grid", groupBy: "primaryType", sortBy: "name", tokensOpen: true }),
@@ -223,6 +303,11 @@ describe("the Tokens section in the editor (DECK-TOKENS)", () => {
     const tile = await within(section()).findByRole("button", { name: "Show Spirit" });
     expect(tile.closest("li")?.textContent).toContain("×1");
     expect(tile.closest("li")?.textContent).not.toContain("1/1 white");
+    const fill = screen.getByRole("group", { name: "From your cards" });
+    const soldierTile = await within(fill).findByRole("button", { name: "Show Soldier" });
+    expect(soldierTile.closest("li")?.textContent).not.toContain("×");
+    expect(within(fill).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(fill).queryByRole("button", { name: /^Hide/ })).toBeNull();
   });
 
   it("Add a token searches the token catalog alone, and a pick goes through the pane's add", async () => {
@@ -365,5 +450,49 @@ describe("the Tokens section read-only (the share page)", () => {
     expect(screen.queryByRole("button", { name: "One more Spirit" })).toBeNull();
     fireEvent.click(name);
     expect(onPreview).toHaveBeenCalledWith(spirit);
+  });
+
+  it("the server's fill (TOKEN-FILL): derived rows with their makers, counted, no Hide, no chips, no request", async () => {
+    const onPreview = vi.fn();
+    const Harness = () => {
+      const [open, setOpen] = useState(true);
+      return (
+        <TokensSection
+          adapter={mtg}
+          zone={TOKENS}
+          items={[]}
+          view="text"
+          open={open}
+          onOpenChange={setOpen}
+          onPreview={onPreview}
+          fill={{
+            count: 2,
+            items: [
+              { card: soldier, from: ["Elspeth, Sun's Champion"] },
+              { card: treasure, from: ["Dockside Extortionist", "Smothering Tithe"] },
+            ],
+            hidden: [],
+            state: "idle",
+          }}
+          preview
+        />
+      );
+    };
+    render(<Harness />);
+    expect(trigger().textContent).toBe("Tokens2");
+    const fill = screen.getByRole("group", { name: "From your cards" });
+    expect(
+      within(fill)
+        .getAllByRole("listitem")
+        .map((r) => r.textContent),
+    ).toEqual([
+      "Soldier1/1 whitefrom Elspeth, Sun's Champion",
+      "Treasurefrom Dockside Extortionist, Smothering Tithe",
+    ]);
+    expect(within(fill).queryByRole("button", { name: /^Hide/ })).toBeNull();
+    expect(screen.queryByText("Hidden:")).toBeNull();
+    fireEvent.click(within(fill).getByRole("button", { name: /^Treasure/ }));
+    expect(onPreview).toHaveBeenCalledWith(treasure);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

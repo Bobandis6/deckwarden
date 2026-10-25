@@ -86,7 +86,7 @@ import { DeckTextView } from "@/components/deck/deck-text-view";
 import { LeaderZone } from "@/components/deck/leader-zone";
 import { SampleHand } from "@/components/deck/sample-hand";
 import { TokensSection } from "@/components/deck/tokens-section";
-import { useTokenSuggestions } from "@/components/deck/use-token-suggestions";
+import { useTokenFill } from "@/components/deck/use-token-fill";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { useCountUp } from "@/components/editor/use-count-up";
@@ -173,8 +173,13 @@ interface DeckListPaneProps {
   seeding?: boolean;
   /** The phone tier (U4a): Group and Sort fold into the "Group · Sort" popover beside View. */
   phone?: boolean;
-  /** DECK-TOKENS: adds into the token zone (one, or Add all's several); absent = the section is read-only. */
+  /** DECK-TOKENS: adds into the token zone; absent = the section is read-only. */
   onAddTokens?: (cards: EditorCard[]) => string | undefined;
+  /** TOKEN-FILL: the deck's hidden token keys (decks.hidden_tokens); null = none. */
+  hiddenTokens?: readonly string[] | null;
+  /** TOKEN-FILL: hide a derived token / show hidden ones again — the editor's own PATCH. */
+  onHideToken?: (key: string) => void;
+  onShowTokens?: (keys: string[]) => void;
 }
 
 export function DeckListPane({
@@ -206,6 +211,9 @@ export function DeckListPane({
   seeding = false,
   phone = false,
   onAddTokens,
+  hiddenTokens = null,
+  onHideToken,
+  onShowTokens,
 }: DeckListPaneProps) {
   // Stored preference wins; absent fields fall back (group to the adapter's
   // default). Read once — this pane only mounts client-side, after deck load.
@@ -257,13 +265,14 @@ export function DeckListPane({
     const card = entry.zone === tokenZone?.id ? cards.get(entry.cardId) : undefined;
     return card ? [{ entry, card }] : [];
   });
-  const tokenSuggestions = useTokenSuggestions({
+  // TOKEN-FILL: the tokens the cards make, derived here; their cards load once the section opens.
+  const tokenFill = useTokenFill({
     adapter,
     format,
-    zone: tokenZone,
     entries,
     cards,
-    enabled: tokensOpen && onAddTokens !== undefined,
+    hidden: hiddenTokens,
+    enabled: tokensOpen,
   });
   const severity = issueSeverityByCard(issues);
   const leaderZoneDef = format.zones.find((z) => z.isLeaderZone);
@@ -580,16 +589,15 @@ export function DeckListPane({
           onSetQty={setQtyChecked}
           onRemove={onRemove}
           onAdd={onAddTokens}
-          suggestions={
-            onAddTokens
-              ? {
-                  count: tokenSuggestions.count,
-                  items: tokenSuggestions.suggestions,
-                  state: tokenSuggestions.state,
-                  retry: tokenSuggestions.retry,
-                }
-              : undefined
-          }
+          fill={{
+            count: tokenFill.count,
+            items: tokenFill.items,
+            hidden: tokenFill.hidden,
+            state: tokenFill.state,
+            retry: tokenFill.retry,
+            onHide: onHideToken,
+            onShow: onShowTokens,
+          }}
         />
       )}
 

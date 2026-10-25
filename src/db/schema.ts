@@ -480,6 +480,17 @@ export const decks = pgTable(
      * never bumps updated_at; never copied on fork; never set from the read.
      */
     goals: jsonb("goals").$type<DeckGoals>(),
+    /**
+     * The tokens the owner hid from the list the deck's cards fill
+     * (TOKEN-FILL): token identities' external keys (Magic: oracle ids).
+     * NULL = none (0 bytes). Hidden means "not shown while derived": a
+     * stored token row of the same key still shows, and a hidden key whose
+     * makers left the deck stays, so it is still hidden when one returns.
+     * Saved through its own PATCH body `{hiddenTokens}`, which never bumps
+     * updated_at; never copied on fork; not versioned. The zod and the
+     * derivation are src/lib/decks/token-fill.ts'.
+     */
+    hiddenTokens: text("hidden_tokens").array(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

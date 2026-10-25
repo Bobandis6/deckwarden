@@ -81,6 +81,7 @@ function deckRow(over: Partial<Record<keyof DeckRow, unknown>> = {}): unknown[] 
     currentVersion: 3,
     likesCount: 0,
     goals: null,
+    hiddenTokens: null,
     createdAt: "2026-09-01T00:00:00.000Z",
     updatedAt: UPDATED,
     ...over,
@@ -197,6 +198,74 @@ describe("PATCH {goals} (Y4b)", () => {
     const res = await PATCH(req, ctx);
     expect(res.status).toBe(200);
     expect(updates()[0].sql).not.toContain('"updated_at" =');
+  });
+});
+
+describe("PATCH {hiddenTokens} (TOKEN-FILL)", () => {
+  const treasure = "aaaaaaaa-0000-4000-8000-000000000001";
+  const soldier = "aaaaaaaa-0000-4000-8000-000000000002";
+
+  it("a hidden-only body sets hidden_tokens and nothing else — updated_at stays where it was", async () => {
+    answers = [[deckRow()], [deckRow({ hiddenTokens: [treasure, soldier] })]];
+    const res = await PATCH(patch({ hiddenTokens: [soldier, treasure, soldier] }), ctx);
+    expect(res.status).toBe(200);
+    const [write] = updates();
+    expect(write.sql).toMatch(
+      /^update "decks" set "hidden_tokens" = \$1 where "decks"\."id" = \$2/,
+    );
+    expect(write.sql).not.toContain('"updated_at" =');
+    // Sorted and de-duplicated before the write (drizzle binds a text[] as its array literal).
+    expect(write.params[0]).toBe(`{"${treasure}","${soldier}"}`);
+    const json = await res.json();
+    expect(json.deck.hiddenTokens).toEqual([treasure, soldier]);
+    expect(json.deck.updatedAt).toBe(UPDATED);
+  });
+
+  it("null clears, and so does an empty array (the column's 0-byte state)", async () => {
+    answers = [[deckRow({ hiddenTokens: [treasure] })], [deckRow()]];
+    await PATCH(patch({ hiddenTokens: [] }), ctx);
+    expect(updates()[0].params[0]).toBeNull();
+    statements = [];
+    answers = [[deckRow({ hiddenTokens: [treasure] })], [deckRow()]];
+    await PATCH(patch({ hiddenTokens: null }), ctx);
+    expect(updates()[0].params[0]).toBeNull();
+  });
+
+  it("a meta key alongside moves updated_at, as every meta PATCH always has", async () => {
+    answers = [[deckRow()], [deckRow({ name: "Brago", hiddenTokens: [treasure] })]];
+    await PATCH(patch({ name: "Brago", hiddenTokens: [treasure] }), ctx);
+    const [write] = updates();
+    expect(write.sql).toContain('"hidden_tokens" =');
+    expect(write.sql).toContain('"updated_at" =');
+  });
+
+  it("the bounds: more than 100 keys, or a key past 64 chars, answers 400 and writes nothing", async () => {
+    answers = [[deckRow()]];
+    expect((await PATCH(patch({ hiddenTokens: Array(101).fill(treasure) }), ctx)).status).toBe(400);
+    expect(updates()).toHaveLength(0);
+    answers = [[deckRow()]];
+    expect((await PATCH(patch({ hiddenTokens: ["x".repeat(65)] }), ctx)).status).toBe(400);
+    expect(updates()).toHaveLength(0);
+  });
+
+  it("someone else's deck is 403 before the body is checked", async () => {
+    session.userId = "0b5a4f8e-9999-4999-8999-999999999999";
+    answers = [[deckRow()]];
+    expect((await PATCH(patch({ hiddenTokens: [treasure] }), ctx)).status).toBe(403);
+    expect(updates()).toHaveLength(0);
+  });
+});
+
+describe("GET — the hidden token keys (TOKEN-FILL)", () => {
+  const get = () => new NextRequest(`http://localhost:3000/api/decks/${DECK}`);
+  const hiddenTokens = ["aaaaaaaa-0000-4000-8000-000000000001"];
+
+  it("the owner's wire carries them; a visitor's says null", async () => {
+    answers = [[deckRow({ hiddenTokens })]];
+    expect((await (await GET(get(), ctx)).json()).deck.hiddenTokens).toEqual(hiddenTokens);
+    session.userId = null;
+    answers = [[deckRow({ hiddenTokens })]];
+    expect((await (await GET(get(), ctx)).json()).deck.hiddenTokens).toBeNull();
   });
 });
 

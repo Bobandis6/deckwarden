@@ -13,6 +13,9 @@
  *          target). Owner only. updated_at moves only when a key other than
  *          goals is present: a target or an answer must not reorder the
  *          "recent" rails (home, /account) — WAVE4 D5.
+ *          TOKEN-FILL: `hiddenTokens` — the derived tokens the owner hid,
+ *          the whole array (null or [] clears), the same rule: a setting,
+ *          never an edit, so it moves updated_at no more than goals do.
  * DELETE — hard delete; deck_cards + deck_versions cascade. Owner only.
  *          Fork-safe (P3.6, fired LATER row): forks' upstream pointers are
  *          NULLed in the same transaction — the self-FK has no ON DELETE.
@@ -35,6 +38,7 @@ import { deckOwnedForViewer } from "@/lib/collection/owned";
 import { loadFolder } from "@/lib/decks/folders";
 import { deleteDecksForkSafe, forkCredit } from "@/lib/decks/forks";
 import { goalsSchema, normalizeGoals, type DeckGoals } from "@/lib/decks/goals";
+import { hiddenTokensSchema, normalizeHiddenTokens } from "@/lib/decks/token-fill";
 import { deckFormat, requireOwnedDeckWrite, requireReadableDeck } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
 import { RATE_LIMITS } from "@/lib/rate-limit";
@@ -90,6 +94,8 @@ function patchBody(brackets: Parameters<typeof goalsSchema>[0]) {
       folderId: z.uuid().nullable(),
       /** Y4b: the deck's goals, whole — null clears. Never bumps updated_at. */
       goals: goalsSchema(brackets).nullable(),
+      /** TOKEN-FILL: the derived tokens the owner hid, whole — null or [] clears. Never bumps updated_at. */
+      hiddenTokens: hiddenTokensSchema.nullable(),
     })
     .partial()
     .refine((b) => Object.keys(b).length > 0, { message: "No fields to update" });
@@ -119,15 +125,16 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/
     }
   }
 
-  // Goals are a setting, not an edit: a goals-only body leaves updated_at
-  // (and so the deck's place in every "recent" order) alone.
-  const { goals, ...meta } = body;
+  // Goals and hidden tokens are settings, not edits: a body of theirs alone
+  // leaves updated_at (and so the deck's place in every "recent" order) alone.
+  const { goals, hiddenTokens, ...meta } = body;
   const db = getDb();
   const [updated] = await db
     .update(decks)
     .set({
       ...meta,
       ...(goals !== undefined ? { goals: normalizeGoals(goals as DeckGoals | null) } : {}),
+      ...(hiddenTokens !== undefined ? { hiddenTokens: normalizeHiddenTokens(hiddenTokens) } : {}),
       ...(Object.keys(meta).length > 0 ? { updatedAt: new Date() } : {}),
     })
     .where(eq(decks.id, access.deck.id))

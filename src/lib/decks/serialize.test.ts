@@ -22,6 +22,7 @@ const row: DeckRow = {
   currentVersion: 0,
   likesCount: 0,
   goals: null,
+  hiddenTokens: null,
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-02T00:00:00Z"),
 };
@@ -37,6 +38,13 @@ describe("deckMetaJson", () => {
     expect(json).not.toHaveProperty("claimToken");
     expect(json).not.toHaveProperty("createdIp");
     expect(json).not.toHaveProperty("userId");
+  });
+
+  it("hidden token keys reach the owner alone (TOKEN-FILL): a visitor's wire says null", () => {
+    const hidden = { ...row, hiddenTokens: ["aaaaaaaa-0000-4000-8000-000000000001"] };
+    expect(deckMetaJson(hidden, { isOwner: true }).hiddenTokens).toEqual(hidden.hiddenTokens);
+    expect(deckMetaJson(hidden, { isOwner: false }).hiddenTokens).toBeNull();
+    expect(deckMetaJson(row, { isOwner: true }).hiddenTokens).toBeNull();
   });
 
   it("exposes kind on the wire (W8a)", () => {

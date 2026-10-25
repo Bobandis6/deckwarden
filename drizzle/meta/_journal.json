@@ -141,6 +141,13 @@
       "when": 1792339975088,
       "tag": "0019_accounts_provider_key",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792888114945,
+      "tag": "0020_decks_hidden_tokens",
+      "breakpoints": true
     }
   ]
 }

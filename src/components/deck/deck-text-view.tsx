@@ -183,7 +183,8 @@ export function GroupHeading({
 }
 
 /** Reveal-on-hover/focus for the per-row controls; the quantity itself never hides. On coarse pointers: always shown, 44 px. */
-const REVEAL_CLASS =
+/** Row controls that show on hover or focus (the Tokens section's Hide uses it too). */
+export const REVEAL_CLASS =
   "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 pointer-coarse:size-11 pointer-coarse:opacity-100";
 
 interface DeckTextViewProps {

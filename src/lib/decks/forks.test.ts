@@ -72,6 +72,7 @@ function deck(over: Partial<DeckRow> = {}): DeckRow {
     currentVersion: 4,
     likesCount: 2,
     goals,
+    hiddenTokens: null,
     createdAt: new Date("2026-09-01T00:00:00Z"),
     updatedAt: new Date("2026-10-01T00:00:00Z"),
     ...over,
