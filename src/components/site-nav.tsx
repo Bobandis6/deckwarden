@@ -3,7 +3,9 @@
 /**
  * The site header's client islands (R1b): the Browse menu, the My decks
  * link, and the phone collapse — one Base UI Menu holding every nav link
- * behind a MenuIcon trigger below `md`.
+ * behind a MenuIcon trigger below `md`, and since HEADER-SEARCH the
+ * Appearance items under them (the header's own Appearance trigger hides
+ * below `md`, giving its slot to the card search button).
  *
  * My decks is /account for everyone (X1, WAVE3.md D1): signed out, that
  * page is sign-in with this browser's decks listed under the buttons. Nothing
@@ -28,6 +30,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { navLinkClass } from "@/components/site-nav-link";
+import { AppearanceItems } from "@/components/theme/appearance-menu";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -166,6 +169,14 @@ export function MobileNavMenu() {
         >
           My decks
         </DropdownMenuLinkItem>
+        {/* HEADER-SEARCH: below md the header's Appearance trigger gives its
+            44 px to the search button, and its items ride here — U4a's
+            AppearanceItems, so still one appearance control per page. */}
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Appearance</DropdownMenuLabel>
+          <AppearanceItems />
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

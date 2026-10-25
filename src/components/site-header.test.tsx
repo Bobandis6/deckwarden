@@ -92,7 +92,7 @@ describe("SiteHeader", () => {
     expect(banner.innerHTML).not.toMatch(/href="\/c\//);
   });
 
-  it("below 360 px the mark stands alone, a 44 px target on touch, so the guest row fits a 320 px screen (LATER row 250)", () => {
+  it("below 360 px the mark stands alone, a 44 px target on touch, so the guest row fits a phone (LATER row 250); the search button takes Appearance's slot below md (HEADER-SEARCH)", () => {
     render(<SiteHeader />);
     const mark = screen.getByRole("link", { name: "Deckwarden" });
     expect(mark.className).toContain(
@@ -104,6 +104,65 @@ describe("SiteHeader", () => {
     );
     // The link is named by its aria-label, so the hidden wordmark takes no name with it.
     expect(mark.getAttribute("aria-label")).toBe("Deckwarden");
+    // HEADER-SEARCH: the Appearance trigger hides below md (the phone Menu carries its
+    // items) and reads as its icon below lg, where the card search needs the room.
+    const appearance = screen.getByRole("button", { name: "Appearance" });
+    expect(appearance.className).toContain("max-md:hidden");
+    expect(within(appearance).getByText("Appearance").className).toBe("max-lg:sr-only");
+  });
+
+  it("HEADER-SEARCH: the phone Menu ends with the Appearance items, the theme choices and Background art", async () => {
+    render(<SiteHeader />);
+    open(screen.getByRole("button", { name: "Menu" }));
+    const menu = await screen.findByRole("menu", { name: "Menu" });
+    const group = within(menu).getByRole("group", { name: "Appearance" });
+    expect(
+      within(group)
+        .getAllByRole("menuitemradio")
+        .map((item) => item.textContent),
+    ).toEqual(["Dark", "Light", "System"]);
+    expect(within(group).getByRole("menuitemcheckbox", { name: "Background art" })).toBeTruthy();
+  });
+
+  it("HEADER-SEARCH: one card search opens the right-hand cluster: the Cards landmark around the Search cards box, then the phone's Search cards button, then the account slot", () => {
+    render(<SiteHeader />);
+    const banner = screen.getByRole("banner");
+    expect(within(banner).getAllByRole("search")).toHaveLength(1);
+    const search = within(banner).getByRole("search", { name: "Cards" });
+    expect(search.getAttribute("action")).toBe("/cards");
+    expect(search.getAttribute("method")).toBe("get");
+    const box = within(search).getByRole("combobox", { name: "Search cards" });
+    expect(box.getAttribute("name")).toBe("q");
+    const button = within(banner).getByRole("button", { name: "Search cards" });
+    expect(button.className).toContain("md:hidden");
+    const cluster = search.parentElement!;
+    expect([...cluster.children].slice(0, 3)).toEqual([
+      search,
+      button,
+      screen.getByRole("link", { name: "Sign in" }),
+    ]);
+    // The row frames the phone's search row and hides its own children while it is open.
+    const row = banner.firstElementChild!;
+    expect(cluster.parentElement).toBe(row);
+    expect(row.className).toContain("relative");
+    expect(row.className).toContain("max-md:[&:has([data-search-open])>*]:invisible");
+    // Nothing is asked of the page at render: no game param, the row shut.
+    expect(search.querySelector('input[name="game"]')).toBeNull();
+    expect(search.hasAttribute("data-search-open")).toBe(false);
+  });
+
+  it("HEADER-SEARCH: the phone's button opens the search row with its box focused in the same tap; Close hands focus back", () => {
+    render(<SiteHeader />);
+    const banner = screen.getByRole("banner");
+    const button = within(banner).getByRole("button", { name: "Search cards" });
+    const search = within(banner).getByRole("search", { name: "Cards" });
+    fireEvent.click(button);
+    expect(document.activeElement).toBe(within(search).getByRole("combobox"));
+    expect(search.hasAttribute("data-search-open")).toBe(true);
+    expect(banner.firstElementChild!.matches(":has([data-search-open])")).toBe(true);
+    fireEvent.click(within(search).getByRole("button", { name: "Close search" }));
+    expect(search.hasAttribute("data-search-open")).toBe(false);
+    expect(document.activeElement).toBe(button);
   });
 
   it("the header's row is h-14 over a hairline, and --site-header-height mirrors the pair for the editor's root (2026-10-17)", () => {

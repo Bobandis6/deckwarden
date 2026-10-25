@@ -57,9 +57,23 @@
  * `mode="none"`: the server ranked and filtered; Base UI neither re-filters
  * (its default `contains` filter drops Urza's Saga for "urzas saga") nor
  * re-orders.
+ *
+ * HEADER-SEARCH's two opt-in props, for the site header's box (which reads
+ * its game off the open page, so its game can change while it is mounted):
+ * - `fallback`: when `game` answers no rows for a key, the other game is
+ *   asked once — one extra request, and only on a miss — and its rows show
+ *   under one quiet line that names both games ("No Magic cards match. 3
+ *   One Piece cards."), the status line saying the same. A
+ *   failed second request leaves the first game's honest "No matches".
+ * - `onAnswer`: every answer that lands, with its key and the game whose
+ *   rows it shows, so the caller's form can follow the game that answered.
+ * An answer is kept per key AND per game asked, so a box whose game changes
+ * asks again for the same text. Without these props (every other caller,
+ * whose game never changes while mounted) nothing differs: the same one
+ * request per key, the same rows, words and timing.
  */
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { ColorChipList } from "@/components/color-chip";
@@ -72,7 +86,7 @@ import {
   AutocompleteStatus,
 } from "@/components/ui/autocomplete";
 import { NAME_MIN_CHARS, nameKey } from "@/lib/search/name-key";
-import type { SuggestResponse, SuggestRow } from "@/lib/search/suggest";
+import type { SuggestGame, SuggestResponse, SuggestRow } from "@/lib/search/suggest";
 import { cn } from "@/lib/utils";
 
 export const SUGGEST_DEBOUNCE_MS = 150;
@@ -106,6 +120,23 @@ export interface NameSuggestProps {
   /** Replaces the input's look (ui/autocomplete.tsx `unstyled`); omitted = the shadcn Input look. */
   inputClassName?: string;
   "aria-label"?: string;
+  /**
+   * HEADER-SEARCH: the game to ask, once, when `game` has no rows for a key,
+   * and the names the line above its rows uses (the header's short names).
+   */
+  fallback?: { game: SuggestGame; names: Record<SuggestGame, string> };
+  /** HEADER-SEARCH: each answer that lands — its key, and the game whose rows it shows. */
+  onAnswer?: (answer: { key: string; game: SuggestGame }) => void;
+}
+
+/** The line over the other game's rows, and the status line's words for them. */
+function fallbackLine(
+  names: Record<SuggestGame, string>,
+  asked: SuggestGame,
+  shown: SuggestGame,
+  count: number,
+): string {
+  return `No ${names[asked]} cards match. ${count} ${names[shown]} card${count === 1 ? "" : "s"}.`;
 }
 
 function rowHref(row: SuggestRow, target: NameSuggestProps["rowHref"]): string | null {
@@ -131,6 +162,8 @@ export function NameSuggest({
   type = "search",
   inputClassName,
   "aria-label": ariaLabel,
+  fallback,
+  onAnswer,
 }: NameSuggestProps) {
   const [inner, setInner] = useState(defaultValue ?? "");
   const text = value ?? inner;
@@ -139,14 +172,29 @@ export function NameSuggest({
 
   /** The reader's intent, from Base UI's open requests (typing, Esc, outside press…). */
   const [want, setWant] = useState(false);
-  /** The latest answer and the key it answered. */
-  const [answer, setAnswer] = useState<{ key: string; rows: SuggestRow[] } | null>(null);
+  /**
+   * The latest answer: the key and the game it was asked of, and the game
+   * whose rows it holds — `fallback.game` after a miss, else the same one.
+   */
+  const [answer, setAnswer] = useState<{
+    key: string;
+    asked: SuggestGame;
+    game: SuggestGame;
+    rows: SuggestRow[];
+  } | null>(null);
   const [failed, setFailed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const landed = useEffectEvent((answered: { key: string; game: SuggestGame }) => {
+    onAnswer?.(answered);
+  });
 
   const answerKey = answer?.key ?? null;
+  const answerAsked = answer?.asked ?? null;
+  const fallbackGame = fallback?.game;
   useEffect(() => {
-    if (!want || key.length < NAME_MIN_CHARS || key === answerKey) return;
+    if (!want || key.length < NAME_MIN_CHARS || (key === answerKey && game === answerAsked)) {
+      return;
+    }
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -155,8 +203,30 @@ export function NameSuggest({
         if (!res.ok) throw new Error(`Suggest failed (${res.status})`);
         const json = (await res.json()) as SuggestResponse;
         if (controller.signal.aborted) return;
-        setAnswer({ key, rows: json.results });
+        let rows = json.results;
+        let shown = game;
+        if (rows.length === 0 && fallbackGame !== undefined && fallbackGame !== game) {
+          // HEADER-SEARCH: a miss asks the other game once. Its failure is
+          // not the box's: the first game's empty answer still stands.
+          try {
+            const other = new URLSearchParams({ game: fallbackGame, scope, q: key });
+            const more = await fetch(`/api/cards/suggest?${other}`, {
+              signal: controller.signal,
+            });
+            if (!more.ok) throw new Error(`Suggest failed (${more.status})`);
+            const found = ((await more.json()) as SuggestResponse).results;
+            if (found.length > 0) {
+              rows = found;
+              shown = fallbackGame;
+            }
+          } catch {
+            // Aborted (dropped below) or failed (the miss stands).
+          }
+          if (controller.signal.aborted) return;
+        }
+        setAnswer({ key, asked: game, game: shown, rows });
         setFailed(false);
+        landed({ key, game: shown });
       } catch {
         if (!controller.signal.aborted) setFailed(true);
       }
@@ -165,12 +235,18 @@ export function NameSuggest({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [want, key, answerKey, game, scope]);
+  }, [want, key, answerKey, answerAsked, game, scope, fallbackGame]);
 
   const rows = (answer?.rows ?? []).filter((row) => onPick || rowHref(row, target) !== null);
   const open = want && active && answer !== null && !failed;
   const entries: Entry[] = footerNoun ? [...rows, FOOTER] : rows;
   const typed = text.trim();
+  /** The game whose rows show (the other game's after a fallback). */
+  const rowGame = answer?.game ?? game;
+  const note =
+    fallback && answer && answer.game !== answer.asked && rows.length > 0
+      ? fallbackLine(fallback.names, answer.asked, answer.game, rows.length)
+      : null;
 
   const handleValueChange = (next: string) => {
     if (nameKey(next).length < NAME_MIN_CHARS) {
@@ -219,13 +295,18 @@ export function NameSuggest({
       <AutocompleteStatus>
         {open
           ? rows.length
-            ? `${rows.length} suggestion${rows.length === 1 ? "" : "s"}`
+            ? (note ?? `${rows.length} suggestion${rows.length === 1 ? "" : "s"}`)
             : "No matches"
           : ""}
       </AutocompleteStatus>
       <AutocompleteContent data-slot="name-suggest-popup">
         {rows.length === 0 && (
           <p className="text-muted-foreground px-1.5 py-1 text-sm">No matches</p>
+        )}
+        {note && (
+          <p data-slot="name-suggest-note" className="text-muted-foreground px-1.5 py-1 text-sm">
+            {note}
+          </p>
         )}
         <AutocompleteList>
           {(entry: Entry) =>
@@ -246,7 +327,7 @@ export function NameSuggest({
                   onPick(entry);
                 }}
               >
-                <RowBody row={entry} detail={detail} game={game} />
+                <RowBody row={entry} detail={detail} game={rowGame} />
               </AutocompleteItem>
             ) : (
               <AutocompleteItem
@@ -259,7 +340,7 @@ export function NameSuggest({
                   if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) setWant(false);
                 }}
               >
-                <RowBody row={entry} detail={detail} game={game} />
+                <RowBody row={entry} detail={detail} game={rowGame} />
               </AutocompleteItem>
             )
           }

@@ -5,7 +5,7 @@
  * (site) group's file renders the body alone (its layout carries the
  * header). The status code is Next's (hubs-smoke pins 404 on the wire).
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth-client", () => ({
@@ -28,7 +28,10 @@ function expectWardenBody() {
   const home = screen.getByRole("button", { name: "Back to Deckwarden" });
   expect(home.tagName).toBe("A");
   expect(home.getAttribute("href")).toBe("/");
-  expect(screen.getByRole("button", { name: "Search cards" }).getAttribute("href")).toBe("/cards");
+  // Within main: the root file's header carries a "Search cards" button of its own (HEADER-SEARCH).
+  expect(within(main).getByRole("button", { name: "Search cards" }).getAttribute("href")).toBe(
+    "/cards",
+  );
 }
 
 describe("NotFound (root — unmatched URLs)", () => {

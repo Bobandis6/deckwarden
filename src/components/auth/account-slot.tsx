@@ -3,7 +3,8 @@
 /**
  * The site header's account slot (R1b; the signed-in menu since W3,
  * WAVE2.md D1): "Sign in" for guests; a real-button menu trigger (avatar +
- * name, name sr-only below `sm`) once the Better Auth client resolves a
+ * name, name sr-only below `lg` since HEADER-SEARCH, so the header's card
+ * search keeps its words on a tablet; it was `sm`) once the Better Auth client resolves a
  * session — My decks · Bookmarks · Collection · Profile & settings as
  * links into /account's sections, then Sign out. Client-side on purpose —
  * reading the session on the server would mean headers() in the (site)
@@ -123,7 +124,7 @@ function AccountMenu({
       <DropdownMenuTrigger className="focus-visible:ring-ring/50 hover:bg-muted aria-expanded:bg-muted flex items-center gap-2 rounded-full py-0.5 pr-2.5 pl-0.5 outline-none focus-visible:ring-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11">
         {/* Decorative (aria-hidden inside): the name span is the trigger's label. */}
         <UserAvatar name={user.name} image={user.image} avatar={avatar} size={24} />
-        <span className="max-w-32 truncate text-sm font-medium max-sm:sr-only">{user.name}</span>
+        <span className="max-w-32 truncate text-sm font-medium max-lg:sr-only">{user.name}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuGroup>

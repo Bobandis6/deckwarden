@@ -13,12 +13,15 @@
  * a toggle invites a second look, and the effect shows behind the popup.
  * The setting is global — the reader's, not the page's — so the item shows
  * on every page, ambient surface or not. The label collapses to the icon
- * below `sm`.
+ * below `lg` (HEADER-SEARCH: below 1024 px the header's card search needs
+ * that room; it was `sm`).
  *
  * U4a (WAVE5 D5): the items are `AppearanceItems`, so the phone editor's
  * More menu carries the same radio group and switch while the editor's
  * header drops its own control there — still one appearance control per
- * page.
+ * page. HEADER-SEARCH: the same items now sit in the site header's phone
+ * Menu, and the header hides this trigger below `md` (`className`), giving
+ * its 44 px to the search button.
  */
 import { ImageIcon, MonitorIcon, MoonIcon, SunIcon, SunMoonIcon } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -70,12 +73,19 @@ export function AppearanceItems() {
   );
 }
 
-export function AppearanceMenu({ side = "bottom" }: { side?: "top" | "bottom" }) {
+export function AppearanceMenu({
+  side = "bottom",
+  className,
+}: {
+  side?: "top" | "bottom";
+  /** The trigger's classes (the site header hides it below `md`). */
+  className?: string;
+}) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className={className} />}>
         <SunMoonIcon aria-hidden />
-        <span className="max-sm:sr-only">Appearance</span>
+        <span className="max-lg:sr-only">Appearance</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side={side} aria-label="Appearance">
         <AppearanceItems />
