@@ -59,6 +59,9 @@ const CARDS_FIRST_PAGE = `${SELECT_CARD}, "card_printings"."id", "card_printings
 /** The editor's One Piece id pass (`OP01-02`) before X4a, verbatim. */
 const OP_ID_PASS = `${SELECT_CARD}, "card_printings"."id", "card_printings"."image_override", count(*) over()::int from "card_identities" left join "card_printings" on ("card_printings"."card_identity_id" = "card_identities"."id" and "card_printings"."is_default" = $1) where ("card_identities"."game_id" = $2 and "card_identities"."is_removed" = $3 and NOT ("card_identities"."attrs" @> $4::jsonb) and "card_identities"."external_key" LIKE $5) order by "card_identities"."external_key" ASC, "card_identities"."name_norm" limit $6`;
 
+/** The token search's namesake order (DECK-TOKENS): P/T, then colors. */
+const TOKEN_NAMESAKES = `("card_identities"."attrs"->>'power_num')::int ASC NULLS LAST, ("card_identities"."attrs"->>'toughness_num')::int ASC NULLS LAST, "card_identities"."colors_mask" ASC`;
+
 const PRINTING = "f791876a-f3fb-45b8-90a9-af846d8b8f74";
 
 /** A card row in the select's column order. */
@@ -154,17 +157,32 @@ describe("GET /api/cards/search — without a set, what it was", () => {
     expect(statements[0].params).toEqual([true, 1, false, TOKEN_DOC, 60]);
   });
 
-  it("never a token (DECK-TOKENS); tokens=1 asks for the catalog instead, every other clause the same", async () => {
+  it("never a token (DECK-TOKENS); tokens=1 asks for the catalog instead, ties broken by P/T, colors and id", async () => {
     await get("game=mtg&limit=12&tokens=1");
     expect(statements[0].sql).toBe(
       CARDS_FIRST_PAGE.replace(
         'NOT ("card_identities"."attrs" @> $4::jsonb)',
         '"card_identities"."attrs" @> $4::jsonb',
+      ).replace(
+        '"card_identities"."name_norm" limit $5',
+        `"card_identities"."name_norm", ${TOKEN_NAMESAKES}, "card_identities"."id" limit $5`,
       ),
     );
     expect(statements[0].params).toEqual([true, 1, false, TOKEN_DOC, 12]);
     const bad = await get("game=mtg&tokens=yes");
     expect(bad.res.status).toBe(400);
+  });
+
+  it("a named token search (sort=best) orders namesakes by P/T and colors ahead of the card number, and nothing after", async () => {
+    await get("game=mtg&limit=12&tokens=1&name=elemental&sort=best");
+    expect(statements[0].sql).toContain(
+      `"card_identities"."name_norm" ASC, ${TOKEN_NAMESAKES}, "card_identities"."external_key" ASC, "card_identities"."name_norm" limit $`,
+    );
+    // A card search's best order is the name matcher's own, untouched.
+    await get("game=mtg&limit=12&name=elemental&sort=best");
+    expect(statements.at(-1)?.sql).toContain(
+      `"card_identities"."name_norm" ASC, "card_identities"."external_key" ASC, "card_identities"."name_norm" limit $`,
+    );
   });
 
   it("the One Piece id pass, with or without a `set` (One Piece declares no set field)", async () => {

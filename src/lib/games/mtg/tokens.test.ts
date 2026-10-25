@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { mtgAdapter } from "./adapter";
 import { card } from "./test-fixtures";
-import { mtgTokenCaption, mtgTokenLinks } from "./tokens";
+import { mtgTokenCaption, mtgTokenLinks, mtgTokenQuery } from "./tokens";
 
 const token = (over: Parameters<typeof card>[0]) =>
   card({
@@ -91,5 +91,53 @@ describe("mtgTokenCaption (DECK-TOKENS)", () => {
     });
     expect(mtgTokenLinks(tithe)).toEqual(["k1"]);
     expect(mtgTokenLinks(card({ name: "Sol Ring" }))).toEqual([]);
+  });
+});
+
+describe("mtgTokenQuery (DECK-TOKENS): what a player reads off a token finds it", () => {
+  it("the owner's case: the 4/4 blue-red Elemental, thirtieth of 39 by name alone", () => {
+    expect(mtgTokenQuery("Elemental 4/4 blue red")).toEqual({
+      name: "elemental",
+      power: "4",
+      toughness: "4",
+      colors: "including:UR",
+    });
+    // Any order, "and" between colors, a spaced slash.
+    expect(mtgTokenQuery("blue and red 4 / 4 elemental")).toEqual({
+      name: "elemental",
+      power: "4",
+      toughness: "4",
+      colors: "including:UR",
+    });
+  });
+
+  it("a star side filters nothing (it stores as no number); stats alone need no name", () => {
+    expect(mtgTokenQuery("*/* green")).toEqual({ colors: "including:G" });
+    expect(mtgTokenQuery("1/* soldier")).toEqual({ name: "soldier", power: "1" });
+  });
+
+  it("keywords, two-word ones first", () => {
+    expect(mtgTokenQuery("Spirit flying")).toEqual({ name: "spirit", keywords: "Flying" });
+    expect(mtgTokenQuery("first strike haste knight")).toEqual({
+      name: "knight",
+      keywords: "First strike,Haste",
+    });
+  });
+
+  it("colorless is exactly none; a plain name passes through, 'and' included", () => {
+    expect(mtgTokenQuery("colorless 1/1 construct")).toEqual({
+      name: "construct",
+      power: "1",
+      toughness: "1",
+      colors: "exactly:",
+    });
+    expect(mtgTokenQuery("The Monarch")).toEqual({ name: "the monarch" });
+    expect(mtgTokenQuery("Day and Night")).toEqual({ name: "day and night" });
+  });
+
+  it("the adapter declares it, with the box's words", () => {
+    expect(mtgAdapter.tokenQuery).toBe(mtgTokenQuery);
+    expect(mtgAdapter.display.tokenSearch?.placeholder).toContain("4/4 blue red");
+    expect(mtgAdapter.display.tokenSearch?.narrowHint).not.toContain("·");
   });
 });

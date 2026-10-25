@@ -5,7 +5,7 @@
  * way translate.test.ts pins the translator's. Names are written as
  * `name_norm` stores them (lowercased, deaccented, punctuation kept).
  */
-import type { SQL } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
@@ -238,6 +238,18 @@ describe("the rendered SQL", () => {
       '"card_identities"."popularity" ASC NULLS LAST',
       '"card_identities"."is_leader_candidate" DESC',
       '"card_identities"."name_norm" ASC',
+      '"card_identities"."external_key" ASC',
+    ]);
+  });
+
+  it("namesakes go between the name and the card number (the token search's P/T and colors)", () => {
+    const parts = nameMatchOrder(parseNameQuery("elemental")!, [sql`p ASC`, sql`t ASC`]).map(
+      (s) => render(s).sql,
+    );
+    expect(parts.slice(3)).toEqual([
+      '"card_identities"."name_norm" ASC',
+      "p ASC",
+      "t ASC",
       '"card_identities"."external_key" ASC',
     ]);
   });

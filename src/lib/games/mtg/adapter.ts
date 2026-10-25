@@ -12,7 +12,7 @@ import { parseMtgDecklist, serializeMtgDecklist } from "./decklist";
 import { MTG_FORMATS } from "./formats";
 import { mtgImportLeaderGuess } from "./import-guess";
 import { mtgRecommend } from "./recommend";
-import { mtgTokenCaption, mtgTokenLinks } from "./tokens";
+import { mtgTokenCaption, mtgTokenLinks, mtgTokenQuery } from "./tokens";
 import { MTG_TYPE_ORDER } from "./type-order";
 import { validateMtg } from "./validate";
 
@@ -143,6 +143,8 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
   importLeaderGuess: mtgImportLeaderGuess,
   // DECK-TOKENS: the tokens a card makes or uses, from Scryfall's all_parts.
   tokenLinks: mtgTokenLinks,
+  // DECK-TOKENS: "Elemental 4/4 blue red" → name, power, toughness, colors.
+  tokenQuery: mtgTokenQuery,
 
   display: {
     costHtml: (card: MtgCard) => manaCostHtml(card.attrs.mana_cost),
@@ -175,6 +177,11 @@ export const mtgAdapter: GameAdapter<MtgAttrs> = {
     preconBrowse: { href: "/precons", label: "Start from a precon" },
     // DECK-TOKENS: P/T, colors, first keywords — token names don't tell tokens apart.
     tokenCaption: mtgTokenCaption,
+    // DECK-TOKENS: what a player reads off a token finds it (tokenQuery below).
+    tokenSearch: {
+      placeholder: "Name, P/T or colors: Elemental 4/4 blue red",
+      narrowHint: "Add P/T or colors to narrow it, like 4/4 blue red.",
+    },
     searchPlaceholder: "Add cards: try “4 Sol Ring”",
     importPlaceholder:
       "1 Sol Ring\n1 Arcane Signet (AFC) 95\n…paste from Moxfield, Arena, Archidekt, anywhere.",

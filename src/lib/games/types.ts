@@ -1096,6 +1096,15 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
    */
   tokenLinks?(card: Omit<CardData<A>, "legality">): readonly string[];
 
+  /**
+   * The token search's words (DECK-TOKENS): what a player reads off a token
+   * — "Elemental 4/4 blue red", "Spirit flying" — as GET /api/cards/search
+   * params over the game's own searchFields, because a name alone doesn't
+   * reach a token among its namesakes (39 Elementals). Absent = the text is
+   * the name.
+   */
+  tokenQuery?(text: string): Record<string, string>;
+
   display: {
     /** Mana pips / DON!! cost / IKZ — an HTML string, rendered by the core. */
     costHtml(card: CardData<A>): string;
@@ -1161,6 +1170,13 @@ export interface GameAdapter<A extends Record<string, unknown> = Record<string, 
      * Games dialog). Absent = a game without tokens.
      */
     tokenCaption?(card: Omit<CardData<A>, "legality">): string | null;
+    /**
+     * The token search box's words (DECK-TOKENS), game-true like
+     * `searchPlaceholder`: its placeholder and the line that tells a broad
+     * search how to narrow ("Add P/T or colors to narrow it, like 4/4 blue
+     * red."). Absent = a game without tokens.
+     */
+    tokenSearch?: { placeholder: string; narrowHint: string };
     /** Search-box placeholder in the editor — game-true example syntax. */
     searchPlaceholder: string;
     /** Import-dialog textarea placeholder — game-true example lines. */

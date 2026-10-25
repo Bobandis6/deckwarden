@@ -50,7 +50,12 @@
  * (`attrs.is_token`, src/lib/cards/tokens.ts), or quick-add's Enter would
  * put a Treasure token in the 100 and an exact "Mutavault" would race the
  * land's token — unless `tokens=1` asks for the catalog instead (the Tokens
- * section's "Add a token" box). Same filters, sorts and wire either way.
+ * section's "Add a token" box). Same filters, sorts and wire either way,
+ * except that a token request orders namesakes by P/T, then colors. Tokens
+ * are unranked, so `best` would otherwise leave the 31 tokens named
+ * Elemental in oracle-id order. Inside `best` they go ahead of its card
+ * number; after any other order they come last, then id, so "Show more"
+ * pages never repeat or skip a token.
  *
  * Bounds and a limiter (S4, SECURITY-AUDIT-report.md M6): the translator
  * refuses a filter value past SEARCH_VALUE_MAX_CHARS or a multiselect past
@@ -159,18 +164,28 @@ export async function GET(request: NextRequest) {
         : (sort ?? defaultKey);
   const direction = dir ?? (orderKey === "relevance" ? "desc" : "asc");
   const dirSql = direction === "desc" ? sql`DESC` : sql`ASC`;
+  // Tokens only (docblock): every other request's statement is what it was.
+  const namesakes = tokens
+    ? [
+        sql`(${ci.attrs}->>'power_num')::int ASC NULLS LAST`,
+        sql`(${ci.attrs}->>'toughness_num')::int ASC NULLS LAST`,
+        sql`${ci.colorsMask} ASC`,
+      ]
+    : [];
   const ORDERS: Record<string, SQL> = {
     relevance: rank ? sql`${rank} ${dirSql}` : sql`${ci.popularity} ASC NULLS LAST`,
     name: sql`${ci.nameNorm} ${dirSql}`,
     mv: sql`${ci.costValue} ${dirSql} NULLS LAST`,
     price: sql`${ci.cheapestUsd} ${dirSql} NULLS LAST`,
     pop: sql`${ci.popularity} ${dirSql} NULLS LAST`,
-    ...(bestQuery ? { best: sql.join(nameMatchOrder(bestQuery), sql`, `) } : {}),
+    ...(bestQuery ? { best: sql.join(nameMatchOrder(bestQuery, namesakes), sql`, `) } : {}),
     ...(inSet
       ? { number: sql.join(collectorNumberOrder(inSet.collectorNumber, inSet.id), sql`, `) }
       : {}),
   };
   const orderBy = idPrefix !== null ? sql`${ci.externalKey} ASC` : ORDERS[orderKey];
+  // `best` already ends on a unique key with the namesakes inside it.
+  const tieBreak = tokens && orderKey !== "best" ? [...namesakes, ci.id] : [];
 
   // The card's columns, in the wire's key order — shared by both branches.
   const cardFields = {
@@ -209,7 +224,7 @@ export async function GET(request: NextRequest) {
         .from(ci)
         .leftJoin(inSet, eq(inSet.cardIdentityId, ci.id))
         .where(where)
-        .orderBy(orderBy, ci.nameNorm)
+        .orderBy(orderBy, ci.nameNorm, ...tieBreak)
         .limit(limit)
         .offset(offset)
     : await db
@@ -222,7 +237,7 @@ export async function GET(request: NextRequest) {
         .from(ci)
         .leftJoin(cp, and(eq(cp.cardIdentityId, ci.id), eq(cp.isDefault, true)))
         .where(where)
-        .orderBy(orderBy, ci.nameNorm)
+        .orderBy(orderBy, ci.nameNorm, ...tieBreak)
         .limit(limit)
         .offset(offset);
 

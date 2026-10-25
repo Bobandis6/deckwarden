@@ -247,8 +247,33 @@ function FromYourCards({
 type SearchState =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "done"; results: EditorCard[] }
+  | { kind: "done"; results: EditorCard[]; total: number; more: "idle" | "loading" | "failed" }
   | { kind: "failed" };
+
+/** One page of the token search: the adapter reads the words (tokenQuery), the core asks. */
+function tokenSearchPath(adapter: GameAdapter, q: string, offset: number): string {
+  const params = new URLSearchParams({
+    ...(adapter.tokenQuery?.(q) ?? { name: q }),
+    game: adapter.id,
+    tokens: "1",
+    sort: "best",
+    limit: String(SEARCH_LIMIT),
+    ...(offset > 0 ? { offset: String(offset) } : {}),
+  });
+  return `/api/cards/search?${params}`;
+}
+
+async function fetchTokenPage(
+  adapter: GameAdapter,
+  q: string,
+  offset: number,
+  signal?: AbortSignal,
+): Promise<{ results: EditorCard[]; total: number }> {
+  const res = await fetch(tokenSearchPath(adapter, q, offset), { signal });
+  if (!res.ok) throw new Error(String(res.status));
+  const json: { results: CardWire[]; total: number } = await res.json();
+  return { results: json.results.map(toEditorCard), total: json.total };
+}
 
 function TokenSearch({
   adapter,
@@ -260,6 +285,7 @@ function TokenSearch({
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ kind: "idle" });
   const q = query.trim();
+  const words = adapter.display.tokenSearch;
 
   useEffect(() => {
     if (q.length < SEARCH_MIN_CHARS) return;
@@ -268,17 +294,8 @@ function TokenSearch({
     const timer = setTimeout(async () => {
       setSearch({ kind: "loading" });
       try {
-        const params = new URLSearchParams({
-          game: adapter.id,
-          tokens: "1",
-          name: q,
-          sort: "best",
-          limit: String(SEARCH_LIMIT),
-        });
-        const res = await fetch(`/api/cards/search?${params}`, { signal: controller.signal });
-        if (!res.ok) throw new Error(String(res.status));
-        const json: { results: CardWire[] } = await res.json();
-        setSearch({ kind: "done", results: json.results.map(toEditorCard) });
+        const page = await fetchTokenPage(adapter, q, 0, controller.signal);
+        setSearch({ kind: "done", ...page, more: "idle" });
       } catch {
         if (!controller.signal.aborted) setSearch({ kind: "failed" });
       }
@@ -287,9 +304,31 @@ function TokenSearch({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [q, adapter.id]);
+  }, [q, adapter]);
+
+  // "Show more": the next page, appended — the order breaks every tie, so pages
+  // never overlap. A page that lands after the words changed is dropped: the
+  // list it would extend is no longer the one on screen.
+  const showMore = async () => {
+    if (search.kind !== "done") return;
+    const base = search.results;
+    setSearch({ ...search, more: "loading" });
+    try {
+      const page = await fetchTokenPage(adapter, q, base.length);
+      setSearch((now) =>
+        now.kind === "done" && now.results === base
+          ? { ...now, results: [...base, ...page.results], more: "idle" }
+          : now,
+      );
+    } catch {
+      setSearch((now) =>
+        now.kind === "done" && now.results === base ? { ...now, more: "failed" } : now,
+      );
+    }
+  };
 
   const shown = q.length >= SEARCH_MIN_CHARS ? search : { kind: "idle" as const };
+  const left = shown.kind === "done" ? shown.total - shown.results.length : 0;
   return (
     <div data-slot="token-search">
       <Field className="max-w-sm">
@@ -298,7 +337,7 @@ function TokenSearch({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Treasure, Soldier, The Monarch…"
+          placeholder={words?.placeholder}
           autoComplete="off"
         />
       </Field>
@@ -309,26 +348,28 @@ function TokenSearch({
             ? "The token search failed. Try again."
             : shown.kind === "done" && shown.results.length === 0
               ? `No tokens match “${q}”.`
-              : null}
+              : shown.kind === "done" && left > 0
+                ? `Showing ${shown.results.length} of ${shown.total}.${words ? ` ${words.narrowHint}` : ""}`
+                : null}
       </div>
       {shown.kind === "done" && shown.results.length > 0 && (
         <ul className="mt-1" aria-label="Tokens found">
           {shown.results.map((card) => {
-            const words = adapter.display.tokenCaption?.(card);
+            const caption = adapter.display.tokenCaption?.(card);
             return (
               <li key={card.id}>
                 <CardNamePreview name={card.name} image={card.image}>
                   <button
                     type="button"
                     onClick={() => onAdd(card)}
-                    aria-label={`Add ${card.name}${words ? ` (${words})` : ""}`}
+                    aria-label={`Add ${card.name}${caption ? ` (${caption})` : ""}`}
                     className="hover:bg-muted/60 flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-sm pointer-coarse:min-h-11"
                   >
                     <PlusIcon aria-hidden className="text-muted-foreground size-3.5 shrink-0" />
-                    <span className={words ? "shrink-0" : "min-w-0 truncate"}>{card.name}</span>
-                    {words && (
+                    <span className={caption ? "shrink-0" : "min-w-0 truncate"}>{card.name}</span>
+                    {caption && (
                       <span className="text-muted-foreground min-w-0 truncate text-xs">
-                        {words}
+                        {caption}
                       </span>
                     )}
                   </button>
@@ -337,6 +378,20 @@ function TokenSearch({
             );
           })}
         </ul>
+      )}
+      {shown.kind === "done" && left > 0 && (
+        <Button
+          variant="ghost"
+          size="xs"
+          className="mt-1"
+          disabled={shown.more === "loading"}
+          aria-busy={shown.more === "loading" || undefined}
+          onClick={() => void showMore()}
+        >
+          {shown.more === "failed"
+            ? "Couldn't load more. Try again"
+            : `Show ${Math.min(left, SEARCH_LIMIT)} more`}
+        </Button>
       )}
     </div>
   );

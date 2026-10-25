@@ -162,13 +162,19 @@ export function nameMatchRank(q: NameQuery): SQL {
   return sql`CASE WHEN ${ci.nameNorm} = ${p.exact} THEN 1 WHEN ${ci.nameNorm} LIKE ${p.prefix} THEN 2 WHEN ${wordStartsCondition(p)} THEN 3 WHEN ${containsCondition(p)} THEN 4 ELSE 6 - similarity(${ci.nameNorm}, ${q.text}) END`;
 }
 
-/** The whole ORDER BY: the rank, then the within-class order (module docblock). */
-export function nameMatchOrder(q: NameQuery): SQL[] {
+/**
+ * The whole ORDER BY: the rank, then the within-class order (module docblock).
+ * `namesakes` orders rows of one name ahead of the card number. Only the
+ * token search passes any (P/T, then colors): tokens are unranked, so 31
+ * tokens named Elemental would otherwise read in oracle-id order.
+ */
+export function nameMatchOrder(q: NameQuery, namesakes: readonly SQL[] = []): SQL[] {
   return [
     sql`${nameMatchRank(q)} ASC`,
     sql`${ci.popularity} ASC NULLS LAST`,
     sql`${ci.isLeaderCandidate} DESC`,
     sql`${ci.nameNorm} ASC`,
+    ...namesakes,
     sql`${ci.externalKey} ASC`,
   ];
 }

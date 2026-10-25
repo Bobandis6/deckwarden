@@ -243,6 +243,63 @@ describe("the Tokens section in the editor (DECK-TOKENS)", () => {
     expect(onAddTokens).toHaveBeenLastCalledWith([soldier]);
   });
 
+  it("the box reads a token's words: 'Elemental 4/4 blue red' asks by name, P/T and colors", async () => {
+    window.localStorage.setItem("deckwarden:deck-view", JSON.stringify({ tokensOpen: true }));
+    pane();
+    const input = await screen.findByRole("searchbox", { name: "Add a token" });
+    expect(input.getAttribute("placeholder")).toBe("Name, P/T or colors: Elemental 4/4 blue red");
+    fireEvent.change(input, { target: { value: "Elemental 4/4 blue red" } });
+    await waitFor(() => expect(searchCalls()).toHaveLength(1));
+    const url = new URL(String(searchCalls()[0][0]), "http://localhost");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      name: "elemental",
+      power: "4",
+      toughness: "4",
+      colors: "including:UR",
+      game: "mtg",
+      tokens: "1",
+      sort: "best",
+      limit: "12",
+    });
+  });
+
+  it("a broad search says how many it shows and pages the rest with Show more", async () => {
+    const elementals = Array.from({ length: 15 }, (_, i) =>
+      tokenCard("Elemental", `bbbbbbbb-0000-4000-8000-0000000000${String(i).padStart(2, "0")}`, {
+        attrs: {
+          type_line: "Token Creature — Elemental",
+          oracle_text: "",
+          power: String(i),
+          toughness: "1",
+        },
+      }),
+    );
+    fetchMock.mockImplementation(async (url: RequestInfo | URL) => {
+      const params = new URL(String(url), "http://localhost").searchParams;
+      const offset = Number(params.get("offset") ?? 0);
+      return Response.json({ results: elementals.slice(offset, offset + 12), total: 15 });
+    });
+    window.localStorage.setItem("deckwarden:deck-view", JSON.stringify({ tokensOpen: true }));
+    pane();
+    fireEvent.change(await screen.findByRole("searchbox", { name: "Add a token" }), {
+      target: { value: "elemental" },
+    });
+    expect(
+      await screen.findByText(
+        "Showing 12 of 15. Add P/T or colors to narrow it, like 4/4 blue red.",
+      ),
+    ).toBeTruthy();
+    const found = () =>
+      within(screen.getByRole("list", { name: "Tokens found" })).getAllByRole("button");
+    expect(found()).toHaveLength(12);
+    fireEvent.click(screen.getByRole("button", { name: "Show 3 more" }));
+    await waitFor(() => expect(found()).toHaveLength(15));
+    expect(String(searchCalls().at(-1)?.[0])).toContain("offset=12");
+    // Everything shown: no count line, no button.
+    expect(screen.queryByText(/^Showing /)).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Show \d+ more$/ })).toBeNull();
+  });
+
   it("waits for the first card (the quiet first screen) unless the deck holds a token", () => {
     const { unmount } = render(
       <DeckListPane
