@@ -1,6 +1,13 @@
 # TOKEN-FILL session prompt — the Tokens list fills itself from the deck's cards
 
-*Status: **built and verified locally 2026-10-24**, written and executed in the same session at the owner's request, on top of DECK-TOKENS (`71c4df1`) and its token-search follow-up (`f3a234f`). Migration `0020` is applied to the Neon `dev` branch; **production waits on the owner's yes** (the migrate-before-push order of 0016/0017/0018/0019), then the push. Anchors verified against `48859bc`; re-grep lines, trust the shapes.*
+*Status: **shipped 2026-10-24** as `6e543ed` (CI run 40151560299 green; Vercel's production status success at 01:41:20 Z on 2026-10-25), written and executed in the same session at the owner's request, on top of DECK-TOKENS (`71c4df1`) and its token-search follow-up (`f3a234f`). Anchors verified against `48859bc`; re-grep lines, trust the shapes.*
+
+## Ship note (2026-10-24)
+
+- **One commit:** code, tests, the migration and the docs. CI (`check`) passed and Vercel's production deploy reported success on the full sha.
+- **Migration `0020` on production, before the push, with the owner's yes in chat:** the two statements (the `ALTER TABLE` and the `drizzle.__drizzle_migrations` row with the file's sha256 and the journal's `when`) ran as one line in Neon's SQL editor in the built-in pane (branch `production`, database `neondb`): `1: ALTER`, `2: INSERT 1`. The read-only check after it: `{"column": "ARRAY", "nullable": "YES", "hidden_rows": 0, "decks": 200, "last_migration": {"id": 21, "hash": "cac7a604", "created_at": 1792888114945}}` — the same journal row `dev` holds. No production string touched this machine (LATER row 295).
+- **Production, read from outside after the deploy:** home, `/brackets` and the precon pages answer 200. The precon "Calling All Angels" (`/d/p_calling_all_angels_fdc`) now renders a Tokens section reading **Tokens 5** — it holds no token row, so the five are the derivation (Angel 3/3, Angel 4/4, Clue, Spirit, The Monarch on the dev branch's identical data); "Keen Engineering" reads **Tokens 4**; before this package precons showed no Tokens section at all (LATER row 323). The section ships collapsed, so the rows arrive on the click, not in the HTML; opened in the pane, production lists the same five rows the dev branch did, with their makers and no Hide.
+- **Docs:** `LATER.md` row 323 (its note) and rows 331 to 334, the build plan's ingest paragraph, a REDESIGN.md record, and this file.
 
 ## Local verification (2026-10-24, the dev branch and `localhost:3000`)
 
