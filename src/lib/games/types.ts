@@ -752,6 +752,24 @@ export interface BracketConflict {
 }
 
 /**
+ * What one of the read's conflicts needs out of the list (BRACKET-FIT):
+ * at least `remove` of the cards in `from` must leave for its factor to
+ * fit the target. `from` lists each card once, in the factor's (name)
+ * order, and never holds a commander (a leader-zone card): a conflict the
+ * commander alone keeps has fewer cards in `from` than `remove`, or none.
+ * The adapter's declaration is the only place a rule is named; core's
+ * planner reads these and nothing else.
+ */
+export interface BracketFix {
+  /** The read's factor id — one of `read.conflicts`. */
+  factor: string;
+  /** How many of the cards must leave the list (a card run as several copies counts each). */
+  remove: number;
+  /** Identity ids, the factor's order; never a commander. */
+  from: string[];
+}
+
+/**
  * One combo's weight on its own (Y6b) — the Combo Radar's badge, in the
  * adapter's words. Core appends "above your target" when either level is
  * above the deck's declared target; it never hides the row.
@@ -893,6 +911,15 @@ export interface BracketsMeta<A = Record<string, unknown>> {
    * no count says nothing.
    */
   shellNotes(skipped: Readonly<Record<string, number>>, targetLevel: number): string[];
+  /**
+   * Pure (BRACKET-FIT): what each conflict of `read` needs out of the list
+   * to fit the target `read` was assessed at — one fix per `read.conflicts`
+   * id, in that order; empty with no target or nothing above it. `input` is
+   * the input `read` came from. Taking every fix's `remove` cards out
+   * leaves no conflict; one fewer from any fix leaves its factor. Optional:
+   * a game without it has no "Swap to fit" door.
+   */
+  fixes?(read: BracketRead, input: BracketInput<A>): BracketFix[];
   /**
    * Pure (Y6b): one combo on its own — what it alone makes a deck, the
    * Combo Radar's badge. Read exactly as the list's read would read it

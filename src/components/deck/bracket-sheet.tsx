@@ -90,6 +90,13 @@
  * choice; the callout never takes it, and only a short status (the title
  * and the first line) is announced. It stays until dismissed, replaced by
  * the next pick, or the sheet closes; the level already set picks nothing.
+ *
+ * BRACKET-FIT (the owner's ask of 2026-10-24): the conflict callout's head
+ * gains one button, "Swap to fit Bracket 2…", only when the editor hands
+ * the sheet `onFitTarget` (the adapter declares `fixes` and Swap Lab, and
+ * some fix names a card that can go out). It opens the editor's "Swap to
+ * fit" sheet the way a card's Swap… opens its swap sheet: this sheet
+ * closes, and focus comes back to "Why?". The per-card Swap… buttons stay.
  */
 import { ArrowUpRightIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import Link from "next/link";
@@ -102,7 +109,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { BRACKET_COPY, dateLabel, levelLabel } from "@/lib/brackets/copy";
+import { BRACKET_COPY, dateLabel, levelLabel, levelNumberLabel } from "@/lib/brackets/copy";
 import {
   targetChange,
   targetChangeWords,
@@ -158,6 +165,7 @@ export function BracketSheet({
   openAt = null,
   onSwapCard,
   canSwap,
+  onFitTarget,
   speed = null,
   linkPreviews = false,
   onClose,
@@ -184,6 +192,8 @@ export function BracketSheet({
   onSwapCard?: (cardId: string) => void;
   /** Y7b: which of a finding's cards the editor can swap. */
   canSwap?: (cardId: string) => boolean;
+  /** BRACKET-FIT: the callout's "Swap to fit" door — the editor's sheet of the fewest swaps to the target. */
+  onFitTarget?: () => void;
   /** BRACKET-SPEED: the list's speed facts (the adapter's `speed.facts`); null = no block. */
   speed?: BracketSpeedFacts | null;
   /**
@@ -366,6 +376,7 @@ export function BracketSheet({
           cards={cards}
           onSwapCard={onSwapCard}
           canSwap={canSwap}
+          onFitTarget={onFitTarget}
           linkPreviews={linkPreviews}
           tools={targetTools(adapter)}
         />
@@ -482,6 +493,7 @@ function TargetBlock({
   cards,
   onSwapCard,
   canSwap,
+  onFitTarget,
   linkPreviews,
   tools,
 }: {
@@ -495,6 +507,8 @@ function TargetBlock({
   cards: ReadonlyMap<string, { name: string }>;
   onSwapCard?: (cardId: string) => void;
   canSwap?: (cardId: string) => boolean;
+  /** BRACKET-FIT: the callout's door, when the editor can fit the deck to its target. */
+  onFitTarget?: () => void;
   /** LATER row 306: the note names link previews (never for a private deck). */
   linkPreviews: boolean;
   /** TARGET-CHANGES: the tools the adapter declares that follow the target (`targetTools`). */
@@ -668,6 +682,22 @@ function TargetBlock({
           <p className="text-muted-foreground text-xs">
             {BRACKET_COPY.aboveTargetLead(levelLabel(brackets, target))}
           </p>
+          {/* BRACKET-FIT: the fewest swaps for all of them, at the callout's head. */}
+          {onFitTarget && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-haspopup="dialog"
+              data-slot="bracket-fit-door"
+              className="max-w-full pointer-coarse:h-11 pointer-coarse:px-3"
+              onClick={onFitTarget}
+            >
+              <span className="truncate">
+                {BRACKET_COPY.fitDoor(levelNumberLabel(brackets, target))}
+              </span>
+            </Button>
+          )}
           <ul className="space-y-1.5">
             {conflicting.map((factor) => {
               // Y7b: one "Swap…" per card the editor can swap, in the factor's (name)

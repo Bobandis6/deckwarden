@@ -62,7 +62,76 @@ const BUILDERS = [
   "toolsStop",
   "targetShowsAt",
   "targetShowsNone",
+  // BRACKET-FIT: the door and the sheet (fitLines calls them all below).
+  "fitDoor",
+  "fitTitle",
+  "fitInsteadOf",
+  "fitShares",
+  "fitComingFor",
+  "fitInstead",
+  "fitAlso",
+  "fitAsking",
+  "fitNotLooked",
+  "fitStaysCommander",
+  "fitStaysNotOffered",
+  "fitStaysCopies",
+  "fitStaysNoRoles",
+  "fitStaysNone",
+  "fitStaysKept",
+  "fitStaysNotAsked",
+  "fitAfterFits",
+  "fitAfterStill",
+  "fitCost",
 ];
+
+/**
+ * BRACKET-FIT: every line the door and the sheet can say for Magic — at
+ * each level, one card and several, every reason a card stays, the price
+ * line's cases, and the role labels Magic declares.
+ */
+function fitLines(): string[] {
+  const mtg = getAdapter("mtg");
+  const brackets = mtg.brackets!;
+  const C = BRACKET_COPY;
+  const one = ["Rhystic Study"];
+  const two = ["Gaea's Cradle", "Ancient Tomb"];
+  const three = ["Demonic Tutor", "Vampiric Tutor", "Mystical Tutor"];
+  const lines: string[] = [];
+  for (const level of brackets.levels.map((l) => levelNumberLabel(brackets, l.level))) {
+    lines.push(C.fitDoor(level), C.fitTitle(level), C.fitAfterFits(level), C.fitAfterStill(level));
+  }
+  for (const names of [one, two, three]) {
+    lines.push(
+      C.fitStaysCommander(names, mtg.display.leaderNoun),
+      C.fitStaysNotOffered(names),
+      C.fitStaysNoRoles(names),
+      C.fitStaysNone(names),
+      C.fitStaysKept(names),
+      C.fitStaysNotAsked(names),
+      C.fitInsteadOf(names[0]),
+      C.fitInstead(names[0]),
+      C.fitComingFor(names[0]),
+      C.fitAlso(names[0]),
+    );
+  }
+  lines.push(C.fitStaysCopies("Relentless Rats", 3));
+  for (const n of [1, 2, 9]) lines.push(C.fitAsking(n), C.fitNotLooked(n));
+  const roles = mtg.recommend!.swap!.roles.map((r) => r.label);
+  lines.push(C.fitShares(roles.slice(0, 1)), C.fitShares(roles.slice(0, 3)), ...roles);
+  for (const [usd, owned, unpriced, total] of [
+    [14.2, 0, 0, 3],
+    [14.2, 1, 0, 3],
+    [14.2, 0, 1, 3],
+    [14.2, 1, 2, 4],
+    [0, 3, 0, 3],
+    [0, 0, 1, 1],
+    [0, 0, 2, 2],
+    [0, 1, 1, 2],
+  ] as const) {
+    lines.push(C.fitCost(usd, owned, unpriced, total));
+  }
+  return lines;
+}
 
 /**
  * TARGET-CHANGES: every line the callout can say for Magic — every pick
@@ -200,6 +269,8 @@ function everyString(): string[] {
     ...previewWords(),
     // TARGET-CHANGES: every line the callout can say.
     ...targetChangeLines(),
+    // BRACKET-FIT: every line the door and the sheet can say.
+    ...fitLines(),
   ];
 }
 
@@ -472,6 +543,77 @@ describe("TARGET-CHANGES' words — what a pick of Your target did", () => {
     expect(lines.filter((w) => /updat|refresh|already|will /i.test(w))).toEqual([]);
     expect(lines.filter((w) => /\d\+|est\./i.test(w))).toEqual([]);
     // Never a multi-dot line: one period ends a sentence, never "..".
+    expect(lines.filter((w) => /\.\./.test(w))).toEqual([]);
+  });
+});
+
+describe("BRACKET-FIT's words — the door, the sheet, the after-line", () => {
+  const mtg = getAdapter("mtg").brackets!;
+  const C = BRACKET_COPY;
+  const level = levelNumberLabel(mtg, 2);
+
+  it("the door and the title in the level's short form; the after-line in the brief's own words", () => {
+    expect(C.fitDoor(level)).toBe("Swap to fit Bracket 2…");
+    expect(C.fitTitle(level)).toBe("Swap to fit Bracket 2");
+    expect(C.fitAfterFits(level)).toBe(
+      "After these swaps, nothing in the list puts the deck above Bracket 2.",
+    );
+    expect(C.fitAfterStill(level)).toBe(
+      "After these swaps, these still put the deck above Bracket 2:",
+    );
+    expect(C.fitAfterChecking).toBe("Checking the list after these swaps…");
+    expect(C.fitAfterFailed).toBe("Couldn't check combos for the list after these swaps.");
+  });
+
+  it("why a card stays, one card and several, the verbs agreeing", () => {
+    expect(C.fitStaysCommander(["Urza, Lord High Artificer"], "Commander")).toBe(
+      "Urza, Lord High Artificer is your commander, so it stays.",
+    );
+    expect(C.fitStaysCommander(["Thrasios, Triton Hero", "Tymna the Weaver"], "Commander")).toBe(
+      "Thrasios, Triton Hero and Tymna the Weaver are your commanders, so they stay.",
+    );
+    expect(C.fitStaysNotOffered(["Gaea's Cradle"])).toBe(
+      "Alternatives aren't offered for Gaea's Cradle, so it stays.",
+    );
+    expect(C.fitStaysCopies("Relentless Rats", 3)).toBe(
+      "The list runs 3 copies of Relentless Rats, and a swap takes one, so it stays.",
+    );
+    expect(C.fitStaysNoRoles(["Mystic Remora", "Tergrid"])).toBe(
+      "Mystic Remora and Tergrid have no community roles yet, so nothing is known to share their job.",
+    );
+    expect(C.fitStaysNone(["Thassa's Oracle"])).toBe(
+      "No alternative under your goals for Thassa's Oracle, so it stays.",
+    );
+    expect(C.fitStaysKept(["A", "B", "C"])).toBe("You're keeping A, B and C.");
+    expect(C.fitStaysNotAsked(["Ad Nauseam"])).toBe("Ad Nauseam wasn't looked at, so it stays.");
+  });
+
+  it("the asks, the limit, and the price of the cards coming in", () => {
+    expect(C.fitAsking(1)).toBe("Finding alternatives for 1 more card…");
+    expect(C.fitAsking(3)).toBe("Finding alternatives for 3 more cards…");
+    expect(C.fitNotLooked(2)).toBe(
+      "Didn't look at 2 more cards. Swap these first, then open this again for more.",
+    );
+    expect(C.fitCost(14.2, 0, 0, 3)).toBe("The cards coming in cost $14.20.");
+    expect(C.fitCost(14.2, 1, 1, 4)).toBe(
+      "The cards coming in cost $14.20, not counting the 1 you own. 1 more has no price yet.",
+    );
+    expect(C.fitCost(0, 3, 0, 3)).toBe("You own every card coming in.");
+    expect(C.fitCost(0, 0, 1, 1)).toBe("No price is known for the card coming in.");
+    expect(C.fitCost(0, 1, 2, 3)).toBe(
+      "No price is known for the 2 cards coming in that you don't own.",
+    );
+    expect(C.fitShares(["card draw", "tutor"])).toBe("Both: card draw, tutor");
+    expect(C.fitComingFor("Cyclonic Rift")).toBe("Coming in for Cyclonic Rift.");
+    expect(C.fitNoPrice).toBe("no price yet");
+  });
+
+  it("no em or en dash, no middle dot, no notation, never a multi-dot line", () => {
+    const lines = fitLines();
+    expect(lines.length).toBeGreaterThan(80);
+    expect(lines.filter((w) => /[–—]|\d-\d/.test(w))).toEqual([]);
+    expect(lines.filter((w) => w.includes("·"))).toEqual([]);
+    expect(lines.filter((w) => /\d\+|est\./i.test(w))).toEqual([]);
     expect(lines.filter((w) => /\.\./.test(w))).toEqual([]);
   });
 });

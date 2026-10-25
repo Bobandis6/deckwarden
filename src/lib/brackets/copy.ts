@@ -17,7 +17,11 @@
  * row 306 makes Your target's note say where else the target shows.
  * TARGET-CHANGES adds the callout a pick of Your target pops in: what the
  * pick did, first that the cards didn't change; the rows it quotes are the
- * adapter's guide rows, and the tools it names are core's own.
+ * adapter's guide rows, and the tools it names are core's own. BRACKET-FIT
+ * adds the conflict callout's "Swap to fit" door and its sheet: the rows,
+ * why a card stays, the after-line (the read's own sentences follow it) and
+ * the price of the cards coming in; the role labels it quotes are the
+ * adapter's.
  */
 import type { BracketsMeta } from "@/lib/games/types";
 
@@ -239,7 +243,84 @@ export const BRACKET_COPY = {
   undo: "Undo",
   /** The callout's own close ("Close" is the sheet's). */
   dismiss: "Dismiss",
+
+  // BRACKET-FIT (the owner's ask of 2026-10-24) — the conflict callout's door
+  // and the "Swap to fit" sheet: the fewest swaps that bring the deck to its
+  // target, each card out for one that shares its job, reviewed, and checked
+  // by the read of the list after them.
+  /** The callout's door: "Swap to fit Bracket 2…". */
+  fitDoor: (level: string) => `Swap to fit ${level}…`,
+  /** The sheet's title: "Swap to fit Bracket 2". */
+  fitTitle: (level: string) => `Swap to fit ${level}`,
+  fitLead:
+    "Swaps the fewest cards that put the deck above your target, each for a card that shares its job. Check the swaps you want.",
+  /** A row's check, before the card's name: "Swap Rhystic Study". */
+  fitSwap: "Swap",
+  /** A row's choices: "Instead of Rhystic Study". */
+  fitInsteadOf: (name: string) => `Instead of ${name}`,
+  /** An option with no known price, where its price would be. */
+  fitNoPrice: "no price yet",
+  /** What an option shares with the card going out, in the adapter's role labels: "Both: card draw". */
+  fitShares: (labels: readonly string[]) => `Both: ${labels.join(", ")}`,
+  /** An option already coming in for another card going out: "Coming in for Cyclonic Rift." */
+  fitComingFor: (name: string) => `Coming in for ${name}.`,
+  /** A fix that needs one card: another of its cards to swap instead. */
+  fitInstead: (name: string) => `Swap ${name} instead`,
+  /** A conflict a card listed above takes care of as well. */
+  fitAlso: (name: string) => `Swapping ${name} takes care of this too.`,
+  /** "Finding alternatives for 3 more cards…" */
+  fitAsking: (n: number) => `Finding alternatives for ${n} more ${n === 1 ? "card" : "cards"}…`,
+  /** Past the ask limit: what it didn't ask about, and what to do. */
+  fitNotLooked: (n: number) =>
+    `Didn't look at ${n} more ${n === 1 ? "card" : "cards"}. Swap these first, then open this again for more.`,
+  /** The last block: what the swaps leave above the target. */
+  fitLeft: "What swaps can't fix",
+  /** Why part of a fix stays, one sentence per reason, naming its cards. */
+  fitStaysCommander: (names: readonly string[], noun: string) =>
+    `${andList(names)} ${names.length === 1 ? "is" : "are"} your ${noun.toLowerCase()}${names.length === 1 ? "" : "s"}, so ${stays(names)}.`,
+  fitStaysNotOffered: (names: readonly string[]) =>
+    `Alternatives aren't offered for ${andList(names)}, so ${stays(names)}.`,
+  fitStaysCopies: (name: string, copies: number) =>
+    `The list runs ${copies} copies of ${name}, and a swap takes one, so it stays.`,
+  fitStaysNoRoles: (names: readonly string[]) =>
+    `${andList(names)} ${names.length === 1 ? "has" : "have"} no community roles yet, so nothing is known to share ${names.length === 1 ? "its" : "their"} job.`,
+  fitStaysNone: (names: readonly string[]) =>
+    `No alternative under your goals for ${andList(names)}, so ${stays(names)}.`,
+  fitStaysKept: (names: readonly string[]) => `You're keeping ${andList(names)}.`,
+  fitStaysNotAsked: (names: readonly string[]) =>
+    `${andList(names)} ${names.length === 1 ? "wasn't" : "weren't"} looked at, so ${stays(names)}.`,
+  /** The footer, only when the read of the list after the swaps finds nothing above the target. */
+  fitAfterFits: (level: string) =>
+    `After these swaps, nothing in the list puts the deck above ${level}.`,
+  /** The footer otherwise, before the read's own sentences. */
+  fitAfterStill: (level: string) => `After these swaps, these still put the deck above ${level}:`,
+  fitAfterChecking: "Checking the list after these swaps…",
+  fitAfterFailed: "Couldn't check combos for the list after these swaps.",
+  /**
+   * What the cards coming in cost: their cheapest printings, the ones you
+   * own left out, the ones without a price counted beside the sum.
+   */
+  fitCost: (usd: number, owned: number, unpriced: number, total: number) => {
+    if (owned >= total) return "You own every card coming in.";
+    const toBuy = total - owned;
+    if (unpriced >= toBuy) {
+      return `No price is known for the ${toBuy === 1 ? "card" : `${toBuy} cards`} coming in${owned > 0 ? " that you don't own" : ""}.`;
+    }
+    const head = `The cards coming in cost $${usd.toFixed(2)}${owned > 0 ? `, not counting the ${owned} you own` : ""}.`;
+    return unpriced > 0
+      ? `${head} ${unpriced} more ${unpriced === 1 ? "has" : "have"} no price yet.`
+      : head;
+  },
+  /** The credit before its linked source (the role tags' own page). */
+  fitCredit: "Alternatives share a job by community tags on",
+  fitPrices: "Prices are each card's cheapest printing.",
+  cancel: "Cancel",
 } as const;
+
+/** "it stays", "they stay". */
+function stays(names: readonly string[]): string {
+  return names.length === 1 ? "it stays" : "they stay";
+}
 
 /**
  * The goals line's parts (Y6a): the target in the level's own words, then

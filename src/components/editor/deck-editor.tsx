@@ -106,6 +106,14 @@
  * ONE identity-level owned set, `ownedSetForPricing` (the collection's ∪
  * the owned precon's). The rows' collection mark is unchanged.
  *
+ * BRACKET-FIT (the owner's ask of 2026-10-24): "target-fit" is the "Swap to
+ * fit" sheet, opened only by the conflict callout's door (where the adapter
+ * declares fixes and Swap Lab, and some fix names a card that can go out).
+ * Its apply is ONE `applyListSwap` ("Swapped N cards", one Undo for the
+ * batch), and focus comes back to "Why?" as after a callout's Swap…. It
+ * prices the cards coming in against `ownedSetForPricing` too, so a card the
+ * owned precon already holds costs nothing.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
@@ -147,6 +155,7 @@ import { ExportDialog, ImportDialog } from "@/components/editor/import-export";
 import { RecommendationsPanel } from "@/components/editor/recommendations-panel";
 import { SearchPane, type SearchPaneHandle } from "@/components/editor/search-pane";
 import { SwapInSheet, SwapSheet } from "@/components/editor/swap-sheet";
+import { TargetFitSheet, type TargetFitApply } from "@/components/editor/target-fit-sheet";
 import { ShareDialog, type DeckVisibility } from "@/components/editor/share-dialog";
 import { ShortcutsSheet } from "@/components/editor/shortcuts-sheet";
 import { useAutosave } from "@/components/editor/use-autosave";
@@ -159,6 +168,7 @@ import { ModalFinalFocus } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast, Toaster } from "@/components/ui/toast";
 import { factsIds } from "@/lib/brackets/facts";
+import { targetFitDoor } from "@/lib/brackets/target-fit";
 import { deckOwnership } from "@/lib/collection/ownership";
 import { embeddablePrintingImageUrl } from "@/lib/cards/images";
 import { type GalleryPrinting } from "@/lib/cards/printings";
@@ -1326,6 +1336,13 @@ export function DeckEditor({
     },
     [focusBracketLine],
   );
+  // BRACKET-FIT: the callout's "Swap to fit" door, the same way out as its
+  // Swap…: the Why sheet closes, and focus comes back to "Why?".
+  const openTargetFit = useCallback(() => {
+    closeFocusRef.current = focusBracketLine;
+    setDialogFromMenu(false);
+    setDialog("target-fit");
+  }, [focusBracketLine]);
   const openSwapIn = useCallback((card: EditorCard, qty: number, from: "search" | "panel") => {
     // From search, focus goes back to the box either way (the add flow's
     // rule); a panel's opener keeps Base UI's default.
@@ -1932,6 +1949,15 @@ export function DeckEditor({
     },
     [applyListSwap, handleSaveTotal],
   );
+  // BRACKET-FIT: the reviewed swaps as ONE whole-list swap (Fit's toast and
+  // its one Undo); the door named "Why?" for the focus when the sheet closes.
+  const handleTargetFitApply = useCallback(
+    ({ entries: next, cards: wires, swapped }: TargetFitApply) => {
+      applyListSwap(next, wires, FIT_COPY.toast(swapped));
+      setDialog(null);
+    },
+    [applyListSwap],
+  );
 
   // Deck deletion (P2.8 follow-up): the dialog owns the confirm; this owns
   // the call and the exit. Guest decks (this browser holds a token) land on
@@ -2177,6 +2203,33 @@ export function DeckEditor({
           })
         : null,
     [bracketsOn, adapter, snapshot, cards, bracketFacts.combos, bracketFacts.freshness, goals],
+  );
+  // BRACKET-FIT: the callout's door, where the adapter declares fixes and
+  // Swap Lab and some fix names a card that can go out.
+  const fitDoorOpen = useMemo(
+    () =>
+      bracketRead !== null && adapter !== null && format !== null
+        ? targetFitDoor({
+            adapter,
+            format,
+            entries,
+            cards,
+            read: bracketRead,
+            combos: bracketFacts.combos,
+            freshness: bracketFacts.freshness,
+            goals,
+          })
+        : false,
+    [
+      bracketRead,
+      adapter,
+      format,
+      entries,
+      cards,
+      bracketFacts.combos,
+      bracketFacts.freshness,
+      goals,
+    ],
   );
   // BRACKET-SPEED: how fast the list looks, from the same card wires (they
   // carry every card's roles) — the sheet's block and its owner nudge. Never
@@ -2696,6 +2749,7 @@ export function DeckEditor({
               openAt={sheetAt}
               onSwapCard={swapMeta ? swapFromCallout : undefined}
               canSwap={canSwapId}
+              onFitTarget={fitDoorOpen ? openTargetFit : undefined}
               speed={bracketSpeed}
               // LATER row 306: a private deck's link preview is the generic
               // image; a draft has no row yet and mints unlisted.
@@ -2727,6 +2781,24 @@ export function DeckEditor({
               phone={tier === "phone"}
               onSwap={handleSwapIn}
               finalFocus={sheetFinalFocus}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {/* BRACKET-FIT: the "Swap to fit" sheet, opened only by the conflict callout's door. */}
+          {dialog === "target-fit" && swapMeta && bracketRead && (
+            <TargetFitSheet
+              adapter={load.adapter}
+              format={load.format}
+              entries={entries}
+              cards={cards}
+              goals={goals}
+              read={bracketRead}
+              combos={bracketFacts.combos}
+              freshness={bracketFacts.freshness}
+              owned={ownedSetForPricing}
+              phone={tier === "phone"}
+              finalFocus={sheetFinalFocus}
+              onApply={handleTargetFitApply}
               onClose={() => setDialog(null)}
             />
           )}

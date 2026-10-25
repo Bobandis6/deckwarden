@@ -93,6 +93,7 @@ function sheet(
     onGoalsChange,
     onSwapCard,
     canSwap,
+    onFitTarget,
     speed = mtg.brackets!.speed!.facts(list.deck, list.cards),
     linkPreviews,
   }: {
@@ -107,6 +108,8 @@ function sheet(
     /** Y7b: the callout's swaps. */
     onSwapCard?: (cardId: string) => void;
     canSwap?: (cardId: string) => boolean;
+    /** BRACKET-FIT: the callout's door. */
+    onFitTarget?: () => void;
     /** BRACKET-SPEED: the list's facts, as the editor and the share page hand them (the adapter's by default). */
     speed?: BracketSpeedFacts | null;
     /** LATER row 306: the deck's link previews draw its target (the editor: any deck but a private one). */
@@ -144,6 +147,7 @@ function sheet(
       onGoalsChange={onGoalsChange}
       onSwapCard={onSwapCard}
       canSwap={canSwap}
+      onFitTarget={onFitTarget}
       speed={speed}
       linkPreviews={linkPreviews}
       onClose={onClose}
@@ -685,6 +689,96 @@ describe("Y4b — the player's side of the sheet", () => {
       onGoalsChange: vi.fn(),
     });
     expect(document.querySelector("[data-slot=bracket-stale]")).toBeNull();
+  });
+});
+
+describe("BRACKET-FIT — the conflict callout's door", () => {
+  const callout = () => document.querySelector<HTMLElement>("[data-slot=bracket-conflicts]");
+  const door = () => document.querySelector<HTMLElement>("[data-slot=bracket-fit-door]");
+
+  it("at the callout's head, in the target's short form: it hands the click to the editor; the per-card Swap… stay", () => {
+    const onFitTarget = vi.fn();
+    const onSwapCard = vi.fn();
+    sheet(spec([conscripts, rhystic, armageddon]), {
+      goals: { v: 1, targetLevel: 2 },
+      onGoalsChange: vi.fn(),
+      onSwapCard,
+      canSwap: (id) => id !== kiki.id,
+      onFitTarget,
+    });
+    const button = within(callout()!).getByRole("button", { name: "Swap to fit Bracket 2…" });
+    expect(button).toBe(door());
+    expect(button.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(button.className).toContain("pointer-coarse:h-11");
+    // After the lead, before the conflicts' rows.
+    const lead = within(callout()!).getByText(
+      "Your target is Bracket 2 (Core). These put the deck above it:",
+    );
+    expect(lead.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      button.compareDocumentPosition(callout()!.querySelector("[data-conflict]")!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    fireEvent.click(button);
+    expect(onFitTarget).toHaveBeenCalledTimes(1);
+    expect(
+      within(callout()!).getAllByRole("button", { name: /^Swap .*…$/ }).length,
+    ).toBeGreaterThan(3);
+  });
+
+  it("the level it names follows the target", () => {
+    sheet(spec([conscripts, rhystic, armageddon]), {
+      goals: { v: 1, targetLevel: 1 },
+      onGoalsChange: vi.fn(),
+      onFitTarget: vi.fn(),
+    });
+    expect(door()?.textContent).toBe("Swap to fit Bracket 1…");
+  });
+
+  it("no door without onFitTarget (nothing that can go, a game without fixes), whatever else swaps", () => {
+    sheet(spec([conscripts, rhystic]), {
+      goals: { v: 1, targetLevel: 2 },
+      onGoalsChange: vi.fn(),
+      onSwapCard: vi.fn(),
+      canSwap: () => true,
+    });
+    expect(callout()).toBeTruthy();
+    expect(door()).toBeNull();
+  });
+
+  it("no door with nothing above the target, or no target", () => {
+    sheet(spec([rhystic]), {
+      combos: [],
+      goals: { v: 1, targetLevel: 3 },
+      onGoalsChange: vi.fn(),
+      onFitTarget: vi.fn(),
+    });
+    expect(callout()).toBeNull();
+    expect(door()).toBeNull();
+    cleanup();
+    sheet(spec([rhystic]), {
+      combos: [],
+      goals: null,
+      onGoalsChange: vi.fn(),
+      onFitTarget: vi.fn(),
+    });
+    expect(door()).toBeNull();
+  });
+
+  it("the share page's sheet reads only: no target block, so no door", () => {
+    sheet(spec([conscripts, rhystic]), { goals: { v: 1, targetLevel: 2 }, onFitTarget: vi.fn() });
+    expect(document.querySelector("[data-slot=bracket-target]")).toBeNull();
+    expect(door()).toBeNull();
+  });
+
+  it("on a phone: the same door inside the Drawer", () => {
+    sheet(spec([conscripts, rhystic]), {
+      phone: true,
+      goals: { v: 1, targetLevel: 2 },
+      onGoalsChange: vi.fn(),
+      onFitTarget: vi.fn(),
+    });
+    expect(document.querySelector("[data-slot=drawer-popup]")?.contains(door())).toBe(true);
   });
 });
 

@@ -68,6 +68,7 @@ import type {
   BracketComboBadge,
   BracketConflict,
   BracketFactor,
+  BracketFix,
   BracketFreshness,
   BracketGuideMeta,
   BracketImpactInput,
@@ -840,6 +841,53 @@ export function assessBracket(input: BracketInput<MtgAttrs>): BracketRead {
   };
 }
 
+// --- Fixes (BRACKET-FIT): what each conflict needs out of the list -------------------
+
+/**
+ * What each of the read's conflicts needs out of the list to fit the target
+ * it was assessed at (BRACKET-FIT) — the read's own counts, said as cards to
+ * take out, so core's planner never names a rule:
+ * - Game Changers: the count less the target's allowance (Wizards' list,
+ *   counted per copy as `assessBracket` counts it), of the Game Changers;
+ * - mass land denial: every clear copy (Brackets 1 to 3 allow none);
+ * - extra turns: every copy (a target of 1 allows none);
+ * - a combo: one piece that isn't your commander (the read counts a combo
+ *   only while every piece is in the list), none to take when every piece is.
+ * A commander is never in `from`. A Game Changer commander still counts
+ * against the allowance, so `remove` can be more than `from` holds: that
+ * part stays with the commander.
+ */
+export function mtgBracketFixes(read: BracketRead, input: BracketInput<MtgAttrs>): BracketFix[] {
+  const target = input.targetLevel ?? null;
+  const format = mtgFormat(input.deck.formatCode);
+  if (target === null || !format || read.conflicts.length === 0) return [];
+  const leaderZones = new Set(format.zones.filter((z) => z.isLeaderZone).map((z) => z.id));
+  const copies = new Map<string, number>();
+  const commanderIds = new Set<string>();
+  for (const [zoneId, entries] of Object.entries(input.deck.zones)) {
+    for (const e of entries) {
+      copies.set(e.cardId, (copies.get(e.cardId) ?? 0) + e.qty);
+      if (leaderZones.has(zoneId)) commanderIds.add(e.cardId);
+    }
+  }
+  const held = (ids: readonly string[]) => ids.reduce((n, id) => n + (copies.get(id) ?? 0), 0);
+  const factors = new Map(read.factors.map((f) => [f.id, f]));
+  return read.conflicts.flatMap((id): BracketFix[] => {
+    const factor = factors.get(id);
+    if (!factor) return [];
+    const from = factor.cards.filter((c) => !commanderIds.has(c));
+    if (id === "game-changers") {
+      const allowance = LEVELS.find((l) => l.level === target)?.gameChangers ?? null;
+      const over = allowance === null ? 0 : held(factor.cards) - allowance;
+      return over > 0 ? [{ factor: id, remove: over, from }] : [];
+    }
+    if (id === "land-denial" || id === "extra-turns") {
+      return [{ factor: id, remove: held(factor.cards), from }];
+    }
+    return factor.combo !== undefined ? [{ factor: id, remove: 1, from }] : [];
+  });
+}
+
 // --- Goals (Y6a, WAVE4 D7): one more card, against the read --------------------------
 
 /** The attrs keys the read takes — all of them (`assess` and `impact` read nothing else). */
@@ -1272,6 +1320,8 @@ export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   flagPaths: MTG_BRACKET_FLAG_PATHS,
   impact: mtgBracketImpact,
   shellNotes: mtgShellNotes,
+  // BRACKET-FIT: what each conflict needs out of the list (the "Swap to fit" sheet's planner).
+  fixes: mtgBracketFixes,
   comboBadge: mtgComboBadge,
   // BRACKET-SPEED: the three speed facts beside the read, never in it (./speed.ts).
   speed: mtgBracketSpeed,

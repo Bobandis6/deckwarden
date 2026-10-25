@@ -105,6 +105,8 @@ export type EditorDialog =
   | "swap-in"
   // Y8: the Fit sheet — More's "Fit my budget…" or the goals line's "Fit my budget".
   | "fit"
+  // BRACKET-FIT: the "Swap to fit" sheet — the Why sheet's conflict callout's door.
+  | "target-fit"
   // Y9a: the Games dialog — More's "Games…" (live decks, games with a journal).
   | "games";
 
