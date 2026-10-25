@@ -643,7 +643,7 @@ function AfterLine({
       ? null
       : above.length === 0
         ? C.fitAfterFits(level)
-        : C.fitAfterStill(level);
+        : C.fitAfterStillCount(above.length, level);
   let body: ReactNode = null;
   if (swaps > 0 && !waiting) {
     if (state === "failed" || state === "over") {

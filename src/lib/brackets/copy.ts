@@ -294,6 +294,9 @@ export const BRACKET_COPY = {
     `After these swaps, nothing in the list puts the deck above ${level}.`,
   /** The footer otherwise, before the read's own sentences. */
   fitAfterStill: (level: string) => `After these swaps, these still put the deck above ${level}:`,
+  /** The verdict a screen reader hears for a miss: a whole sentence (the list stays on screen). */
+  fitAfterStillCount: (n: number, level: string) =>
+    `After these swaps, ${things(n)} still ${n === 1 ? "puts" : "put"} the deck above ${level}.`,
   fitAfterChecking: "Checking the list after these swaps…",
   fitAfterFailed: "Couldn't check combos for the list after these swaps.",
   /**

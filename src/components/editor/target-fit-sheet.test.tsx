@@ -458,10 +458,14 @@ describe("TargetFitSheet — the after-check", () => {
       ids.includes(maker.cardId)
         ? [{ ...KIKI, key: "maker", cardPieces: [kiki.id, maker.cardId].sort() }]
         : [];
-    renderSheet();
+    const { sheet } = renderSheet();
     const line = await verdict("still");
     expect(line.textContent).toContain(
       "After these swaps, these still put the deck above Bracket 2:",
+    );
+    // The status is a whole sentence; the list stays on screen.
+    expect(sheet.querySelector("[data-slot=target-fit-status]")?.textContent).toBe(
+      "After these swaps, 2 things still put the deck above Bracket 2.",
     );
     const rows = [...line.querySelectorAll<HTMLElement>("[data-after-conflict]")];
     expect(rows.map((r) => r.dataset.afterConflict)).toEqual(["game-changers", "combo:maker"]);
