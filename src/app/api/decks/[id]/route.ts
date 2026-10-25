@@ -7,6 +7,12 @@
  *          signed-in requester owns any printing of, and `hasCollection` —
  *          the editor's owned badges and "you own N/100" line. Session-only
  *          data: the guest-token path returns [] / false.
+ *          PRECON-OWNED: for the OWNER of a deck started from a precon,
+ *          `deck.precon` = { slug, name, owns, cards: [{cardId, qty}] }, the
+ *          precon's own list in its own quantities, one indexed read beside
+ *          the cards (precons.ts' loadDeckPrecon); null for the owner of any
+ *          other deck; absent from every visitor's wire, like the lineage
+ *          and the answer themselves (deckMetaJson never names them).
  * PATCH  — meta (name / description / notes / visibility / folder) and, Y4b,
  *          `goals` — the whole goals object, null clears, its target range
  *          and question keys off the deck's adapter (One Piece takes no
@@ -16,6 +22,10 @@
  *          TOKEN-FILL: `hiddenTokens` — the derived tokens the owner hid,
  *          the whole array (null or [] clears), the same rule: a setting,
  *          never an edit, so it moves updated_at no more than goals do.
+ *          PRECON-OWNED: `ownsPrecon` — the owner's answer to "Do you own
+ *          this precon?" (true, false, or null for not asked), the same
+ *          rule; a 400 on a deck that didn't start from a precon, before
+ *          anything is written.
  * DELETE — hard delete; deck_cards + deck_versions cascade. Owner only.
  *          Fork-safe (P3.6, fired LATER row): forks' upstream pointers are
  *          NULLed in the same transaction — the self-FK has no ON DELETE.
@@ -38,6 +48,8 @@ import { deckOwnedForViewer } from "@/lib/collection/owned";
 import { loadFolder } from "@/lib/decks/folders";
 import { deleteDecksForkSafe, forkCredit } from "@/lib/decks/forks";
 import { goalsSchema, normalizeGoals, type DeckGoals } from "@/lib/decks/goals";
+import { ownsPreconSchema, type DeckPrecon } from "@/lib/decks/precon-owned";
+import { loadDeckPrecon } from "@/lib/decks/precons";
 import { hiddenTokensSchema, normalizeHiddenTokens } from "@/lib/decks/token-fill";
 import { deckFormat, requireOwnedDeckWrite, requireReadableDeck } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
@@ -59,10 +71,16 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
   // Query shared with the P1.7 share page (deck-cards-wire.ts).
   // forkedFrom (P3.6): the credit line, resolved for THIS viewer (a private
   // upstream credits without name/link). One extra query, forks only.
-  const [cards, forkedFrom] = await Promise.all([
+  // The precon (PRECON-OWNED): the owner's alone, one extra query, decks
+  // started from a precon only.
+  const format = deckFormat(deck)?.format;
+  const [cards, forkedFrom, precon] = await Promise.all([
     fetchDeckCardsWire(deck),
     deck.forkedFromDeckId
       ? forkCredit(deck, { token: deckTokenFrom(request.headers), userId })
+      : Promise.resolve(null),
+    isOwner && deck.preconDeckId && format
+      ? loadDeckPrecon(deck.preconDeckId, format)
       : Promise.resolve(null),
   ]);
   // Owned badges (P3.7): the requester's own collection against this deck's
@@ -73,8 +91,14 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/decks/[i
     cards.map((c) => c.cardId),
   );
 
+  // The owner's wire alone names the precon (PRECON-OWNED): a visitor's has no key at all.
+  const preconWire: DeckPrecon | null = precon ? { ...precon, owns: deck.ownsPrecon } : null;
   return noStoreJson({
-    deck: { ...deckMetaJson(deck, { isOwner }), forkedFrom },
+    deck: {
+      ...deckMetaJson(deck, { isOwner }),
+      forkedFrom,
+      ...(isOwner ? { precon: preconWire } : {}),
+    },
     cards,
     owned,
     hasCollection,
@@ -96,6 +120,8 @@ function patchBody(brackets: Parameters<typeof goalsSchema>[0]) {
       goals: goalsSchema(brackets).nullable(),
       /** TOKEN-FILL: the derived tokens the owner hid, whole — null or [] clears. Never bumps updated_at. */
       hiddenTokens: hiddenTokensSchema.nullable(),
+      /** PRECON-OWNED: "Do you own this precon?" — null = not asked. Never bumps updated_at. */
+      ownsPrecon: ownsPreconSchema,
     })
     .partial()
     .refine((b) => Object.keys(b).length > 0, { message: "No fields to update" });
@@ -125,9 +151,15 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/
     }
   }
 
-  // Goals and hidden tokens are settings, not edits: a body of theirs alone
-  // leaves updated_at (and so the deck's place in every "recent" order) alone.
-  const { goals, hiddenTokens, ...meta } = body;
+  // An answer needs a precon to answer about (PRECON-OWNED): refused before anything is written.
+  if (body.ownsPrecon !== undefined && access.deck.preconDeckId === null) {
+    return noStoreJson({ error: "This deck didn't start from a precon" }, { status: 400 });
+  }
+
+  // Goals, hidden tokens and the precon answer are settings, not edits: a
+  // body of theirs alone leaves updated_at (and so the deck's place in every
+  // "recent" order) alone.
+  const { goals, hiddenTokens, ownsPrecon, ...meta } = body;
   const db = getDb();
   const [updated] = await db
     .update(decks)
@@ -135,6 +167,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/
       ...meta,
       ...(goals !== undefined ? { goals: normalizeGoals(goals as DeckGoals | null) } : {}),
       ...(hiddenTokens !== undefined ? { hiddenTokens: normalizeHiddenTokens(hiddenTokens) } : {}),
+      ...(ownsPrecon !== undefined ? { ownsPrecon } : {}),
       ...(Object.keys(meta).length > 0 ? { updatedAt: new Date() } : {}),
     })
     .where(eq(decks.id, access.deck.id))

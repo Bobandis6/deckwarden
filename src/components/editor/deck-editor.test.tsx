@@ -5055,3 +5055,351 @@ describe("the Tokens section's Hide (TOKEN-FILL)", () => {
     expect(puts()).toBe(0);
   });
 });
+
+// ------------------------------------------------------------ PRECON-OWNED
+describe("DeckEditor — Do you own this precon? (PRECON-OWNED)", () => {
+  /** Base UI menu triggers open on the pointer sequence, not a bare click. */
+  function openMenu(trigger: HTMLElement) {
+    fireEvent.pointerDown(trigger, { pointerType: "mouse", button: 0 });
+    fireEvent.mouseDown(trigger, { button: 0 });
+    fireEvent.click(trigger, { button: 0 });
+  }
+  const wire = (over: Parameters<typeof card>[0]): CardWire => ({ ...card(over), image: null });
+  const atraxa = wire({
+    name: "Atraxa, Praetors' Voice",
+    primaryType: "Creature",
+    isLeaderCandidate: true,
+    ciMask: 15,
+    cheapestUsd: 5,
+  });
+  const forest = wire({
+    name: "Forest",
+    primaryType: "Land",
+    costValue: null,
+    cheapestUsd: 2.5,
+    attrs: { type_line: "Basic Land — Forest", oracle_text: "" },
+  });
+  const rock = (name: string, usd: number) =>
+    wire({
+      name,
+      primaryType: "Artifact",
+      costValue: 2,
+      cheapestUsd: usd,
+      attrs: { type_line: "Artifact", oracle_text: "", mana_cost: "{2}", roles: ["ramp"] },
+    });
+  const ring = rock("Arcane Ring", 1.5);
+  const ROCKS = Array.from({ length: 86 }, (_, i) => rock(`Precon Rock ${i + 1}`, 1));
+  const row = (c: CardWire, zone: string, qty = 1) => ({
+    cardId: c.id,
+    zone,
+    qty,
+    tags: [],
+    printingId: null,
+    card: c,
+  });
+  // 100 cards, $122.50 at cheapest printings: $5 + 12 × $2.50 + $1.50 + 86 × $1.
+  const PRECON_LIST = [
+    row(atraxa, "commander"),
+    row(forest, "main", 12),
+    row(ring, "main"),
+    ...ROCKS.map((c) => row(c, "main")),
+  ];
+  const PRECON_CARDS = PRECON_LIST.map(({ cardId, qty }) => ({ cardId, qty }));
+  const preconSeed = {
+    precon: {
+      slug: "breed_lethality_c16",
+      code: "BreedLethality_C16",
+      setCode: "C16",
+      setName: "Commander 2016",
+      releaseDate: "2016-11-11",
+      productName: "Breed Lethality",
+    },
+    deck: {
+      publicId: "p_breed_lethality_c16",
+      name: "Breed Lethality",
+      description: null,
+      game: "mtg",
+      format: "commander",
+      leaderIds: [atraxa.id],
+      ciMask: 15,
+    },
+    cards: PRECON_LIST,
+  };
+  let saved: { precon: unknown; cards: unknown[]; goals: unknown } = {
+    precon: null,
+    cards: PRECON_LIST,
+    goals: null,
+  };
+  function preconRoute(input: RequestInfo | URL, init?: RequestInit) {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    if (url === "/api/precons/breed_lethality_c16") return ok(preconSeed);
+    if (url === "/api/decks/deck-1" && method === "GET") {
+      return ok({
+        deck: {
+          id: "deck-1",
+          publicId: "abcdefgh1234",
+          game: "mtg",
+          format: "commander",
+          name: "Breed Lethality",
+          description: null,
+          notes: null,
+          visibility: "unlisted",
+          isOwner: true,
+          forkedFrom: null,
+          leaderIds: [atraxa.id],
+          goals: saved.goals,
+          precon: saved.precon,
+        },
+        cards: saved.cards,
+        owned: [],
+        hasCollection: false,
+      });
+    }
+    return route(input, init);
+  }
+  const line = () => document.querySelector<HTMLElement>("[data-slot=precon-line]");
+  const ownershipEl = () => screen.queryByTestId("ownership-line");
+  const patchBodies = () =>
+    fetchMock.mock.calls
+      .filter(([url, init]) => url === "/api/decks/deck-1" && init?.method === "PATCH")
+      .map(([, init]) => JSON.parse((init as RequestInit).body as string) as unknown);
+  const createBody = () =>
+    JSON.parse(
+      fetchMock.mock.calls.find(
+        ([url, init]) => url === "/api/decks" && init?.method === "POST",
+      )![1]!.body as string,
+    ) as Record<string, unknown>;
+  const draft = () => (
+    <DeckEditor
+      deckId={null}
+      draftGame="mtg"
+      draftFormat="commander"
+      draftFromSlug="breed_lethality_c16"
+    />
+  );
+
+  beforeEach(() => {
+    saved = { precon: null, cards: PRECON_LIST, goals: null };
+    fetchMock.mockImplementation(preconRoute);
+  });
+
+  it("a precon draft asks with its list and writes nothing; Yes mints ONE row carrying fromPrecon and the answer, one PUT, no PATCH", async () => {
+    stubViewport(1440);
+    render(draft());
+    const asked = await pollFor(line);
+    // The line came with the list, in the seed's own commit.
+    expect(within(section("Deck list")).getByText("Precon Rock 1")).toBeTruthy();
+    expect(asked.textContent).toBe("Started from Breed Lethality, a precon. Do you own it? Yes No");
+    expect(asked.getAttribute("data-state")).toBe("asking");
+    // Unanswered, with no collection: no ownership line yet.
+    expect(ownershipEl()).toBeNull();
+    await settle(1500);
+    expect(posts()).toBe(0);
+    expect(puts()).toBe(0);
+    expect(saveStatus()).toBe("saved");
+
+    fireEvent.click(within(asked).getByRole("button", { name: "Yes" }));
+    expect(line()!.textContent).toBe("Started from Breed Lethality, a precon you own. Change");
+    expect(document.activeElement).toBe(within(line()!).getByRole("button", { name: "Change" }));
+    // Without a collection, the precon alone: the unchanged list is all owned.
+    expect(ownershipEl()!.textContent).toBe("You own 100/100 · nothing missing ·");
+    expect(ownershipEl()!.getAttribute("title")).toBe(
+      "Cards from the precon you own count as owned, up to the precon's own quantities. Missing cost = cheapest listed printing per card; cards without a price are excluded and counted.",
+    );
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(createBody()).toMatchObject({
+      game: "mtg",
+      format: "commander",
+      name: "Breed Lethality",
+      fromPrecon: "breed_lethality_c16",
+      ownsPrecon: true,
+    });
+    expect(puts()).toBe(1);
+    expect(patchBodies()).toEqual([]);
+    // No localStorage holds the answer: the row does.
+    expect(JSON.stringify({ ...window.localStorage })).not.toMatch(/ownsPrecon|owns_precon/);
+  });
+
+  it("Change asks again and is no edit; No after it is ONE PATCH {ownsPrecon: false}, and the line and the ownership line follow", async () => {
+    stubViewport(1440);
+    render(draft());
+    fireEvent.click(within(await pollFor(line)).getByRole("button", { name: "Yes" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+
+    fireEvent.click(within(line()!).getByRole("button", { name: "Change" }));
+    expect(line()!.textContent).toBe(
+      "Started from Breed Lethality, a precon. Do you own it? Yes No",
+    );
+    expect(document.activeElement).toBe(within(line()!).getByRole("button", { name: "Yes" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([]);
+    // The saved answer stands until a pick: the price still counts the precon.
+    expect(ownershipEl()!.textContent).toBe("You own 100/100 · nothing missing ·");
+
+    fireEvent.click(within(line()!).getByRole("button", { name: "No" }));
+    expect(line()!.textContent).toBe(
+      "Started from Breed Lethality, a precon you don't own. Change",
+    );
+    expect(line()!.getAttribute("data-state")).toBe("not-owned");
+    expect(ownershipEl()).toBeNull();
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([{ ownsPrecon: false }]);
+    expect(posts()).toBe(1);
+    expect(puts()).toBe(1);
+  });
+
+  it("whatever edit mints a precon draft, its create carries fromPrecon: Keep this deck sends no answer, and a later Yes is ONE PATCH", async () => {
+    stubViewport(1440);
+    render(draft());
+    fireEvent.click(await pollFor(() => screen.queryByRole("button", { name: "Keep this deck" })));
+    await settle(1500);
+    await act(async () => {});
+    expect(posts()).toBe(1);
+    expect(createBody().fromPrecon).toBe("breed_lethality_c16");
+    expect(createBody()).not.toHaveProperty("ownsPrecon");
+    expect(patchBodies()).toEqual([]);
+
+    fireEvent.click(within(line()!).getByRole("button", { name: "Yes" }));
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([{ ownsPrecon: true }]);
+    expect(posts()).toBe(1);
+  });
+
+  it("a saved deck: the GET's precon reads as asked, and loading is no edit; a deck from no precon shows no line", async () => {
+    saved = {
+      ...saved,
+      precon: {
+        slug: "breed_lethality_c16",
+        name: "Breed Lethality",
+        owns: null,
+        cards: PRECON_CARDS,
+      },
+    };
+    stubViewport(1440);
+    const { unmount } = render(<DeckEditor deckId="deck-1" />);
+    expect((await pollFor(line)).textContent).toBe(
+      "Started from Breed Lethality, a precon. Do you own it? Yes No",
+    );
+    await settle(1500);
+    await act(async () => {});
+    expect(patchBodies()).toEqual([]);
+    expect(puts()).toBe(0);
+    unmount();
+
+    saved = { ...saved, precon: null };
+    render(<DeckEditor deckId="deck-1" />);
+    await pollFor(() => {
+      const list = document.querySelector<HTMLElement>('section[aria-label="Deck list"]');
+      return list ? within(list).queryByText("Precon Rock 1") : null;
+    });
+    expect(line()).toBeNull();
+    expect(ownershipEl()).toBeNull();
+  });
+
+  it("the quantities are the precon's: 14 Forests from its 12 and two of its cards cut read You own 98/100 · missing ≈ $5", async () => {
+    saved = {
+      ...saved,
+      precon: {
+        slug: "breed_lethality_c16",
+        name: "Breed Lethality",
+        owns: true,
+        cards: PRECON_CARDS,
+      },
+      cards: [
+        row(atraxa, "commander"),
+        row(forest, "main", 14),
+        row(ring, "main"),
+        ...ROCKS.slice(2).map((c) => row(c, "main")),
+      ],
+    };
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    expect((await pollFor(line)).textContent).toBe(
+      "Started from Breed Lethality, a precon you own. Change",
+    );
+    expect(ownershipEl()!.textContent).toBe("You own 98/100 · missing ≈ $5 ·");
+  });
+
+  it("a card cut and added back is owned again (the box still holds it)", async () => {
+    saved = {
+      ...saved,
+      precon: {
+        slug: "breed_lethality_c16",
+        name: "Breed Lethality",
+        owns: true,
+        cards: PRECON_CARDS,
+      },
+    };
+    stubViewport(1440);
+    render(<DeckEditor deckId="deck-1" />);
+    await pollFor(line);
+    expect(ownershipEl()!.textContent).toBe("You own 100/100 · nothing missing ·");
+    const list = section("Deck list");
+    fireEvent.click(within(list).getByRole("button", { name: "Remove Arcane Ring" }));
+    expect(ownershipEl()!.textContent).toBe("You own 99/99 · nothing missing ·");
+    const toastEl = (await pollFor(() => screen.queryByText("Removed Arcane Ring"))).closest(
+      '[data-slot="toast"]',
+    ) as HTMLElement;
+    fireEvent.click(within(toastEl).getByRole("button", { name: "Undo" }));
+    expect(within(list).getByText("Arcane Ring")).toBeTruthy();
+    expect(ownershipEl()!.textContent).toBe("You own 100/100 · nothing missing ·");
+  });
+
+  it("every price reads the owned precon: the goals line's total and the Fit sheet, which takes the one owned set", async () => {
+    saved = {
+      precon: {
+        slug: "breed_lethality_c16",
+        name: "Breed Lethality",
+        owns: true,
+        cards: PRECON_CARDS,
+      },
+      cards: PRECON_LIST,
+      goals: { v: 1, budget: { totalUsd: 60 } },
+    };
+    stubViewport(1440);
+    const { unmount } = render(<DeckEditor deckId="deck-1" />);
+    fireEvent.click(await pollFor(() => screen.queryByRole("tab", { name: "Suggestions" })));
+    const goalsLine = await pollFor(() =>
+      document.querySelector<HTMLElement>("[data-slot=goals-line]"),
+    );
+    expect(goalsLine.textContent).toBe("Your goals: est. $0 of your $60 Change");
+    openMenu(screen.getByRole("button", { name: "More" }));
+    const menu = await pollFor(() => screen.queryByRole("menu", { name: "More" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Fit my budget…" }));
+    const sheetEl = await pollFor(() => screen.queryByRole("dialog", { name: "Fit my budget" }));
+    expect(sheetEl.textContent).toContain("est. $0 now (cheapest printings)");
+    expect(sheetEl.textContent).toContain("Cards you own count as $0 and stay.");
+    unmount();
+
+    // Answered No: the whole list at its cheapest printings, $122.50.
+    saved = { ...saved, precon: { ...(saved.precon as object), owns: false } };
+    render(<DeckEditor deckId="deck-1" />);
+    fireEvent.click(await pollFor(() => screen.queryByRole("tab", { name: "Suggestions" })));
+    const noLine = await pollFor(() =>
+      document.querySelector<HTMLElement>("[data-slot=goals-line]"),
+    );
+    expect(noLine.textContent).toBe("Your goals: est. $123 of your $60 Fit my budget Change");
+  });
+
+  it("at 375 px the line sits in the Deck tab with its 44 px-on-touch controls, and answering mints nothing else", async () => {
+    stubViewport(375);
+    render(draft());
+    const asked = await pollFor(line);
+    const yes = within(asked).getByRole("button", { name: "Yes" });
+    expect(yes.className).toContain("pointer-coarse:min-h-11");
+    expect(yes.className).toContain("pointer-coarse:min-w-11");
+    expect(yes.className).toContain("underline");
+    // It names what it answers about.
+    expect(yes.getAttribute("aria-describedby")).toBe(asked.querySelector("span")!.id);
+    await settle(1500);
+    expect(posts()).toBe(0);
+  });
+});

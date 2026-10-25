@@ -89,6 +89,21 @@ describe("deckEstimate — the deck at its cheapest printings", () => {
     expect(deckEstimate(DECK, CARDS, owned, commander).usd).toBe(260);
     expect(deckEstimate(DECK, CARDS, null, commander).usd).toBe(300);
   });
+
+  it("PRECON-OWNED: an owned precon's copies pass through — the box at $0, what it lacks priced", () => {
+    // The precon: the whole fixture deck but 30 of the 37 Plains.
+    const box = new Map(
+      DECK.map((e) => [e.cardId, e.cardId === plains.id ? 30 : e.qty] as [string, number]),
+    );
+    // Seven Plains past the box's 30, at $0.50.
+    expect(deckEstimate(DECK, CARDS, null, commander, box)).toEqual({ usd: 3.5, unpriced: 0 });
+    // A collection that holds a Plains covers every copy; the box covers the rest.
+    expect(deckEstimate(DECK, CARDS, new Set([plains.id]), commander, box).usd).toBe(0);
+    // No copies: byte-identical to before.
+    expect(deckEstimate(DECK, CARDS, null, commander, undefined)).toEqual(
+      deckEstimate(DECK, CARDS, null, commander),
+    );
+  });
 });
 
 describe("totalPhrase / afterPhrase — the goals line's and the footer's words", () => {

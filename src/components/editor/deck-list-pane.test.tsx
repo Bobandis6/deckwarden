@@ -391,3 +391,112 @@ describe("DeckListPane — the type order (DECK-TOKENS)", () => {
     },
   );
 });
+
+describe("DeckListPane — Do you own this precon? (PRECON-OWNED)", () => {
+  const sol = toEditorCard({ ...card({ name: "Sol Ring", primaryType: "Artifact" }), image: null });
+  const listed: EditorEntry[] = [...entries, { cardId: sol.id, zone: "main", qty: 1, tags: [] }];
+  const listedCards = new Map([...cards, [sol.id, sol]]);
+  const ownership = {
+    ownedQty: 2,
+    totalQty: 2,
+    missingCards: 0,
+    missingUsd: 0,
+    unpricedMissing: 0,
+  };
+  function withPrecon(over: Partial<React.ComponentProps<typeof DeckListPane>> = {}) {
+    return (
+      <DeckListPane
+        adapter={mtg}
+        format={COMMANDER}
+        entries={listed}
+        cards={listedCards}
+        issues={[]}
+        analytics={[]}
+        onSetQty={() => undefined}
+        onRemove={() => {}}
+        onPreview={() => {}}
+        extras={false}
+        precon={{ name: "Breed Lethality", owns: null }}
+        onAnswerPrecon={() => {}}
+        {...over}
+      />
+    );
+  }
+  const line = () => document.querySelector<HTMLElement>("[data-slot=precon-line]");
+
+  it("one line directly after the leader zone and before View / Group / Sort", () => {
+    render(withPrecon());
+    const el = line()!;
+    expect(el.tagName).toBe("P");
+    expect(el.previousElementSibling?.tagName).toBe("SECTION");
+    expect(
+      within(el.previousElementSibling as HTMLElement).getAllByText(/Kozilek/).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(el.nextElementSibling as HTMLElement).getByRole("group", { name: "View" }),
+    ).toBeTruthy();
+  });
+
+  it("its three states: asked with Yes and No, owned or not with Change; Change asks again, the answer is the editor's", () => {
+    const answers: boolean[] = [];
+    const { rerender } = render(withPrecon({ onAnswerPrecon: (owns) => answers.push(owns) }));
+    expect(line()!.textContent).toBe(
+      "Started from Breed Lethality, a precon. Do you own it? Yes No",
+    );
+    fireEvent.click(within(line()!).getByRole("button", { name: "Yes" }));
+    expect(answers).toEqual([true]);
+
+    rerender(withPrecon({ precon: { name: "Breed Lethality", owns: true } }));
+    expect(line()!.textContent).toBe("Started from Breed Lethality, a precon you own. Change");
+    expect(line()!.dataset.state).toBe("owned");
+    rerender(
+      withPrecon({
+        precon: { name: "Breed Lethality", owns: false },
+        onAnswerPrecon: (owns) => answers.push(owns),
+      }),
+    );
+    expect(line()!.textContent).toBe(
+      "Started from Breed Lethality, a precon you don't own. Change",
+    );
+    fireEvent.click(within(line()!).getByRole("button", { name: "Change" }));
+    expect(line()!.textContent).toBe(
+      "Started from Breed Lethality, a precon. Do you own it? Yes No",
+    );
+    // Change alone answers nothing; the pick does.
+    expect(answers).toEqual([true]);
+    fireEvent.click(within(line()!).getByRole("button", { name: "No" }));
+    expect(answers).toEqual([true, false]);
+  });
+
+  it("no precon (or no handler), no line", () => {
+    const { rerender } = render(withPrecon({ precon: null }));
+    expect(line()).toBeNull();
+    rerender(withPrecon({ onAnswerPrecon: undefined }));
+    expect(line()).toBeNull();
+  });
+
+  it("while a seed lands there is no line; it comes with the list, and the empty state goes", () => {
+    const { rerender } = render(
+      withPrecon({ entries: [], cards: new Map(), precon: null, seeding: true }),
+    );
+    expect(line()).toBeNull();
+    expect(screen.getByText("No cards yet")).toBeTruthy();
+    rerender(withPrecon());
+    expect(line()).not.toBeNull();
+    expect(screen.queryByText("No cards yet")).toBeNull();
+  });
+
+  it("the ownership line's method: the precon's rule when it is owned; the collection's word for word otherwise", () => {
+    const { rerender } = render(
+      withPrecon({ precon: { name: "Breed Lethality", owns: true }, ownership }),
+    );
+    const title = () => screen.getByTestId("ownership-line").getAttribute("title");
+    expect(title()).toBe(
+      "Cards from the precon you own count as owned, up to the precon's own quantities. Missing cost = cheapest listed printing per card; cards without a price are excluded and counted.",
+    );
+    rerender(withPrecon({ precon: null, ownership, owned: new Set([sol.id]) }));
+    expect(title()).toBe(
+      "Owned = any printing of the card is in your imported collection (quantities not checked). Missing cost = cheapest listed printing per card; cards without a price are excluded and counted.",
+    );
+  });
+});

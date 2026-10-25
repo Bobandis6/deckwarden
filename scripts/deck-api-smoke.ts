@@ -12,6 +12,11 @@
  * alone (a name PATCH still moves it); a visitor's GET carries the target
  * and the exceptions, never the budget or the answers; Magic's range and
  * One Piece's no-target answer 400.
+ * PRECON-OWNED: a create with `fromPrecon` stores the lineage (an unknown
+ * slug 400s); the owner's GET carries `deck.precon` (the precon's own list
+ * in its own quantities, unanswered); the answer's PATCH `{ownsPrecon}`
+ * leaves updatedAt alone; a visitor's GET carries none of it; a deck that
+ * didn't start from a precon answers 400.
  * Cleans up after itself (the deck is deleted at the end even on failure).
  */
 import { BASE } from "./smoke/guard"; // first import: a non-local BASE_URL exits 1 here
@@ -71,6 +76,136 @@ async function findCard(query: string): Promise<{ id: string; name: string }> {
     throw new Error(`Card search for "${query}" failed (status ${status})`);
   }
   return results[0];
+}
+
+/** A slug minted once and stable forever (it is the public URL), on every branch since W8a. */
+const PRECON_SLUG = "breed_lethality_c16";
+
+/**
+ * PRECON-OWNED's chain: create → GET → PATCH → visitor GET, on a deck of its
+ * own (deleted at the end even on failure); `plain` is the main smoke deck,
+ * which started from no precon.
+ */
+async function preconChain(plain: { deckId: string; token: string }) {
+  type PreconWire = {
+    slug: string;
+    name: string;
+    owns: boolean | null;
+    cards: { cardId: string; qty: number }[];
+  };
+  type Wire = { deck?: { updatedAt?: string; precon?: PreconWire | null } };
+  const seed = await api("GET", `/api/precons/${PRECON_SLUG}`);
+  const seedJson = seed.json as {
+    deck?: { name: string };
+    cards?: {
+      cardId: string;
+      zone: string;
+      qty: number;
+      tags: string[];
+      printingId: string | null;
+    }[];
+  };
+  check("precon seed GET → 200", seed.status === 200, seed.status);
+  if (seed.status !== 200 || !seedJson.cards) return;
+  const copies = new Map<string, number>();
+  for (const c of seedJson.cards) {
+    if (c.zone === "commander" || c.zone === "main") {
+      copies.set(c.cardId, (copies.get(c.cardId) ?? 0) + c.qty);
+    }
+  }
+
+  check(
+    "create with an unknown fromPrecon → 400",
+    (
+      await api("POST", "/api/decks", {
+        body: { game: "mtg", format: "commander", fromPrecon: "no_such_precon_x", website: "" },
+      })
+    ).status === 400,
+  );
+  const created = await api("POST", "/api/decks", {
+    body: {
+      game: "mtg",
+      format: "commander",
+      name: seedJson.deck?.name ?? "Smoke precon deck",
+      fromPrecon: PRECON_SLUG,
+      website: "",
+    },
+  });
+  const createdJson = created.json as { deck?: { id: string }; claimToken?: string };
+  check("create with fromPrecon → 201", created.status === 201, created.json);
+  check(
+    "the create's wire never names the precon",
+    !/ownsPrecon|preconDeckId|"precon"/.test(created.text),
+  );
+  const id = createdJson?.deck?.id;
+  const token = createdJson?.claimToken;
+  if (!id || !token) return;
+  try {
+    const put = await api("PUT", `/api/decks/${id}/cards`, {
+      token,
+      body: {
+        cards: seedJson.cards.map(({ cardId, zone, qty, tags, printingId }) => ({
+          cardId,
+          zone,
+          qty,
+          tags,
+          ...(printingId ? { printingId } : {}),
+        })),
+      },
+    });
+    check("PUT the precon's list → 200", put.status === 200, put.json);
+
+    const first = (await api("GET", `/api/decks/${id}`, { token })).json as Wire;
+    const precon = first?.deck?.precon;
+    check(
+      "owner GET carries deck.precon, unanswered",
+      precon?.slug === PRECON_SLUG && precon?.owns === null,
+      precon,
+    );
+    check(
+      "deck.precon.cards are the precon's own copies, per identity",
+      precon?.cards?.length === copies.size &&
+        precon.cards.every((c) => copies.get(c.cardId) === c.qty) &&
+        precon.cards.reduce((n, c) => n + c.qty, 0) === 100,
+      precon?.cards?.length,
+    );
+
+    check(
+      "PATCH {ownsPrecon} without the token → 403",
+      (await api("PATCH", `/api/decks/${id}`, { body: { ownsPrecon: true } })).status === 403,
+    );
+    const answered = await api("PATCH", `/api/decks/${id}`, { token, body: { ownsPrecon: true } });
+    check("PATCH {ownsPrecon: true} owner → 200", answered.status === 200, answered.json);
+    const after = (await api("GET", `/api/decks/${id}`, { token })).json as Wire;
+    check("the answer reads back", after?.deck?.precon?.owns === true, after?.deck?.precon?.owns);
+    check(
+      "the answer's PATCH leaves updatedAt alone",
+      typeof first?.deck?.updatedAt === "string" && after?.deck?.updatedAt === first.deck.updatedAt,
+      { before: first?.deck?.updatedAt, after: after?.deck?.updatedAt },
+    );
+
+    const visitor = await api("GET", `/api/decks/${id}`);
+    check("visitor GET (unlisted) → 200", visitor.status === 200);
+    check(
+      "visitor GET carries no precon, no lineage, no answer",
+      !/"precon"|ownsPrecon|preconDeckId/.test(visitor.text) && !visitor.text.includes(PRECON_SLUG),
+    );
+
+    check(
+      "PATCH {ownsPrecon} on a deck from no precon → 400",
+      (
+        await api("PATCH", `/api/decks/${plain.deckId}`, {
+          token: plain.token,
+          body: { ownsPrecon: true },
+        })
+      ).status === 400,
+    );
+  } finally {
+    check(
+      "DELETE the precon deck → 204",
+      (await api("DELETE", `/api/decks/${id}`, { token })).status === 204,
+    );
+  }
 }
 
 async function main() {
@@ -318,6 +453,9 @@ async function main() {
       "GET card entries join card data",
       afterJson?.cards?.some((c) => c.card?.name === staple.name) === true,
     );
+
+    // A deck started from a precon (PRECON-OWNED), beside this one.
+    await preconChain({ deckId, token });
 
     // Delete
     check(

@@ -22,12 +22,14 @@ interface Statement {
 }
 let statements: Statement[] = [];
 let answers: unknown[][][] = [];
+/** PRECON-OWNED: rows answered by the statement's text, ahead of the positional queue. */
+let routed: { match: RegExp; rows: unknown[][] }[] = [];
 
 const fakeClient = {
   options: { parsers: {}, serializers: {} },
   unsafe(sql: string, params: unknown[]) {
     statements.push({ sql, params });
-    const rows = answers.shift() ?? [];
+    const rows = routed.find((r) => r.match.test(sql))?.rows ?? answers.shift() ?? [];
     return { values: async () => rows, then: undefined };
   },
 };
@@ -82,6 +84,8 @@ function deckRow(over: Partial<Record<keyof DeckRow, unknown>> = {}): unknown[] 
     likesCount: 0,
     goals: null,
     hiddenTokens: null,
+    preconDeckId: null,
+    ownsPrecon: null,
     createdAt: "2026-09-01T00:00:00.000Z",
     updatedAt: UPDATED,
     ...over,
@@ -102,6 +106,7 @@ const updates = () => statements.filter((s) => s.sql.startsWith("update"));
 beforeEach(() => {
   statements = [];
   answers = [];
+  routed = [];
   session.userId = OWNER;
   limiter.calls = [];
   limiter.answer = null;
@@ -294,5 +299,147 @@ describe("GET — what a visitor sees of the goals", () => {
     const json = await (await GET(get(), ctx)).json();
     expect(json.deck.isOwner).toBe(true);
     expect(json.deck.goals).toEqual(goals);
+  });
+});
+
+describe("PATCH {ownsPrecon} (PRECON-OWNED)", () => {
+  const PRECON = "55555555-5555-4555-8555-555555555555";
+  const started = { preconDeckId: PRECON };
+
+  it("an answer-only body sets owns_precon and nothing else — updated_at stays where it was", async () => {
+    answers = [[deckRow(started)], [deckRow({ ...started, ownsPrecon: true })]];
+    const res = await PATCH(patch({ ownsPrecon: true }), ctx);
+    expect(res.status).toBe(200);
+    const [write] = updates();
+    expect(write.sql).toMatch(/^update "decks" set "owns_precon" = \$1 where "decks"\."id" = \$2/);
+    expect(write.sql).not.toContain('"updated_at" =');
+    expect(write.params[0]).toBe(true);
+    const json = await res.json();
+    expect(json.deck.updatedAt).toBe(UPDATED);
+    // The answer's wire is deckMetaJson's: it never names the precon.
+    expect(json.deck).not.toHaveProperty("ownsPrecon");
+    expect(json.deck).not.toHaveProperty("precon");
+  });
+
+  it("No, and null (not asked), save the same way", async () => {
+    for (const ownsPrecon of [false, null]) {
+      statements = [];
+      answers = [[deckRow({ ...started, ownsPrecon: true })], [deckRow(started)]];
+      expect((await PATCH(patch({ ownsPrecon }), ctx)).status).toBe(200);
+      expect(updates()[0].params[0]).toBe(ownsPrecon);
+      expect(updates()[0].sql).not.toContain('"updated_at" =');
+    }
+  });
+
+  it("a deck that didn't start from a precon: 400, nothing written — alone or beside a name", async () => {
+    for (const body of [
+      { ownsPrecon: true },
+      { ownsPrecon: null },
+      { name: "X", ownsPrecon: true },
+    ]) {
+      answers = [[deckRow()]];
+      const res = await PATCH(patch(body), ctx);
+      expect(res.status, JSON.stringify(body)).toBe(400);
+      expect(await res.json()).toEqual({ error: "This deck didn't start from a precon" });
+    }
+    expect(updates()).toEqual([]);
+  });
+
+  it("true, false or null only: anything else is a 400", async () => {
+    for (const bad of ["yes", 1, {}]) {
+      answers = [[deckRow(started)]];
+      expect((await PATCH(patch({ ownsPrecon: bad }), ctx)).status, String(bad)).toBe(400);
+    }
+    expect(updates()).toEqual([]);
+  });
+
+  it("a meta key alongside moves updated_at, as every meta PATCH always has", async () => {
+    answers = [[deckRow(started)], [deckRow(started)]];
+    await PATCH(patch({ name: "Renamed", ownsPrecon: false }), ctx);
+    const [write] = updates();
+    expect(write.sql).toContain('"owns_precon" =');
+    expect(write.sql).toContain('"updated_at" =');
+  });
+
+  it("owner only: someone else's deck is 403 before the body is checked", async () => {
+    session.userId = "99999999-9999-4999-8999-999999999999";
+    answers = [[deckRow(started)]];
+    expect((await PATCH(patch({ ownsPrecon: true }), ctx)).status).toBe(403);
+    expect(updates()).toEqual([]);
+  });
+
+  it("a guest deck answers with its edit key, the same way", async () => {
+    session.userId = null;
+    const token = "5f2c8a7e-0000-4000-8000-00000000abcd";
+    answers = [
+      [deckRow({ ...started, userId: null, claimToken: token })],
+      [deckRow({ ...started, userId: null, ownsPrecon: true })],
+    ];
+    const req = patch({ ownsPrecon: true });
+    req.headers.set("x-deck-token", token);
+    expect((await PATCH(req, ctx)).status).toBe(200);
+    expect(updates()[0].sql).not.toContain('"updated_at" =');
+  });
+});
+
+describe("GET — the precon a deck started from (PRECON-OWNED)", () => {
+  const PRECON = "55555555-5555-4555-8555-555555555555";
+  const CMDR = "aaaaaaaa-1111-4111-8111-000000000001";
+  const FOREST = "aaaaaaaa-1111-4111-8111-000000000002";
+  /** loadDeckPrecon's rows: the product's slug and name beside each counted deck_cards row. */
+  const preconRows = [
+    ["breed_lethality_c16", "Breed Lethality", FOREST, "main", 12],
+    ["breed_lethality_c16", "Breed Lethality", CMDR, "commander", 1],
+  ];
+  const get = () => new NextRequest(`http://localhost:3000/api/decks/${DECK}`);
+  const preconReads = () => statements.filter((s) => s.sql.includes('from "precon_products"'));
+
+  it("the owner: deck.precon — the slug, the name, the answer, the precon's copies; one read", async () => {
+    routed = [{ match: /from "precon_products"/, rows: preconRows }];
+    answers = [[deckRow({ preconDeckId: PRECON, ownsPrecon: true })]];
+    const res = await GET(get(), ctx);
+    const text = await res.text();
+    expect(JSON.parse(text).deck.precon).toEqual({
+      slug: "breed_lethality_c16",
+      name: "Breed Lethality",
+      owns: true,
+      cards: [
+        { cardId: CMDR, qty: 1 },
+        { cardId: FOREST, qty: 12 },
+      ],
+    });
+    // One read, keyed by the precon's deck id, over the counted zones alone.
+    expect(preconReads()).toHaveLength(1);
+    expect(preconReads()[0].params).toEqual(expect.arrayContaining([PRECON, "commander", "main"]));
+    expect(preconReads()[0].params).not.toContain("tokens");
+    // The wire names the precon by its slug; its row id stays on the server.
+    expect(text).not.toContain(PRECON);
+  });
+
+  it("an unanswered question reads null; a deck that started from nothing reads null, with no read", async () => {
+    routed = [{ match: /from "precon_products"/, rows: preconRows }];
+    answers = [[deckRow({ preconDeckId: PRECON })]];
+    expect((await (await GET(get(), ctx)).json()).deck.precon.owns).toBeNull();
+
+    statements = [];
+    answers = [[deckRow()]];
+    expect((await (await GET(get(), ctx)).json()).deck.precon).toBeNull();
+    expect(preconReads()).toEqual([]);
+  });
+
+  it("a visitor: no precon key, no lineage, no answer, none of its cards — and no read", async () => {
+    session.userId = null;
+    routed = [{ match: /from "precon_products"/, rows: preconRows }];
+    answers = [[deckRow({ preconDeckId: PRECON, ownsPrecon: true })]];
+    const res = await GET(get(), ctx);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const json = JSON.parse(text);
+    expect(json.deck.isOwner).toBe(false);
+    expect(json.deck).not.toHaveProperty("precon");
+    expect(text).not.toContain(PRECON);
+    expect(text).not.toContain(FOREST);
+    expect(text).not.toMatch(/ownsPrecon|preconDeckId|breed_lethality|"owns"/);
+    expect(preconReads()).toEqual([]);
   });
 });

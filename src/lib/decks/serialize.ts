@@ -12,6 +12,12 @@
  *
  * Hidden tokens (TOKEN-FILL): the owner alone — the keys of the derived
  * tokens they hid; the share page applies them on the server.
+ *
+ * Precon lineage (PRECON-OWNED): never here, for anyone. precon_deck_id and
+ * owns_precon reach the owner through GET /api/decks/[id]'s own
+ * `deck.precon` (with the precon's list, a read only that route pays), so
+ * every wire built from this one (the share page, /mine, the create, the
+ * fork, the PATCH's answer) stays as it was.
  */
 import { findFormatById, gameCodeById } from "@/db/seed-data";
 import type { schema } from "@/db";

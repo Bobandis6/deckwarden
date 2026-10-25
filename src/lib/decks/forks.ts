@@ -19,6 +19,12 @@
  * columns below leave them NULL, forks.test.ts). Forking your own
  * deck is allowed — it's a duplicate with provenance.
  *
+ * Precon lineage (PRECON-OWNED): a fork OF A PRECON is a deck started from
+ * it, so precon_deck_id = the upstream's id and the editor asks "Do you own
+ * this precon?". A fork of a user's deck inherits nothing, even when that
+ * deck started from a precon: its lineage and its owner's answer (owns_precon)
+ * are the upstream owner's, so neither column is named and both stay NULL.
+ *
  * Baseline for "changes since you forked" (decision 4): the fork's VERSION
  * 1 is the upstream's list at fork time, note "Forked from <name>". No
  * forked_from_version column, no migration: the baseline is frozen forever
@@ -97,6 +103,7 @@ export async function forkDeck(
         leaderIds: upstream.leaderIds,
         ciMask: upstream.ciMask,
         forkedFromDeckId: upstream.id,
+        ...(upstream.kind === "precon" ? { preconDeckId: upstream.id } : {}),
       })
       .returning();
     if (live.length > 0) {

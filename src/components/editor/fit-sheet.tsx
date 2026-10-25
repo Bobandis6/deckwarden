@@ -33,8 +33,9 @@
  * Honest about what it leaves out: cards without a price (counted beside
  * the estimate, never as $0), the pricey cards it didn't look at (no
  * community roles yet, combo pieces — the bracket line's facts keep them),
- * cards you own (with a collection — $0, and they stay), and "No suitable
- * alternative under your goals." when nothing can be swapped down.
+ * cards you own (with a collection or an owned precon — $0, and they stay),
+ * and "No suitable alternative under your goals." when nothing can be
+ * swapped down.
  */
 import { GaugeIcon, XIcon } from "lucide-react";
 import {
@@ -116,9 +117,12 @@ export function FitSheet({
   entries: readonly EditorEntry[];
   cards: ReadonlyMap<string, EditorCard>;
   goals: DeckGoals | null;
-  /** The deck's estimate now (owned copies at $0 only with a collection). */
+  /** The deck's estimate now (owned copies at $0: a collection's, an owned precon's). */
   estimate: FitEstimate;
-  /** The owned set — only when a collection exists; null = nothing is owned. */
+  /**
+   * The editor's one identity-level owned set for pricing: a collection's
+   * identities and an owned precon's (PRECON-OWNED); null = nothing is owned.
+   */
   owned: ReadonlySet<string> | null;
   /** The bracket line's complete combos — their pieces are never swapped out. */
   combos: readonly CompleteCombo[] | null;

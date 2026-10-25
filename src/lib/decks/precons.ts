@@ -2,7 +2,10 @@
  * Precon reads (W8b, WAVE2.md D7): the queries behind /precons, the share
  * page's product chrome and GET /api/precons/[slug]. Everything here is
  * public product data — kind='precon' rows are ownerless official lists
- * (W8a), so no caller ever passes viewer state.
+ * (W8a), so no caller ever passes viewer state. PRECON-OWNED adds the
+ * deck API's two: the create resolves `fromPrecon` through
+ * loadPreconBySlug, and the owner's GET reads the precon a deck started
+ * from through loadDeckPrecon (the route decides it is the owner's alone).
  *
  * Lookup key decision (W8b): the URL-facing key is the SLUG
  * (`precon_products.slug`, e.g. `breed_lethality_c16`) — it already names
@@ -11,17 +14,19 @@
  * `code` stays the ingest's upsert key only; passing it to the API 404s
  * (PRECON_SLUG_RE rejects its uppercase — pinned in precon-info.test.ts).
  */
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { getDb, schema, type DbExecutor } from "@/db";
 import { GAME_ID } from "@/db/seed-data";
 import { loadBracketFreshness } from "@/lib/brackets/freshness";
 import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import { PRECON_SLUG_RE, type PreconInfo } from "@/lib/decks/precon-info";
+import { preconCards, type DeckPrecon } from "@/lib/decks/precon-owned";
 import type { DeckRow } from "@/lib/decks/serialize";
 import type {
   BracketFreshness,
   CompleteCombo,
+  FormatDef,
   GameAdapter,
   LegalityEntry,
 } from "@/lib/games/types";
@@ -90,6 +95,50 @@ export async function loadPreconBySlug(
     .where(eq(preconProducts.slug, slug))
     .limit(1);
   return row ? { deck: row.deck, precon: toPreconInfo(row.info) } : null;
+}
+
+/**
+ * The owner's precon read (PRECON-OWNED): the precon a deck started from
+ * (`decks.precon_deck_id`) as GET /api/decks/[id] hands it to the owner,
+ * minus the answer, which is the deck row's own. ONE statement, indexed
+ * both ways: precon_products by its primary key, its deck_cards by theirs
+ * (deck_id leads it), only the format's counted zones. Null when the
+ * product is gone.
+ */
+export async function loadDeckPrecon(
+  preconDeckId: string,
+  format: Pick<FormatDef, "zones">,
+  db: DbExecutor = getDb(),
+): Promise<Omit<DeckPrecon, "owns"> | null> {
+  const counted = format.zones.filter((z) => z.countsTowardSize).map((z) => z.id);
+  const rows = await db
+    .select({
+      slug: preconProducts.slug,
+      name: preconProducts.productName,
+      cardId: deckCards.cardIdentityId,
+      zone: deckCards.zone,
+      qty: deckCards.quantity,
+    })
+    .from(preconProducts)
+    .leftJoin(
+      deckCards,
+      and(eq(deckCards.deckId, preconProducts.deckId), inArray(deckCards.zone, counted)),
+    )
+    .where(eq(preconProducts.deckId, preconDeckId));
+  const [first] = rows;
+  if (!first) return null;
+  return {
+    slug: first.slug,
+    name: first.name,
+    cards: preconCards(
+      rows.flatMap((r) =>
+        r.cardId !== null && r.zone !== null && r.qty !== null
+          ? [{ cardId: r.cardId, zone: r.zone, qty: r.qty }]
+          : [],
+      ),
+      format,
+    ),
+  };
 }
 
 /** One /precons index row: the tile fields plus the product metadata the filters need. */

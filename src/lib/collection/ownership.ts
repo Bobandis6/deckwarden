@@ -15,7 +15,14 @@
  *     cheapest_usd column the Cut Coach and hub tables use — never the
  *     chosen printing's price). Unowned cards with no known price are
  *     excluded from the sum and COUNTED, so "≈ $Y" is never quietly low.
+ *   - PRECON-OWNED: `ownedCopies` (an owned precon's, precon-owned.ts) owns
+ *     COPIES, not identities: per identity, whatever the zone, copies up to
+ *     the precon's own quantity are owned and the rest are missing (14
+ *     Forests from a 12-Forest precon cost two). The collection's identity
+ *     rule still covers every copy of a card it holds. Without it the sums
+ *     are exactly what they were, so the share page's line never moves.
  */
+import { PRECON_COPY } from "@/lib/collection/precon-copy";
 import type { FormatDef } from "@/lib/games/types";
 
 export interface OwnershipEntry {
@@ -41,6 +48,8 @@ export function deckOwnership(
   cards: ReadonlyMap<string, { cheapestUsd: number | null }>,
   owned: ReadonlySet<string>,
   format: FormatDef,
+  /** Copies owned per identity (an owned precon's); copies past them are missing. */
+  ownedCopies?: ReadonlyMap<string, number>,
 ): OwnershipSummary {
   const counted = new Set(format.zones.filter((z) => z.countsTowardSize).map((z) => z.id));
   let ownedQty = 0;
@@ -48,6 +57,8 @@ export function deckOwnership(
   let missingUsd = 0;
   const missing = new Set<string>();
   const unpriced = new Set<string>();
+  // The copies still in the box, spent across the list's entries of each identity.
+  const free = new Map(ownedCopies ?? []);
   for (const e of entries) {
     if (!counted.has(e.zone)) continue;
     totalQty += e.qty;
@@ -55,10 +66,17 @@ export function deckOwnership(
       ownedQty += e.qty;
       continue;
     }
+    const fromBox = Math.min(e.qty, free.get(e.cardId) ?? 0);
+    if (fromBox > 0) {
+      free.set(e.cardId, (free.get(e.cardId) ?? 0) - fromBox);
+      ownedQty += fromBox;
+      if (fromBox === e.qty) continue;
+    }
+    const short = e.qty - fromBox;
     missing.add(e.cardId);
     const price = cards.get(e.cardId)?.cheapestUsd ?? null;
     if (price === null) unpriced.add(e.cardId);
-    else missingUsd += e.qty * price;
+    else missingUsd += short * price;
   }
   return {
     ownedQty,
@@ -92,6 +110,21 @@ export function ownershipLine(s: OwnershipSummary): string {
   return `${head} · ${cost}${unpriced}`;
 }
 
-/** Tooltip/title text that states the method. */
-export const OWNERSHIP_METHOD =
-  "Owned = any printing of the card is in your imported collection (quantities not checked). Missing cost = cheapest listed printing per card; cards without a price are excluded and counted.";
+const COLLECTION_RULE =
+  "Owned = any printing of the card is in your imported collection (quantities not checked).";
+const COST_RULE =
+  "Missing cost = cheapest listed printing per card; cards without a price are excluded and counted.";
+
+/** Tooltip/title text that states the method (a collection's: the share page's, word for word). */
+export const OWNERSHIP_METHOD = `${COLLECTION_RULE} ${COST_RULE}`;
+
+/**
+ * The method as the editor's line states it (PRECON-OWNED): the rules that
+ * made its numbers, a collection's and an owned precon's, then the cost's.
+ * With a collection alone it is OWNERSHIP_METHOD.
+ */
+export function ownershipMethod(by: { collection: boolean; precon: boolean }): string {
+  return [by.collection && COLLECTION_RULE, by.precon && PRECON_COPY.method, COST_RULE]
+    .filter((rule): rule is string => typeof rule === "string")
+    .join(" ");
+}

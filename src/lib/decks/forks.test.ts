@@ -73,6 +73,8 @@ function deck(over: Partial<DeckRow> = {}): DeckRow {
     likesCount: 2,
     goals,
     hiddenTokens: null,
+    preconDeckId: null,
+    ownsPrecon: null,
     createdAt: new Date("2026-09-01T00:00:00Z"),
     updatedAt: new Date("2026-10-01T00:00:00Z"),
     ...over,
@@ -99,5 +101,43 @@ describe("forkDeck — goals are never copied (Y4b)", () => {
     const placeholders = /values \(([^)]*)\)/.exec(insert.sql)![1].split(", ");
     expect(placeholders[columns.indexOf('"goals"')]).toBe("default");
     expect(JSON.stringify(insert.params)).not.toMatch(/targetLevel|rulesetVersion|Ask me/);
+  });
+});
+
+describe("forkDeck — the precon lineage (PRECON-OWNED)", () => {
+  const PRECON = "55555555-5555-4555-8555-555555555555";
+  /** The value the fork's insert sent for one column ("default" = the column default, NULL). */
+  async function forkInsert(upstream: DeckRow): Promise<(column: string) => unknown> {
+    statements = [];
+    const fork = deck({ id: FORK, userId: FORKER, goals: null, forkedFromDeckId: upstream.id });
+    answers = [[[upstream.id]], [], [values(fork)], [[0]], [[1]], [], [values(fork)]];
+    await forkDeck(upstream, { userId: FORKER, ip: null });
+    const insert = statements.find((s) => s.sql.startsWith('insert into "decks"'))!;
+    const columns = /^insert into "decks" \(([^)]*)\)/.exec(insert.sql)![1].split(", ");
+    const placeholders = /values \(([^)]*)\)/.exec(insert.sql)![1].split(", ");
+    return (column) => {
+      const at = columns.indexOf(`"${column}"`);
+      const param = /^\$(\d+)$/.exec(placeholders[at]);
+      return param ? insert.params[Number(param[1]) - 1] : placeholders[at];
+    };
+  }
+
+  it("a fork of a precon is a deck started from it: precon_deck_id = the precon's id, no answer", async () => {
+    const precon = deck({
+      id: PRECON,
+      kind: "precon",
+      userId: null,
+      goals: null,
+      publicId: "p_breed_lethality_c16",
+    });
+    const sent = await forkInsert(precon);
+    expect(sent("precon_deck_id")).toBe(PRECON);
+    expect(sent("owns_precon")).toBe("default");
+  });
+
+  it("a fork of a user's deck inherits nothing, even one that started from a precon and owns it", async () => {
+    const sent = await forkInsert(deck({ preconDeckId: PRECON, ownsPrecon: true }));
+    expect(sent("precon_deck_id")).toBe("default");
+    expect(sent("owns_precon")).toBe("default");
   });
 });

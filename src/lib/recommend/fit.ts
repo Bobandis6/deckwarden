@@ -9,16 +9,17 @@
  *   identity's cheapest — never the chosen printing) over the format's
  *   counted zones, leaders included: what the whole deck costs to buy.
  *   Owned copies cost $0 only when a collection exists (the editor's owned
- *   set is meaningless without one). A card with no known price is never
- *   counted as $0: it is left out of the sum and counted beside it.
+ *   set is meaningless without one), and (PRECON-OWNED) an owned precon's
+ *   copies cost $0 up to its own quantities. A card with no known price is
+ *   never counted as $0: it is left out of the sum and counted beside it.
  * - **The cards considered**, priciest first: main-list cards the adapter
  *   offers alternatives for (Magic: no lands — LATER row 31), with a known
  *   price, holding at least one of the adapter's roles (read off the card
  *   wire's attrs, so a card the route would answer "no-roles" is never
- *   asked about), not owned (with a collection — a card you own costs
- *   nothing to keep), not a piece of a complete combo in the list (the
- *   bracket line's facts — a fit never breaks a combo), and run as a single
- *   copy (several copies of one card are a choice, not a price).
+ *   asked about), not owned (with a collection or an owned precon — a card
+ *   you own costs nothing to keep), not a piece of a complete combo in the
+ *   list (the bracket line's facts — a fit never breaks a combo), and run
+ *   as a single copy (several copies of one card are a choice, not a price).
  * - **The options per card**: the route's own rows, its order (shared roles,
  *   then the evidence), keeping the ones that are priced, cheaper than the
  *   card and inside the per-card budget — the first three. Hidden rows
@@ -57,8 +58,10 @@ export function deckEstimate(
   /** The owned set — only when a collection exists; null = nothing is owned. */
   owned: ReadonlySet<string> | null,
   format: FormatDef,
+  /** PRECON-OWNED: an owned precon's copies per identity (deckOwnership's `ownedCopies`). */
+  ownedCopies?: ReadonlyMap<string, number>,
 ): FitEstimate {
-  const s = deckOwnership(entries, cards, owned ?? new Set(), format);
+  const s = deckOwnership(entries, cards, owned ?? new Set(), format, ownedCopies);
   return { usd: s.missingUsd, unpriced: s.unpricedMissing };
 }
 

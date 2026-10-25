@@ -23,6 +23,8 @@ const row: DeckRow = {
   likesCount: 0,
   goals: null,
   hiddenTokens: null,
+  preconDeckId: null,
+  ownsPrecon: null,
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-02T00:00:00Z"),
 };
@@ -45,6 +47,23 @@ describe("deckMetaJson", () => {
     expect(deckMetaJson(hidden, { isOwner: true }).hiddenTokens).toEqual(hidden.hiddenTokens);
     expect(deckMetaJson(hidden, { isOwner: false }).hiddenTokens).toBeNull();
     expect(deckMetaJson(row, { isOwner: true }).hiddenTokens).toBeNull();
+  });
+
+  it("never names the precon lineage or the answer (PRECON-OWNED), the owner's wire included", () => {
+    const started = {
+      ...row,
+      preconDeckId: "55555555-5555-4555-8555-555555555555",
+      ownsPrecon: true,
+    };
+    for (const isOwner of [true, false]) {
+      const json = deckMetaJson(started, { isOwner }) as Record<string, unknown>;
+      expect(json).not.toHaveProperty("preconDeckId");
+      expect(json).not.toHaveProperty("ownsPrecon");
+      expect(json).not.toHaveProperty("precon");
+      expect(JSON.stringify(json)).not.toContain(started.preconDeckId);
+    }
+    // Every other key is what it was: the share page's wire doesn't move.
+    expect(deckMetaJson(started, { isOwner: true })).toEqual(deckMetaJson(row, { isOwner: true }));
   });
 
   it("exposes kind on the wire (W8a)", () => {

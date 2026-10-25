@@ -491,6 +491,29 @@ export const decks = pgTable(
      * derivation are src/lib/decks/token-fill.ts'.
      */
     hiddenTokens: text("hidden_tokens").array(),
+    /**
+     * The precon this deck's list started from (PRECON-OWNED): a
+     * kind='precon' deck row, set once by the server, from the create's
+     * `fromPrecon` slug (the precon draft's first save) or by a fork of a
+     * precon; a fork of a user's deck inherits nothing. NULL = not started
+     * from a precon. SET NULL if the precon row is ever deleted (the ingest
+     * updates precon rows in place; a delete is its rollback path), so no
+     * delete path detaches it by hand, unlike forked_from_deck_id. The
+     * owner's GET alone reads it; never copied on fork; not versioned.
+     */
+    preconDeckId: uuid("precon_deck_id").references((): AnyPgColumn => decks.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * The owner's answer to "Do you own this precon?" (PRECON-OWNED): true =
+     * the precon's own cards, in its own quantities, count as owned at $0
+     * wherever this deck's price is read; false = not owned; NULL = not
+     * asked yet. Meaningful only with precon_deck_id. Saved through its own
+     * PATCH body `{ownsPrecon}`, which never bumps updated_at; the owner's
+     * wire alone carries it; never copied on fork; not versioned. The
+     * shapes are src/lib/decks/precon-owned.ts'.
+     */
+    ownsPrecon: boolean("owns_precon"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

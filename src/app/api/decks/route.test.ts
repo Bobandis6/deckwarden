@@ -21,12 +21,14 @@ interface Statement {
 }
 let statements: Statement[] = [];
 let answers: unknown[][][] = [];
+/** PRECON-OWNED: rows answered by the statement's text, ahead of the positional queue. */
+let routed: { match: RegExp; rows: unknown[][] }[] = [];
 
 const fakeClient = {
   options: { parsers: {}, serializers: {} },
   unsafe(sql: string, params: unknown[]) {
     statements.push({ sql, params });
-    const rows = answers.shift() ?? [];
+    const rows = routed.find((r) => r.match.test(sql))?.rows ?? answers.shift() ?? [];
     return { values: async () => rows, then: undefined };
   },
 };
@@ -72,6 +74,8 @@ function deckRow(over: Partial<Record<keyof DeckRow, unknown>> = {}): unknown[] 
     likesCount: 0,
     goals: null,
     hiddenTokens: null,
+    preconDeckId: null,
+    ownsPrecon: null,
     createdAt: "2026-10-05T00:00:00.000Z",
     updatedAt: "2026-10-05T00:00:00.000Z",
     ...over,
@@ -101,6 +105,7 @@ function inserted(column: string): unknown {
 beforeEach(() => {
   statements = [];
   answers = [];
+  routed = [];
   session.userId = null;
 });
 
@@ -168,5 +173,111 @@ describe("POST /api/decks with goals (Y4b)", () => {
     const res = await POST(post({ ...draft, website: "spam", goals: { v: 1, targetLevel: 9 } }));
     expect(res.status).toBe(201);
     expect(statements).toEqual([]);
+  });
+});
+
+describe("POST /api/decks with fromPrecon (PRECON-OWNED)", () => {
+  const PRECON = "55555555-5555-4555-8555-555555555555";
+  const draft = { game: "mtg", format: "commander", name: "Breed Lethality", website: "" };
+  /** loadPreconBySlug's row: the precon's decks columns, then the product's six fields. */
+  const preconLookup = (over: Partial<Record<keyof DeckRow, unknown>> = {}) => [
+    [
+      ...deckRow({
+        id: PRECON,
+        publicId: "p_breed_lethality_c16",
+        kind: "precon",
+        claimToken: null,
+        name: "Breed Lethality",
+        visibility: "public",
+        ...over,
+      }),
+      "breed_lethality_c16",
+      "BreedLethality_C16",
+      "C16",
+      "Commander 2016",
+      "2016-11-11",
+      "Breed Lethality",
+    ],
+  ];
+  const lookups = () => statements.filter((s) => s.sql.includes('from "precon_products"'));
+
+  it("a valid slug: one lookup, then one insert carrying the precon's deck id — no answer yet", async () => {
+    routed = [{ match: /from "precon_products"/, rows: preconLookup() }];
+    answers = [[deckRow({ preconDeckId: PRECON })]];
+    const res = await POST(post({ ...draft, fromPrecon: "breed_lethality_c16" }));
+    expect(res.status).toBe(201);
+    expect(lookups()).toHaveLength(1);
+    expect(lookups()[0].params).toContain("breed_lethality_c16");
+    expect(inserts()).toHaveLength(1);
+    expect(inserted("precon_deck_id")).toBe(PRECON);
+    expect(inserted("owns_precon")).toBe("default");
+  });
+
+  it("an answer given before the mint rides the create; null says nothing", async () => {
+    for (const ownsPrecon of [true, false]) {
+      statements = [];
+      routed = [{ match: /from "precon_products"/, rows: preconLookup() }];
+      answers = [[deckRow({ preconDeckId: PRECON, ownsPrecon })]];
+      const res = await POST(post({ ...draft, fromPrecon: "breed_lethality_c16", ownsPrecon }));
+      expect(res.status).toBe(201);
+      expect(inserted("owns_precon")).toBe(ownsPrecon);
+    }
+    statements = [];
+    answers = [[deckRow({ preconDeckId: PRECON })]];
+    await POST(post({ ...draft, fromPrecon: "breed_lethality_c16", ownsPrecon: null }));
+    expect(inserted("owns_precon")).toBe("default");
+  });
+
+  it("the create's wire never names the lineage or the answer", async () => {
+    routed = [{ match: /from "precon_products"/, rows: preconLookup() }];
+    answers = [[deckRow({ preconDeckId: PRECON, ownsPrecon: true })]];
+    const res = await POST(post({ ...draft, fromPrecon: "breed_lethality_c16", ownsPrecon: true }));
+    const text = await res.text();
+    expect(text).not.toContain(PRECON);
+    expect(text).not.toMatch(/"precon"|preconDeckId|ownsPrecon/);
+  });
+
+  it("an unknown slug: 400, nothing inserted", async () => {
+    routed = [{ match: /from "precon_products"/, rows: [] }];
+    const res = await POST(post({ ...draft, fromPrecon: "no_such_precon" }));
+    expect(res.status).toBe(400);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.json()).toEqual({ error: "Unknown precon" });
+    expect(inserts()).toEqual([]);
+  });
+
+  it("a precon of another game or format: 400, nothing inserted", async () => {
+    routed = [{ match: /from "precon_products"/, rows: preconLookup() }];
+    const res = await POST(
+      post({ game: "optcg", format: "standard", website: "", fromPrecon: "breed_lethality_c16" }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "That precon is for another game or format" });
+    routed = [{ match: /from "precon_products"/, rows: preconLookup({ formatId: 2 }) }];
+    expect((await POST(post({ ...draft, fromPrecon: "breed_lethality_c16" }))).status).toBe(400);
+    expect(inserts()).toEqual([]);
+  });
+
+  it("the slug's grammar, and an answer with no precon: 400 before any lookup", async () => {
+    for (const body of [
+      { ...draft, fromPrecon: "BreedLethality_C16" },
+      { ...draft, fromPrecon: "x" },
+      { ...draft, ownsPrecon: true },
+      { ...draft, ownsPrecon: false },
+      { ...draft, fromPrecon: "breed_lethality_c16", ownsPrecon: "yes" },
+    ]) {
+      const res = await POST(post(body));
+      expect(res.status, JSON.stringify(body)).toBe(400);
+    }
+    expect(lookups()).toEqual([]);
+    expect(inserts()).toEqual([]);
+  });
+
+  it("without fromPrecon the create is what it was: no lookup, neither column named", async () => {
+    answers = [[deckRow()]];
+    expect((await POST(post(draft))).status).toBe(201);
+    expect(lookups()).toEqual([]);
+    expect(inserted("precon_deck_id")).toBe("default");
+    expect(inserted("owns_precon")).toBe("default");
   });
 });

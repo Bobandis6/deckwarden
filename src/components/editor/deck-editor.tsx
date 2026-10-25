@@ -95,6 +95,17 @@
  * Share dialog back (focus on the action), whose close hands focus to the
  * header's Share.
  *
+ * PRECON-OWNED: a deck started from a precon asks once, in the deck pane,
+ * "Do you own this precon?" — the precon from the owner's GET, or for a
+ * draft from its own seed (no second request). The answer is a setting like
+ * the goals: its own baseline and PATCH body `{ownsPrecon}`; on a draft a
+ * real edit that mints the row, whose create carries `fromPrecon` (whatever
+ * edit mints it) and the answer, so no PATCH follows. A Yes owns the
+ * precon's own copies (`ownedPreconCopies`): the ownership line, every goals
+ * line's estimate and the Fit sheet count them at $0, and the sheets take
+ * ONE identity-level owned set, `ownedSetForPricing` (the collection's ∪
+ * the owned precon's). The rows' collection mark is unchanged.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
@@ -182,6 +193,13 @@ import {
   withTotal,
   type DeckGoals,
 } from "@/lib/decks/goals";
+import {
+  ownedForPricing,
+  ownedPreconCopies,
+  ownsPreconPatchBody,
+  preconCards,
+  type DeckPrecon,
+} from "@/lib/decks/precon-owned";
 import { hiddenTokensPatchBody, normalizeHiddenTokens } from "@/lib/decks/token-fill";
 import type { LogResult } from "@/lib/journal/games";
 import type { ImportOutcome } from "@/lib/decks/import";
@@ -228,6 +246,8 @@ interface DeckResponse {
     goals?: DeckGoals | null;
     /** The derived tokens the owner hid (TOKEN-FILL) — the owner's wire alone. */
     hiddenTokens?: string[] | null;
+    /** The precon the deck started from and the answer (PRECON-OWNED) — the owner's wire alone. */
+    precon?: DeckPrecon | null;
   };
   cards: {
     cardId: string;
@@ -396,6 +416,8 @@ export function DeckEditor({
   const [goals, setGoals] = useState<DeckGoals | null>(null);
   // The derived tokens the owner hid (TOKEN-FILL): a setting like goals, its own PATCH.
   const [hiddenTokens, setHiddenTokens] = useState<string[] | null>(null);
+  // The precon the deck started from and its answer (PRECON-OWNED): a setting, its own PATCH.
+  const [precon, setPrecon] = useState<DeckPrecon | null>(null);
   const [entries, setEntries] = useState<EditorEntry[]>([]);
   const [cards, setCards] = useState<ReadonlyMap<string, EditorCard>>(new Map());
   const [preview, setPreview] = useState<EditorCard | null>(null);
@@ -464,6 +486,7 @@ export function DeckEditor({
   const metaRef = useRef({ name: "", description: "", notes: "" });
   const goalsRef = useRef<DeckGoals | null>(null);
   const hiddenRef = useRef<string[] | null>(null);
+  const preconRef = useRef<DeckPrecon | null>(null);
   const lastSavedRef = useRef({
     cards: JSON.stringify({ cards: toSavePayload([]) }),
     meta: metaPatchBody({ name: "", description: "", notes: "" }),
@@ -471,6 +494,8 @@ export function DeckEditor({
     goals: goalsPatchBody(null),
     // TOKEN-FILL: the hidden tokens' own baseline, the same way.
     hidden: hiddenTokensPatchBody(null),
+    // PRECON-OWNED: the precon answer's own baseline, the same way.
+    precon: ownsPreconPatchBody(null),
   });
 
   // The live deck id: the prop for existing decks, set by ensureDeck once a
@@ -502,6 +527,9 @@ export function DeckEditor({
       // Goals ride the create too (Y4b): a target or an answer is a real
       // edit, and the draft mints with it — see the baseline below.
       const goals = goalsRef.current;
+      // The precon a seeded draft came from (PRECON-OWNED) rides it whatever
+      // edit mints the row, and so does its answer when it came first.
+      const precon = preconRef.current;
       const res = await fetch("/api/decks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -511,6 +539,12 @@ export function DeckEditor({
           format: draftFormat,
           ...(name ? { name } : {}),
           ...(goals ? { goals } : {}),
+          ...(precon
+            ? {
+                fromPrecon: precon.slug,
+                ...(precon.owns !== null ? { ownsPrecon: precon.owns } : {}),
+              }
+            : {}),
           website: "",
         }),
       });
@@ -525,6 +559,8 @@ export function DeckEditor({
       // The row holds the goals the create carried: no PATCH for them (a
       // change made while the create was in flight still differs, and saves).
       lastSavedRef.current.goals = goalsPatchBody(goals);
+      // The same for the precon's answer (PRECON-OWNED).
+      lastSavedRef.current.precon = ownsPreconPatchBody(precon?.owns ?? null);
       setLiveDeckId(json.deck.id);
       setShare({
         publicId: json.deck.publicId,
@@ -559,7 +595,9 @@ export function DeckEditor({
       JSON.stringify({ cards: toSavePayload(entriesRef.current) }) === lastSavedRef.current.cards &&
       metaPatchBody(metaRef.current) === lastSavedRef.current.meta &&
       // Y4b: a target or an answer is something to say (D5) — the draft mints.
-      goalsPatchBody(goalsRef.current) === lastSavedRef.current.goals,
+      goalsPatchBody(goalsRef.current) === lastSavedRef.current.goals &&
+      // PRECON-OWNED: so is "Do you own this precon?"'s answer.
+      ownsPreconPatchBody(preconRef.current?.owns ?? null) === lastSavedRef.current.precon,
     [],
   );
 
@@ -631,6 +669,18 @@ export function DeckEditor({
       if (!res.ok) throw new Error(`Save failed (${res.status})`);
       lastSavedRef.current.hidden = hiddenBody;
     }
+    // The precon's answer (PRECON-OWNED): the same kind of body, the same
+    // rule. A draft's rides its create (ensureDeck moved the baseline).
+    const preconBody = ownsPreconPatchBody(preconRef.current?.owns ?? null);
+    if (preconBody !== lastSavedRef.current.precon) {
+      const res = await fetch(`/api/decks/${deckId}`, {
+        method: "PATCH",
+        headers,
+        body: preconBody,
+      });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      lastSavedRef.current.precon = preconBody;
+    }
   }, [isBlankDraft, ensureDeck]);
 
   const autosave = useAutosave(save);
@@ -685,15 +735,18 @@ export function DeckEditor({
     };
     goalsRef.current = readGoals(json.deck.goals);
     hiddenRef.current = normalizeHiddenTokens(json.deck.hiddenTokens);
+    preconRef.current = json.deck.precon ?? null;
     lastSavedRef.current = {
       cards: JSON.stringify({ cards: toSavePayload(loadedEntries) }),
       meta: metaPatchBody(metaRef.current),
       goals: goalsPatchBody(goalsRef.current),
       hidden: hiddenTokensPatchBody(hiddenRef.current),
+      precon: ownsPreconPatchBody(preconRef.current?.owns ?? null),
     };
     setEntries(loadedEntries);
     setGoals(goalsRef.current);
     setHiddenTokens(hiddenRef.current);
+    setPrecon(preconRef.current);
     setCards(new Map(json.cards.map((c) => [c.cardId, toEditorCard(c.card)])));
     setDeckName(json.deck.name);
     setDetails({ description: json.deck.description ?? "", notes: json.deck.notes ?? "" });
@@ -876,6 +929,7 @@ export function DeckEditor({
           return;
         }
         const json: {
+          precon?: { slug: string; productName: string };
           deck: { name: string; game: string; format: string; leaderIds: string[] };
           cards: {
             cardId: string;
@@ -913,6 +967,18 @@ export function DeckEditor({
         metaRef.current = { ...metaRef.current, name: json.deck.name };
         lastSavedRef.current.meta = metaPatchBody(metaRef.current);
         setDeckName(json.deck.name);
+        // The precon itself (PRECON-OWNED), off the same response, state
+        // only: its own list in its own quantities and no answer yet (the
+        // baseline's), so its line lands with the list and nothing turns
+        // dirty; ensureDeck sends the slug when the row mints.
+        const seededPrecon: DeckPrecon = {
+          slug: json.precon?.slug ?? draftFromSlug,
+          name: json.precon?.productName ?? json.deck.name,
+          owns: null,
+          cards: preconCards(json.cards, format),
+        };
+        preconRef.current = seededPrecon;
+        setPrecon(seededPrecon);
         const leaderWire = json.cards.find((c) => c.cardId === json.deck.leaderIds[0])?.card;
         if (leaderWire) setPreview(toEditorCard(leaderWire));
       } catch {
@@ -1066,7 +1132,7 @@ export function DeckEditor({
       const headers = writeHeaders(deckId);
       const copies: Promise<void>[] = [];
       const send = (
-        field: "cards" | "meta" | "goals" | "hidden",
+        field: "cards" | "meta" | "goals" | "hidden" | "precon",
         url: string,
         method: "PUT" | "PATCH",
         body: string,
@@ -1092,6 +1158,12 @@ export function DeckEditor({
       send("meta", `/api/decks/${deckId}`, "PATCH", metaPatchBody(metaRef.current));
       send("goals", `/api/decks/${deckId}`, "PATCH", goalsPatchBody(goalsRef.current));
       send("hidden", `/api/decks/${deckId}`, "PATCH", hiddenTokensPatchBody(hiddenRef.current));
+      send(
+        "precon",
+        `/api/decks/${deckId}`,
+        "PATCH",
+        ownsPreconPatchBody(preconRef.current?.owns ?? null),
+      );
       if (copies.length === 0) return;
       const settled: Promise<void> = Promise.all([keepaliveRef.current, ...copies]).then(() => {
         if (keepaliveRef.current === settled) keepaliveRef.current = null;
@@ -1828,6 +1900,21 @@ export function DeckEditor({
     [markDirty],
   );
 
+  // "Do you own this precon?" (PRECON-OWNED): Yes or No — a setting like the
+  // goals, through the same autosave burst, its own PATCH; on a draft, the
+  // edit that mints the row. The same answer again is no edit.
+  const handleAnswerPrecon = useCallback(
+    (owns: boolean) => {
+      const current = preconRef.current;
+      if (!current || current.owns === owns) return;
+      const next = { ...current, owns };
+      preconRef.current = next;
+      setPrecon(next);
+      markDirty();
+    },
+    [markDirty],
+  );
+
   // The Fit sheet (Y8, D9): the reviewed swaps as ONE whole-list swap — one
   // toast, one Undo for the batch — and the total they fit to, saved in the
   // same burst (the Undo restores the list; the total stays). Saving the
@@ -2120,24 +2207,40 @@ export function DeckEditor({
     load.state === "ready" ? issues.length === 0 : null,
     liveDeckId,
   );
+  // PRECON-OWNED: what a Yes owns, the precon's own copies (null otherwise),
+  // and the ONE identity-level owned set every price sheet takes: the
+  // collection's identities (with a collection) ∪ the owned precon's.
+  const preconCopies = useMemo(() => ownedPreconCopies(precon), [precon]);
+  const ownedSetForPricing = useMemo(
+    () => ownedForPricing(hasCollection ? owned : null, preconCopies),
+    [hasCollection, owned, preconCopies],
+  );
   // "You own N/100 · missing ≈ $Y" (P3.7): pure math over the same entries,
-  // card prices and owned set; null (nothing rendered) without a collection.
+  // card prices and owned set; null (nothing rendered) without a collection
+  // or an owned precon, whose copies count up to its own quantities.
   const ownership = useMemo(
     () =>
-      hasCollection && load.state === "ready"
-        ? deckOwnership(entries, cards, owned, load.format)
+      (hasCollection || preconCopies !== null) && load.state === "ready"
+        ? deckOwnership(entries, cards, owned, load.format, preconCopies ?? undefined)
         : null,
-    [hasCollection, load, entries, cards, owned],
+    [hasCollection, preconCopies, load, entries, cards, owned],
   );
   // The deck's cost at its cheapest printings (Y8): every goals line's
   // "est. $212 of your $150", and the Fit sheet's starting point. Owned
-  // copies count $0 only with a collection.
+  // copies count $0 only with a collection, and an owned precon's copies
+  // up to its quantities.
   const estimate = useMemo(
     () =>
       load.state === "ready"
-        ? deckEstimate(entries, cards, hasCollection ? owned : null, load.format)
+        ? deckEstimate(
+            entries,
+            cards,
+            hasCollection ? owned : null,
+            load.format,
+            preconCopies ?? undefined,
+          )
         : null,
-    [load, entries, cards, hasCollection, owned],
+    [load, entries, cards, hasCollection, owned, preconCopies],
   );
 
   // Ambient art (R2): the FIRST leader entry drives the one request — the
@@ -2636,7 +2739,7 @@ export function DeckEditor({
               cards={cards}
               goals={goals}
               estimate={estimate}
-              owned={hasCollection ? owned : null}
+              owned={ownedSetForPricing}
               combos={bracketFacts.combos}
               factsState={bracketFacts.state}
               phone={tier === "phone"}
@@ -2710,6 +2813,8 @@ export function DeckEditor({
           seeding={draftSeed !== null && !seedSettled}
           owned={hasCollection ? owned : undefined}
           ownership={ownership}
+          precon={precon}
+          onAnswerPrecon={handleAnswerPrecon}
           onAddTokens={tokenZoneOf(load.format) ? handleAddTokens : undefined}
           hiddenTokens={hiddenTokens}
           onHideToken={handleHideToken}

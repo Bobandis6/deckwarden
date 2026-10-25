@@ -74,6 +74,15 @@
  * with the view preferences, "From your cards" loading only while open. It
  * waits for the first card like View / Group / Sort do (the quiet first
  * screen), unless the deck already holds a token.
+ *
+ * PRECON-OWNED: `precon` puts "Do you own this precon?" (precon-line.tsx)
+ * directly after the leader zone, the owner's alone. It arrives with the
+ * list: in a saved deck's first paint, and in a precon draft's seed, where
+ * the leader zone above it holds its box and the empty state it replaces
+ * goes with it, so nothing on screen moves. The ownership line shows with a
+ * collection or an owned precon (the editor decides); its method names the
+ * precon's rule when one is owned. The rows' "In your collection" mark
+ * stays the collection's.
  */
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
@@ -89,12 +98,13 @@ import { TokensSection } from "@/components/deck/tokens-section";
 import { useTokenFill } from "@/components/deck/use-token-fill";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
+import { PreconLine } from "@/components/editor/precon-line";
 import { useCountUp } from "@/components/editor/use-count-up";
 import { EmptyState } from "@/components/empty-state";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
-import { OWNERSHIP_METHOD, ownershipLine, type OwnershipSummary } from "@/lib/collection/ownership";
+import { ownershipLine, ownershipMethod, type OwnershipSummary } from "@/lib/collection/ownership";
 import {
   deckSizeCount,
   singleQtyIncrease,
@@ -137,8 +147,12 @@ interface DeckListPaneProps {
   onBrowseLeader?: () => void;
   /** Card ids the owner owns any printing of (P3.7); undefined = no collection imported. */
   owned?: ReadonlySet<string>;
-  /** "You own N/100 · missing ≈ $Y" (P3.7); null = no collection imported, nothing shown. */
+  /** "You own N/100 · missing ≈ $Y" (P3.7); null = no collection and no owned precon, nothing shown. */
   ownership?: OwnershipSummary | null;
+  /** PRECON-OWNED: the precon the deck started from and the owner's answer; absent = no line. */
+  precon?: { name: string; owns: boolean | null } | null;
+  /** PRECON-OWNED: the line's Yes / No — the editor's edit. */
+  onAnswerPrecon?: (owns: boolean) => void;
   /**
    * "Add cards" (R4): the phone's way into Search — the summary row's
    * primary action (phones only) and the empty state's action (every tier;
@@ -199,6 +213,8 @@ export function DeckListPane({
   onBrowseLeader,
   owned,
   ownership = null,
+  precon = null,
+  onAnswerPrecon,
   onAddCards,
   onAutofill,
   doors = [],
@@ -363,11 +379,15 @@ export function DeckListPane({
             </button>
           )}
           {/* Collection line (P3.7): only for owners with an imported
-              collection — never a fake "0/100" for someone who has none. */}
+              collection or (PRECON-OWNED) an owned precon — never a fake
+              "0/100" for someone who has neither. */}
           {ownership && (
             <span
               className="text-muted-foreground min-w-0 truncate text-xs tabular-nums"
-              title={OWNERSHIP_METHOD}
+              title={ownershipMethod({
+                collection: owned !== undefined,
+                precon: precon?.owns === true,
+              })}
               data-testid="ownership-line"
             >
               {ownershipLine(ownership)} ·
@@ -424,6 +444,11 @@ export function DeckListPane({
           pending={seeding}
           raised
         />
+      )}
+
+      {/* PRECON-OWNED: "Do you own this precon?", with the list, under the leader. */}
+      {precon && onAnswerPrecon && (
+        <PreconLine className="mt-3" precon={precon} onAnswer={onAnswerPrecon} />
       )}
 
       {/* A quiet first screen (Y2a): nothing to view, group or sort yet.
