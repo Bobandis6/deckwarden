@@ -1,6 +1,14 @@
 # TARGET-CHANGES session prompt: say what setting a target changed, when it happens
 
-*Status: written 2026-10-24 at the owner's request ("when you set a target bracket the changes that it makes pops up and tells you what it auto changed") and executed in the same session beside HEADER-SEARCH: the feat commit carries this file, and the ship note follows the deploy. Two deviations, recorded in REDESIGN.md's TARGET-CHANGES section: the tools are named as the editor shows them ("Alternatives", "the Combos tab"), and the count says "things", the word the conflict callout already uses. Anchors verified against `6ade698`; re-grep lines, trust the shapes.*
+*Status: **shipped 2026-10-24** as `089f7b0` (CI run 40159941173 green; Vercel's production status success at 03:55:14 Z on 2026-10-25), written and executed in the same session at the owner's request ("when you set a target bracket the changes that it makes pops up and tells you what it auto changed"), deployed together with HEADER-SEARCH (`5028baa`). Two deviations, recorded in REDESIGN.md's TARGET-CHANGES section: the tools are named as the editor shows them ("Alternatives", "the Combos tab"), and the count says "things", the word the conflict callout already uses. Anchors verified against `6ade698`; re-grep lines, trust the shapes.*
+
+## Ship note (2026-10-24)
+
+- **One feat commit**, `089f7b0`: the pure module, the callout, the copy, tests, this file, REDESIGN.md's section and LATER row 335. Built by a subagent in its own worktree from this prompt, reviewed line by line, then two copy changes at integration (the tool names on screen, "things" for the count). `pnpm check` on its tree: 3,028 tests in 280 files, 0 errors, 6 lint warnings (the 5 tracked ones and the shared checkout's untracked `scripts/.tmp/measure-corpus.ts`).
+- **On dev, in the pane** (the precon draft Abzan Armor, at least Bracket 3 with one Game Changer): set 2 ("1 thing in the list puts the deck above it", the five rows of Bracket 2), changed to 4 ("Nothing in the list puts the deck above it (before, 1 did)", the five rows that differ), Undo back to 2 with focus on "2" and the row holding `{targetLevel: 2}`, cleared, set 1 at 375 and 320 px (no sideways scroll, Undo and Dismiss 44 by 44 under touch), and 1 to 3 in the light theme (four rows; mass land denial, the same at both, left out).
+- **In the iOS Simulator** (iPhone 15, Mobile Safari, the dev server): the Why sheet's Drawer scrolled the new callout into view under the choice, which stayed on screen, and Undo put Not set back.
+- **Production, read from outside:** the editor's chunk carries the callout's words ("Your cards didn't change.", "Combos tab"). No target was set on production: on a draft that mints a deck, and production writes are the owner's call.
+- **Left for the owner:** set a target on one of your own decks on deckwarden.gg and read the callout. The QA minted two guest decks on the dev branch (one in the pane, one in the simulator), none on production.
 
 ## The ask, deepened
 
