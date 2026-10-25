@@ -1,6 +1,6 @@
 # DECK-TOKENS session prompt — a fixed card-type order, and a Tokens list outside the 100
 
-*Status: **shipped 2026-10-24** as `71c4df1` (rebased onto `43bcbd2`), written and executed in the same session at the owner's request. Anchors verified against `40706f2`; re-grep lines, trust the shapes.*
+*Status: **shipped 2026-10-24** as `71c4df1` (rebased onto `43bcbd2`), written and executed in the same session at the owner's request, with the token search follow-up `f3a234f` the same day. Anchors verified against `40706f2`; re-grep lines, trust the shapes.*
 
 ## Ship note (2026-10-24)
 
@@ -18,6 +18,22 @@
   - write `attrs.tokens` on about 4,900 cards;
   - un-candidate Mechtitan, whose `/c/mechtitan` page and sitemap entry then 404.
 - **Docs:** `LATER.md` rows 320 to 328, the build plan's ingest lines, a REDESIGN.md record, and this file's census appendix.
+
+## Follow-up (2026-10-24): the token search reads a token's words
+
+- **The report:** the owner couldn't add the Tarkir: Dragonstorm Commander Elemental (4/4 blue-red, TTDC #27) to a deck. "elemental" matched 39 tokens, the box showed twelve, and that one came thirtieth, with no way past the twelfth.
+- **The fix, `f3a234f`:**
+  - The box hands its text to the adapter (`tokenQuery`, Magic's `mtgTokenQuery`). A P/T, color words and keywords become the search route's own filters, and the rest is the name.
+  - A broad search says "Showing 12 of 39." above a "Show 12 more" button.
+  - Namesakes read by P/T, then colors. No token has an EDHREC rank, so the best-match order had left them in oracle-id order.
+  - LATER rows 329 and 330.
+- **Checks:**
+  - `pnpm check` passed: 2,959 tests in 277 files.
+  - CI (`check`) passed, and Vercel's production deploy reported success on the full sha.
+- **Production, read from outside:**
+  - The search the box now sends for "Elemental 4/4 blue red" returns that one token (oracle `f81c047d`).
+  - "elemental" reads 0/1, 1/0, 1/1 and on, with that Elemental 17th, on the second page.
+  - The editor's chunks carry the new placeholder, the narrowing line and the word parser.
 
 ## The owner's ask (2026-10-24)
 
