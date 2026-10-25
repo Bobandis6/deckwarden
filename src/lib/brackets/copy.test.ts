@@ -21,7 +21,15 @@ import type { BracketSpeedFacts } from "@/lib/games/types";
 
 import { budgetLabel } from "@/components/deck/goals-line";
 
-import { BRACKET_COPY, dateLabel, declaredLabel, goalsParts, levelLabel } from "./copy";
+import {
+  BRACKET_COPY,
+  dateLabel,
+  declaredLabel,
+  goalsParts,
+  levelLabel,
+  levelNumberLabel,
+} from "./copy";
+import { targetChange, targetChangeWords, targetTools, type TargetTool } from "./target-change";
 
 /** The table's word-builders — the guard calls each one (a new one must join it here). */
 const BUILDERS = [
@@ -41,7 +49,75 @@ const BUILDERS = [
   "previewShowsNone",
   "declare",
   "targetShown",
+  // TARGET-CHANGES: the callout's words (targetChangeWords calls them all below).
+  "targetSet",
+  "targetChanged",
+  "changeStatus",
+  "aboveNow",
+  "aboveCleared",
+  "allowsLead",
+  "differsLead",
+  "was",
+  "toolsFollow",
+  "toolsStop",
+  "targetShowsAt",
+  "targetShowsNone",
 ];
+
+/**
+ * TARGET-CHANGES: every line the callout can say for Magic — every pick
+ * between Not set and the five levels, the counts that say "was" and the
+ * ones that don't, link previews or not, the tools Magic declares and
+ * smaller sets of them (each verb's singular and plural).
+ */
+function targetChangeLines(): string[] {
+  const mtg = getAdapter("mtg").brackets!;
+  const toolSets: TargetTool[][] = [
+    targetTools(getAdapter("mtg")),
+    ["suggestions"],
+    ["combos"],
+    ["suggestions", "autofill"],
+  ];
+  const counts = [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [3, 1],
+    [2, 2],
+  ] as const;
+  const targets = [null, ...mtg.levels.map((l) => l.level)];
+  const lines: string[] = [];
+  for (const from of targets) {
+    for (const to of targets) {
+      for (const [now, before] of counts) {
+        for (const tools of toolSets) {
+          for (const linkPreviews of [true, false]) {
+            const change = targetChange({
+              brackets: mtg,
+              tools,
+              from,
+              to,
+              read: { conflicts: Array.from({ length: now }, (_, i) => `f${i}`) },
+              aboveBefore: before,
+              linkPreviews,
+            });
+            if (!change) continue;
+            const w = targetChangeWords(change, mtg);
+            lines.push(w.title, w.status, w.cards, w.shown);
+            if (w.above) lines.push(w.above);
+            if (w.rowsLead) lines.push(w.rowsLead);
+            if (w.tools) lines.push(w.tools);
+            for (const row of w.rows) {
+              lines.push(row.label, row.value);
+              if (row.was !== null) lines.push(BRACKET_COPY.was(row.was));
+            }
+          }
+        }
+      }
+    }
+  }
+  return lines;
+}
 
 /**
  * BRACKET-SPEED: the adapter's facts for two lists — a precon's shape (36
@@ -122,6 +198,8 @@ function everyString(): string[] {
     ]),
     // DECK-PREVIEW-BRACKET: the Share dialog's line at every level and with none, and its action.
     ...previewWords(),
+    // TARGET-CHANGES: every line the callout can say.
+    ...targetChangeLines(),
   ];
 }
 
@@ -311,6 +389,90 @@ describe("LATER row 306's words — Your target's note says where the target sho
     expect(words.filter((w) => /[–—]|\d-\d/.test(w))).toEqual([]);
     expect(words.filter((w) => w.split(" · ").length > 2)).toEqual([]);
     expect(words.filter((w) => /updat|refresh|already|will /i.test(w))).toEqual([]);
+  });
+});
+
+describe("TARGET-CHANGES' words — what a pick of Your target did", () => {
+  const mtg = getAdapter("mtg").brackets!;
+  const C = BRACKET_COPY;
+
+  it("the titles: set in the level's own words, changed with 'to' between, cleared", () => {
+    expect(C.targetSet(levelLabel(mtg, 3))).toBe("Target set: Bracket 3 (Upgraded)");
+    expect(C.targetChanged(levelNumberLabel(mtg, 2), levelNumberLabel(mtg, 3))).toBe(
+      "Target changed from Bracket 2 to Bracket 3",
+    );
+    expect(C.targetCleared).toBe("Target cleared");
+    expect(C.changeStatus("Target cleared")).toBe("Target cleared. Your cards didn't change.");
+  });
+
+  it("the cards first, then the list against the target, pointing at the conflict callout by its heading", () => {
+    expect(C.cardsUnchanged).toBe("Your cards didn't change.");
+    expect(C.aboveNow(0, null)).toBe("Nothing in the list puts the deck above it.");
+    expect(C.aboveNow(0, 3)).toBe("Nothing in the list puts the deck above it (before, 3 did).");
+    expect(C.aboveNow(1, null)).toBe(
+      "1 thing in the list puts the deck above it. See Above your target below.",
+    );
+    expect(C.aboveNow(2, 0)).toBe(
+      "2 things in the list put the deck above it (before, none did). See Above your target below.",
+    );
+    expect(C.aboveNow(2, 1)).toContain(`See ${C.aboveTarget} below.`);
+    expect(C.aboveCleared(1)).toBe("Nothing is marked above a target now (before, 1 thing was).");
+  });
+
+  it("the rows' lead and the old value in parentheses (U9: no dash aside)", () => {
+    expect(C.allowsLead("Bracket 3")).toBe("What Bracket 3 allows:");
+    expect(C.differsLead("Bracket 3", "Bracket 2")).toBe("Where Bracket 3 differs from Bracket 2:");
+    expect(`Game Changers: Up to three ${C.was("None")}`).toBe(
+      "Game Changers: Up to three (was None)",
+    );
+  });
+
+  it("the tools by core's names, the verbs agreeing; none named, nothing said", () => {
+    expect([C.toolSuggestions, C.toolAutofill, C.toolSwap, C.toolCombos]).toEqual([
+      "Suggestions",
+      "Autofill",
+      "Alternatives",
+      "Combos tab",
+    ]);
+    expect(C.toolsFollow(["Suggestions", "Autofill", "Alternatives"], "Combos tab")).toBe(
+      "Suggestions, Autofill and Alternatives leave out cards above it, and the Combos tab marks combos above it.",
+    );
+    expect(C.toolsFollow(["Suggestions"], null)).toBe("Suggestions leaves out cards above it.");
+    expect(C.toolsStop(["Suggestions", "Autofill", "Alternatives"], "Combos tab")).toBe(
+      "Suggestions, Autofill and Alternatives stop leaving out cards for a target, and the Combos tab stops marking combos above one.",
+    );
+    expect(C.toolsStop([], "Combos tab")).toBe(
+      "The Combos tab stops marking combos above a target.",
+    );
+    expect(C.toolsFollow([], null)).toBe("");
+    expect(C.toolsStop([], null)).toBe("");
+  });
+
+  it("where it shows: targetShown's rule, link previews only when they draw it", () => {
+    expect(C.targetShowsAt("Bracket 3", true)).toBe(
+      "Bracket 3 shows on your share page, in link previews and where the deck is listed.",
+    );
+    expect(C.targetShowsAt("Bracket 3", false)).toBe(
+      "Bracket 3 shows on your share page and where the deck is listed.",
+    );
+    expect(C.targetShowsNone(true)).toBe(
+      "No target shows on your share page, in link previews or where the deck is listed.",
+    );
+    expect(C.targetShowsNone(false)).toBe(
+      "No target shows on your share page or where the deck is listed.",
+    );
+    expect([C.undo, C.dismiss]).toEqual(["Undo", "Dismiss"]);
+  });
+
+  it("no em or en dash, no middle dot, nothing that promises an old preview changes, no notation", () => {
+    const lines = targetChangeLines();
+    expect(lines.length).toBeGreaterThan(1000);
+    expect(lines.filter((w) => /[–—]|\d-\d/.test(w))).toEqual([]);
+    expect(lines.filter((w) => w.includes("·"))).toEqual([]);
+    expect(lines.filter((w) => /updat|refresh|already|will /i.test(w))).toEqual([]);
+    expect(lines.filter((w) => /\d\+|est\./i.test(w))).toEqual([]);
+    // Never a multi-dot line: one period ends a sentence, never "..".
+    expect(lines.filter((w) => /\.\./.test(w))).toEqual([]);
   });
 });
 

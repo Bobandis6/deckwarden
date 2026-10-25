@@ -76,10 +76,24 @@
  * BRACKETS-PAGE: when the adapter has a guide page (`links.guide`, Magic's
  * "How brackets work" → /brackets), What this read assumes links it on a
  * line of its own, inside the site (no new tab), for owner and visitors.
+ *
+ * TARGET-CHANGES (the owner's ask of 2026-10-24): a pick of Your target
+ * pops a callout in under the choice (U2's dw-in, motion-safe only) saying
+ * what the pick did: the title (set, changed, cleared), then always "Your
+ * cards didn't change.", the findings above the new target (the count of
+ * the read the sheet renders, beside the count at the pick when it moved),
+ * what the level allows (the adapter's guide rows, only those that differ),
+ * the tools that follow it (only those the adapter declares), and where it
+ * shows (`linkPreviews`). Undo puts the previous target back through
+ * `withTarget` on the goals as they are then, so answers and exceptions
+ * stay; Dismiss takes the callout away. Either one hands focus back to the
+ * choice; the callout never takes it, and only a short status (the title
+ * and the first line) is announced. It stays until dismissed, replaced by
+ * the next pick, or the sheet closes; the level already set picks nothing.
  */
 import { ArrowUpRightIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import Link from "next/link";
-import { useId, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { GoalsLine } from "@/components/deck/goals-line";
 import { Segmented } from "@/components/deck/segmented";
@@ -89,6 +103,12 @@ import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { BRACKET_COPY, dateLabel, levelLabel } from "@/lib/brackets/copy";
+import {
+  targetChange,
+  targetChangeWords,
+  targetTools,
+  type TargetTool,
+} from "@/lib/brackets/target-change";
 import {
   EXCEPTIONS_MAX,
   restampAnswers,
@@ -120,6 +140,10 @@ const ANSWER_OPTIONS: { value: BracketAnswer; label: string }[] = [
 const NO_TARGET = "none";
 
 const SECTION_HEADING = "text-muted-foreground text-xs font-medium tracking-wide uppercase";
+
+/** A text control after a gap in a line (U9; the goals line's Change). */
+const INLINE_ACTION =
+  "text-foreground ml-1 cursor-pointer font-medium underline underline-offset-4 hover:no-underline pointer-coarse:min-h-11 pointer-coarse:min-w-11";
 
 export function BracketSheet({
   adapter,
@@ -343,6 +367,7 @@ export function BracketSheet({
           onSwapCard={onSwapCard}
           canSwap={canSwap}
           linkPreviews={linkPreviews}
+          tools={targetTools(adapter)}
         />
       )}
 
@@ -431,10 +456,22 @@ export function BracketSheet({
   );
 }
 
+/** TARGET-CHANGES: one pick of Your target, as it happened. */
+interface TargetPick {
+  /** A fresh callout per pick: its key, so the pop-in plays again. */
+  id: number;
+  /** The target before the pick (null = Not set) — what Undo puts back. */
+  from: number | null;
+  to: number | null;
+  /** `read.conflicts.length` at the pick: the findings above the old target. */
+  aboveBefore: number;
+}
+
 /**
  * Your target (Y4b): the declared level, what's above it, and the table's
  * exceptions. The target never changes the read — the callout lists the
  * read's own `conflicts`, so a target below the cards can't hide them.
+ * TARGET-CHANGES: a pick says what it did, under the choice.
  */
 function TargetBlock({
   brackets,
@@ -446,6 +483,7 @@ function TargetBlock({
   onSwapCard,
   canSwap,
   linkPreviews,
+  tools,
 }: {
   brackets: BracketsMeta;
   read: BracketRead;
@@ -459,12 +497,23 @@ function TargetBlock({
   canSwap?: (cardId: string) => boolean;
   /** LATER row 306: the note names link previews (never for a private deck). */
   linkPreviews: boolean;
+  /** TARGET-CHANGES: the tools the adapter declares that follow the target (`targetTools`). */
+  tools: readonly TargetTool[];
 }) {
   const headingId = useId();
   const exceptionsId = useId();
+  const changeTitleId = useId();
   // The line as typed (spaces and all); goals keep it trimmed. The sheet
   // remounts on every open, so this starts from what was saved.
   const [exceptions, setExceptions] = useState(goals?.exceptions ?? "");
+  // TARGET-CHANGES: the last pick, until it is dismissed, undone or
+  // replaced; the sheet remounts on every open, so a closed sheet forgets it.
+  const [pick, setPick] = useState<TargetPick | null>(null);
+  const picks = useRef(0);
+  const choiceRef = useRef<HTMLDivElement>(null);
+  const calloutRef = useRef<HTMLDivElement>(null);
+  /** Undo or Dismiss took the callout (and its focused control) away: focus goes back to the choice. */
+  const refocus = useRef(false);
   const target = goals?.targetLevel ?? null;
   const options = [
     ...brackets.levels.map((l) => ({ value: String(l.level), label: String(l.level) })),
@@ -472,6 +521,56 @@ function TargetBlock({
   ];
   const above = new Set(read.conflicts);
   const conflicting = read.factors.filter((f) => above.has(f.id));
+
+  // What the pick did, against the read this render shows — and only while
+  // the target is still the one it set.
+  const change =
+    pick !== null && pick.to === target
+      ? targetChange({
+          brackets,
+          tools,
+          from: pick.from,
+          to: pick.to,
+          read,
+          aboveBefore: pick.aboveBefore,
+          linkPreviews,
+        })
+      : null;
+  const words = change ? targetChangeWords(change, brackets) : null;
+  const shownPick = change && pick ? pick.id : null;
+
+  const choose = (value: string) => {
+    const next = value === NO_TARGET ? null : Number(value);
+    // The level already set: nothing to change, nothing to say.
+    if (next === target) return;
+    picks.current += 1;
+    setPick({ id: picks.current, from: target, to: next, aboveBefore: read.conflicts.length });
+    onGoalsChange(withTarget(goals, next));
+  };
+  const undo = () => {
+    if (!pick) return;
+    refocus.current = true;
+    setPick(null);
+    // The goals as they are now: only the target moves back.
+    onGoalsChange(withTarget(goals, pick.from));
+  };
+  const dismiss = () => {
+    refocus.current = true;
+    setPick(null);
+  };
+
+  // A new callout scrolls itself into view when it popped in below the
+  // fold (a phone's Drawer); focus stays on the choice.
+  useEffect(() => {
+    if (shownPick !== null) calloutRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [shownPick]);
+  // After Undo or Dismiss, the choice's pressed segment (the restored
+  // level after an Undo) takes focus, so the keyboard isn't left on <body>.
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    choiceRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+  });
 
   return (
     <section
@@ -483,19 +582,85 @@ function TargetBlock({
       <h3 id={headingId} className={SECTION_HEADING}>
         {BRACKET_COPY.yourTarget}
       </h3>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <div ref={choiceRef} className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <Segmented
           ariaLabel={BRACKET_COPY.yourTarget}
           options={options}
           value={target === null ? NO_TARGET : String(target)}
-          onChange={(value) =>
-            onGoalsChange(withTarget(goals, value === NO_TARGET ? null : Number(value)))
-          }
+          onChange={choose}
         />
         {target !== null && (
           <span className="text-muted-foreground text-xs">{levelLabel(brackets, target)}</span>
         )}
+        {/* Always there, so a pick's summary is announced (politely, the
+            title and the first line only); empty without a callout. */}
+        <span role="status" data-slot="bracket-target-status" className="sr-only">
+          {words?.status ?? ""}
+        </span>
       </div>
+
+      {change && words && (
+        <div
+          key={shownPick}
+          ref={calloutRef}
+          role="group"
+          aria-labelledby={changeTitleId}
+          data-slot="bracket-target-change"
+          data-change={change.kind}
+          className="min-w-0 space-y-1.5 rounded-lg border px-2.5 py-2 break-words motion-safe:animate-dw-in [--dw-y:-0.25rem]"
+        >
+          <div className="flex items-start gap-1">
+            <p className="min-w-0 flex-1 text-sm font-medium">
+              <span id={changeTitleId}>{words.title}</span>{" "}
+              <button type="button" onClick={undo} className={INLINE_ACTION}>
+                {BRACKET_COPY.undo}
+              </button>
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={BRACKET_COPY.dismiss}
+              className="-my-0.5 -mr-1"
+              onClick={dismiss}
+            >
+              <XIcon />
+            </Button>
+          </div>
+          <p className="text-sm">{words.cards}</p>
+          {words.above && (
+            <p data-slot="bracket-target-change-above" className="text-xs">
+              {words.above}
+            </p>
+          )}
+          {words.rowsLead && (
+            <div data-slot="bracket-target-change-rows">
+              <p className="text-muted-foreground text-xs">{words.rowsLead}</p>
+              <dl className="mt-0.5 space-y-0.5 text-xs">
+                {words.rows.map((row) => (
+                  <div key={row.label} data-allowance={row.label}>
+                    <dt className="inline">{row.label}:</dt>{" "}
+                    <dd className="inline">
+                      {row.value}
+                      {row.was !== null && (
+                        <span className="text-muted-foreground"> {BRACKET_COPY.was(row.was)}</span>
+                      )}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+          {words.tools && (
+            <p data-slot="bracket-target-change-tools" className="text-xs">
+              {words.tools}
+            </p>
+          )}
+          <p data-slot="bracket-target-change-shown" className="text-muted-foreground text-xs">
+            {words.shown}
+          </p>
+        </div>
+      )}
 
       {target !== null && conflicting.length > 0 && (
         <div data-slot="bracket-conflicts" className="space-y-1.5 rounded-lg border px-2.5 py-2">

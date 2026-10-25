@@ -15,8 +15,34 @@
  * are the adapter's words (they name card kinds). DECK-PREVIEW-BRACKET adds
  * the Share dialog's line: what link previews say about the bracket. LATER
  * row 306 makes Your target's note say where else the target shows.
+ * TARGET-CHANGES adds the callout a pick of Your target pops in: what the
+ * pick did, first that the cards didn't change; the rows it quotes are the
+ * adapter's guide rows, and the tools it names are core's own.
  */
 import type { BracketsMeta } from "@/lib/games/types";
+
+/** The conflict callout's heading, which the target-change callout points at. */
+const ABOVE_TARGET = "Above your target";
+
+/**
+ * "1 thing", "3 things": the read's conflicts, counted in the words the
+ * conflict callout uses for them ("These put the deck above it").
+ */
+const things = (n: number) => `${n} ${n === 1 ? "thing" : "things"}`;
+
+/** "Suggestions", "Suggestions and Autofill", "Suggestions, Autofill and Swap Lab". */
+function andList(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/** Clauses joined by ", and ", capitalized, with a period; "" with none. */
+function sentence(clauses: readonly (string | null)[]): string {
+  const said = clauses.filter((c): c is string => c !== null);
+  if (said.length === 0) return "";
+  const text = said.join(", and ");
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+}
 
 export const BRACKET_COPY = {
   /** D5's loading line: text, no spinner. */
@@ -46,7 +72,7 @@ export const BRACKET_COPY = {
   yourTarget: "Your target",
   notSet: "Not set",
   /** The conflict callout: the findings above the declared target, each with its reason. */
-  aboveTarget: "Above your target",
+  aboveTarget: ABOVE_TARGET,
   /** "Your target is Bracket 2 (Core). These put the deck above it:" */
   aboveTargetLead: (level: string) => `Your target is ${level}. These put the deck above it:`,
   exceptions: "Table exceptions",
@@ -130,6 +156,89 @@ export const BRACKET_COPY = {
   previewShowsNone: (noun: string) => `Link previews show no ${noun}.`,
   /** The line's action without a target (with one, `changeGoals`): the Why sheet at Your target. */
   declare: (noun: string) => `Declare a ${noun}`,
+
+  // TARGET-CHANGES (the owner's ask of 2026-10-24) — the callout under Your
+  // target's choice: what one pick did, starting with what it didn't do.
+  /** A target where there was none: "Target set: Bracket 3 (Upgraded)". */
+  targetSet: (level: string) => `Target set: ${level}`,
+  /** "Target changed from Bracket 2 to Bracket 3", "to" between them (U9's range word). */
+  targetChanged: (from: string, to: string) => `Target changed from ${from} to ${to}`,
+  targetCleared: "Target cleared",
+  /** Always the callout's first line: a target never edits the list. */
+  cardsUnchanged: "Your cards didn't change.",
+  /** The polite status, kept short: the title and the first line, never the whole callout. */
+  changeStatus: (title: string) => `${title}. Your cards didn't change.`,
+  /**
+   * The list against the new target, from the read the sheet renders, and
+   * (`was`) the count at the old one when it moved: "Nothing in the list
+   * puts the deck above it (before, 3 did).", "2 things in the list put the
+   * deck above it. See Above your target below."
+   */
+  aboveNow: (n: number, was: number | null) => {
+    const before = was === null ? "" : ` (before, ${was === 0 ? "none" : was} did)`;
+    return n === 0
+      ? `Nothing in the list puts the deck above it${before}.`
+      : `${things(n)} in the list ${n === 1 ? "puts" : "put"} the deck above it${before}. See ${ABOVE_TARGET} below.`;
+  },
+  /** Cleared, when something was above the old target: "Nothing is marked above a target now (before, 3 things were)." */
+  aboveCleared: (was: number) =>
+    `Nothing is marked above a target now (before, ${was === 1 ? "1 thing was" : `${things(was)} were`}).`,
+  /** Before a newly set target's rows: "What Bracket 3 allows:". */
+  allowsLead: (level: string) => `What ${level} allows:`,
+  /** Before a changed target's rows, only the ones that differ: "Where Bracket 3 differs from Bracket 2:". */
+  differsLead: (to: string, from: string) => `Where ${to} differs from ${from}:`,
+  /** After a row's new value, the old level's, verbatim: "Game Changers: Up to three (was None)". */
+  was: (value: string) => `(was ${value})`,
+  /**
+   * The tools that follow a target, by the names the editor shows them
+   * under: the Suggestions tab, More's "Autofill…", the Card tab's
+   * Alternatives (Swap Lab, with its Swap… doors), the Combos tab (the
+   * Combo Radar).
+   */
+  toolSuggestions: "Suggestions",
+  toolAutofill: "Autofill",
+  toolSwap: "Alternatives",
+  toolCombos: "Combos tab",
+  /**
+   * What the tools the game declares do with the target: "Suggestions,
+   * Autofill and Alternatives leave out cards above it, and the Combos tab
+   * marks combos above it." `combos` is the Combos tab's name, or null.
+   */
+  toolsFollow: (cards: readonly string[], combos: string | null) =>
+    sentence([
+      cards.length > 0
+        ? `${andList(cards)} ${cards.length === 1 ? "leaves" : "leave"} out cards above it`
+        : null,
+      combos ? `the ${combos} marks combos above it` : null,
+    ]),
+  /** Cleared: "Suggestions, Autofill and Alternatives stop leaving out cards for a target, and the Combos tab stops marking combos above one." */
+  toolsStop: (cards: readonly string[], combos: string | null) =>
+    sentence([
+      cards.length > 0
+        ? `${andList(cards)} ${cards.length === 1 ? "stops" : "stop"} leaving out cards for a target`
+        : null,
+      combos
+        ? `the ${combos} stops marking combos above ${cards.length > 0 ? "one" : "a target"}`
+        : null,
+    ]),
+  /**
+   * Where a set or changed target shows, by `targetShown`'s rule (link
+   * previews only when they draw it, never for a private deck), in the
+   * present tense: an already-posted preview keeps its picture.
+   */
+  targetShowsAt: (level: string, previews: boolean) =>
+    previews
+      ? `${level} shows on your share page, in link previews and where the deck is listed.`
+      : `${level} shows on your share page and where the deck is listed.`,
+  /** Cleared, by the same rule: "No target shows on your share page or where the deck is listed." */
+  targetShowsNone: (previews: boolean) =>
+    previews
+      ? "No target shows on your share page, in link previews or where the deck is listed."
+      : "No target shows on your share page or where the deck is listed.",
+  /** Puts the previous target back; answers and exceptions stay as they are. */
+  undo: "Undo",
+  /** The callout's own close ("Close" is the sheet's). */
+  dismiss: "Dismiss",
 } as const;
 
 /**
@@ -168,6 +277,11 @@ export function nounLabel(brackets: Pick<BracketsMeta, "noun">): string {
  */
 export function declaredLabel(brackets: Pick<BracketsMeta, "noun">, level: number): string {
   return `${nounLabel(brackets)} ${level} (declared)`;
+}
+
+/** "Bracket 3": the adapter's noun, capitalized, and the level's number (TARGET-CHANGES' short form). */
+export function levelNumberLabel(brackets: Pick<BracketsMeta, "noun">, level: number): string {
+  return `${nounLabel(brackets)} ${level}`;
 }
 
 /** "Bracket 3 (Upgraded)" — the adapter's noun, capitalized, and the level's name. */

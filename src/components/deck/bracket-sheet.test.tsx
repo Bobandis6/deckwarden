@@ -8,8 +8,10 @@
  * guard over everything the sheet renders.
  */
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { BRACKET_COPY } from "@/lib/brackets/copy";
 import { COMMANDER } from "@/lib/games/mtg/formats";
 import {
   basicLands,
@@ -29,6 +31,7 @@ import type {
   BracketRead,
   BracketSpeedFacts,
   CompleteCombo,
+  GameAdapter,
 } from "@/lib/games/types";
 
 import { BracketSheet } from "./bracket-sheet";
@@ -151,6 +154,75 @@ function sheet(
 
 const dialog = () => screen.getByRole("dialog", { name: "Why this bracket?" });
 const block = (name: string) => within(dialog()).getByRole("region", { name });
+
+/**
+ * TARGET-CHANGES: the editor's loop around the sheet — the goals in state,
+ * the read re-assessed with them on every render (deck-editor's
+ * `bracketRead` memo takes them), so a pick's callout reads the read the
+ * sheet renders after it. `open` false unmounts the sheet, as closing it does.
+ */
+function Owner({
+  list,
+  initial = null,
+  combos = [],
+  adapter = mtg,
+  phone = false,
+  linkPreviews = true,
+  open = true,
+  onGoals,
+}: {
+  list: ReturnType<typeof spec>;
+  initial?: DeckGoals | null;
+  combos?: CompleteCombo[];
+  adapter?: GameAdapter;
+  phone?: boolean;
+  linkPreviews?: boolean;
+  open?: boolean;
+  onGoals?: (next: DeckGoals | null) => void;
+}) {
+  const [goals, setGoals] = useState(initial);
+  if (!open) return null;
+  const targetLevel = goals?.targetLevel ?? null;
+  const read = mtg.brackets!.assess({
+    deck: list.deck,
+    cards: list.cards,
+    combos,
+    freshness: FRESH,
+    targetLevel,
+    answers: goals?.answers ?? null,
+  });
+  return (
+    <BracketSheet
+      adapter={adapter}
+      read={read}
+      line={mtg.brackets!.line(read, {
+        deck: list.deck,
+        cards: list.cards,
+        progress: null,
+        targetLevel,
+      })}
+      combos={combos}
+      cards={list.cards}
+      phone={phone}
+      goals={goals}
+      onGoalsChange={(next) => {
+        onGoals?.(next);
+        setGoals(next);
+      }}
+      linkPreviews={linkPreviews}
+      onClose={() => {}}
+    />
+  );
+}
+
+/** Your target's block, wherever the sheet is (the Modal, or the Drawer on a phone). */
+const targetBlock = () => document.querySelector<HTMLElement>("[data-slot=bracket-target]")!;
+const choice = (label: string) =>
+  within(within(targetBlock()).getByRole("group", { name: "Your target" })).getByRole("button", {
+    name: label,
+  });
+const changeCallout = () =>
+  targetBlock().querySelector<HTMLElement>("[data-slot=bracket-target-change]");
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -616,6 +688,382 @@ describe("Y4b — the player's side of the sheet", () => {
   });
 });
 
+describe("TARGET-CHANGES — a pick of Your target says what it did", () => {
+  /** Land denial (4), a Game Changer and a combo with the commander (3), an extra turn (2). */
+  const four = () => spec([conscripts, rhystic, armageddon, timeWarp]);
+  const frame = () =>
+    act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    });
+  const part = (name: string) =>
+    changeCallout()?.querySelector<HTMLElement>(`[data-slot=bracket-target-change-${name}]`)
+      ?.textContent ?? null;
+  const rowsLead = () =>
+    changeCallout()!.querySelector("[data-slot=bracket-target-change-rows] > p")!.textContent;
+  const rows = () =>
+    [...changeCallout()!.querySelectorAll("[data-allowance]")].map((r) => r.textContent);
+  const status = () => within(targetBlock()).getByRole("status");
+  /** The conflict callout's rows: the read the sheet renders. */
+  const conflictRows = () => targetBlock().querySelectorAll("[data-conflict]").length;
+  const pressedChoice = () =>
+    within(within(targetBlock()).getByRole("group", { name: "Your target" }))
+      .getAllByRole("button")
+      .filter((b) => b.getAttribute("aria-pressed") === "true")
+      .map((b) => b.textContent);
+  const ALL_TOOLS =
+    "Suggestions, Autofill and Alternatives leave out cards above it, and the Combos tab marks combos above it.";
+
+  it("set (Not set to 3): it pops in under the choice: the title with Undo, then Your cards didn't change, the list against it, every row, the tools, where it shows", () => {
+    render(<Owner list={four()} combos={[kikiCombo]} />);
+    expect(changeCallout()).toBeNull();
+    fireEvent.click(choice("3"));
+
+    const box = changeCallout()!;
+    expect(box.dataset.change).toBe("set");
+    expect(
+      within(targetBlock()).getByRole("group", { name: "Target set: Bracket 3 (Upgraded)" }),
+    ).toBe(box);
+    expect([...box.children].map((c) => c.textContent)).toEqual([
+      "Target set: Bracket 3 (Upgraded) Undo",
+      // Always, and first.
+      "Your cards didn't change.",
+      "1 thing in the list puts the deck above it. See Above your target below.",
+      expect.stringMatching(/^What Bracket 3 allows:/),
+      ALL_TOOLS,
+      "Bracket 3 shows on your share page, in link previews and where the deck is listed.",
+    ]);
+    expect(rowsLead()).toBe("What Bracket 3 allows:");
+    expect(rows()).toEqual([
+      "Game Changers: Up to three",
+      "Mass land denial: None",
+      "Extra turns: A few, never chained or looped",
+      "Two-card combos: None before turn 6",
+      "Games last: At least 6 turns",
+    ]);
+    // The rows are the adapter's guide rows, verbatim.
+    expect(rows()).toEqual(
+      mtg.brackets!.guide!.levels[2].rows.map((r) => `${r.label}: ${r.value}`),
+    );
+    // The count is the conflict callout's, which sits below it.
+    expect(conflictRows()).toBe(1);
+    const conflicts = targetBlock().querySelector("[data-slot=bracket-conflicts]")!;
+    expect(box.compareDocumentPosition(conflicts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const group = within(targetBlock()).getByRole("group", { name: "Your target" });
+    expect(group.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // U2's pop-in, for readers who haven't asked for reduced motion only.
+    expect(box.className).toContain("motion-safe:animate-dw-in");
+    expect(box.className).not.toMatch(/(^|\s)animate-/);
+  });
+
+  it("changed 2 to 4, then 4 to 2: the count against the new target beside the old one, only the rows that differ", () => {
+    render(<Owner list={four()} combos={[kikiCombo]} initial={{ v: 1, targetLevel: 2 }} />);
+    expect(conflictRows()).toBe(3);
+    fireEvent.click(choice("4"));
+    expect(changeCallout()!.dataset.change).toBe("changed");
+    expect(changeCallout()!.firstElementChild!.textContent).toBe(
+      "Target changed from Bracket 2 to Bracket 4 Undo",
+    );
+    expect(changeCallout()!.children[1].textContent).toBe("Your cards didn't change.");
+    expect(part("above")).toBe("Nothing in the list puts the deck above it (before, 3 did).");
+    expect(conflictRows()).toBe(0);
+    expect(rowsLead()).toBe("Where Bracket 4 differs from Bracket 2:");
+    expect(rows()).toEqual([
+      "Game Changers: No limit (was None)",
+      "Mass land denial: Allowed (was None)",
+      "Extra turns: No limit (was A few, never chained or looped)",
+      "Two-card combos: No limit (was None)",
+      "Games last: At least 4 turns (was At least 8 turns)",
+    ]);
+    expect(part("tools")).toBe(ALL_TOOLS);
+    expect(part("shown")).toBe(
+      "Bracket 4 shows on your share page, in link previews and where the deck is listed.",
+    );
+
+    fireEvent.click(choice("2"));
+    expect(changeCallout()!.firstElementChild!.textContent).toBe(
+      "Target changed from Bracket 4 to Bracket 2 Undo",
+    );
+    expect(part("above")).toBe(
+      "3 things in the list put the deck above it (before, none did). See Above your target below.",
+    );
+    expect(conflictRows()).toBe(3);
+    expect(rowsLead()).toBe("Where Bracket 2 differs from Bracket 4:");
+    expect(rows()).toEqual([
+      "Game Changers: None (was No limit)",
+      "Mass land denial: None (was Allowed)",
+      "Extra turns: A few, never chained or looped (was No limit)",
+      "Two-card combos: None (was No limit)",
+      "Games last: At least 8 turns (was At least 4 turns)",
+    ]);
+    // Replaced, never stacked.
+    expect(targetBlock().querySelectorAll("[data-slot=bracket-target-change]")).toHaveLength(1);
+  });
+
+  it("cleared: what it marked before, no rows, the tools stop, no target shows", () => {
+    render(<Owner list={four()} combos={[kikiCombo]} initial={{ v: 1, targetLevel: 2 }} />);
+    fireEvent.click(choice("Not set"));
+    const box = changeCallout()!;
+    expect(box.dataset.change).toBe("cleared");
+    expect([...box.children].map((c) => c.textContent)).toEqual([
+      "Target cleared Undo",
+      "Your cards didn't change.",
+      "Nothing is marked above a target now (before, 3 things were).",
+      "Suggestions, Autofill and Alternatives stop leaving out cards for a target, and the Combos tab stops marking combos above one.",
+      "No target shows on your share page, in link previews or where the deck is listed.",
+    ]);
+    expect(box.querySelector("[data-allowance]")).toBeNull();
+    expect(targetBlock().querySelector("[data-slot=bracket-conflicts]")).toBeNull();
+  });
+
+  it("truth: the count is the read the sheet renders, on lists proving Bracket 1 to 4, at every level and Not set, against the real assess", () => {
+    const lists = [
+      { list: spec([]), combos: [] },
+      { list: spec([timeWarp]), combos: [] },
+      { list: spec([rhystic]), combos: [] },
+      { list: four(), combos: [kikiCombo] },
+    ];
+    // Set, every level up, a drop, cleared, set at the top, and back down.
+    const walk = [1, 2, 3, 4, 5, 1, null, 5, 3, null, 2, 4, 1];
+    const minimums: number[] = [];
+    for (const { list, combos } of lists) {
+      const readAt = (targetLevel: number | null) =>
+        mtg.brackets!.assess({
+          deck: list.deck,
+          cards: list.cards,
+          combos,
+          freshness: FRESH,
+          targetLevel,
+        });
+      minimums.push(readAt(null).minimum);
+      render(<Owner list={list} combos={combos} />);
+      let from: number | null = null;
+      for (const to of walk) {
+        fireEvent.click(choice(to === null ? "Not set" : String(to)));
+        const now = readAt(to).conflicts.length;
+        const before = readAt(from).conflicts.length;
+        // The sheet's own conflict rows are the read's, and the callout's count is theirs.
+        expect(conflictRows()).toBe(now);
+        const said = /^(\d+) things? in the list puts? the deck above it/.exec(part("above") ?? "");
+        expect(said ? Number(said[1]) : 0).toBe(conflictRows());
+        expect(part("above")).toBe(
+          to === null
+            ? before > 0
+              ? BRACKET_COPY.aboveCleared(before)
+              : null
+            : BRACKET_COPY.aboveNow(now, from !== null && before !== now ? before : null),
+        );
+        from = to;
+      }
+      cleanup();
+    }
+    expect(minimums).toEqual([1, 2, 3, 4]);
+  });
+
+  it("Undo puts the previous target back on the goals as they are then: answers and exceptions stay; focus returns to the choice", async () => {
+    const onGoals = vi.fn();
+    const answers = { rulesetVersion: 1, play: { quality: "yes" as const } };
+    render(
+      <Owner
+        list={four()}
+        combos={[kikiCombo]}
+        initial={{ v: 1, targetLevel: 2, exceptions: "Ask me", answers }}
+        onGoals={onGoals}
+      />,
+    );
+    fireEvent.click(choice("4"));
+    expect(onGoals).toHaveBeenLastCalledWith({
+      v: 1,
+      targetLevel: 4,
+      exceptions: "Ask me",
+      answers,
+    });
+    // An edit after the pick is kept by the Undo.
+    fireEvent.change(within(targetBlock()).getByRole("textbox", { name: "Table exceptions" }), {
+      target: { value: "Ask me first" },
+    });
+    expect(changeCallout()).toBeTruthy();
+    const undo = within(changeCallout()!).getByRole("button", { name: "Undo" });
+    expect(undo.className).toContain("ml-1");
+    expect(undo.className).toContain("underline underline-offset-4");
+    undo.focus();
+    fireEvent.click(undo);
+    expect(onGoals).toHaveBeenLastCalledWith({
+      v: 1,
+      targetLevel: 2,
+      exceptions: "Ask me first",
+      answers,
+    });
+    expect(onGoals).toHaveBeenCalledTimes(3);
+    expect(changeCallout()).toBeNull();
+    expect(pressedChoice()).toEqual(["2"]);
+    expect(conflictRows()).toBe(3);
+    expect(document.activeElement).toBe(choice("2"));
+    expect(status().textContent).toBe("");
+  });
+
+  it("Undo of a first target clears it again (the goals had nothing else)", () => {
+    const onGoals = vi.fn();
+    render(<Owner list={four()} combos={[kikiCombo]} onGoals={onGoals} />);
+    fireEvent.click(choice("3"));
+    expect(onGoals).toHaveBeenLastCalledWith({ v: 1, targetLevel: 3 });
+    fireEvent.click(within(changeCallout()!).getByRole("button", { name: "Undo" }));
+    expect(onGoals).toHaveBeenLastCalledWith(null);
+    expect(pressedChoice()).toEqual(["Not set"]);
+    expect(changeCallout()).toBeNull();
+  });
+
+  it("the level already set does nothing: no goals change, no callout, nothing announced", () => {
+    const onGoals = vi.fn();
+    render(
+      <Owner
+        list={four()}
+        combos={[kikiCombo]}
+        initial={{ v: 1, targetLevel: 3 }}
+        onGoals={onGoals}
+      />,
+    );
+    fireEvent.click(choice("3"));
+    expect(onGoals).not.toHaveBeenCalled();
+    expect(changeCallout()).toBeNull();
+    expect(status().textContent).toBe("");
+    // After a pick, the new level pressed again leaves its callout as it was.
+    fireEvent.click(choice("5"));
+    const box = changeCallout()!;
+    fireEvent.click(choice("5"));
+    expect(onGoals).toHaveBeenCalledTimes(1);
+    expect(changeCallout()).toBe(box);
+    expect(box.firstElementChild!.textContent).toBe(
+      "Target changed from Bracket 3 to Bracket 5 Undo",
+    );
+  });
+
+  it("a short polite status says it; the callout itself is no live region and never takes focus from the choice", async () => {
+    render(<Owner list={four()} combos={[kikiCombo]} />);
+    // The dialog's own first focus lands before the test moves it.
+    await frame();
+    await frame();
+    // Always there, so the pick's summary is announced.
+    expect(status().textContent).toBe("");
+    const three = choice("3");
+    three.focus();
+    fireEvent.click(three);
+    await frame();
+    expect(status().textContent).toBe(
+      "Target set: Bracket 3 (Upgraded). Your cards didn't change.",
+    );
+    expect(status().getAttribute("role")).toBe("status");
+    const box = changeCallout()!;
+    expect(box.contains(status())).toBe(false);
+    expect(box.querySelector("[role=status], [role=alert], [aria-live]")).toBeNull();
+    expect(box.getAttribute("aria-live")).toBeNull();
+    expect(document.activeElement).toBe(choice("3"));
+    expect(box.contains(document.activeElement)).toBe(false);
+  });
+
+  it("Dismiss takes it away and hands focus back to the choice; the target stays", () => {
+    const onGoals = vi.fn();
+    render(<Owner list={four()} combos={[kikiCombo]} onGoals={onGoals} />);
+    fireEvent.click(choice("3"));
+    const dismiss = within(changeCallout()!).getByRole("button", { name: "Dismiss" });
+    dismiss.focus();
+    fireEvent.click(dismiss);
+    expect(changeCallout()).toBeNull();
+    expect(status().textContent).toBe("");
+    expect(pressedChoice()).toEqual(["3"]);
+    expect(document.activeElement).toBe(choice("3"));
+    expect(onGoals).toHaveBeenCalledTimes(1);
+    // The sheet's own Close is still the only "Close".
+    expect(within(dialog()).getAllByRole("button", { name: "Close" })).toHaveLength(1);
+  });
+
+  it("the next pick replaces it (a fresh pop-in); closing the sheet forgets it", () => {
+    const list = four();
+    const { rerender } = render(<Owner list={list} combos={[kikiCombo]} />);
+    fireEvent.click(choice("3"));
+    const first = changeCallout()!;
+    fireEvent.click(choice("4"));
+    fireEvent.click(choice("5"));
+    expect(changeCallout()).not.toBe(first);
+    expect(changeCallout()!.firstElementChild!.textContent).toBe(
+      "Target changed from Bracket 4 to Bracket 5 Undo",
+    );
+    // Only the row that differs between the two.
+    expect(rows()).toEqual(["Games last: Any number of turns (was At least 4 turns)"]);
+    expect(targetBlock().querySelectorAll("[data-slot=bracket-target-change]")).toHaveLength(1);
+
+    rerender(<Owner list={list} combos={[kikiCombo]} open={false} />);
+    rerender(<Owner list={list} combos={[kikiCombo]} />);
+    expect(changeCallout()).toBeNull();
+    expect(pressedChoice()).toEqual(["5"]);
+  });
+
+  it("it only ever tells a change that happened: a pick the goals never took says nothing", () => {
+    // The plain harness hands the sheet fixed goals: the pick reaches the
+    // editor's handler, but the target the sheet renders stays Not set.
+    const onGoalsChange = vi.fn();
+    sheet(spec([rhystic]), { combos: [], goals: null, onGoalsChange });
+    fireEvent.click(choice("3"));
+    expect(onGoalsChange).toHaveBeenLastCalledWith({ v: 1, targetLevel: 3 });
+    expect(changeCallout()).toBeNull();
+    expect(within(targetBlock()).getByRole("status").textContent).toBe("");
+  });
+
+  it("a private deck: where it shows never names link previews", () => {
+    render(<Owner list={four()} combos={[kikiCombo]} linkPreviews={false} />);
+    fireEvent.click(choice("3"));
+    expect(part("shown")).toBe("Bracket 3 shows on your share page and where the deck is listed.");
+    expect(changeCallout()!.textContent).not.toContain("link previews");
+    fireEvent.click(choice("Not set"));
+    expect(part("shown")).toBe("No target shows on your share page or where the deck is listed.");
+    expect(changeCallout()!.textContent).not.toContain("link previews");
+  });
+
+  it("the tools named are only the ones the adapter declares", () => {
+    const cases: [GameAdapter, string | null][] = [
+      [
+        {
+          ...mtg,
+          recommend: { ...mtg.recommend!, autofill: undefined, swap: undefined },
+          capabilities: { ...mtg.capabilities, combos: undefined },
+        },
+        "Suggestions leaves out cards above it.",
+      ],
+      [
+        { ...mtg, recommend: { ...mtg.recommend!, autofill: undefined } },
+        "Suggestions and Alternatives leave out cards above it, and the Combos tab marks combos above it.",
+      ],
+      [{ ...mtg, recommend: undefined }, "The Combos tab marks combos above it."],
+      [
+        { ...mtg, recommend: undefined, capabilities: { ...mtg.capabilities, combos: undefined } },
+        null,
+      ],
+    ];
+    for (const [adapter, said] of cases) {
+      render(<Owner list={four()} combos={[kikiCombo]} adapter={adapter} />);
+      fireEvent.click(choice("3"));
+      expect(part("tools")).toBe(said);
+      expect(changeCallout()!.children[1].textContent).toBe("Your cards didn't change.");
+      cleanup();
+    }
+  });
+
+  it("on a phone: the same callout inside the Drawer", () => {
+    render(<Owner list={four()} combos={[kikiCombo]} phone />);
+    const popup = document.querySelector<HTMLElement>("[data-slot=drawer-popup]")!;
+    fireEvent.click(choice("3"));
+    expect(popup.contains(changeCallout())).toBe(true);
+    expect(changeCallout()!.children[1].textContent).toBe("Your cards didn't change.");
+    // Wraps rather than scrolls sideways at 320 px: no text in it is kept on one line
+    // (the Dismiss icon is the one nowrap element).
+    expect(changeCallout()!.className).toContain("break-words");
+    expect(
+      [...changeCallout()!.querySelectorAll(".whitespace-nowrap, .truncate")].map((el) =>
+        el.getAttribute("aria-label"),
+      ),
+    ).toEqual(["Dismiss"]);
+  });
+});
+
 describe("BRACKET-SPEED — How fast it looks, and the owner's nudge", () => {
   const rock = (i: number) =>
     named(`Mox ${i}`, { roles: ["mana-rock"], type_line: "Artifact" }, { costValue: 1 });
@@ -847,6 +1295,20 @@ describe("copy guard (WAVE4 D0) — everything the sheet renders", () => {
         expect(document.querySelector("[data-slot=bracket-conflicts]")).toBeTruthy();
         expect(document.querySelector("[data-slot=bracket-stale]")).toBeTruthy();
         expect(screen.getByRole("group", { name: "Tuned for the cEDH metagame?" })).toBeTruthy();
+      },
+    ],
+    [
+      "TARGET-CHANGES: a changed target's callout, with its rows and tools",
+      () => {
+        render(
+          <Owner
+            list={spec([conscripts, rhystic, armageddon, timeWarp])}
+            combos={[kikiCombo]}
+            initial={{ v: 1, targetLevel: 2 }}
+          />,
+        );
+        fireEvent.click(choice("4"));
+        expect(changeCallout()?.querySelector("[data-allowance]")).toBeTruthy();
       },
     ],
   ])("%s: no 'approve', no Spellbook tag name", (_label, open) => {
