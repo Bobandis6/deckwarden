@@ -10,7 +10,8 @@
 - **On dev, in the pane:** Everyone's Invited! at target 2 (7 conflicts) planned 4 swaps for $8.23 and named Arcane Adaptation (no roles) and The World Tree (a land) under "What swaps can't fix", the after-check quoting that combo; Swap made one PUT and the ownership line went from "missing ≈ $67" to "missing ≈ $8". Peer Through Time fit with one swap (Cyclonic Rift for Ugin's Binding, $0.78), "nothing in the list puts the deck above Bracket 2", and Undo restored the list. At 320 px nothing in the Drawer overflowed; the door, every option row and Swap measured 44 px under touch.
 - **In the iOS Simulator** (iPhone 15, Mobile Safari, the dev server): Timey-Wimey, target 2, the door opened the Drawer sheet (Farewell for Austere Command, $0.33, "nothing in the list puts the deck above Bracket 2"), Swap 1 card, and the line read "Your target: Bracket 2 · the cards say at least 2" with "Swapped 1 card · Undo".
 - **Production, read from outside:** the editor's chunks carry "Swap to fit", "After these swaps" and "things still put"; `/precons` and `/brackets` still answer `x-nextjs-prerender: 1` (PRERENDER).
-- **Left for the owner:** set a target below one of your own decks on deckwarden.gg and press Swap to fit; and one call, LATER row 338: when a fix can't be fully met, the sheet still swaps what it can and names the rest (say if you'd rather it swap nothing then). The QA minted guest decks on the dev branch only.
+- **Left for the owner:** set a target below one of your own decks on deckwarden.gg and press Swap to fit. The QA minted guest decks on the dev branch only.
+- **The owner's call (2026-10-24, after the ship):** when a target can't be fully reached, the sheet keeps swapping what it can and naming the rest, rather than swapping nothing (LATER row 338).
 
 ## The ask, deepened
 
