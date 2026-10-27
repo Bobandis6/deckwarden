@@ -33,6 +33,8 @@ import type { BracketsMeta } from "@/lib/games/types";
 const ABOVE_TARGET = "Above your target";
 /** The optional block of the player's answers, which the upgrade's after-line points at. */
 const HOW_IT_PLAYS = "How it plays";
+/** The open questions' block, which Below your target points at. */
+const YOUR_CALL = "Your call";
 
 /**
  * "1 thing", "3 things": the read's conflicts, counted in the words the
@@ -66,7 +68,7 @@ export const BRACKET_COPY = {
   readAssumes: "What this read assumes",
   draftNote: "The list isn't finished. This is what the cards show so far.",
   nothingFound: (noun: string) => `Nothing in this list raises the ${noun}.`,
-  yourCall: "Your call",
+  yourCall: YOUR_CALL,
   yourCallLead: "The list can't answer these. You and your table can.",
   /** A question's "yes", in the level's own words: "If yes, it's at least Bracket 4 (Optimized)." */
   ifYes: (level: string) => `If yes, it's at least ${level}.`,
@@ -320,7 +322,12 @@ export const BRACKET_COPY = {
     if (unpriced >= toBuy) {
       return `No price is known for the ${toBuy === 1 ? "card" : `${toBuy} cards`} coming in${owned > 0 ? " that you don't own" : ""}.`;
     }
-    const head = `The cards coming in cost $${usd.toFixed(2)}${owned > 0 ? `, not counting the ${owned} you own` : ""}.`;
+    // Upgrades run past $1,000 (BRACKET-UP): grouped the way the ownership line groups them.
+    const price = usd.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const head = `The cards coming in cost $${price}${owned > 0 ? `, not counting the ${owned} you own` : ""}.`;
     return unpriced > 0
       ? `${head} ${unpriced} more ${unpriced === 1 ? "has" : "have"} no price yet.`
       : head;
@@ -342,6 +349,11 @@ export const BRACKET_COPY = {
   upCardsShow: (level: string) => `The cards show at least ${level}.`,
   /** Answers raised it: "The cards and your answers say Bracket 3 (Upgraded)." */
   upAnswersSay: (level: string) => `The cards and your answers say ${level}.`,
+  /** An open call could raise the read: after where the cards stand. */
+  upCallCanRaise: `An answer under ${YOUR_CALL} can raise it.`,
+  /** Nothing flagged but an open call (possible land denial): where the cards stand, in one sentence. */
+  upNothingUnlessCall: (noun: string) =>
+    `Nothing in this list raises the ${noun} unless an answer under ${YOUR_CALL} does.`,
   /** The box's door: "Upgrade toward Bracket 4…". */
   upDoor: (level: string) => `Upgrade toward ${level}…`,
   /** The sheet's title: "Upgrade toward Bracket 4". */

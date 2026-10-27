@@ -26,9 +26,9 @@
  *   more): at integration the dev precon Breed Lethality paired Carrion
  *   Feeder with Sol Ring, its 1-drop slot holding nothing weaker once
  *   Viscera Seer took Hardened Scales, and "the weakest card it replaces"
- *   never means a staple. Never the commander (only the swap's zone holds partners), never a card
- *   the curve leaves out (a land), never a card coming in, never a card
- *   another row takes.
+ *   never means a staple. Never the commander (only the swap's zone holds
+ *   partners), never a card the curve leaves out (a land), never a card
+ *   coming in, never a card another row takes.
  * - **Unpaired**: a card outside the curve (a land, no cost; the adapter's
  *   `swap.unmatched` says why, as in Swap in), or no ordinary cut left at
  *   all. It starts unchecked; choosing a card to cut pairs and checks it.

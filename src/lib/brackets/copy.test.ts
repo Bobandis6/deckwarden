@@ -88,6 +88,7 @@ const BUILDERS = [
   "belowTargetLead",
   "upCardsShow",
   "upAnswersSay",
+  "upNothingUnlessCall",
   "upDoor",
   "upTitle",
   "upDropped",
@@ -125,6 +126,7 @@ function upLines(): string[] {
     lines.push(C.upAfterAboveCount(1, short), C.upAfterAboveCount(2, short));
   }
   lines.push(C.upAfterNothing(brackets.noun), C.nothingFound(brackets.noun));
+  lines.push(C.upNothingUnlessCall(brackets.noun), C.upCallCanRaise);
   for (const n of [1, 2, 9]) lines.push(C.upDropped(n));
   for (const name of ["Arcane Signet", "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki"]) {
     lines.push(C.upSwapIn(name), C.upCutFor(name), C.upOutFor("Mind Stone", name));
@@ -180,6 +182,7 @@ function fitLines(): string[] {
     [14.2, 1, 0, 3],
     [14.2, 0, 1, 3],
     [14.2, 1, 2, 4],
+    [1853.32, 0, 0, 24],
     [0, 3, 0, 3],
     [0, 0, 1, 1],
     [0, 0, 2, 2],
@@ -665,6 +668,7 @@ describe("BRACKET-FIT's words — the door, the sheet, the after-line", () => {
       "Didn't look at 2 more cards. Swap these first, then open this again for more.",
     );
     expect(C.fitCost(14.2, 0, 0, 3)).toBe("The cards coming in cost $14.20.");
+    expect(C.fitCost(1853.32, 0, 0, 24)).toBe("The cards coming in cost $1,853.32.");
     expect(C.fitCost(14.2, 1, 1, 4)).toBe(
       "The cards coming in cost $14.20, not counting the 1 you own. 1 more has no price yet.",
     );

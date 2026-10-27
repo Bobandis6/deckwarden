@@ -790,6 +790,7 @@ describe("BRACKET-UP — Below your target's door", () => {
   const below = () => document.querySelector<HTMLElement>("[data-slot=bracket-below]");
   const door = () => document.querySelector<HTMLElement>("[data-slot=bracket-up-door]");
   const quality = { rulesetVersion: 1, play: { quality: "yes" as const } };
+  const lili = `land-denial:${liliana.externalKey}`;
 
   it("the target above what the cards show: the box, where the cards stand, and the door that hands the click to the editor", () => {
     const onUpgradeTarget = vi.fn();
@@ -834,6 +835,51 @@ describe("BRACKET-UP — Below your target's door", () => {
       "Your target is Bracket 3 (Upgraded). Nothing in this list raises the bracket.",
     );
     expect(door()?.textContent).toBe("Upgrade toward Bracket 3…");
+  });
+
+  it("an open call is no floor: the door still shows, and the box says an answer can raise the read", () => {
+    const owner = { onGoalsChange: vi.fn(), onUpgradeTarget: vi.fn() };
+    // A Game Changer (3) and Liliana's land-denial call (4 on a yes): the line reads "3 or 4".
+    sheet(spec([liliana, rhystic]), { combos: [], goals: { v: 1, targetLevel: 4 }, ...owner });
+    expect(below()!.querySelector("p")?.textContent).toBe(
+      "Your target is Bracket 4 (Optimized). The cards show at least Bracket 3 (Upgraded). An answer under Your call can raise it.",
+    );
+    expect(door()?.textContent).toBe("Upgrade toward Bracket 4…");
+    cleanup();
+    // The call alone: nothing else in the list raises the read.
+    sheet(spec([liliana]), { combos: [], goals: { v: 1, targetLevel: 4 }, ...owner });
+    expect(below()!.querySelector("p")?.textContent).toBe(
+      "Your target is Bracket 4 (Optimized). Nothing in this list raises the bracket unless an answer under Your call does.",
+    );
+    expect(door()?.textContent).toBe("Upgrade toward Bracket 4…");
+    cleanup();
+    // Its "1 to 2" floor still meets a target of 2.
+    sheet(spec([liliana]), { combos: [], goals: { v: 1, targetLevel: 2 }, ...owner });
+    expect(below()).toBeNull();
+  });
+
+  it("an answered call: where the cards and the answers stand, and no call sentence", () => {
+    sheet(spec([liliana, rhystic]), {
+      combos: [],
+      goals: { v: 1, targetLevel: 4, answers: { rulesetVersion: 1, calls: { [lili]: "no" } } },
+      onGoalsChange: vi.fn(),
+      onUpgradeTarget: vi.fn(),
+    });
+    expect(below()!.querySelector("p")?.textContent).toBe(
+      "Your target is Bracket 4 (Optimized). The cards and your answers say Bracket 3 (Upgraded).",
+    );
+    expect(door()?.textContent).toBe("Upgrade toward Bracket 4…");
+  });
+
+  it("a list under the format's size: its line says what it needs first, so no box", () => {
+    sheet(spec([], 60), {
+      combos: [],
+      goals: { v: 1, targetLevel: 3 },
+      onGoalsChange: vi.fn(),
+      onUpgradeTarget: vi.fn(),
+    });
+    expect(below()).toBeNull();
+    expect(door()).toBeNull();
   });
 
   it("answers that raised the read: what the cards and the answers say; at the target, no box", () => {

@@ -100,13 +100,13 @@
  * closes, and focus comes back to "Why?". The per-card Swap… buttons stay.
  *
  * BRACKET-UP (the owner's ask of 2026-10-27): when the target is above what
- * the cards show (above the floor `read.suggested ?? read.minimum`, and not
- * a level the read's own line already names: a list read "1 to 2" meets a
- * target of 2, target-bands.ts; nothing is then above it), Your target
- * gains a "Below your target" box in the conflict
- * callout's place: the target in the level's own words, where the cards
- * stand (the floor, or what the cards and the answers say, or that nothing
- * raises the read), and one button, "Upgrade toward Bracket 4…", only when
+ * the cards show (above the band the floor `read.suggested ?? read.minimum`
+ * is in: a list read "1 to 2" meets a target of 2, target-bands.ts; nothing
+ * is then above it), Your target gains a "Below your target" box in the
+ * conflict callout's place: the target in the level's own words, where the
+ * cards stand (the floor, or what the cards and the answers say, or that
+ * nothing raises the read), that an answer under Your call can raise it
+ * when a call is open, and one button, "Upgrade toward Bracket 4…", only when
  * the editor hands the sheet `onUpgradeTarget` (the adapter declares Swap
  * in's swap and cuts; One Piece declares neither). It opens the editor's
  * "Upgrade toward" sheet as Swap to fit does: this sheet closes, and focus
@@ -131,7 +131,7 @@ import {
   targetTools,
   type TargetTool,
 } from "@/lib/brackets/target-change";
-import { targetInBands } from "@/lib/brackets/target-bands";
+import { belowTargetBand, callCanRaise } from "@/lib/brackets/target-bands";
 import {
   EXCEPTIONS_MAX,
   restampAnswers,
@@ -558,22 +558,26 @@ function TargetBlock({
   ];
   const above = new Set(read.conflicts);
   const conflicting = read.factors.filter((f) => above.has(f.id));
-  // BRACKET-UP: Below your target when the target is above the read's floor
-  // and the read's own line doesn't already name it (a list nothing flags
-  // reads "1 to 2", so a target of 2 is met: target-bands.ts).
-  const floor = read.suggested ?? read.minimum;
+  // BRACKET-UP: Below your target when the target is above the band the
+  // read's floor is in (a list nothing flags reads "1 to 2", so a target of
+  // 2 is met; an open call is no floor: target-bands.ts).
   const below =
     onUpgradeTarget !== undefined &&
     target !== null &&
     conflicting.length === 0 &&
-    target > floor &&
-    !targetInBands(brackets, read, target);
+    belowTargetBand(brackets, read, target);
+  const open = callCanRaise(brackets, read);
   const standing =
-    read.suggested !== null
-      ? BRACKET_COPY.upAnswersSay(levelLabel(brackets, read.suggested))
-      : read.minimum <= (brackets.levels[0]?.level ?? 1)
-        ? BRACKET_COPY.nothingFound(brackets.noun)
-        : BRACKET_COPY.upCardsShow(levelLabel(brackets, read.minimum));
+    read.suggested === null && read.minimum <= (brackets.levels[0]?.level ?? 1)
+      ? open
+        ? BRACKET_COPY.upNothingUnlessCall(brackets.noun)
+        : BRACKET_COPY.nothingFound(brackets.noun)
+      : [
+          read.suggested !== null
+            ? BRACKET_COPY.upAnswersSay(levelLabel(brackets, read.suggested))
+            : BRACKET_COPY.upCardsShow(levelLabel(brackets, read.minimum)),
+          ...(open ? [BRACKET_COPY.upCallCanRaise] : []),
+        ].join(" ");
 
   // What the pick did, against the read this render shows — and only while
   // the target is still the one it set.
