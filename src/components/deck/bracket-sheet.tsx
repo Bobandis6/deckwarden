@@ -100,8 +100,10 @@
  * closes, and focus comes back to "Why?". The per-card Swap… buttons stay.
  *
  * BRACKET-UP (the owner's ask of 2026-10-27): when the target is above what
- * the cards show (`read.suggested ?? read.minimum`; nothing is then above
- * it), Your target gains a "Below your target" box in the conflict
+ * the cards show (above the floor `read.suggested ?? read.minimum`, and not
+ * a level the read's own line already names: a list read "1 to 2" meets a
+ * target of 2, target-bands.ts; nothing is then above it), Your target
+ * gains a "Below your target" box in the conflict
  * callout's place: the target in the level's own words, where the cards
  * stand (the floor, or what the cards and the answers say, or that nothing
  * raises the read), and one button, "Upgrade toward Bracket 4…", only when
@@ -129,6 +131,7 @@ import {
   targetTools,
   type TargetTool,
 } from "@/lib/brackets/target-change";
+import { targetInBands } from "@/lib/brackets/target-bands";
 import {
   EXCEPTIONS_MAX,
   restampAnswers,
@@ -555,10 +558,16 @@ function TargetBlock({
   ];
   const above = new Set(read.conflicts);
   const conflicting = read.factors.filter((f) => above.has(f.id));
-  // BRACKET-UP: the read's floor, and Below your target when the target is above it.
+  // BRACKET-UP: Below your target when the target is above the read's floor
+  // and the read's own line doesn't already name it (a list nothing flags
+  // reads "1 to 2", so a target of 2 is met: target-bands.ts).
   const floor = read.suggested ?? read.minimum;
   const below =
-    onUpgradeTarget !== undefined && target !== null && conflicting.length === 0 && target > floor;
+    onUpgradeTarget !== undefined &&
+    target !== null &&
+    conflicting.length === 0 &&
+    target > floor &&
+    !targetInBands(brackets, read, target);
   const standing =
     read.suggested !== null
       ? BRACKET_COPY.upAnswersSay(levelLabel(brackets, read.suggested))

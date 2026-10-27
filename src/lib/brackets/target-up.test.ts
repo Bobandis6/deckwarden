@@ -236,6 +236,40 @@ describe("planTargetUp — the card each one replaces", () => {
     // Combo Three is now the fringiest 3-drop.
     expect(outName(plan.pairs[5])).toBe("Combo Three");
   });
+
+  it("a staple at a thin cost never goes out on the plan's own: only the deck's weaker half is cut (Sol Ring at integration)", () => {
+    // The 1-drops: one fringe card and a staple (rank 1). Twenty fringe 5-drops fill the rest.
+    const fringeOne = spell("Fringe One", 1, 44_000);
+    const staple = spell("Staple One", 1, 1);
+    const fives = Array.from({ length: 20 }, (_, i) => spell(`Five ${i}`, 5, 40_000 + i));
+    const listed = [fringeOne, staple, ...fives];
+    const entries: EditorEntry[] = [
+      { cardId: kiki.id, zone: "commander", qty: 1, tags: [] },
+      ...listed.map((c) => ({ cardId: c.id, zone: "main", qty: 1, tags: [] })),
+      { cardId: forest.id, zone: "main", qty: 30, tags: [] },
+    ];
+    const cards = new Map([kiki, ...listed, forest].map((c) => [c.id, c]));
+    const rows = [spell("In One A", 1, 10), spell("In One B", 1, 11)].map(rowOf);
+    const slots = targetUpSlots({ rows, cut: cutOf(entries, cards, []) });
+    const plan = planTargetUp({ slots, zone: "main" });
+    const outs = plan.pairs.map((p) => [outName(p), p.via]);
+    // The Coach reads the twenty 5-drops as the crowded slot, so the weaker half is all 5-drops:
+    // both 1-drops take the weakest of them, and the staple (and the fringe 1-drop) stay.
+    expect(outs).toEqual([
+      ["Five 19", "elsewhere"],
+      ["Five 18", "elsewhere"],
+    ]);
+    expect(outs.map(([name]) => name)).not.toContain("Staple One");
+    // The staple stays choosable: the player's own call.
+    const choice = plan.pairs[1].choices.find((c) => c.option.cardId === staple.id)!;
+    expect(choice.weak).toBe(false);
+    const picked = planTargetUp({
+      slots,
+      zone: "main",
+      overrides: { ...NO_UP_OVERRIDES, picks: new Map([[rows[1].cardId, staple.id]]) },
+    });
+    expect(outName(picked.pairs[1])).toBe("Staple One");
+  });
 });
 
 describe("planTargetUp — the player's calls win", () => {

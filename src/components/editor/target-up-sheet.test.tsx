@@ -345,17 +345,22 @@ describe("TargetUpSheet — the review", () => {
     expect(first.textContent).toContain("$1.00");
     expect(first.textContent).toContain("A Commander staple in EDHREC decklists (Changer One)");
     expect(first.textContent).toContain("EDHREC");
-    // The weakest 2-drop for the first card, the next for the next; the weakest 3-drop for the 3-drop.
-    expect(selected("Changer One")).toBe("Fringe 62");
-    expect(selected("Changer Two")).toBe("Fringe 56");
+    // The plan cuts only from the deck's weaker half by the Cut Coach, its cost first. Here the
+    // Coach reads the 6-drops as the crowded slot and the 2-drops as wanted, so no 2-drop is in
+    // that half: the 2-drop rows take the weakest 6-drops, the 3-drop the weakest 3-drop.
+    expect(selected("Changer One")).toBe("Fringe 60");
+    expect(selected("Changer Two")).toBe("Fringe 54");
     expect(selected("Plain Three")).toBe("Fringe 63");
+    expect(row("Changer One").querySelector("[data-up-elsewhere]")?.textContent).toBe(
+      "No suggested cut at mana value 2, so the weakest card at another cost goes.",
+    );
     // The chooser: its cost first, then the rest; a card another row takes says for which.
     const groups = [...chooser("Changer One").querySelectorAll("optgroup")].map((g) => g.label);
     expect(groups).toEqual(["At mana value 2", "Other cards"]);
     const taken = [...chooser("Changer One").options].find(
-      (o) => o.value === byName("Fringe 56").id,
+      (o) => o.value === byName("Fringe 54").id,
     )!;
-    expect(taken.textContent).toBe("Fringe 56 (out for Changer Two)");
+    expect(taken.textContent).toBe("Fringe 54 (out for Changer Two)");
     expect(taken.disabled).toBe(false);
     // Never a land for a spell.
     expect([...chooser("Changer One").options].map((o) => o.textContent)).not.toContain("Forest 1");
@@ -384,14 +389,18 @@ describe("TargetUpSheet — the review", () => {
     fireEvent.click(box("Plain Three"));
     expect(box("Plain Three").getAttribute("aria-checked")).toBe("false");
     expect(within(sheet).getByRole("button", { name: "Swap 3 cards" })).toBeTruthy();
-    fireEvent.change(chooser("Changer One"), { target: { value: byName("Fringe 56").id } });
-    expect(selected("Changer One")).toBe("Fringe 56");
-    expect(selected("Changer Two")).toBe("Fringe 62");
+    // Changer One takes the card Changer Two held; Changer Two moves to the weakest one left.
+    fireEvent.change(chooser("Changer One"), { target: { value: byName("Fringe 54").id } });
+    expect(selected("Changer One")).toBe("Fringe 54");
+    expect(selected("Changer Two")).toBe("Fringe 60");
     // The player's choice can't be taken by another row.
     const held = [...chooser("Changer Two").options].find(
-      (o) => o.value === byName("Fringe 56").id,
+      (o) => o.value === byName("Fringe 54").id,
     )!;
     expect(held.disabled).toBe(true);
+    // The player may still choose a card outside the weaker half (a 2-drop): their call.
+    fireEvent.change(chooser("Changer Three"), { target: { value: byName("Fringe 62").id } });
+    expect(selected("Changer Three")).toBe("Fringe 62");
   });
 
   it("an unpaired land: unchecked, the adapter's reason; choosing a land to cut checks it", async () => {
@@ -451,7 +460,7 @@ describe("TargetUpSheet — the after-check", () => {
       .get("ids")!
       .split(",");
     expect(ids).toContain(one.wire.id);
-    expect(ids).not.toContain(byName("Fringe 62").id);
+    expect(ids).not.toContain(byName("Fringe 60").id);
   });
 
   it("short of the target: what the cards show, never the target, and How it plays for the rest", async () => {
@@ -546,10 +555,10 @@ describe("TargetUpSheet — Swap", () => {
     expect(apply.swapped).toBe(4);
     expect(apply.cards.map((w) => w.id)).toEqual([one, plain, two, three].map((x) => x.wire.id));
     const swaps = new Map([
-      [byName("Fringe 62").id, one.wire.id],
+      [byName("Fringe 60").id, one.wire.id],
       [byName("Fringe 63").id, plain.wire.id],
-      [byName("Fringe 56").id, two.wire.id],
-      [byName("Fringe 50").id, three.wire.id],
+      [byName("Fringe 54").id, two.wire.id],
+      [byName("Fringe 48").id, three.wire.id],
     ]);
     expect(apply.entries).toHaveLength(entries.length);
     apply.entries.forEach((e, i) => {

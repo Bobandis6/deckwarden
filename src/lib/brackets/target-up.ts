@@ -21,7 +21,12 @@
  *   An ordinary cut is one the Coach ranks that is no complete-combo piece:
  *   a card it can't rank (no signal data) is never cut on its own, since a
  *   cut with no stated tradeoff isn't coaching (planSwapIn's partner rule).
- *   Never the commander (only the swap's zone holds partners), never a card
+ *   And the plan cuts on its own only from the deck's weaker half by the
+ *   Coach (or its weakest as many as the rows that pair, when that is
+ *   more): at integration the dev precon Breed Lethality paired Carrion
+ *   Feeder with Sol Ring, its 1-drop slot holding nothing weaker once
+ *   Viscera Seer took Hardened Scales, and "the weakest card it replaces"
+ *   never means a staple. Never the commander (only the swap's zone holds partners), never a card
  *   the curve leaves out (a land), never a card coming in, never a card
  *   another row takes.
  * - **Unpaired**: a card outside the curve (a land, no cost; the adapter's
@@ -58,6 +63,7 @@ import type {
   FormatDef,
   GameId,
 } from "@/lib/games/types";
+import { rankCuts } from "@/lib/recommend/cuts";
 import { fitList } from "@/lib/recommend/fit";
 import {
   planSwapIn,
@@ -101,6 +107,14 @@ export interface TargetUpChoice {
   option: SwapInOption;
   /** In the incoming card's bucket (the chooser's first group). */
   sameBucket: boolean;
+  /**
+   * In the deck's weaker half by the Cut Coach (or its weakest as many as
+   * the rows that pair, when that is more): the only cards the plan cuts on
+   * its own, so a staple at a thin cost (Sol Ring at 1) never goes out for a
+   * suggestion just because its slot ran out of weaker cards. The player's
+   * own choice can still take any card the chooser offers.
+   */
+  weak: boolean;
 }
 
 /** A row's place in the curve: Swap in's plan for its card, and what its chooser offers. */
@@ -172,6 +186,19 @@ export function targetUpSlots<R extends TargetUpRow>({
   const comboPiece = (id: string) => (cut.completeCombosByCard.get(id)?.length ?? 0) > 0;
   const incoming = new Set(rows.map((r) => r.cardId));
   const last = (curve?.buckets.length ?? 0) - 1;
+  // The cards the plan may cut on its own (the owner's "the weakest card it
+  // replaces"): the Coach's ordinary cuts deck-wide, weakest first, the
+  // weaker half of them, or as many as the rows that pair when that's more.
+  const ordinaryCuts = rankCuts(cut).cuts.filter(
+    (c) =>
+      c.zone === cut.zone && !c.inCompleteCombo && inCurve.has(c.cardId) && !incoming.has(c.cardId),
+  );
+  const pairing = rows.filter((r) => curve !== undefined && curve.bucketOf(r.card) !== null).length;
+  const weak = new Set(
+    ordinaryCuts
+      .slice(0, Math.max(pairing, Math.ceil(ordinaryCuts.length / 2)))
+      .map((c) => c.cardId),
+  );
   return rows.map((row) => {
     const plan = planSwapIn({ ...cut, incoming: row.card });
     const bucketed = plan.bucket !== null;
@@ -189,16 +216,22 @@ export function targetUpSlots<R extends TargetUpRow>({
             ? `${plan.bucket} or more`
             : String(plan.bucket),
       choices: [
-        ...same.map((option) => ({ option, sameBucket: true })),
-        ...plan.others.filter(offered).map((option) => ({ option, sameBucket: false })),
+        ...same.map((option) => ({ option, sameBucket: true, weak: weak.has(option.cardId) })),
+        ...plan.others
+          .filter(offered)
+          .map((option) => ({ option, sameBucket: false, weak: weak.has(option.cardId) })),
       ],
     };
   });
 }
 
-/** An ordinary cut (the Coach ranks it, no complete-combo piece) no row holds yet. */
+/**
+ * An ordinary cut (the Coach ranks it, no complete-combo piece) in the
+ * deck's weaker half (`weak`), that no row holds yet: what the plan cuts on
+ * its own.
+ */
 const ordinary = (c: TargetUpChoice, holder: ReadonlyMap<string, string>) =>
-  c.option.cut !== null && !c.option.cut.inCompleteCombo && !holder.has(c.option.cardId);
+  c.weak && c.option.cut !== null && !c.option.cut.inCompleteCombo && !holder.has(c.option.cardId);
 
 /**
  * The plan over the slots: the player's choices first, then each row's

@@ -813,6 +813,16 @@ describe("BRACKET-UP — Below your target's door", () => {
     expect(document.querySelector("[data-slot=bracket-conflicts]")).toBeNull();
   });
 
+  it("a list nothing flags reads 1 to 2: a target of 2 is already met, so no box; 3 is above it", () => {
+    const owner = { onGoalsChange: vi.fn(), onUpgradeTarget: vi.fn() };
+    sheet(spec([]), { combos: [], goals: { v: 1, targetLevel: 2 }, ...owner });
+    expect(below()).toBeNull();
+    expect(door()).toBeNull();
+    cleanup();
+    sheet(spec([]), { combos: [], goals: { v: 1, targetLevel: 3 }, ...owner });
+    expect(door()?.textContent).toBe("Upgrade toward Bracket 3…");
+  });
+
   it("nothing flagged: the box says nothing raises the read", () => {
     sheet(spec([]), {
       combos: [],

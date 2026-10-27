@@ -347,7 +347,7 @@ export const BRACKET_COPY = {
   /** The sheet's title: "Upgrade toward Bracket 4". */
   upTitle: (level: string) => `Upgrade toward ${level}`,
   upLead:
-    "Brings in your Suggestions, each for the weakest card at the same cost. Check the swaps you want.",
+    "Brings in your Suggestions, each for the weakest card it can replace, at the same cost when there is one. Check the swaps you want.",
   upAsking: "Finding suggestions…",
   /** The Suggestions panel's own words for a 429. */
   upLimited: "Suggestions are rate-limited for a moment. Try again shortly.",

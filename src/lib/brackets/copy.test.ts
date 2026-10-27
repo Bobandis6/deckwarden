@@ -703,8 +703,9 @@ describe("BRACKET-UP's words — the box, the door, the sheet, the after-line", 
     );
     expect(C.upDoor(four)).toBe("Upgrade toward Bracket 4…");
     expect(C.upTitle(four)).toBe("Upgrade toward Bracket 4");
+    // Said true to the fallback (most pairs cut the weakest card at another cost).
     expect(C.upLead).toBe(
-      "Brings in your Suggestions, each for the weakest card at the same cost. Check the swaps you want.",
+      "Brings in your Suggestions, each for the weakest card it can replace, at the same cost when there is one. Check the swaps you want.",
     );
   });
 
