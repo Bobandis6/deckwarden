@@ -793,7 +793,8 @@ describe("the whole loop on Magic lists, against the real read", () => {
       }));
       expect(plan.swaps).toBe(bruteMin(demands));
       expect(plan.exact).toBe(true);
-      expect(targetFitDoor(input)).toBe(stand.size > 0);
+      // The door shows wherever there is a conflict to fix, whether or not a card can go.
+      expect(targetFitDoor(input)).toBe(fixes.length > 0);
 
       // After the swaps, in place: the size, the commander, the lands and the untouched rows hold.
       const after = fitList(
@@ -851,7 +852,7 @@ describe("the whole loop on Magic lists, against the real read", () => {
     expect(targetFitDoor({ ...base, adapter: op, goals: { v: 1, targetLevel: 2 } })).toBe(false);
   });
 
-  it("nothing that can go: no door", () => {
+  it("nothing that can go: the door shows anyway (the owner's call of 2026-10-27), and the plan names why each card stays", () => {
     const { entries, cards } = fixtureList({
       label: "",
       commanders: [kiki],
@@ -866,17 +867,38 @@ describe("the whole loop on Magic lists, against the real read", () => {
       targetLevel: 2,
     });
     expect(read.conflicts).toEqual(["game-changers"]);
-    expect(
-      targetFitDoor({
-        adapter: mtg,
-        format: COMMANDER,
-        entries,
-        cards,
-        read,
-        combos: [],
-        freshness: FRESH,
-        goals: { v: 1, targetLevel: 2 },
-      }),
-    ).toBe(false);
+    const input = {
+      adapter: mtg,
+      format: COMMANDER,
+      entries,
+      cards,
+      read,
+      combos: [],
+      freshness: FRESH,
+      goals: { v: 1 as const, targetLevel: 2 },
+    };
+    expect(targetFitDoor(input)).toBe(true);
+    // The sheet behind it: nothing to ask about, nothing going out, every card's reason named.
+    const fixes = targetFitFixes(input);
+    const plan = planTargetFit({
+      fixes,
+      cards: targetFitCards({ ...input, fixes, swap: mtg.recommend!.swap! }),
+      answers: new Map(),
+      asked: new Set(),
+      canAsk: true,
+    });
+    expect(plan.outs).toEqual([]);
+    expect(plan.ask).toEqual([]);
+    expect(plan.short).toEqual([
+      {
+        factor: "game-changers",
+        short: 2,
+        commander: 0,
+        stays: [
+          { reason: "not-offered", ids: [cradle.id] },
+          { reason: "no-roles", ids: [noRoles.id] },
+        ],
+      },
+    ]);
   });
 });

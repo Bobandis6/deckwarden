@@ -38,6 +38,11 @@
  *   FitSheet's prop) left out.
  * - **The apply** is the editor's ONE `applyListSwap` (fitList, in place:
  *   each new card where its old one was, every other row untouched).
+ * - **Nothing to swap** (the owner's call of 2026-10-27: the door shows
+ *   whenever the callout does): when no card a fix names can go out, the
+ *   lead says so and that the player can still change them by hand, "What
+ *   swaps can't fix" gives each card's reason, and the footer only closes
+ *   ("Done"), with no "Swap 0 cards" and no ask sent for a card that can't go.
  */
 import { XIcon } from "lucide-react";
 import {
@@ -408,6 +413,10 @@ export function TargetFitSheet({
         : plan.outs.length === 0 && failed.length === 0
           ? "nothing"
           : "ready";
+  // No card a fix names can be swapped (each stays, with its reason below):
+  // the door shows anyway (the owner's call of 2026-10-27), so the sheet
+  // says so plainly and only closes.
+  const nothingToSwap = state === "nothing" && plan.short.length > 0;
 
   const content = (
     <div
@@ -415,7 +424,12 @@ export function TargetFitSheet({
       data-fit-state={state}
       className="flex min-h-0 flex-1 flex-col gap-3"
     >
-      <p className="text-muted-foreground text-sm">{BRACKET_COPY.fitLead}</p>
+      <p
+        data-slot="target-fit-lead"
+        className={nothingToSwap ? "text-sm" : "text-muted-foreground text-sm"}
+      >
+        {nothingToSwap ? BRACKET_COPY.fitNothing(level) : BRACKET_COPY.fitLead}
+      </p>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
         {groups.map(({ fix, own, also }, i) => (
@@ -516,7 +530,7 @@ export function TargetFitSheet({
           ) : (
             source.label
           )}
-          . {BRACKET_COPY.fitPrices}
+          .{rows.length > 0 ? ` ${BRACKET_COPY.fitPrices}` : null}
         </p>
       </div>
 
@@ -537,12 +551,20 @@ export function TargetFitSheet({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            {BRACKET_COPY.cancel}
-          </Button>
-          <Button size="sm" disabled={plan.swaps === 0 || pending.length > 0} onClick={apply}>
-            {FIT_COPY.apply(plan.swaps)}
-          </Button>
+          {nothingToSwap ? (
+            <Button size="sm" onClick={onClose}>
+              {BRACKET_COPY.fitDone}
+            </Button>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                {BRACKET_COPY.cancel}
+              </Button>
+              <Button size="sm" disabled={plan.swaps === 0 || pending.length > 0} onClick={apply}>
+                {FIT_COPY.apply(plan.swaps)}
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>

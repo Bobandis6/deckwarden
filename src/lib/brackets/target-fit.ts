@@ -249,15 +249,13 @@ export function targetFitFixes({
 
 /**
  * The conflict callout's door: the game declares fixes and Swap Lab, and
- * some fix names a card that can go out.
+ * the read has a conflict to fix. It shows even when no card can go out
+ * (the owner's call of 2026-10-27: a door that hid itself read as a missing
+ * button); the sheet then says why each card stays.
  */
 export function targetFitDoor(input: Parameters<typeof targetFitFixes>[0]): boolean {
-  const swap = input.adapter.recommend?.swap;
-  if (!swap) return false;
-  const fixes = targetFitFixes(input);
-  if (fixes.length === 0) return false;
-  const cards = targetFitCards({ ...input, fixes, swap });
-  return [...cards.values()].some((c) => c.block === null);
+  if (!input.adapter.recommend?.swap) return false;
+  return targetFitFixes(input).length > 0;
 }
 
 // --- The cover --------------------------------------------------------------------------

@@ -10,6 +10,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BRACKET_COPY } from "@/lib/brackets/copy";
 import { TARGET_FIT_ASK_LIMIT } from "@/lib/brackets/target-fit";
 import type { CardWire, EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import type { DeckGoals } from "@/lib/decks/goals";
@@ -559,6 +560,50 @@ describe("TargetFitSheet — Swap", () => {
     renderSheet({ phone: true });
     expect(document.querySelector("[data-slot=drawer-popup]")).toBeTruthy();
     await settled();
+  });
+});
+
+describe("TargetFitSheet — nothing to swap (the door shows anyway, the owner's call of 2026-10-27)", () => {
+  const remora = spell("Mystic Remora", { game_changer: true, roles: undefined });
+  const lead = () => document.querySelector("[data-slot=target-fit-lead]")?.textContent;
+  const NOTHING =
+    "None of the cards that put the deck above Bracket 2 can be swapped here, but you can still remove or replace them yourself.";
+
+  it("cards that can never go (a land, no community roles): nothing is asked, each reason is named, the footer only closes", async () => {
+    const { sheet, onClose, onApply } = renderSheet({ specials: [cradle, remora], combos: [] });
+    await settled();
+    expect(fitState()).toBe("nothing");
+    expect(asked()).toEqual([]);
+    expect(lead()).toBe(NOTHING);
+    const left = sheet.querySelector<HTMLElement>("[data-slot=target-fit-left]")!;
+    expect(left.textContent).toContain(
+      "Alternatives aren't offered for Gaea's Cradle, so it stays.",
+    );
+    expect(left.textContent).toContain(
+      "Mystic Remora has no community roles yet, so nothing is known to share its job.",
+    );
+    // No prices anywhere, so the credit keeps its source and drops the price sentence.
+    expect(sheet.textContent).toContain("Alternatives share a job by community tags on");
+    expect(sheet.textContent).not.toContain("Prices are each card's cheapest printing.");
+    expect(within(sheet).queryByRole("button", { name: /^Swap \d+ cards?$/ })).toBeNull();
+    expect(within(sheet).queryByRole("button", { name: "Cancel" })).toBeNull();
+    fireEvent.click(within(sheet).getByRole("button", { name: "Done" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("cards asked about with no alternative under the goals: the swap lead while asking, then the same plain answer", async () => {
+    ROWS.set(rhystic.id, []);
+    const { sheet } = renderSheet({ specials: [rhystic], combos: [] });
+    expect(lead()).toBe(BRACKET_COPY.fitLead);
+    await settled();
+    expect(asked()).toEqual([rhystic.id]);
+    expect(fitState()).toBe("nothing");
+    expect(lead()).toBe(NOTHING);
+    expect(sheet.querySelector("[data-slot=target-fit-left]")?.textContent).toContain(
+      "No alternative under your goals for Rhystic Study, so it stays.",
+    );
+    expect(within(sheet).getByRole("button", { name: "Done" })).toBeTruthy();
   });
 });
 

@@ -94,7 +94,8 @@
  * BRACKET-FIT (the owner's ask of 2026-10-24): the conflict callout's head
  * gains one button, "Swap to fit Bracket 2…", only when the editor hands
  * the sheet `onFitTarget` (the adapter declares `fixes` and Swap Lab, and
- * some fix names a card that can go out). It opens the editor's "Swap to
+ * the read has a conflict; since 2026-10-27 even one no card can fix, so
+ * the button is always where the owner looks). It opens the editor's "Swap to
  * fit" sheet the way a card's Swap… opens its swap sheet: this sheet
  * closes, and focus comes back to "Why?". The per-card Swap… buttons stay.
  */

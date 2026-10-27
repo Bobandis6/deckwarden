@@ -325,7 +325,7 @@ describe("DeckEditor — Swap to fit (BRACKET-FIT)", () => {
     expect(altCalls()).toHaveLength(2);
   });
 
-  it("nothing that can go (a land Game Changer alone): the callout names it, and there is no door", async () => {
+  it("nothing that can go (a land Game Changer alone): the door shows anyway, and its sheet says why and only closes (the owner's call of 2026-10-27)", async () => {
     const cradle = wire({
       name: "Gaea's Cradle",
       primaryType: "Land",
@@ -342,8 +342,27 @@ describe("DeckEditor — Swap to fit (BRACKET-FIT)", () => {
     const why = await openWhy();
     const callout = why.querySelector<HTMLElement>("[data-slot=bracket-conflicts]")!;
     expect(callout.textContent).toContain("Gaea's Cradle");
-    expect(door(why)).toBeNull();
+    expect(door(why)?.textContent).toBe("Swap to fit Bracket 2…");
+    fireEvent.click(door(why)!);
+    const sheet = await pollFor(fitSheet);
+    expect(
+      sheet.querySelector("[data-slot=target-fit-sheet]")?.getAttribute("data-fit-state"),
+    ).toBe("nothing");
+    expect(sheet.querySelector("[data-slot=target-fit-lead]")?.textContent).toBe(
+      "None of the cards that put the deck above Bracket 2 can be swapped here, but you can still remove or replace them yourself.",
+    );
+    expect(sheet.querySelector("[data-slot=target-fit-left]")?.textContent).toContain(
+      "Alternatives aren't offered for Gaea's Cradle, so it stays.",
+    );
+    // No "Swap 0 cards": the footer only closes, and no card that can't go is asked about.
+    expect(within(sheet).queryByRole("button", { name: /^Swap \d+ cards?$/ })).toBeNull();
+    expect(within(sheet).queryByRole("button", { name: "Cancel" })).toBeNull();
     expect(altCalls()).toHaveLength(0);
+    fireEvent.click(within(sheet).getByRole("button", { name: "Done" }));
+    await pollFor(() => (fitSheet() === null ? document.body : null));
+    await settle(1500);
+    await act(async () => {});
+    expect([posts(), puts(), patches()]).toEqual([0, 0, 0]);
   });
 
   it("no target: the callout and its door aren't there; One Piece has no bracket line at all", async () => {

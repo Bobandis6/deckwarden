@@ -82,6 +82,7 @@ const BUILDERS = [
   "fitAfterFits",
   "fitAfterStill",
   "fitAfterStillCount",
+  "fitNothing",
   "fitCost",
 ];
 
@@ -101,6 +102,7 @@ function fitLines(): string[] {
   for (const level of brackets.levels.map((l) => levelNumberLabel(brackets, l.level))) {
     lines.push(C.fitDoor(level), C.fitTitle(level), C.fitAfterFits(level), C.fitAfterStill(level));
     lines.push(C.fitAfterStillCount(1, level), C.fitAfterStillCount(2, level));
+    lines.push(C.fitNothing(level));
   }
   for (const names of [one, two, three]) {
     lines.push(
@@ -569,6 +571,11 @@ describe("BRACKET-FIT's words — the door, the sheet, the after-line", () => {
     expect(C.fitAfterStillCount(2, level)).toBe(
       "After these swaps, 2 things still put the deck above Bracket 2.",
     );
+    // The lead when nothing can be swapped (the door shows anyway), and its one button.
+    expect(C.fitNothing(level)).toBe(
+      "None of the cards that put the deck above Bracket 2 can be swapped here, but you can still remove or replace them yourself.",
+    );
+    expect(C.fitDone).toBe("Done");
     expect(C.fitAfterChecking).toBe("Checking the list after these swaps…");
     expect(C.fitAfterFailed).toBe("Couldn't check combos for the list after these swaps.");
   });

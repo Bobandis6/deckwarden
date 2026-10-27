@@ -254,6 +254,11 @@ export const BRACKET_COPY = {
   fitTitle: (level: string) => `Swap to fit ${level}`,
   fitLead:
     "Swaps the fewest cards that put the deck above your target, each for a card that shares its job. Check the swaps you want.",
+  /** The lead when no card a fix names can be swapped (the door shows anyway): the reasons follow. */
+  fitNothing: (level: string) =>
+    `None of the cards that put the deck above ${level} can be swapped here, but you can still remove or replace them yourself.`,
+  /** The footer's one button then: nothing to apply, only to close. */
+  fitDone: "Done",
   /** A row's check, before the card's name: "Swap Rhystic Study". */
   fitSwap: "Swap",
   /** A row's choices: "Instead of Rhystic Study". */

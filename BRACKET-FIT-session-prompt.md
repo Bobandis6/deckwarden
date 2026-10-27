@@ -12,6 +12,7 @@
 - **Production, read from outside:** the editor's chunks carry "Swap to fit", "After these swaps" and "things still put"; `/precons` and `/brackets` still answer `x-nextjs-prerender: 1` (PRERENDER).
 - **Left for the owner:** set a target below one of your own decks on deckwarden.gg and press Swap to fit. The QA minted guest decks on the dev branch only.
 - **The owner's call (2026-10-24, after the ship):** when a target can't be fully reached, the sheet keeps swapping what it can and naming the rest, rather than swapping nothing (LATER row 338).
+- **Follow-up (2026-10-27, the owner's report: "where is the swap button in the why page when you set the target bracket"):** reproduced on Abzan Armor at target 2, where Seedborn Muse (no community roles) was the only conflict, so the door hid itself with no word why (as on Faceless Menace, Arcane Maelstrom, Planeswalker Party and World Shaper). The owner's call: the door shows whenever the callout does, and when nothing can be swapped the sheet says why instead (`targetFitDoor` = a conflict to fix; the sheet's "nothing to swap" state: `fitNothing`'s lead, the reasons, "Done" only).
 
 ## The ask, deepened
 

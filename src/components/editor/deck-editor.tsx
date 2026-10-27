@@ -107,8 +107,9 @@
  * the owned precon's). The rows' collection mark is unchanged.
  *
  * BRACKET-FIT (the owner's ask of 2026-10-24): "target-fit" is the "Swap to
- * fit" sheet, opened only by the conflict callout's door (where the adapter
- * declares fixes and Swap Lab, and some fix names a card that can go out).
+ * fit" sheet, opened only by the conflict callout's door (wherever the
+ * adapter declares fixes and Swap Lab and the read has a conflict; when no
+ * card can go out, the sheet says why each one stays).
  * Its apply is ONE `applyListSwap` ("Swapped N cards", one Undo for the
  * batch), and focus comes back to "Why?" as after a callout's Swap…. It
  * prices the cards coming in against `ownedSetForPricing` too, so a card the
@@ -2204,8 +2205,8 @@ export function DeckEditor({
         : null,
     [bracketsOn, adapter, snapshot, cards, bracketFacts.combos, bracketFacts.freshness, goals],
   );
-  // BRACKET-FIT: the callout's door, where the adapter declares fixes and
-  // Swap Lab and some fix names a card that can go out.
+  // BRACKET-FIT: the callout's door, wherever the adapter declares fixes and
+  // Swap Lab and the read has a conflict (even one no card can fix).
   const fitDoorOpen = useMemo(
     () =>
       bracketRead !== null && adapter !== null && format !== null
