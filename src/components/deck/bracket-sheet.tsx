@@ -98,6 +98,18 @@
  * the button is always where the owner looks). It opens the editor's "Swap to
  * fit" sheet the way a card's Swap… opens its swap sheet: this sheet
  * closes, and focus comes back to "Why?". The per-card Swap… buttons stay.
+ *
+ * BRACKET-UP (the owner's ask of 2026-10-27): when the target is above what
+ * the cards show (`read.suggested ?? read.minimum`; nothing is then above
+ * it), Your target gains a "Below your target" box in the conflict
+ * callout's place: the target in the level's own words, where the cards
+ * stand (the floor, or what the cards and the answers say, or that nothing
+ * raises the read), and one button, "Upgrade toward Bracket 4…", only when
+ * the editor hands the sheet `onUpgradeTarget` (the adapter declares Swap
+ * in's swap and cuts; One Piece declares neither). It opens the editor's
+ * "Upgrade toward" sheet as Swap to fit does: this sheet closes, and focus
+ * comes back to "Why?". Without the door there is no box: the bracket line
+ * already says where the cards stand.
  */
 import { ArrowUpRightIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import Link from "next/link";
@@ -167,6 +179,7 @@ export function BracketSheet({
   onSwapCard,
   canSwap,
   onFitTarget,
+  onUpgradeTarget,
   speed = null,
   linkPreviews = false,
   onClose,
@@ -195,6 +208,8 @@ export function BracketSheet({
   canSwap?: (cardId: string) => boolean;
   /** BRACKET-FIT: the callout's "Swap to fit" door — the editor's sheet of the fewest swaps to the target. */
   onFitTarget?: () => void;
+  /** BRACKET-UP: "Upgrade toward" in Below your target — the editor's sheet of Suggestions in. */
+  onUpgradeTarget?: () => void;
   /** BRACKET-SPEED: the list's speed facts (the adapter's `speed.facts`); null = no block. */
   speed?: BracketSpeedFacts | null;
   /**
@@ -378,6 +393,7 @@ export function BracketSheet({
           onSwapCard={onSwapCard}
           canSwap={canSwap}
           onFitTarget={onFitTarget}
+          onUpgradeTarget={onUpgradeTarget}
           linkPreviews={linkPreviews}
           tools={targetTools(adapter)}
         />
@@ -495,6 +511,7 @@ function TargetBlock({
   onSwapCard,
   canSwap,
   onFitTarget,
+  onUpgradeTarget,
   linkPreviews,
   tools,
 }: {
@@ -510,6 +527,8 @@ function TargetBlock({
   canSwap?: (cardId: string) => boolean;
   /** BRACKET-FIT: the callout's door, when the editor can fit the deck to its target. */
   onFitTarget?: () => void;
+  /** BRACKET-UP: Below your target's door, when the editor can bring Suggestions in. */
+  onUpgradeTarget?: () => void;
   /** LATER row 306: the note names link previews (never for a private deck). */
   linkPreviews: boolean;
   /** TARGET-CHANGES: the tools the adapter declares that follow the target (`targetTools`). */
@@ -536,6 +555,16 @@ function TargetBlock({
   ];
   const above = new Set(read.conflicts);
   const conflicting = read.factors.filter((f) => above.has(f.id));
+  // BRACKET-UP: the read's floor, and Below your target when the target is above it.
+  const floor = read.suggested ?? read.minimum;
+  const below =
+    onUpgradeTarget !== undefined && target !== null && conflicting.length === 0 && target > floor;
+  const standing =
+    read.suggested !== null
+      ? BRACKET_COPY.upAnswersSay(levelLabel(brackets, read.suggested))
+      : read.minimum <= (brackets.levels[0]?.level ?? 1)
+        ? BRACKET_COPY.nothingFound(brackets.noun)
+        : BRACKET_COPY.upCardsShow(levelLabel(brackets, read.minimum));
 
   // What the pick did, against the read this render shows — and only while
   // the target is still the one it set.
@@ -732,6 +761,29 @@ function TargetBlock({
               );
             })}
           </ul>
+        </div>
+      )}
+
+      {/* BRACKET-UP: the target above what the cards show, and the door to Suggestions in. */}
+      {below && target !== null && (
+        <div data-slot="bracket-below" className="space-y-1.5 rounded-lg border px-2.5 py-2">
+          <h4 className="text-sm font-medium">{BRACKET_COPY.belowTarget}</h4>
+          <p className="text-muted-foreground text-xs">
+            {BRACKET_COPY.belowTargetLead(levelLabel(brackets, target))} {standing}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-haspopup="dialog"
+            data-slot="bracket-up-door"
+            className="max-w-full pointer-coarse:h-11 pointer-coarse:px-3"
+            onClick={onUpgradeTarget}
+          >
+            <span className="truncate">
+              {BRACKET_COPY.upDoor(levelNumberLabel(brackets, target))}
+            </span>
+          </Button>
         </div>
       )}
 

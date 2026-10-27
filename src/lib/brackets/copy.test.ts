@@ -84,7 +84,60 @@ const BUILDERS = [
   "fitAfterStillCount",
   "fitNothing",
   "fitCost",
+  // BRACKET-UP: the box, the door and the sheet (upLines calls them all below).
+  "belowTargetLead",
+  "upCardsShow",
+  "upAnswersSay",
+  "upDoor",
+  "upTitle",
+  "upDropped",
+  "upSwapIn",
+  "upCutFor",
+  "upAt",
+  "upOutFor",
+  "upElsewhere",
+  "upAfter",
+  "upAfterAnswers",
+  "upAfterNothing",
+  "upFloor",
+  "upAfterAbove",
+  "upAfterAboveCount",
 ];
+
+/**
+ * BRACKET-UP: every line the box, the door and the sheet can say for
+ * Magic — at each level, in both of the level's forms, one card and
+ * several, the adapter's bucket names and its reasons for a card it can't
+ * pair (a land, no cost).
+ */
+function upLines(): string[] {
+  const mtg = getAdapter("mtg");
+  const brackets = mtg.brackets!;
+  const swap = mtg.recommend!.swap!;
+  const C = BRACKET_COPY;
+  const lines: string[] = [];
+  for (const { level } of brackets.levels) {
+    const named = levelLabel(brackets, level);
+    const short = levelNumberLabel(brackets, level);
+    lines.push(C.belowTargetLead(named), C.upCardsShow(named), C.upAnswersSay(named));
+    lines.push(C.upDoor(short), C.upTitle(short), C.upAfter(named), C.upAfterAnswers(named));
+    lines.push(C.upFloor(named), C.upAfterAbove(short));
+    lines.push(C.upAfterAboveCount(1, short), C.upAfterAboveCount(2, short));
+  }
+  lines.push(C.upAfterNothing(brackets.noun), C.nothingFound(brackets.noun));
+  for (const n of [1, 2, 9]) lines.push(C.upDropped(n));
+  for (const name of ["Arcane Signet", "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki"]) {
+    lines.push(C.upSwapIn(name), C.upCutFor(name), C.upOutFor("Mind Stone", name));
+  }
+  // The words the planner hands bucketName: the last bucket as "7 or more", never "7+".
+  for (const label of ["0", "3", "7 or more"]) {
+    lines.push(C.upAt(swap.bucketName(label)), C.upElsewhere(swap.bucketName(label)));
+  }
+  const land = card({ name: "Gilded Grove", primaryType: "Land", costValue: 0 });
+  const costless = card({ name: "Ancestral Vision", primaryType: "Sorcery", costValue: null });
+  lines.push(swap.unmatched(land), swap.unmatched(costless));
+  return lines;
+}
 
 /**
  * BRACKET-FIT: every line the door and the sheet can say for Magic — at
@@ -275,6 +328,8 @@ function everyString(): string[] {
     ...targetChangeLines(),
     // BRACKET-FIT: every line the door and the sheet can say.
     ...fitLines(),
+    // BRACKET-UP: every line the box, the door and the sheet can say.
+    ...upLines(),
   ];
 }
 
@@ -626,6 +681,87 @@ describe("BRACKET-FIT's words — the door, the sheet, the after-line", () => {
   it("no em or en dash, no middle dot, no notation, never a multi-dot line", () => {
     const lines = fitLines();
     expect(lines.length).toBeGreaterThan(80);
+    expect(lines.filter((w) => /[–—]|\d-\d/.test(w))).toEqual([]);
+    expect(lines.filter((w) => w.includes("·"))).toEqual([]);
+    expect(lines.filter((w) => /\d\+|est\./i.test(w))).toEqual([]);
+    expect(lines.filter((w) => /\.\./.test(w))).toEqual([]);
+  });
+});
+
+describe("BRACKET-UP's words — the box, the door, the sheet, the after-line", () => {
+  const mtg = getAdapter("mtg").brackets!;
+  const C = BRACKET_COPY;
+  const four = levelNumberLabel(mtg, 4);
+
+  it("the box in the level's own words, the door and the title in its short form", () => {
+    expect(C.belowTarget).toBe("Below your target");
+    expect(`${C.belowTargetLead(levelLabel(mtg, 4))} ${C.upCardsShow(levelLabel(mtg, 2))}`).toBe(
+      "Your target is Bracket 4 (Optimized). The cards show at least Bracket 2 (Core).",
+    );
+    expect(C.upAnswersSay(levelLabel(mtg, 3))).toBe(
+      "The cards and your answers say Bracket 3 (Upgraded).",
+    );
+    expect(C.upDoor(four)).toBe("Upgrade toward Bracket 4…");
+    expect(C.upTitle(four)).toBe("Upgrade toward Bracket 4");
+    expect(C.upLead).toBe(
+      "Brings in your Suggestions, each for the weakest card at the same cost. Check the swaps you want.",
+    );
+  });
+
+  it("the rows: the check, the chooser and its groups, a card another row takes, why a row has nothing to cut", () => {
+    const swap = getAdapter("mtg").recommend!.swap!;
+    expect(C.upSwapIn("Arcane Signet")).toBe("Swap in Arcane Signet");
+    expect(C.upCutFor("Arcane Signet")).toBe("Card to cut for Arcane Signet");
+    expect([C.upReplaces, C.upChoose, C.upOthers]).toEqual([
+      "Replaces",
+      "Choose a card to cut",
+      "Other cards",
+    ]);
+    expect(C.upAt(swap.bucketName("3"))).toBe("At mana value 3");
+    expect(C.upOutFor("Mind Stone", "Arcane Signet")).toBe("Mind Stone (out for Arcane Signet)");
+    expect(C.upElsewhere(swap.bucketName("7 or more"))).toBe(
+      "No suggested cut at mana value 7 or more, so the weakest card at another cost goes.",
+    );
+    expect(C.upNoCut).toBe("No suggested cut is left. Choose the card to cut.");
+    expect(C.upDropped(1)).toBe("1 suggestion couldn't load, so it's left out.");
+    expect(C.upDropped(2)).toBe("2 suggestions couldn't load, so they're left out.");
+    expect([C.upAsking, C.upLimited, C.upFailed, C.upNone]).toEqual([
+      "Finding suggestions…",
+      "Suggestions are rate-limited for a moment. Try again shortly.",
+      "Couldn't load suggestions.",
+      "No suggestions fit your goals right now.",
+    ]);
+  });
+
+  it("the after-line: what the cards show, the target named only when reached, the floor's limit", () => {
+    expect(`${C.upAfter(levelLabel(mtg, 4))} ${C.upReached}`).toBe(
+      "After these swaps, the cards show at least Bracket 4 (Optimized). That's your target.",
+    );
+    expect(C.upAfterAnswers(levelLabel(mtg, 4))).toBe(
+      "After these swaps, the cards and your answers say Bracket 4 (Optimized).",
+    );
+    expect(C.upAfterNothing(mtg.noun)).toBe(
+      "After these swaps, nothing in the list raises the bracket.",
+    );
+    expect(C.upFloor(levelLabel(mtg, 5))).toBe(
+      "Cards can only show a floor. If the deck plays at Bracket 5 (cEDH), say so under How it plays.",
+    );
+    expect(C.upAfterAbove(levelNumberLabel(mtg, 3))).toBe(
+      "After these swaps, these put the deck above Bracket 3:",
+    );
+    expect(C.upAfterAboveCount(1, levelNumberLabel(mtg, 3))).toBe(
+      "After these swaps, 1 thing puts the deck above Bracket 3.",
+    );
+    expect(C.upAfterAboveCount(2, levelNumberLabel(mtg, 3))).toBe(
+      "After these swaps, 2 things put the deck above Bracket 3.",
+    );
+    // How it plays is pointed at by its own heading.
+    expect(C.upFloor("Bracket 4")).toContain(C.howItPlays);
+  });
+
+  it("no em or en dash, no middle dot, no notation, never a multi-dot line", () => {
+    const lines = upLines();
+    expect(lines.length).toBeGreaterThan(60);
     expect(lines.filter((w) => /[–—]|\d-\d/.test(w))).toEqual([]);
     expect(lines.filter((w) => w.includes("·"))).toEqual([]);
     expect(lines.filter((w) => /\d\+|est\./i.test(w))).toEqual([]);

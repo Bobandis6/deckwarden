@@ -6,6 +6,11 @@
  * and nothing is minted to get it. Once a row exists the panel goes back
  * to the GET; this route never sees a deck id.
  *
+ * BRACKET-UP's "Upgrade toward" sheet asks it too, for a saved deck as for
+ * a draft: the editor's live list and goals in the same body (the GET would
+ * read a target the autosave may not have written yet). Same contract, no
+ * deck id, the same bucket.
+ *
  * Body: `{ game, format, leaderIds, entries, budget?, goals? }` — ids and
  * quantities only. Every fact (type, cost, color identity, the bracket
  * flags) is read server-side through loadEntryFacts, W9a's autofill

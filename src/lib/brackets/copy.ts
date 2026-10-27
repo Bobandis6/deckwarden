@@ -21,12 +21,18 @@
  * adds the conflict callout's "Swap to fit" door and its sheet: the rows,
  * why a card stays, the after-line (the read's own sentences follow it) and
  * the price of the cards coming in; the role labels it quotes are the
- * adapter's.
+ * adapter's. BRACKET-UP adds Your target's "Below your target" box, its
+ * "Upgrade toward" door and that sheet: the rows, the chooser, the
+ * after-line in the level's own words (the read's sentences follow it),
+ * and where the rest of the way is the player's call; the bucket names and
+ * the reasons a card would sit above the target are the adapter's.
  */
 import type { BracketsMeta } from "@/lib/games/types";
 
 /** The conflict callout's heading, which the target-change callout points at. */
 const ABOVE_TARGET = "Above your target";
+/** The optional block of the player's answers, which the upgrade's after-line points at. */
+const HOW_IT_PLAYS = "How it plays";
 
 /**
  * "1 thing", "3 things": the read's conflicts, counted in the words the
@@ -91,7 +97,7 @@ export const BRACKET_COPY = {
     previews
       ? "Shown on your share page. Your target also shows in link previews and where the deck is listed."
       : "Shown on your share page. Your target also shows where the deck is listed.",
-  howItPlays: "How it plays",
+  howItPlays: HOW_IT_PLAYS,
   howItPlaysLead: "Optional: answer what you know. An answer can only raise the read.",
   /** "2 answered" — beside the collapsed How it plays. */
   answered: (n: number) => `${n} answered`,
@@ -323,6 +329,66 @@ export const BRACKET_COPY = {
   fitCredit: "Alternatives share a job by community tags on",
   fitPrices: "Prices are each card's cheapest printing.",
   cancel: "Cancel",
+
+  // BRACKET-UP (the owner's ask of 2026-10-27) — Your target's box when the
+  // target is above what the cards show, its door, and the "Upgrade toward"
+  // sheet: the Suggestions list in, each card for the weakest card at its
+  // cost, reviewed, and checked by the read of the list after the swaps.
+  /** Your target's box when the target is above the read's floor. */
+  belowTarget: "Below your target",
+  /** "Your target is Bracket 4 (Optimized)." Where the cards stand follows. */
+  belowTargetLead: (target: string) => `Your target is ${target}.`,
+  /** Where the cards stand: "The cards show at least Bracket 2 (Core)." */
+  upCardsShow: (level: string) => `The cards show at least ${level}.`,
+  /** Answers raised it: "The cards and your answers say Bracket 3 (Upgraded)." */
+  upAnswersSay: (level: string) => `The cards and your answers say ${level}.`,
+  /** The box's door: "Upgrade toward Bracket 4…". */
+  upDoor: (level: string) => `Upgrade toward ${level}…`,
+  /** The sheet's title: "Upgrade toward Bracket 4". */
+  upTitle: (level: string) => `Upgrade toward ${level}`,
+  upLead:
+    "Brings in your Suggestions, each for the weakest card at the same cost. Check the swaps you want.",
+  upAsking: "Finding suggestions…",
+  /** The Suggestions panel's own words for a 429. */
+  upLimited: "Suggestions are rate-limited for a moment. Try again shortly.",
+  upFailed: "Couldn't load suggestions.",
+  /** Nothing came back: nothing to swap, only to close (`fitDone`). */
+  upNone: "No suggestions fit your goals right now.",
+  /** Rows whose name resolved to another card (the id guard) are left out, and said. */
+  upDropped: (n: number) =>
+    `${n} ${n === 1 ? "suggestion" : "suggestions"} couldn't load, so ${n === 1 ? "it's" : "they're"} left out.`,
+  /** A row's check, by its card: "Swap in Arcane Signet". */
+  upSwapIn: (name: string) => `Swap in ${name}`,
+  /** Before a row's chooser, the card going out. */
+  upReplaces: "Replaces",
+  /** The chooser's name: "Card to cut for Arcane Signet". */
+  upCutFor: (name: string) => `Card to cut for ${name}`,
+  /** The chooser with no card in it yet. */
+  upChoose: "Choose a card to cut",
+  /** The chooser's first group, in the adapter's bucket words: "At mana value 3". */
+  upAt: (bucket: string) => `At ${bucket}`,
+  upOthers: "Other cards",
+  /** A card another row takes out: "Mind Stone (out for Arcane Signet)". */
+  upOutFor: (name: string, forName: string) => `${name} (out for ${forName})`,
+  /** Nothing left to cut at the card's cost: the weakest card left goes, and the row says so. */
+  upElsewhere: (bucket: string) =>
+    `No suggested cut at ${bucket}, so the weakest card at another cost goes.`,
+  /** No ordinary cut left anywhere, in Swap in's words. */
+  upNoCut: "No suggested cut is left. Choose the card to cut.",
+  /** The footer, from the read of the list after the swaps: "After these swaps, the cards show at least Bracket 3 (Upgraded)." */
+  upAfter: (level: string) => `After these swaps, the cards show at least ${level}.`,
+  upAfterAnswers: (level: string) => `After these swaps, the cards and your answers say ${level}.`,
+  upAfterNothing: (noun: string) => `After these swaps, nothing in the list raises the ${noun}.`,
+  /** Only when that read reaches the target. */
+  upReached: "That's your target.",
+  /** Short of the target: a list proves a floor, and the rest is the player's answer. */
+  upFloor: (level: string) =>
+    `Cards can only show a floor. If the deck plays at ${level}, say so under ${HOW_IT_PLAYS}.`,
+  /** A card coming in (or two together) puts the list above the target; the read's sentences follow. */
+  upAfterAbove: (level: string) => `After these swaps, these put the deck above ${level}:`,
+  /** The verdict a screen reader hears then, a whole sentence. */
+  upAfterAboveCount: (n: number, level: string) =>
+    `After these swaps, ${things(n)} ${n === 1 ? "puts" : "put"} the deck above ${level}.`,
 } as const;
 
 /** "it stays", "they stay". */

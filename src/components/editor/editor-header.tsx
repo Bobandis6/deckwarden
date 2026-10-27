@@ -107,6 +107,8 @@ export type EditorDialog =
   | "fit"
   // BRACKET-FIT: the "Swap to fit" sheet — the Why sheet's conflict callout's door.
   | "target-fit"
+  // BRACKET-UP: the "Upgrade toward" sheet — the Why sheet's Below your target door.
+  | "target-up"
   // Y9a: the Games dialog — More's "Games…" (live decks, games with a journal).
   | "games";
 

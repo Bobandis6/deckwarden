@@ -115,6 +115,13 @@
  * prices the cards coming in against `ownedSetForPricing` too, so a card the
  * owned precon already holds costs nothing.
  *
+ * BRACKET-UP (the owner's ask of 2026-10-27): "target-up" is the "Upgrade
+ * toward" sheet, opened only by Your target's "Below your target" door
+ * (wherever the adapter declares Swap in's swap and cuts; the Why sheet
+ * shows it when the target is above what the cards show). Its apply is
+ * Swap to fit's: ONE `applyListSwap`, "Swapped N cards" with one Undo, focus
+ * back to "Why?", the cards coming in priced against `ownedSetForPricing`.
+ *
  * Game-agnostic by construction: zones, labels, and card display all come off
  * the adapter registry (FormatDef, display.*) — nothing MTG-specific here.
  */
@@ -157,6 +164,7 @@ import { RecommendationsPanel } from "@/components/editor/recommendations-panel"
 import { SearchPane, type SearchPaneHandle } from "@/components/editor/search-pane";
 import { SwapInSheet, SwapSheet } from "@/components/editor/swap-sheet";
 import { TargetFitSheet, type TargetFitApply } from "@/components/editor/target-fit-sheet";
+import { TargetUpSheet } from "@/components/editor/target-up-sheet";
 import { ShareDialog, type DeckVisibility } from "@/components/editor/share-dialog";
 import { ShortcutsSheet } from "@/components/editor/shortcuts-sheet";
 import { useAutosave } from "@/components/editor/use-autosave";
@@ -1344,6 +1352,12 @@ export function DeckEditor({
     setDialogFromMenu(false);
     setDialog("target-fit");
   }, [focusBracketLine]);
+  // BRACKET-UP: Below your target's "Upgrade toward" door, Swap to fit's way out.
+  const openTargetUp = useCallback(() => {
+    closeFocusRef.current = focusBracketLine;
+    setDialogFromMenu(false);
+    setDialog("target-up");
+  }, [focusBracketLine]);
   const openSwapIn = useCallback((card: EditorCard, qty: number, from: "search" | "panel") => {
     // From search, focus goes back to the box either way (the add flow's
     // rule); a panel's opener keeps Base UI's default.
@@ -1952,6 +1966,7 @@ export function DeckEditor({
   );
   // BRACKET-FIT: the reviewed swaps as ONE whole-list swap (Fit's toast and
   // its one Undo); the door named "Why?" for the focus when the sheet closes.
+  // BRACKET-UP's "Upgrade toward" sheet applies through it too.
   const handleTargetFitApply = useCallback(
     ({ entries: next, cards: wires, swapped }: TargetFitApply) => {
       applyListSwap(next, wires, FIT_COPY.toast(swapped));
@@ -2751,6 +2766,7 @@ export function DeckEditor({
               onSwapCard={swapMeta ? swapFromCallout : undefined}
               canSwap={canSwapId}
               onFitTarget={fitDoorOpen ? openTargetFit : undefined}
+              onUpgradeTarget={swapInOn ? openTargetUp : undefined}
               speed={bracketSpeed}
               // LATER row 306: a private deck's link preview is the generic
               // image; a draft has no row yet and mints unlisted.
@@ -2796,6 +2812,24 @@ export function DeckEditor({
               read={bracketRead}
               combos={bracketFacts.combos}
               freshness={bracketFacts.freshness}
+              owned={ownedSetForPricing}
+              phone={tier === "phone"}
+              finalFocus={sheetFinalFocus}
+              onApply={handleTargetFitApply}
+              onClose={() => setDialog(null)}
+            />
+          )}
+          {/* BRACKET-UP: the "Upgrade toward" sheet, opened only by Below your target's door. */}
+          {dialog === "target-up" && swapInOn && bracketRead && (
+            <TargetUpSheet
+              adapter={load.adapter}
+              format={load.format}
+              entries={entries}
+              cards={cards}
+              goals={goals}
+              combos={bracketFacts.combos}
+              freshness={bracketFacts.freshness}
+              factsState={bracketFacts.state}
               owned={ownedSetForPricing}
               phone={tier === "phone"}
               finalFocus={sheetFinalFocus}

@@ -404,7 +404,10 @@ export function TargetFitSheet({
     );
     return own.length > 0 || also.length > 0 ? [{ fix, own, also }] : [];
   });
-  const costLine = costOf(chosen, owned);
+  const costLine = costOf(
+    chosen.map((o) => o.pick!),
+    owned,
+  );
   const state =
     !leader || fixes.length === 0
       ? "nothing"
@@ -571,9 +574,9 @@ export function TargetFitSheet({
   );
 
   return (
-    <Shell title={title} phone={phone} finalFocus={finalFocus} onClose={onClose}>
+    <FitShell title={title} phone={phone} finalFocus={finalFocus} onClose={onClose}>
       {content}
-    </Shell>
+    </FitShell>
   );
 }
 
@@ -584,26 +587,28 @@ const withoutId = (set: ReadonlySet<string>, id: string) => {
   return next;
 };
 
-/** What the cards coming in cost: the ones the player owns left out, the unpriced counted beside. */
-function costOf(
-  chosen: readonly { pick: AlternativeRow | null }[],
+/**
+ * What the cards coming in cost: the ones the player owns left out, the
+ * unpriced counted beside. BRACKET-UP's sheet prices its cards with it too.
+ */
+export function costOf(
+  incoming: readonly { cardId: string; cheapestUsd: string | null }[],
   owned: ReadonlySet<string> | null,
 ): string | null {
-  if (chosen.length === 0) return null;
+  if (incoming.length === 0) return null;
   let usd = 0;
   let mine = 0;
   let unpriced = 0;
-  for (const { pick } of chosen) {
-    if (!pick) continue;
-    if (owned?.has(pick.cardId)) {
+  for (const card of incoming) {
+    if (owned?.has(card.cardId)) {
       mine += 1;
       continue;
     }
-    const price = pick.cheapestUsd === null ? NaN : Number(pick.cheapestUsd);
+    const price = card.cheapestUsd === null ? NaN : Number(card.cheapestUsd);
     if (Number.isFinite(price)) usd += Math.round(price * 100);
     else unpriced += 1;
   }
-  return BRACKET_COPY.fitCost(usd / 100, mine, unpriced, chosen.length);
+  return BRACKET_COPY.fitCost(usd / 100, mine, unpriced, incoming.length);
 }
 
 /** Why part of a fix stays, one line per reason, every card named. */
@@ -837,8 +842,11 @@ function TargetFitRowView({
   );
 }
 
-/** FitSheet's shell, copied: a full-height Drawer on phones, the wide Modal from md. */
-function Shell({
+/**
+ * FitSheet's shell, copied: a full-height Drawer on phones, the wide Modal
+ * from md. BRACKET-UP's sheet takes it from here.
+ */
+export function FitShell({
   title,
   phone,
   finalFocus,

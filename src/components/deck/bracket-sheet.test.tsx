@@ -94,6 +94,7 @@ function sheet(
     onSwapCard,
     canSwap,
     onFitTarget,
+    onUpgradeTarget,
     speed = mtg.brackets!.speed!.facts(list.deck, list.cards),
     linkPreviews,
   }: {
@@ -110,6 +111,8 @@ function sheet(
     canSwap?: (cardId: string) => boolean;
     /** BRACKET-FIT: the callout's door. */
     onFitTarget?: () => void;
+    /** BRACKET-UP: Below your target's door. */
+    onUpgradeTarget?: () => void;
     /** BRACKET-SPEED: the list's facts, as the editor and the share page hand them (the adapter's by default). */
     speed?: BracketSpeedFacts | null;
     /** LATER row 306: the deck's link previews draw its target (the editor: any deck but a private one). */
@@ -148,6 +151,7 @@ function sheet(
       onSwapCard={onSwapCard}
       canSwap={canSwap}
       onFitTarget={onFitTarget}
+      onUpgradeTarget={onUpgradeTarget}
       speed={speed}
       linkPreviews={linkPreviews}
       onClose={onClose}
@@ -777,6 +781,102 @@ describe("BRACKET-FIT — the conflict callout's door", () => {
       goals: { v: 1, targetLevel: 2 },
       onGoalsChange: vi.fn(),
       onFitTarget: vi.fn(),
+    });
+    expect(document.querySelector("[data-slot=drawer-popup]")?.contains(door())).toBe(true);
+  });
+});
+
+describe("BRACKET-UP — Below your target's door", () => {
+  const below = () => document.querySelector<HTMLElement>("[data-slot=bracket-below]");
+  const door = () => document.querySelector<HTMLElement>("[data-slot=bracket-up-door]");
+  const quality = { rulesetVersion: 1, play: { quality: "yes" as const } };
+
+  it("the target above what the cards show: the box, where the cards stand, and the door that hands the click to the editor", () => {
+    const onUpgradeTarget = vi.fn();
+    sheet(spec([rhystic]), {
+      combos: [],
+      goals: { v: 1, targetLevel: 4 },
+      onGoalsChange: vi.fn(),
+      onUpgradeTarget,
+    });
+    expect(within(below()!).getByRole("heading", { name: "Below your target" })).toBeTruthy();
+    expect(below()!.querySelector("p")?.textContent).toBe(
+      "Your target is Bracket 4 (Optimized). The cards show at least Bracket 3 (Upgraded).",
+    );
+    const button = within(below()!).getByRole("button", { name: "Upgrade toward Bracket 4…" });
+    expect(button).toBe(door());
+    expect(button.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(button.className).toContain("pointer-coarse:h-11");
+    fireEvent.click(button);
+    expect(onUpgradeTarget).toHaveBeenCalledTimes(1);
+    // Nothing is above the target, so no conflict callout beside it.
+    expect(document.querySelector("[data-slot=bracket-conflicts]")).toBeNull();
+  });
+
+  it("nothing flagged: the box says nothing raises the read", () => {
+    sheet(spec([]), {
+      combos: [],
+      goals: { v: 1, targetLevel: 3 },
+      onGoalsChange: vi.fn(),
+      onUpgradeTarget: vi.fn(),
+    });
+    expect(below()!.querySelector("p")?.textContent).toBe(
+      "Your target is Bracket 3 (Upgraded). Nothing in this list raises the bracket.",
+    );
+    expect(door()?.textContent).toBe("Upgrade toward Bracket 3…");
+  });
+
+  it("answers that raised the read: what the cards and the answers say; at the target, no box", () => {
+    sheet(spec([]), {
+      combos: [],
+      goals: { v: 1, targetLevel: 4, answers: quality },
+      onGoalsChange: vi.fn(),
+      onUpgradeTarget: vi.fn(),
+    });
+    expect(below()!.querySelector("p")?.textContent).toBe(
+      "Your target is Bracket 4 (Optimized). The cards and your answers say Bracket 3 (Upgraded).",
+    );
+    cleanup();
+    sheet(spec([]), {
+      combos: [],
+      goals: { v: 1, targetLevel: 3, answers: quality },
+      onGoalsChange: vi.fn(),
+      onUpgradeTarget: vi.fn(),
+    });
+    expect(below()).toBeNull();
+    expect(door()).toBeNull();
+  });
+
+  it("no box: no target, a target the cards already reach, anything above it, or no door", () => {
+    const owner = { onGoalsChange: vi.fn(), onUpgradeTarget: vi.fn() };
+    sheet(spec([rhystic]), { combos: [], goals: null, ...owner });
+    expect(below()).toBeNull();
+    cleanup();
+    sheet(spec([rhystic]), { combos: [], goals: { v: 1, targetLevel: 3 }, ...owner });
+    expect(below()).toBeNull();
+    cleanup();
+    // Above the target: Swap to fit's callout, never this box.
+    sheet(spec([conscripts, rhystic]), { goals: { v: 1, targetLevel: 2 }, ...owner });
+    expect(document.querySelector("[data-slot=bracket-conflicts]")).toBeTruthy();
+    expect(below()).toBeNull();
+    cleanup();
+    // A game the editor can't upgrade passes no door, and then there is no box.
+    sheet(spec([]), { combos: [], goals: { v: 1, targetLevel: 4 }, onGoalsChange: vi.fn() });
+    expect(below()).toBeNull();
+  });
+
+  it("the share page's sheet reads only: no target block, so no door", () => {
+    sheet(spec([]), { combos: [], goals: { v: 1, targetLevel: 4 }, onUpgradeTarget: vi.fn() });
+    expect(door()).toBeNull();
+  });
+
+  it("on a phone: the same door inside the Drawer", () => {
+    sheet(spec([]), {
+      phone: true,
+      combos: [],
+      goals: { v: 1, targetLevel: 4 },
+      onGoalsChange: vi.fn(),
+      onUpgradeTarget: vi.fn(),
     });
     expect(document.querySelector("[data-slot=drawer-popup]")?.contains(door())).toBe(true);
   });
