@@ -16,12 +16,20 @@
  *   (`snapshotBody`: the deck's per-card budget goal as the budget, the
  *   goals as `suggestionGoals` sends them, so nothing above the target
  *   comes back; the panel's limit, 25), even for a saved deck: the GET
- *   would read a target the autosave may not have written yet. Then ONE
+ *   would read a target the autosave may not have written yet. With
+ *   `powerFirst` (the owner's call of 2026-10-27, "power first"): the cards
+ *   the adapter's `brackets.toward` counts toward the target lead, as many
+ *   as the list needs, from Suggestions' whole ranked list. Then ONE
  *   `POST /api/cards/resolve` for the names, with the panel's id guard: a
  *   name that resolves to another card drops its row, and the sheet says
  *   how many. A 429 says so, with Try again; closing aborts, and an aborted
  *   ask writes nothing and is asked again (StrictMode's twin included).
  *   Opening, asking and reviewing write nothing.
+ * - **The lead**: those counting cards come first and get the first pick
+ *   of cuts; the lead says what the target needs in the adapter's words
+ *   ("Game Changers come first: Bracket 4 (Optimized) needs 4 more."), and
+ *   each lead row says what it counts toward. Without a `toward` (a game
+ *   that declares none, a target no count shows), Suggestions' order.
  * - **The plan** is ../../lib/brackets/target-up.ts': each card, in
  *   Suggestions' order, for Swap in's cut partner at its cost (the Cut
  *   Coach over the editor's cards and the bracket line's combo facts, so a
@@ -119,6 +127,7 @@ type Ask =
 class RateLimited extends Error {}
 
 const NO_ROWS: UpRow[] = [];
+const NO_LEAD: ReadonlySet<string> = new Set();
 /** A text control after a gap in a line (U9). */
 const INLINE_ACTION = "cursor-pointer underline underline-offset-4 pointer-coarse:min-h-11";
 /** A native select in Input's look (U10a, the Games dialog's): the edge token, 44 px on touch. */
@@ -181,15 +190,16 @@ export function TargetUpSheet({
   const bodyKey = useMemo(
     () =>
       brackets && swap && leader && target !== null
-        ? JSON.stringify(
-            snapshotBody(
+        ? JSON.stringify({
+            ...snapshotBody(
               adapter.id,
               format,
               entries,
               usdOf(tierOf(goals?.budget?.perCardUsd)) ?? undefined,
               suggestionGoals(goals),
             ),
-          )
+            powerFirst: true,
+          })
         : null,
     [brackets, swap, leader, target, adapter.id, format, entries, goals],
   );
@@ -265,12 +275,40 @@ export function TargetUpSheet({
     setNonce((n) => n + 1);
   };
 
-  // A card already in the list never comes in (Suggestions leave them out; belt and braces).
-  const rows = useMemo(() => {
-    if (ask.status !== "done") return NO_ROWS;
+  // Power first: what carries the list as it stands up to the target, in the adapter's measure.
+  const toward = useMemo(() => {
+    if (!brackets?.toward || target === null || !leader) return null;
+    const input = {
+      deck: toDeckSnapshot(adapter.id, format, entries),
+      cards,
+      combos,
+      freshness,
+      targetLevel: target,
+      answers: goals?.answers ?? null,
+    };
+    return brackets.toward(brackets.assess(input), input, target);
+  }, [brackets, target, leader, adapter.id, format, entries, cards, combos, freshness, goals]);
+
+  // A card already in the list never comes in (Suggestions leave them out;
+  // belt and braces). The lead (the route's own order) stays first: as many
+  // counting cards as the target needs, each one the curve can pair.
+  const { rows, lead } = useMemo(() => {
+    if (ask.status !== "done") return { rows: NO_ROWS, lead: NO_LEAD };
     const inList = new Set(entries.map((e) => e.cardId));
-    return ask.rows.filter((r) => !inList.has(r.cardId));
-  }, [ask, entries]);
+    const kept = ask.rows.filter((r) => !inList.has(r.cardId));
+    if (!toward) return { rows: kept, lead: NO_LEAD };
+    const curve = recommend?.curve;
+    const ids = new Set(
+      kept
+        .filter((r) => toward.counts(r.card) && curve?.bucketOf(r.card) !== null)
+        .slice(0, toward.more)
+        .map((r) => r.cardId),
+    );
+    return {
+      rows: [...kept.filter((r) => ids.has(r.cardId)), ...kept.filter((r) => !ids.has(r.cardId))],
+      lead: ids,
+    };
+  }, [ask, entries, toward, recommend]);
 
   // Swap in's input: the playable list's cards, the leaders left out, the combo facts.
   const cut = useMemo(() => {
@@ -418,6 +456,17 @@ export function TargetUpSheet({
       <p data-slot="target-up-lead" className="text-muted-foreground text-sm">
         {BRACKET_COPY.upLead}
       </p>
+      {toward && state === "ready" && (
+        <p data-slot="target-up-power" className="text-sm">
+          {BRACKET_COPY.upPowerFirst(
+            toward.one,
+            toward.many,
+            levelLabel(brackets, target),
+            toward.more,
+            lead.size,
+          )}
+        </p>
+      )}
       {comboNote && state === "ready" && (
         <p className="text-muted-foreground text-xs">{comboNote}</p>
       )}
@@ -451,6 +500,11 @@ export function TargetUpSheet({
                 pair={pair}
                 adapter={adapter}
                 swap={swap}
+                counts={
+                  toward && lead.has(pair.row.cardId)
+                    ? BRACKET_COPY.upCounts(levelLabel(brackets, target), toward.one)
+                    : null
+                }
                 nameOf={(id) => nameOf.get(id) ?? id}
                 onCheck={check}
                 onPick={pick}
@@ -638,6 +692,7 @@ function UpRowView({
   pair,
   adapter,
   swap,
+  counts,
   nameOf,
   onCheck,
   onPick,
@@ -645,6 +700,8 @@ function UpRowView({
   pair: TargetUpPair<UpRow>;
   adapter: GameAdapter;
   swap: SwapMeta;
+  /** A lead row's line: what it counts toward, in the adapter's words; null for the rest. */
+  counts: string | null;
   /** A row's card name by its id: who holds a card another row takes. */
   nameOf: (id: string) => string;
   onCheck: (id: string, next: boolean) => void;
@@ -688,6 +745,12 @@ function UpRowView({
         </span>
       </div>
       <div className="min-w-0 space-y-0.5 pl-6 text-xs break-words">
+        {counts && (
+          <p data-up-counts="" className="flex items-baseline gap-1 font-medium">
+            <GaugeIcon aria-hidden className="size-3.5 shrink-0 translate-y-[2px]" />
+            <span>{counts}</span>
+          </p>
+        )}
         {top && <p className="line-clamp-2 leading-relaxed">{top.why}</p>}
         {sources.length > 0 && <p className="text-muted-foreground">{sources.join(", ")}</p>}
         {/* Goals (Y6a's lines beside the evidence), then why the goals leave it out here. */}

@@ -360,6 +360,25 @@ export const BRACKET_COPY = {
   upTitle: (level: string) => `Upgrade toward ${level}`,
   upLead:
     "Brings in your Suggestions, each for the weakest card it can replace, at the same cost when there is one. Check the swaps you want.",
+  /**
+   * Power first: what the target needs, in the adapter's words for the cards
+   * that count ("a Game Changer", "Game Changers"): "Game Changers come
+   * first: Bracket 4 (Optimized) needs 4 more." When the Suggestions hold
+   * fewer, it says how many; when they hold none, that.
+   */
+  upPowerFirst: (one: string, many: string, level: string, more: number, found: number) => {
+    const One = one.charAt(0).toUpperCase() + one.slice(1);
+    if (found === 0) {
+      return `${level} needs ${more === 1 ? one : `${more} more ${many}`}, and your Suggestions hold none.`;
+    }
+    const head =
+      more === 1
+        ? `${One} comes first: ${level} needs one`
+        : `${many} come first: ${level} needs ${more} more`;
+    return found >= more ? `${head}.` : `${head}, and your Suggestions hold ${found}.`;
+  },
+  /** A lead row's line: "Counts toward Bracket 4 (Optimized) as a Game Changer." */
+  upCounts: (level: string, one: string) => `Counts toward ${level} as ${one}.`,
   upAsking: "Finding suggestions…",
   /** The Suggestions panel's own words for a 429. */
   upLimited: "Suggestions are rate-limited for a moment. Try again shortly.",

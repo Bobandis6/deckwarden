@@ -202,6 +202,34 @@ describe("POST /api/recommendations", () => {
     expect(mocks.recommendForSnapshot).not.toHaveBeenCalled();
   });
 
+  it("BRACKET-UP's power first reaches the engine as asked; anything but a boolean answers 400 before any read", async () => {
+    const goals = { v: 1, targetLevel: 4 };
+    const { res } = await post({
+      game: "mtg",
+      format: "commander",
+      leaderIds: [TYMNA],
+      goals,
+      powerFirst: true,
+    });
+    expect(res.status).toBe(200);
+    expect(mocks.recommendForSnapshot.mock.calls[0][1]).toEqual({
+      maxPriceUsd: undefined,
+      goals,
+      powerFirst: true,
+    });
+    mocks.recommendForSnapshot.mockClear();
+    mocks.loadEntryFacts.mockClear();
+    const bad = await post({
+      game: "mtg",
+      format: "commander",
+      leaderIds: [TYMNA],
+      powerFirst: "yes",
+    });
+    expect(bad.res.status).toBe(400);
+    expect(mocks.loadEntryFacts).not.toHaveBeenCalled();
+    expect(mocks.recommendForSnapshot).not.toHaveBeenCalled();
+  });
+
   it("a leader alone is a snapshot too (entries default to none); no budget means none", async () => {
     const { res } = await post({ game: "mtg", format: "commander", leaderIds: [TYMNA] });
     expect(res.status).toBe(200);

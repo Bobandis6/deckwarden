@@ -76,6 +76,7 @@ import type {
   BracketQuestion,
   BracketRead,
   BracketsMeta,
+  BracketToward,
   CardData,
   CompleteCombo,
   FeedFreshness,
@@ -888,6 +889,47 @@ export function mtgBracketFixes(read: BracketRead, input: BracketInput<MtgAttrs>
   });
 }
 
+// --- Toward (BRACKET-UP, power first): what carries the read up to a target ----------
+
+/**
+ * What carries the read up to a target by Magic's measure of power
+ * (BRACKET-UP's power first, the owner's call of 2026-10-27): Wizards' Game
+ * Changers, the cards its list names for warping games, counted per copy as
+ * `assessBracket` counts them. A count of them is the one way the cards
+ * alone show a higher bracket without a card most tables avoid (mass land
+ * denial) or a question only the player can answer (a combo's speed, a
+ * chain of extra turns). One shows Bracket 3 and four show Bracket 4; a
+ * target of 5 asks for those four too, since no list proves cEDH. A target
+ * no count shows exactly (Bracket 2, which allows none) or a floor already
+ * at it takes nothing.
+ */
+export function mtgBracketToward(
+  read: BracketRead,
+  input: BracketInput<MtgAttrs>,
+  target: number,
+): BracketToward<MtgAttrs> | null {
+  const want = Math.min(target, gameChangerLevel(Number.POSITIVE_INFINITY));
+  if (want <= (read.suggested ?? read.minimum)) return null;
+  let need = 1;
+  while (gameChangerLevel(need) < want) need += 1;
+  if (gameChangerLevel(need) !== want) return null;
+  let held = 0;
+  for (const entries of Object.values(input.deck.zones)) {
+    for (const e of entries) {
+      if (input.cards.get(e.cardId)?.attrs.game_changer === true) held += e.qty;
+    }
+  }
+  return need > held
+    ? {
+        factor: "game-changers",
+        more: need - held,
+        counts: (card) => card.attrs.game_changer === true,
+        one: "a Game Changer",
+        many: "Game Changers",
+      }
+    : null;
+}
+
 // --- Goals (Y6a, WAVE4 D7): one more card, against the read --------------------------
 
 /** The attrs keys the read takes — all of them (`assess` and `impact` read nothing else). */
@@ -1322,6 +1364,8 @@ export const mtgBrackets: BracketsMeta<MtgAttrs> = {
   shellNotes: mtgShellNotes,
   // BRACKET-FIT: what each conflict needs out of the list (the "Swap to fit" sheet's planner).
   fixes: mtgBracketFixes,
+  // BRACKET-UP: what carries the read up to a target (the "Upgrade toward" sheet's lead).
+  toward: mtgBracketToward,
   comboBadge: mtgComboBadge,
   // BRACKET-SPEED: the three speed facts beside the read, never in it (./speed.ts).
   speed: mtgBracketSpeed,

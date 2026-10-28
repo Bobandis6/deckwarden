@@ -6,7 +6,9 @@
  * cost, uncheck, another card to cut, an unpaired land, the goals row by
  * row); the after-check over mocked facts (the target reached, short of
  * it, nothing raised, a combo two cards complete above it, a facts
- * failure); the price; and Swap handing the editor ONE next list.
+ * failure); the price; Swap handing the editor ONE next list; and power
+ * first (the Game Changers the target needs lead, say so and pair first;
+ * never a land, which can't come in for a card at its cost).
  */
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { StrictMode } from "react";
@@ -247,6 +249,8 @@ describe("TargetUpSheet — the asks", () => {
       entries: entries.slice(1).map((e) => ({ cardId: e.cardId, qty: e.qty })),
       budget: 5,
       goals: { v: 1, targetLevel: 3, budget: { perCardUsd: 5 } },
+      // BRACKET-UP power first: the cards the target needs lead the answer.
+      powerFirst: true,
     });
     expect(calls("/api/cards/resolve")).toHaveLength(1);
     expect(bodyOf(calls("/api/cards/resolve")[0])).toEqual({
@@ -584,5 +588,87 @@ describe("copy guard (WAVE4 D0) — everything the sheet renders", () => {
     expect(text).not.toMatch(/approv/i);
     expect(text).not.toMatch(/ruthless|spicy|powerful|oddball|precon appropriate|casual/i);
     expect(text).not.toMatch(/\d\+|est\.|[–—]/);
+  });
+});
+
+describe("TargetUpSheet — power first (the cards the target needs lead)", () => {
+  const power = () => document.querySelector<HTMLElement>("[data-slot=target-up-power]");
+  const order = () =>
+    [...document.querySelectorAll<HTMLElement>("[data-up-row]")].map(
+      (el) => IN.find((x) => x.wire.id === el.dataset.upRow)!.rec.name,
+    );
+  const counted = () =>
+    [...document.querySelectorAll<HTMLElement>("[data-up-row]")]
+      .filter((el) => el.querySelector("[data-up-counts]"))
+      .map((el) => IN.find((x) => x.wire.id === el.dataset.upRow)!.rec.name);
+  const cradle = incoming("Changer Cradle", 0, "1.00", {
+    primaryType: "Land",
+    attrs: { type_line: "Legendary Land", game_changer: true },
+  });
+
+  it("at a target of 3, the one Game Changer it needs comes first and says so", async () => {
+    renderSheet();
+    await ready();
+    expect(power()?.textContent).toBe(
+      "A Game Changer comes first: Bracket 3 (Upgraded) needs one.",
+    );
+    expect(counted()).toEqual(["Changer One"]);
+    expect(
+      within(row("Changer One")).getByText("Counts toward Bracket 3 (Upgraded) as a Game Changer."),
+    ).toBeTruthy();
+  });
+
+  it("at a target of 4, four Game Changers lead even from below the plain cards, take their cuts first, and the list reaches it", async () => {
+    IN = [plain, grove, one, two, three, four];
+    renderSheet({ goals: { v: 1, targetLevel: 4, budget: { perCardUsd: 5 } } as DeckGoals });
+    await ready();
+    expect(power()?.textContent).toBe(
+      "Game Changers come first: Bracket 4 (Optimized) needs 4 more.",
+    );
+    expect(order()).toEqual([
+      "Changer One",
+      "Changer Two",
+      "Changer Three",
+      "Changer Four",
+      "Plain Three",
+      "Gilded Grove",
+    ]);
+    expect(counted()).toEqual(["Changer One", "Changer Two", "Changer Three", "Changer Four"]);
+    // The lead pairs first: the Coach's first cut at mana value 2, as when it led by rank.
+    expect(selected("Changer One")).toBe("Fringe 60");
+    const reached = await verdict("reached");
+    expect(reached.textContent).toContain(
+      "After these swaps, the cards show at least Bracket 4 (Optimized). That's your target.",
+    );
+  });
+
+  it("fewer than the target needs: they still lead, and the sentence says how many the Suggestions hold", async () => {
+    IN = [plain, one, grove, two];
+    renderSheet({ goals: { v: 1, targetLevel: 4, budget: { perCardUsd: 5 } } as DeckGoals });
+    await ready();
+    expect(power()?.textContent).toBe(
+      "Game Changers come first: Bracket 4 (Optimized) needs 4 more, and your Suggestions hold 2.",
+    );
+    expect(order().slice(0, 2)).toEqual(["Changer One", "Changer Two"]);
+  });
+
+  it("none among the Suggestions: the sentence says so, and the order stays Suggestions'", async () => {
+    IN = [plain, grove];
+    renderSheet({ goals: { v: 1, targetLevel: 4, budget: { perCardUsd: 5 } } as DeckGoals });
+    await ready();
+    expect(power()?.textContent).toBe(
+      "Bracket 4 (Optimized) needs 4 more Game Changers, and your Suggestions hold none.",
+    );
+    expect(order()).toEqual(["Plain Three", "Gilded Grove"]);
+    expect(counted()).toEqual([]);
+  });
+
+  it("a Game Changer the curve leaves out (a land) never leads: it can't come in for a card at its cost", async () => {
+    IN = [cradle, plain, one];
+    renderSheet({ goals: { v: 1, targetLevel: 4, budget: { perCardUsd: 5 } } as DeckGoals });
+    await ready();
+    expect(order()).toEqual(["Changer One", "Changer Cradle", "Plain Three"]);
+    expect(counted()).toEqual(["Changer One"]);
+    expect(power()?.textContent).toContain("your Suggestions hold 1.");
   });
 });

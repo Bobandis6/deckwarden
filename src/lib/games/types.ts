@@ -770,6 +770,25 @@ export interface BracketFix {
 }
 
 /**
+ * What carries a read up to a target by the game's own measure of power
+ * (BRACKET-UP's power first, the owner's call of 2026-10-27): the cards
+ * that count toward it and how many more of them the list needs. The
+ * adapter's declaration is the only place the measure is named; core leads
+ * the upgrade with cards that count and says why in these words.
+ */
+export interface BracketToward<A = Record<string, unknown>> {
+  /** The read's factor id the cards count toward. */
+  factor: string;
+  /** How many more cards that count must come in for the cards to show the target. */
+  more: number;
+  /** Whether a card counts, by its declared attrs. */
+  counts(card: CardData<A>): boolean;
+  /** One counting card and several, in the adapter's words ("a Game Changer", "Game Changers"). */
+  one: string;
+  many: string;
+}
+
+/**
  * One combo's weight on its own (Y6b) — the Combo Radar's badge, in the
  * adapter's words. Core appends "above your target" when either level is
  * above the deck's declared target; it never hides the row.
@@ -920,6 +939,14 @@ export interface BracketsMeta<A = Record<string, unknown>> {
    * a game without it has no "Swap to fit" door.
    */
   fixes?(read: BracketRead, input: BracketInput<A>): BracketFix[];
+  /**
+   * Pure (BRACKET-UP, power first): what carries `read` up to `target` by
+   * the game's measure of power: the cards that count and how many more the
+   * list needs (`input` is the input `read` came from). Null when that
+   * measure can't show the target, or the read's floor already does.
+   * Optional: without it the upgrade keeps Suggestions' own order.
+   */
+  toward?(read: BracketRead, input: BracketInput<A>, target: number): BracketToward<A> | null;
   /**
    * Pure (Y6b): one combo on its own — what it alone makes a deck, the
    * Combo Radar's badge. Read exactly as the list's read would read it

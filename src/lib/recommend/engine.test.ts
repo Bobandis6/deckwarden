@@ -6,7 +6,9 @@
  * the 25 next ones with the 25 counted as hidden — never a list cut first
  * and then filtered short. Also: the list is read once, on the server, with
  * one more statement (the complete combos) and only where a read exists — a
- * leader, every entry's facts, a game with `brackets`.
+ * leader, every entry's facts, a game with `brackets`. BRACKET-UP's power
+ * first: the Game Changers a target needs lead, found past the 25 best and
+ * never a land (the upgrade pairs by cost), the rest in their own order.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -147,5 +149,87 @@ describe("recommendForSnapshot — rank all → goals → slice (Y6a)", () => {
     expect(out).toEqual({ recommendations: [], hidden: [], combosTruncated: false });
     expect(mocks.loadCandidatePool).not.toHaveBeenCalled();
     expect(mocks.loadCompleteCombos).not.toHaveBeenCalled();
+  });
+});
+
+describe("recommendForSnapshot — power first (BRACKET-UP)", () => {
+  const card = (n: number, name: string, over: Partial<CandidateCard>): CandidateCard => ({
+    id: `30000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
+    name,
+    primaryType: "Artifact",
+    costValue: 2,
+    ciMask: 0,
+    cheapestUsd: "1.00",
+    popularity: n,
+    externalKey: `oracle-power-${n}`,
+    flags: {},
+    ...over,
+  });
+  /** 40 plain spells rank first; then two Game Changer lands, then six Game Changer spells. */
+  const RANKED: CandidateCard[] = [
+    ...Array.from({ length: 40 }, (_, i) =>
+      card(i + 1, `Spell ${String(i + 1).padStart(2, "0")}`, {}),
+    ),
+    card(41, "Changer Land A", {
+      primaryType: "Land",
+      costValue: 0,
+      flags: { game_changer: true },
+    }),
+    card(42, "Changer Land B", {
+      primaryType: "Land",
+      costValue: 0,
+      flags: { game_changer: true },
+    }),
+    ...Array.from({ length: 6 }, (_, i) =>
+      card(43 + i, `Changer ${i + 1}`, {
+        primaryType: "Enchantment",
+        costValue: 3,
+        flags: { game_changer: true },
+      }),
+    ),
+  ];
+  const names = (rows: { name: string }[]) => rows.map((r) => r.name);
+
+  beforeEach(() => mocks.loadCandidatePool.mockResolvedValue(RANKED));
+
+  it("at a target of 4 the four Game Changers the list needs lead, from past the 25 best, lands passed over; the rest keep their order", async () => {
+    const plain = await recommendForSnapshot(snapshot(), { goals: { targetLevel: 4 } });
+    expect(names(plain.recommendations).some((n) => n.startsWith("Changer"))).toBe(false);
+    const out = await recommendForSnapshot(snapshot(), {
+      goals: { targetLevel: 4 },
+      powerFirst: true,
+    });
+    expect(names(out.recommendations).slice(0, 4)).toEqual([
+      "Changer 1",
+      "Changer 2",
+      "Changer 3",
+      "Changer 4",
+    ]);
+    expect(names(out.recommendations).slice(4)).toEqual(names(plain.recommendations).slice(0, 21));
+    expect(out.recommendations).toHaveLength(25);
+    expect(out.hidden).toEqual(plain.hidden);
+  });
+
+  it("at a target of 3, the one Game Changer it needs", async () => {
+    const out = await recommendForSnapshot(snapshot(), {
+      goals: { targetLevel: 3 },
+      powerFirst: true,
+    });
+    expect(names(out.recommendations)[0]).toBe("Changer 1");
+    expect(names(out.recommendations).filter((n) => n.startsWith("Changer"))).toEqual([
+      "Changer 1",
+    ]);
+  });
+
+  it("nothing leads without a target, at a target no count shows (2), or without the ask", async () => {
+    const plain = names((await recommendForSnapshot(snapshot())).recommendations);
+    expect(
+      names((await recommendForSnapshot(snapshot(), { powerFirst: true })).recommendations),
+    ).toEqual(plain);
+    const two = await recommendForSnapshot(snapshot(), {
+      goals: { targetLevel: 2 },
+      powerFirst: true,
+    });
+    expect(names(two.recommendations).some((n) => n.startsWith("Changer"))).toBe(false);
   });
 });

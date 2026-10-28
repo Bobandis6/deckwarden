@@ -36,6 +36,13 @@
  * (queries.ts' ReadFacts) and the list's complete combos — ONE more
  * statement (loadCompleteCombos, run beside the candidate gather), the
  * share page's pattern without its freshness read, which moves no level.
+ *
+ * BRACKET-UP (power first): with `powerFirst` and a target the list is
+ * below, the cards the adapter's `brackets.toward` counts lead the list,
+ * from every card the goals keep rather than the top rows (on the dev
+ * corpus at a target of 4, the 25 best rows held enough Game Changer
+ * spells for 90 of 179 precons, the whole list for all of them), then the
+ * rest.
  */
 import type { DeckGoals } from "@/lib/decks/goals";
 import { playableEntries } from "@/lib/decks/playable";
@@ -87,6 +94,16 @@ export interface RecommendOptions {
    * the budget and the answers are the owner's), or a draft's own.
    */
   goals?: SuggestionGoals | Pick<DeckGoals, "targetLevel"> | null;
+  /**
+   * BRACKET-UP's power first (the "Upgrade toward" sheet's ask): with a
+   * target above what the list shows, the cards the adapter's
+   * `brackets.toward` counts lead the list, as many as it needs, from the
+   * whole ranked list rather than its top rows, then the rest in rank
+   * order, cut to the limit. A lead card is one the curve buckets: the
+   * upgrade pairs each card with one at its cost, and a card the curve
+   * leaves out (a land) can't be paired, so it keeps its rank instead.
+   */
+  powerFirst?: boolean;
 }
 
 /** What Suggestions get (Y6a): the list, what the goals hid from it, and whether the combo scan was cut. */
@@ -392,7 +409,25 @@ export async function recommendForSnapshot(
       ? goalsRead(adapter, snapshot, completeCombos, candidates, combosByCandidate, opts.goals)
       : null;
   const { kept, hidden } = applyGoals(ranked, opts.goals ?? null, read, adapter.brackets, limit);
-  return { recommendations: kept, hidden, combosTruncated };
+  const target = opts.goals?.targetLevel ?? null;
+  const toward =
+    opts.powerFirst && read && target !== null
+      ? (adapter.brackets?.toward?.(read.read, read.input, target) ?? null)
+      : null;
+  if (!toward) return { recommendations: kept, hidden, combosTruncated };
+
+  // Power first: the lead from every card the goals keep, then the usual
+  // list without it. `hidden` stays the usual cut's.
+  const all = applyGoals(ranked, opts.goals ?? null, read, adapter.brackets, ranked.length);
+  const lead = all.kept
+    .filter((r) => {
+      const card = read?.candidates.get(r.cardId)?.card;
+      return card !== undefined && toward.counts(card) && meta.curve?.bucketOf(r) !== null;
+    })
+    .slice(0, toward.more);
+  const leads = new Set(lead.map((r) => r.cardId));
+  const rest = all.kept.filter((r) => !leads.has(r.cardId));
+  return { recommendations: [...lead, ...rest].slice(0, limit), hidden, combosTruncated };
 }
 
 export async function recommendForDeck(

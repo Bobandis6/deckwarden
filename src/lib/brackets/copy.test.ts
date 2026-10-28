@@ -91,6 +91,8 @@ const BUILDERS = [
   "upNothingUnlessCall",
   "upDoor",
   "upTitle",
+  "upPowerFirst",
+  "upCounts",
   "upDropped",
   "upSwapIn",
   "upCutFor",
@@ -127,6 +129,20 @@ function upLines(): string[] {
   }
   lines.push(C.upAfterNothing(brackets.noun), C.nothingFound(brackets.noun));
   lines.push(C.upNothingUnlessCall(brackets.noun), C.upCallCanRaise);
+  // Power first, in Magic's words, at every level a count of Game Changers shows.
+  for (const level of [3, 4, 5]) {
+    const named = levelLabel(brackets, level);
+    lines.push(C.upCounts(named, "a Game Changer"));
+    for (const [more, found] of [
+      [1, 1],
+      [1, 0],
+      [4, 4],
+      [4, 2],
+      [4, 0],
+    ] as const) {
+      lines.push(C.upPowerFirst("a Game Changer", "Game Changers", named, more, found));
+    }
+  }
   for (const n of [1, 2, 9]) lines.push(C.upDropped(n));
   for (const name of ["Arcane Signet", "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki"]) {
     lines.push(C.upSwapIn(name), C.upCutFor(name), C.upOutFor("Mind Stone", name));

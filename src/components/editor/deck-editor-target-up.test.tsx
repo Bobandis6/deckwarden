@@ -288,6 +288,7 @@ describe("DeckEditor — Upgrade toward (BRACKET-UP)", () => {
       leaderIds: [kozilek.id],
       entries: ORIGINAL.slice(1).map(({ cardId, qty }) => ({ cardId, qty })),
       goals: { v: 1, targetLevel: 3 },
+      powerFirst: true,
     });
     expect(resolveCalls()).toHaveLength(1);
     expect(JSON.parse(resolveCalls()[0][1].body as string).names).toEqual([

@@ -9,7 +9,9 @@
  * BRACKET-UP's "Upgrade toward" sheet asks it too, for a saved deck as for
  * a draft: the editor's live list and goals in the same body (the GET would
  * read a target the autosave may not have written yet). Same contract, no
- * deck id, the same bucket.
+ * deck id, the same bucket, plus `powerFirst`: with a target above what the
+ * list shows, the cards the game counts toward it lead the answer
+ * (engine.ts' RecommendOptions).
  *
  * Body: `{ game, format, leaderIds, entries, budget?, goals? }` — ids and
  * quantities only. Every fact (type, cost, color identity, the bracket
@@ -61,6 +63,8 @@ const BODY = z.object({
   budget: z.number().positive().max(100_000).optional(),
   /** The draft's goals (Y6a) — shape-checked against the game below. */
   goals: z.unknown().optional(),
+  /** BRACKET-UP's power first: the cards that count toward the target lead. */
+  powerFirst: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -100,6 +104,7 @@ export async function POST(request: NextRequest) {
   const { recommendations, hidden, combosTruncated } = await recommendForSnapshot(snapshot, {
     maxPriceUsd: budget,
     goals: goals?.data ?? null,
+    powerFirst: body.powerFirst,
   });
 
   return noStoreJson({ count: recommendations.length, recommendations, hidden, combosTruncated });
