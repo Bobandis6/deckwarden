@@ -16,19 +16,32 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    # 100 covers the one-time OP image-mirror backfill (~4.8k polite downloads);
-    # steady-state nights are still well under the old 30.
-    timeout-minutes: 100
+    # Every step carries its own cap, and this is their sum (290) plus room for
+    # the runner's own setup, so a slow step can only fail itself: a job-timeout
+    # cancellation skips every !cancelled() step behind it. Both halves are on
+    # record from 2026-09-03: run 33714359501 hit the job's old 100 minutes in
+    # the mirror and skipped the gauge, purge and backup; run 33721036663 hit
+    # the mirror's own 60 and ran them all. src/lib/github-workflows.test.ts
+    # pins the sum. Each cap is roughly ten times the slowest of 90 nights or
+    # more (2026-08-23 to 10-31: Scryfall 88 s, precons 96 s, Spellbook 48 s,
+    # punk-records 21 s, Topdeck 41 s, backup 15 s), never under 5 minutes;
+    # Limitless and the mirror say why theirs are longer.
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        timeout-minutes: 5
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        timeout-minutes: 5
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        timeout-minutes: 5
 
       - name: Ingest Scryfall (also the Neon keepalive — daily activity prevents idle pause)
+        timeout-minutes: 15
         run: pnpm ingest:scryfall
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -38,12 +51,14 @@ jobs:
       # its own full re-fetch on Sunday UTC, and PRECONS_FULL=true on a manual
       # dispatch forces one.
       - name: Ingest MTGJSON Commander precons (after Scryfall — printings resolve locally)
+        timeout-minutes: 15
         run: pnpm ingest:precons
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PRECONS_FULL: ${{ github.event_name == 'workflow_dispatch' && 'true' || '' }}
 
       - name: Ingest Commander Spellbook combos (after Scryfall — pieces resolve via oracle_id)
+        timeout-minutes: 10
         run: pnpm ingest:spellbook
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -54,6 +69,7 @@ jobs:
       # the ingest appends /optcg/images/<KEY>.png itself. The skip check
       # compares the image base too, so changing it re-stages every printing.
       - name: Ingest punk-records One Piece corpus (pins upstream sha; re-ingests on change)
+        timeout-minutes: 10
         run: pnpm ingest:punk-records
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -62,7 +78,13 @@ jobs:
       # KEYLESS by design (P4.5) — the tournament endpoints need no API key.
       # LIMITLESS_API_KEY is optional rate headroom: the secret may not exist
       # (evaluates empty → the script runs keyless, zero behavior change).
+      # Its cap is long because the pacing is the keyless policy's (6.7 s a
+      # request) and nothing merges until every event is fetched: the window
+      # grows after failed nights, and catching up from its 180-day limit takes
+      # about 52 minutes (241 s is the slowest night so far). A cap under that
+      # would fail every night and never catch up.
       - name: Ingest Limitless One Piece tournaments (after punk-records — leaders resolve via external_key)
+        timeout-minutes: 90
         run: pnpm ingest:limitless
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -72,6 +94,7 @@ jobs:
       # with the key, any error is a hard fail like the sibling steps — the
       # job goes red, but the safety steps below still run (see !cancelled()).
       - name: Ingest Topdeck tournament results (after the card jobs — commanders resolve via name_norm)
+        timeout-minutes: 15
         run: pnpm ingest:topdeck
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -81,9 +104,8 @@ jobs:
       # the bucket is missing (first run = the full backfill, resumable) —
       # the full PNG under optcg/images/ and, since P4.9, the WebP `small`
       # rendition under optcg/small/, resized from the bucket's own copies.
-      # Step-level cap so a slow backfill FAILS THIS STEP instead of hitting
-      # the job timeout — a job-timeout cancellation takes the !cancelled()
-      # safety steps down with it (learned 2026-09-03, first backfill run).
+      # A slow backfill fails here and resumes the next night (the job's
+      # comment has the 2026-09-03 runs); a normal night takes about a minute.
       - name: Mirror One Piece card images to R2 (no-op when complete or unconfigured)
         if: ${{ !cancelled() }}
         timeout-minutes: 60
@@ -98,6 +120,7 @@ jobs:
           R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
 
       - name: Archive raw Topdeck responses to R2 (no-op when dormant)
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         run: bash scripts/archive-topdeck-raw.sh
         env:
@@ -110,6 +133,7 @@ jobs:
       # are the safety net: they must run even when an ingest step fails
       # (2026-09-01: one Topdeck 500 skipped the gauge and the backup).
       - name: Database size gauge (fails over 350MB — the alert channel)
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         run: pnpm db:size
         env:
@@ -119,6 +143,7 @@ jobs:
       # world-readable, so PURGE_VERBOSE (the per-deck ids and names) is never
       # set here — eyeball candidates locally with PURGE_VERBOSE=1.
       - name: Purge stale anonymous decks (dry-run until the PURGE_ANON_DECKS_APPLY repo variable is "true")
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         run: pnpm decks:purge
         env:
@@ -130,6 +155,7 @@ jobs:
       # has a local Postgres 16 cluster, which makes Debian's pg_wrapper resolve
       # `pg_dump` to 16 even with 17 installed — put 17's real binaries on PATH.
       - name: Install Postgres 17 client for pg_dump
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -140,6 +166,7 @@ jobs:
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
       - name: Back up user tables to R2 (no-op until R2 secrets are configured)
+        timeout-minutes: 15
         if: ${{ !cancelled() }}
         run: bash scripts/backup-user-tables.sh
         env:
@@ -157,6 +184,7 @@ jobs:
       # to nothing. Counts only in this log (S1); BACKUP_PRUNE_DRY_RUN is a
       # local flag, never set here.
       - name: Prune backups older than 35 days (keeps the newest 10 runs whatever their age)
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         run: pnpm backups:prune
         env:
@@ -169,6 +197,7 @@ jobs:
       # change to Wizards' list must be read by a person before the ruleset's
       # as-of date and hash move. Last but the keepalive, which runs always.
       - name: Ruleset watch (fails when Scryfall's Game Changers stop matching the ruleset's pinned hash)
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         run: pnpm ruleset:watch
         env:
@@ -184,12 +213,14 @@ jobs:
       # installed in this tree — a red nightly, read by a person, like the
       # ruleset watch. github.token is enough: both repositories are public.
       - name: Advisory watch (fails when a repository-published next.js or better-auth advisory covers an installed version)
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         run: pnpm advisories:watch
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Workflow keepalive (GitHub disables idle scheduled workflows after 60 days)
+        timeout-minutes: 5
         if: always()
         run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/nightly-ingest.yml/enable"
         env:

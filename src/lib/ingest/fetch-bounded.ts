@@ -2,13 +2,15 @@
  * A bounded upstream read for the ingest scripts (S8, SECURITY-AUDIT-report.md
  * L13). Four nightly readers — Topdeck, Punk Records, MTGJSON's precons,
  * Limitless — buffered whatever the server sent with no size cap and no
- * deadline; the streaming Scryfall path and `scripts/ingest/tagger-read.ts`
- * already bound themselves. An oversized body fails cleanly on its own (V8's
- * string limit), so the one real failure was an upstream trickling bytes
- * for the whole job timeout, which cancelled the backup, gauge and purge
- * steps behind it. Here one deadline covers the headers AND the body (a
- * trickle is what an idle timeout would miss), and the body is counted as
- * it arrives — past `maxBytes` the stream is cancelled, never buffered.
+ * deadline; `scripts/ingest/tagger-read.ts` already bounds itself, and the
+ * Scryfall and Spellbook reads stream instead of buffering, so only their
+ * step's cap in nightly-ingest.yml bounds how long they take. An oversized
+ * body fails cleanly on its own (V8's string limit), so the real hazard was
+ * an upstream trickling bytes for the whole job timeout, which would cancel
+ * the backup, gauge and purge steps behind it. Here one deadline covers the
+ * headers AND the body (a trickle is what an idle timeout would miss), and
+ * the body is counted as it arrives — past `maxBytes` the stream is
+ * cancelled, never buffered.
  *
  * The callers keep their own status handling (429 waits, 5xx retries): the
  * Response's status and headers come back beside the text, which is read

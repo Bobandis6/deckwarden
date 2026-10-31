@@ -79,6 +79,50 @@ describe("the workflows (SECURITY-AUDIT-report.md L18)", () => {
   });
 });
 
+/**
+ * The nightly's steps as `{ step, cap }`: a step opens at `      - ` under the
+ * job's `steps:`, and its `timeout-minutes` sits two spaces further in.
+ */
+function nightlySteps(text: string): { step: string; cap: number | null }[] {
+  const lines = text.split("\n");
+  const steps: { step: string; cap: number | null }[] = [];
+  for (const line of lines.slice(lines.findIndex((l) => /^ {4}steps:\s*$/.test(l)) + 1)) {
+    if (line.startsWith("      - ")) steps.push({ step: line.trim(), cap: null });
+    const cap = /^ {8}timeout-minutes: (\d+)\s*$/.exec(line);
+    if (cap) steps[steps.length - 1].cap = Number(cap[1]);
+  }
+  return steps;
+}
+
+describe("the nightly's time budget (the 2026-10-30 audit's bulk-read record)", () => {
+  const nightly = read("nightly-ingest.yml");
+  const steps = nightlySteps(nightly);
+  const jobTimeout = Number(/^ {4}timeout-minutes: (\d+)\s*$/m.exec(nightly)?.[1]);
+
+  it("reads every step of the job", () => {
+    expect(steps.length).toBeGreaterThanOrEqual(20);
+    expect(steps[0].step).toMatch(/^- uses: actions\/checkout@/);
+    expect(steps[steps.length - 1].step).toMatch(/^- name: Workflow keepalive/);
+  });
+
+  it("caps every step, so a slow one fails itself instead of reaching the job timeout", () => {
+    expect(steps.filter(({ cap }) => cap === null)).toEqual([]);
+  });
+
+  it("fits every cap inside the job timeout, with room for the runner's own setup", () => {
+    const sum = steps.reduce((total, { cap }) => total + (cap ?? 0), 0);
+    expect(sum + 10).toBeLessThanOrEqual(jobTimeout);
+  });
+
+  it("keeps the safety steps behind !cancelled(), so a capped step's failure still runs them", () => {
+    for (const name of ["Database size gauge", "Back up user tables", "Purge stale anonymous"]) {
+      const at = nightly.indexOf(`- name: ${name}`);
+      expect(at, name).toBeGreaterThan(-1);
+      expect(nightly.slice(at, at + 200), name).toContain("if: ${{ !cancelled() }}");
+    }
+  });
+});
+
 describe("dependabot.yml", () => {
   const text = readFileSync(join(process.cwd(), ".github", "dependabot.yml"), "utf8");
 
