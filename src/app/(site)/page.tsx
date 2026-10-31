@@ -35,7 +35,8 @@ import { cn } from "@/lib/utils";
  *
  * Order: the band (full-bleed, its content in the wide container: the H1,
  * the 15-word sentence, and the day's three commanders from the index's
- * top 30 standing upright on the green stage, eager, the LCP from `lg`) →
+ * top 30 standing upright on the stage, green on dark, the daylight table on
+ * light; eager, the LCP from `lg`) →
  * the doors row (the wide Build a deck and Browse commanders at the left,
  * the two game tiles at the right, each the door to that game's draft) →
  * "Find your next commander." (the Magic region: the six highest-ranked of
@@ -91,7 +92,8 @@ const TILE_ART: Record<TileGame, { src: string; width: number; height: number; f
  * scrim are the rules in globals.css; `data-game` sets --accent-game, the
  * field that shows until the art lands), the serif name, the format line and
  * an arrow in the primary's ivory over it, the same in both themes since the
- * painting is the same; the lift is DeckTile's. The art is a plain `<img>`
+ * painting is the same (only the scrim's reach differs: on light it stays
+ * around the words); the lift is DeckTile's. The art is a plain `<img>`
  * of a static file (no optimizer transformation, CLAUDE.md), eager but at
  * low fetch priority so it never competes with the trio for the LCP, and
  * decorative (empty alt): the link's words are its name.
@@ -113,7 +115,7 @@ function GameTile({
       href={href}
       data-game={game}
       style={{ "--tile-focus": art.focus } as CSSProperties}
-      className="home-tile group/tile focus-visible:ring-accent-game focus-visible:ring-offset-background text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-safe:transition-[translate] motion-safe:hover:-translate-y-0.5"
+      className="home-tile focus-visible:ring-accent-game focus-visible:ring-offset-background text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-safe:transition-[translate] motion-safe:hover:-translate-y-0.5"
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- a static file under /public, served as is (docblock). */}
       <img
@@ -126,10 +128,7 @@ function GameTile({
         fetchPriority="low"
         className="home-tile-art"
       />
-      <ArrowUpRightIcon
-        className="home-tile-arrow text-primary-foreground/80 group-hover/tile:text-primary-foreground size-5"
-        aria-hidden
-      />
+      <ArrowUpRightIcon className="home-tile-arrow size-5" aria-hidden />
       <span className="type-section">{name}</span>
       <span className="type-label-sm text-primary-foreground/85">{format}</span>
     </Link>
@@ -163,7 +162,7 @@ export default async function Home() {
                 1333), so the cap is per tier: 9em below md (two lines at 36 px
                 in both faces), 12em from md (two at 39 to 46), the column from
                 lg (two lines in the half, then in the 5/12 from xl). */}
-            <h1 className="type-hero max-w-[9em] text-balance md:max-w-[12em] lg:max-w-none">
+            <h1 className="type-hero text-(--home-heading) max-w-[9em] text-balance md:max-w-[12em] lg:max-w-none">
               Your next great deck starts here.
             </h1>
             <p className="max-w-xl text-lg text-pretty">

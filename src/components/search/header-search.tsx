@@ -81,7 +81,7 @@ const GAME_NAMES: Record<SwitchGame, string> = { mtg: "Magic", optcg: "One Piece
  * h-9, with room for the icon on the left and the keycap on the right.
  */
 const INPUT_CLASS =
-  "h-9 w-full min-w-0 rounded-lg border border-(--border-control) bg-transparent py-1 pr-2.5 pl-8 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:pr-8 md:text-sm dark:bg-input/30 pointer-coarse:min-h-11 @max-[10rem]/search:placeholder:text-transparent";
+  "h-9 w-full min-w-0 rounded-lg border border-(--border-control) bg-card py-1 pr-2.5 pl-8 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:pr-8 md:text-sm dark:bg-input/30 pointer-coarse:min-h-11 @max-[10rem]/search:placeholder:text-transparent";
 
 /** The editor routes (/decks/new, /decks/[id]/edit), where `/` belongs to the editor. */
 export function isEditorPath(pathname: string | null): boolean {

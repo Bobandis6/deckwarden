@@ -250,7 +250,7 @@ export function SearchPane({
           aria-controls="quick-add-results"
           aria-activedescendant={results.length > 0 ? `search-result-${sel}` : undefined}
           aria-label="Card search"
-          className="h-9 shrink-0 px-3"
+          className="bg-card dark:bg-input/30 h-9 shrink-0 px-3"
         />
         <p
           data-slot="search-hints"

@@ -191,6 +191,8 @@ describe("EditorLayout on a phone", () => {
     expect(within(section("Card detail and suggestions")).getByText("TOOLS CONTENT")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.querySelector("[data-tier]")?.getAttribute("data-tier")).toBe("phone");
+    // The builder's light art and its panes' tints hang off this (globals.css).
+    expect(document.querySelector("[data-tier]")?.getAttribute("data-surface")).toBe("editor");
     // The layout's inset variable and the bar's safe-area padding.
     expect(document.querySelector("[data-tier]")?.className).toContain("--editor-bottom-inset");
     expect(bar.className).toContain("pb-[env(safe-area-inset-bottom)]");

@@ -172,7 +172,7 @@ describe("home (U5, home B)", () => {
     // The H1 wraps the same in Literata and its fallback at every width (no
     // reflow on the swap): the per-tier caps, re-measured for `.type-hero`.
     expect(html).toMatch(
-      /<h1 class="type-hero max-w-\[9em\] text-balance md:max-w-\[12em\] lg:max-w-none">Your next great deck starts here\.<\/h1>/,
+      /<h1 class="type-hero text-\(--home-heading\) max-w-\[9em\] text-balance md:max-w-\[12em\] lg:max-w-none">Your next great deck starts here\.<\/h1>/,
     );
     const sentence = "Keyboard-first deck building for Commander and the One Piece Card Game.";
     const second = "Free. No account needed.";
@@ -301,7 +301,10 @@ describe("home (U5, home B)", () => {
     ]);
     const h2s = [...main.matchAll(/<h2 class="([^"]*)">([^<]*)<\/h2>/g)].map((m) => [m[2], m[1]]);
     expect(h2s).toEqual([
-      ["Find your next commander.", "type-headline max-md:max-w-[11em] text-balance"],
+      [
+        "Find your next commander.",
+        "type-headline text-(--home-heading) max-md:max-w-[11em] text-balance",
+      ],
       ["One Piece Card Game", "type-section"],
       ["Recent public decks", "type-section"],
       ["What Deckwarden does", "type-section"],

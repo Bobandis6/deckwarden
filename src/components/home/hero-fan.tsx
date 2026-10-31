@@ -8,9 +8,9 @@
  * geometry is the `.home-fan` rule in globals.css, a three-column grid whose
  * boxes come from `aspect-ratio`, so nothing shifts when the cards land.
  * The stage is the grid's ::before: a generated photographic wall and
- * tabletop matching home.png, kept behind the full card images. Compact
- * downward box-shadows ground the cards while preserving the lit gaps. The
- * two side cards turn 9° about the
+ * tabletop per theme (home.png's on dark, the daylight reference's on light),
+ * kept behind the full card images. Compact box-shadows ground the cards
+ * while preserving the lit gaps. The two side cards turn 9° about the
  * vertical axis toward the viewer, the reference's shallow arc. U5's fan
  * turned the side cards 8° in the plane and dropped them 14 % so the center
  * card never covered their artist and © lines; a turn about the vertical

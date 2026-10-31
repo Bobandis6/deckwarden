@@ -402,6 +402,58 @@
   }
 }
 
+/* The ambient art's strength (R2, REDESIGN.md §3; split in LIGHT-MODE-DAYLIGHT,
+   2026-10-31): the crop and the fallback gradient carry separate opacities, and
+   the veil over a crop is three stops of the page. Every surface but one keeps
+   R2's numbers: 4 % on light, 8 % on dark. The builder on light is the one
+   (`data-surface="editor"`, EditorLayout's root): the owner's report that its
+   commander art could hardly be seen measured 1.2 %, 2.8 % and 0.4 % of the
+   image down the page, 4 % faded a second time by the veil. There the crop is
+   14 % under a gentler veil, 7 %, 11.2 % and 4.9 %. The bound is the page's
+   quietest text: muted-foreground over the blackest pixel a crop can have stays
+   at 4.5:1 up to a 13.2 % contribution (ambient-strength.test.ts computes it).
+   The fallback gradient stays 4 % on purpose: nothing but a crop got stronger,
+   so a deck with no art (One Piece, Background art Off, a failed image) looks
+   as it did. The art shows most through the deck pane: search and tools carry
+   a translucent tint of the card color, never an opaque panel, which is what
+   tells the three apart and keeps the search block's chrome from ending in an
+   edge. The credit chip is 90 % there, so a dark thumbnail scrolling under it
+   leaves its words at 4.5:1. A reader who asked for less transparency or more
+   contrast gets R2's numbers back, like the chrome's fallbacks above. */
+:root {
+  --ambient-gradient-opacity: 0.04;
+  --ambient-crop-opacity: 0.04;
+  --ambient-veil-top: color-mix(in oklab, var(--background) 70%, transparent);
+  --ambient-veil-middle: color-mix(in oklab, var(--background) 30%, transparent);
+  --ambient-veil-foot: color-mix(in oklab, var(--background) 90%, transparent);
+  --ambient-credit: color-mix(in oklab, var(--background) 80%, transparent);
+  --editor-pane-search: transparent;
+  --editor-pane-tools: transparent;
+}
+.dark {
+  --ambient-gradient-opacity: 0.08;
+  --ambient-crop-opacity: 0.08;
+}
+:root:not(.dark) [data-surface="editor"] {
+  --ambient-crop-opacity: 0.14;
+  --ambient-veil-top: color-mix(in oklab, var(--background) 50%, transparent);
+  --ambient-veil-middle: color-mix(in oklab, var(--background) 20%, transparent);
+  --ambient-veil-foot: color-mix(in oklab, var(--background) 65%, transparent);
+  --ambient-credit: color-mix(in oklab, var(--background) 90%, transparent);
+  --editor-pane-search: color-mix(in oklab, var(--card) 58%, transparent);
+  --editor-pane-tools: color-mix(in oklab, var(--card) 38%, transparent);
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root:not(.dark) [data-surface="editor"] {
+    --ambient-crop-opacity: 0.04;
+    --ambient-veil-top: color-mix(in oklab, var(--background) 70%, transparent);
+    --ambient-veil-middle: color-mix(in oklab, var(--background) 30%, transparent);
+    --ambient-veil-foot: color-mix(in oklab, var(--background) 90%, transparent);
+    --editor-pane-search: transparent;
+    --editor-pane-tools: transparent;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -726,6 +778,16 @@
   }
 }
 
+/* Home's two big headings (LIGHT-MODE-DAYLIGHT, 2026-10-31): the deep forest of
+   the daylight reference on light, 12.4:1 on the page; dark keeps the
+   foreground. Not on the type ladder's classes, which set no color. */
+:root {
+  --home-heading: #123429;
+}
+.dark {
+  --home-heading: var(--foreground);
+}
+
 /* Home's opening (FRESH-UI-HOME, 2026-10-30, the owner's chosen reference;
    amends U5's fan, WAVE5.md D6 section 1): a full-bleed band with the
    headline at the left and the day's three commanders standing upright at
@@ -734,8 +796,20 @@
    .home-band clips the reference-led photographic stage to the hero. The
    backdrop follows .home-fan, so its textured tabletop stays beneath the
    cards at every width. A broad lit wall replaces the noisy radial spotlight;
-   small downward shadows ground each card without darkening the gaps.
-   The stage is faint over paper in light mode, full strength in dark mode.
+   small shadows ground each card without darkening the gaps.
+   Each theme has its own stage, set once per theme on the band
+   (LIGHT-MODE-DAYLIGHT, 2026-10-31, the owner's daylight reference): dark
+   keeps its charcoal wall over the page at 78 %; light is the daylight
+   collector's table, public/home/hero-stage-light.webp at full strength, a
+   pale sage wall and limestone tabletop whose left end is the page's own
+   ivory. Light's stage reaches both band edges: from lg its left edge sits a
+   fixed 40rem before the trio, and the mask's ramp is measured from that edge,
+   so the wall always rises just past the headline's column, slanted so the
+   table runs further left than the wall; stacked, it starts at the sentence's
+   foot and the wall fades up from the ivory. Light's cards cast a short warm
+   shadow toward the lower left (the light comes from the upper right), and
+   its hairline at the band's foot is the ::after, since the stage covers an
+   inset shadow.
    The trio stays a three-column grid of full `normal` cards, with aspect-ratio
    reserving their boxes and a shallow rotateY on the two outer cards. No
    card overlaps another's artist or copyright line. Children, not `img`:
@@ -747,26 +821,62 @@
    its focal point in --tile-focus) fills the tile under a scrim (the ::before,
    darkest at the left and the foot, where the words sit), the accent field
    stays as the paint behind the art while it loads; hover scales the art a
-   hair under the link's own lift; the ring is the link's own utility.
+   hair under the link's own lift; the ring is the link's own utility. Light's
+   scrim is measured from the words, in rem (the same at 160 and 104 px tall):
+   full strength under the label's two lines and gone above them, easing toward
+   the right so the skies and the sail stay bright; dark keeps its heavier
+   wash. The arrow gets a small dark disc on light, where it can land on a
+   cloud or the sail.
    .home-gallery is the six-up grid both shelves share, three across below lg. */
 @layer components {
   .home-band {
-    --home-cast: color-mix(in oklab, var(--primary) 4%, var(--background));
-    --home-stage-opacity: 0.16;
-    --home-shade: rgb(20 36 30 / 0.2);
-    --home-contact: rgb(20 36 30 / 0.3);
+    --home-cast: var(--background);
+    --home-foot: color-mix(in oklab, var(--primary) 16%, transparent);
+    --home-card-shadow:
+      -9px 9px 13px -8px rgb(66 52 34 / 0.5), -2px 3px 4px -1px rgb(46 38 26 / 0.55);
+    --home-stage-image: url("/home/hero-stage-light.webp");
+    --home-stage-opacity: 1;
+    --home-stage-inset: -2rem -1rem;
+    --home-stage-position: 78% 100%;
+    --home-stage-size: auto 116%;
+    --home-stage-composite: add;
+    --home-stage-mask: linear-gradient(
+      180deg,
+      transparent,
+      rgb(0 0 0 / 0.16) 9%,
+      rgb(0 0 0 / 0.5) 21%,
+      rgb(0 0 0 / 0.84) 33%,
+      #000 44%
+    );
     position: relative;
     isolation: isolate;
     overflow: hidden;
     background: var(--home-cast);
-    box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--primary) 12%, transparent);
   }
   .dark .home-band {
     --home-cast: color-mix(in oklab, var(--primary) 6%, var(--background));
+    --home-foot: transparent;
+    --home-card-shadow: 0 10px 12px -8px rgb(0 0 0 / 0.32), 0 2px 3px -1px rgb(0 0 0 / 0.5);
+    --home-stage-image: url("/home/hero-stage.webp");
     --home-stage-opacity: 0.78;
-    --home-shade: rgb(0 0 0 / 0.32);
-    --home-contact: rgb(0 0 0 / 0.5);
+    --home-stage-inset: -3rem -30% -2.5rem -92%;
+    --home-stage-position: center bottom;
+    --home-stage-size: 100% 100%;
+    --home-stage-composite: intersect;
+    --home-stage-mask:
+      linear-gradient(90deg, transparent, #000 30%, #000 85%, transparent),
+      linear-gradient(180deg, transparent, #000 18%);
     box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.4);
+  }
+  /* The band's foot, above the stage. */
+  .home-band::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    z-index: 1;
+    height: 1px;
+    background: var(--home-foot);
+    pointer-events: none;
   }
   .home-band-inner {
     display: grid;
@@ -788,29 +898,26 @@
     padding-block: 1rem 1.5rem;
     perspective: 1400px;
   }
-  /* One continuous wall and tabletop, generated from home.png. Its bottom
-     follows the fan's base; the horizontal mask blends into the page without
-     the old radial pool or synthetic noise. It never overlays card pixels. */
+  /* One continuous wall and tabletop per theme. Its bottom follows the fan's
+     base; the mask blends it into the page without the old radial pool or
+     synthetic noise. It never overlays card pixels. */
   .home-fan::before {
     content: "";
     position: absolute;
-    inset: -3rem -30% -2.5rem -92%;
+    inset: var(--home-stage-inset);
     z-index: -1;
-    background: url("/home/hero-stage.webp") center bottom / 100% 100% no-repeat;
+    background: var(--home-stage-image) var(--home-stage-position) / var(--home-stage-size)
+      no-repeat;
     opacity: var(--home-stage-opacity);
-    mask-image:
-      linear-gradient(90deg, transparent, #000 30%, #000 85%, transparent),
-      linear-gradient(180deg, transparent, #000 18%);
-    mask-composite: intersect;
+    mask-image: var(--home-stage-mask);
+    mask-composite: var(--home-stage-composite);
     pointer-events: none;
   }
   .home-fan > * {
     width: 100%;
     height: auto;
     aspect-ratio: 488 / 680;
-    box-shadow:
-      0 10px 12px -8px var(--home-shade),
-      0 2px 3px -1px var(--home-contact);
+    box-shadow: var(--home-card-shadow);
   }
   /* The side cards turned a little toward the viewer, pivoting on the edge
      nearest the center: the reference's shallow arc. */
@@ -842,6 +949,19 @@
     gap: 1rem;
   }
   .home-tile {
+    --home-tile-scrim: linear-gradient(
+      0deg,
+      rgb(8 12 14 / 0.7) 0,
+      rgb(8 12 14 / 0.65) 4.25rem,
+      rgb(8 12 14 / 0.44) 5rem,
+      rgb(8 12 14 / 0.14) 5.75rem,
+      transparent 6.5rem
+    );
+    --home-tile-scrim-mask: linear-gradient(90deg, #000 13.5rem, rgb(0 0 0 / 0.16) 20rem);
+    --home-tile-arrow: var(--primary-foreground);
+    --home-tile-arrow-disc: rgb(8 12 14 / 0.48);
+    --home-tile-arrow-ring: inset 0 0 0 1px rgb(247 244 238 / 0.2);
+    --home-tile-art-filter: brightness(1.1) saturate(1.03);
     position: relative;
     isolation: isolate;
     overflow: hidden;
@@ -855,10 +975,38 @@
     background-color: color-mix(in oklab, var(--accent-game) 12%, var(--card));
     text-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
   }
+  .dark .home-tile {
+    --home-tile-scrim:
+      linear-gradient(
+        90deg,
+        rgb(8 12 14 / 0.76) 0%,
+        rgb(8 12 14 / 0.7) 48%,
+        rgb(8 12 14 / 0.24) 80%,
+        rgb(8 12 14 / 0.04) 100%
+      ),
+      linear-gradient(0deg, rgb(8 12 14 / 0.62) 0%, rgb(8 12 14 / 0.16) 48%, transparent 72%);
+    --home-tile-scrim-mask: none;
+    --home-tile-arrow: color-mix(in oklab, var(--primary-foreground) 80%, transparent);
+    --home-tile-arrow-disc: transparent;
+    --home-tile-arrow-ring: none;
+    --home-tile-art-filter: none;
+  }
   .home-tile-arrow {
     position: absolute;
     top: 1.25rem;
     right: 1.25rem;
+    box-sizing: content-box;
+    padding: 0.25rem;
+    margin: -0.25rem;
+    border-radius: 9999px;
+    color: var(--home-tile-arrow);
+    background: var(--home-tile-arrow-disc);
+    box-shadow: var(--home-tile-arrow-ring);
+  }
+  @media (hover: hover) {
+    .home-tile:hover .home-tile-arrow {
+      color: var(--primary-foreground);
+    }
   }
   .home-tile-art {
     position: absolute;
@@ -868,6 +1016,7 @@
     height: 100%;
     object-fit: cover;
     object-position: var(--tile-focus, 50% 50%);
+    filter: var(--home-tile-art-filter);
     pointer-events: none;
   }
   .home-tile::before {
@@ -875,15 +1024,8 @@
     position: absolute;
     inset: 0;
     z-index: -1;
-    background:
-      linear-gradient(
-        90deg,
-        rgb(8 12 14 / 0.76) 0%,
-        rgb(8 12 14 / 0.7) 48%,
-        rgb(8 12 14 / 0.24) 80%,
-        rgb(8 12 14 / 0.04) 100%
-      ),
-      linear-gradient(0deg, rgb(8 12 14 / 0.62) 0%, rgb(8 12 14 / 0.16) 48%, transparent 72%);
+    background: var(--home-tile-scrim);
+    mask-image: var(--home-tile-scrim-mask);
   }
   @media (prefers-reduced-motion: no-preference) {
     .home-tile-art {
@@ -910,7 +1052,36 @@
       top: 1rem;
     }
   }
+  /* A 228 px tile wraps "Magic: The Gathering" (191 px) over the scrim's top,
+     2.1:1 on its first line. The right padding guards nothing at the foot. */
+  @media (64rem <= width < 65rem) {
+    :root:not(.dark) .home-tile {
+      padding-right: 0.75rem;
+    }
+  }
   @media (width >= 64rem) {
+    /* Light's stage from lg: both band edges (the right inset is the distance
+       from the fan to the viewport's edge, whose margin grows past 1440 px),
+       `cover` from its left edge, its ramp slanted across the rise of the
+       wall. `.dark .home-band` outranks these, so dark never reads them. */
+    .home-band {
+      --home-stage-inset: -3rem min(-1rem, calc(44rem - 50vw)) -2.5rem -40rem;
+      --home-stage-position: left bottom;
+      --home-stage-size: cover;
+      --home-stage-composite: add, intersect;
+      --home-stage-mask:
+        linear-gradient(
+          100deg,
+          transparent 22rem,
+          rgb(0 0 0 / 0.07) 26rem,
+          rgb(0 0 0 / 0.26) 31rem,
+          rgb(0 0 0 / 0.62) 36rem,
+          rgb(0 0 0 / 0.9) 41rem,
+          #000 45rem
+        ),
+        linear-gradient(0deg, #000 4rem, transparent 8.5rem),
+        linear-gradient(90deg, transparent, #000 10rem);
+    }
     .home-band-inner,
     .home-doors {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

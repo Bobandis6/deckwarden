@@ -95,7 +95,9 @@ describe("GameCard", () => {
     expect(region.querySelector("[data-slot=game-field]")).toBeNull();
     const h2 = within(region).getByRole("heading", { level: 2 });
     expect(h2.textContent).toBe("Find your next commander.");
-    expect(h2.className).toBe("type-headline max-md:max-w-[11em] text-balance");
+    expect(h2.className).toBe(
+      "type-headline text-(--home-heading) max-md:max-w-[11em] text-balance",
+    );
     expect(within(region).queryByText("Magic: The Gathering")).toBeNull();
     // The shelf comes right after the words; the doors wait under the cards.
     const shelf = within(region).getByText("the shelf");

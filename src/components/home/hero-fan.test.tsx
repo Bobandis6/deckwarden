@@ -13,7 +13,7 @@
  * (2026-10-31) the stage. The backdrop is decorative; full cards, reserved
  * image boxes and non-overlapping transforms remain the layout contract.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { render, screen } from "@testing-library/react";
@@ -76,6 +76,17 @@ describe("HeroFan", () => {
   it("no cards, no fan", () => {
     const { container } = render(<HeroFan cards={[]} />);
     expect(container.innerHTML).toBe("");
+  });
+
+  it("each theme names its own stage (LIGHT-MODE-DAYLIGHT), and the file is in public/", () => {
+    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+    const stage = (selector: string) =>
+      css.match(new RegExp(`${selector} \\{[^}]*--home-stage-image: url\\("([^"]+)"\\)`))?.[1];
+    expect(stage("\\.home-band")).toBe("/home/hero-stage-light.webp");
+    expect(stage("\\.dark \\.home-band")).toBe("/home/hero-stage.webp");
+    for (const path of ["/home/hero-stage-light.webp", "/home/hero-stage.webp"]) {
+      expect(existsSync(join(process.cwd(), "public", path)), path).toBe(true);
+    }
   });
 
   it("globals.css keeps full card boxes in a three-column grid with non-overlapping side turns", () => {

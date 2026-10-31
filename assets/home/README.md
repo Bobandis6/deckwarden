@@ -11,10 +11,24 @@ images. The actual hero cards still come through the existing Scryfall pipeline.
 | `public/home/optcg-tile.webp` | 1600 × 533 | 210,646 |
 | `public/home/mtg-tile.webp` | 1600 × 533 | 189,700 |
 | `public/home/hero-stage.webp` | 2160 × 726 | 56,816 |
+| `public/home/hero-stage-light.webp` | 2172 × 724 | 98,168 |
 
 The original generated PNGs are retained in the owner's Codex workspace at
 `fresh-ui/home-atmosphere-refinement/art/`. WebP encoding uses sharp, quality 88,
 effort 6, with proportional downscaling only. All labels remain live HTML.
+
+`hero-stage-light.webp` is the light theme's stage (LIGHT-MODE-DAYLIGHT,
+2026-10-31): the owner's supplied asset, copied as delivered and not re-encoded,
+with its 2172 × 724 PNG master in
+`session-handoffs/LIGHT-MODE-DAYLIGHT/assets/` in the same workspace. Generated
+with the built-in image tool from the owner's daylight reference
+(`session-handoffs/LIGHT-MODE-DAYLIGHT/references/home-light-reference.png`); a
+reconstruction of the empty backdrop, not a crop with card or text pixels painted
+over, and it was not upscaled. It holds no official card image.
+
+## Daylight stage prompt
+
+Create a standalone production-ready EMPTY HERO BACKGROUND extracted/reconstructed from the daylight Deckwarden website reference. Deliver ONLY the photographic wall and tabletop scene, never the website itself. Use the hero area between the navigation bar and the buttons (approximately y60–520 in the reference) as the visual authority. Remove ALL three trading cards and their shadows, ALL heading/body text, ALL UI, the navigation, logo, buttons, borders and gallery. Reconstruct the unobstructed background behind them naturally. Wide panoramic 3:1 composition, request 3072x1024 pixels or highest available native resolution. Match the reference: leftmost 35% is very clean warm ivory (#F7F4EE) softly lit and calm for live HTML text; center and right are a pale desaturated sage-green plaster wall, subtle real plaster texture, bright gentle natural daylight from upper right. Near upper right retain only delicate soft foliage shadows from off-frame leaves, as in reference; no actual plant in frame. Horizontal pale warm limestone tabletop occupies the bottom 24% of the image, wall/table horizon about 76% from the top; soft irregular fine stone texture, no strong marble veins, no hard horizontal divider. The table extends edge-to-edge and comes toward camera in shallow perspective. The left wall and tabletop softly lose contrast into ivory so a web page can blend it at the left. Natural physical material and soft daylight, premium restrained elegant collector's studio atmosphere. Not gray, not muddy, not dark green, not yellow parchment, not speckled noise, no painted radial spotlight or glow, no gradient blobs. Match the reference's color and lighting closely. ZERO cards, ZERO card-shaped rectangles or shadows, ZERO writing, ZERO logos, ZERO interface, ZERO objects. Full-bleed background image only.
 
 ## One Piece prompt
 

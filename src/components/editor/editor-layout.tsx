@@ -53,6 +53,12 @@
  * hairline kept, so the pane scrolling under it shows through, softened;
  * the drawers stay opaque.
  *
+ * LIGHT-MODE-DAYLIGHT (2026-10-31): the root's `data-surface="editor"` scopes
+ * the commander art's strength on light (`--ambient-*` in globals.css), and
+ * the search and tools panes read a translucent tint there, which is
+ * transparent on dark; the deck pane stays clear, so the art shows most
+ * through it.
+ *
  * U4b (WAVE5 D5, F9): the card sheet has three snap points, a 9rem peek
  * (the name, the cost line and the actions), the half (the card) and the
  * full point (the text, tags and printings; the popup's own height,
@@ -256,6 +262,7 @@ export function EditorLayout({
         EDITOR_BOTTOM_INSET_CLASS,
       )}
       data-game={gameId}
+      data-surface="editor"
       data-tier={tier}
     >
       {header}
@@ -273,7 +280,7 @@ export function EditorLayout({
         {section(
           "search",
           "Card search",
-          "hidden group-data-[pane=search]/panes:block md:block md:border-r",
+          "hidden bg-(--editor-pane-search) group-data-[pane=search]/panes:block md:block md:border-r",
           search,
         )}
         {section("deck", "Deck list", "hidden group-data-[pane=deck]/panes:block md:block", deck)}
@@ -283,7 +290,7 @@ export function EditorLayout({
           // U3a: a column at `wide`, so the attribution that ends the content
           // (mt-auto) rests on the pane's bottom edge, not mid-pane where a
           // seeded preview would push it off screen.
-          "hidden group-data-[pane=tools]/panes:block md:hidden wide:flex wide:flex-col wide:border-l",
+          "hidden bg-(--editor-pane-tools) group-data-[pane=tools]/panes:block md:hidden wide:flex wide:flex-col wide:border-l",
           // At `md` the tools live in the Drawer; an empty hidden section keeps the tree stable.
           tier === "md" ? null : tools,
         )}

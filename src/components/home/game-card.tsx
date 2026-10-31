@@ -103,7 +103,9 @@ export function GameCard({
         {/* Two lines below md in Literata and its fallback alike (the swap
             must not reflow it): 11em at 28 px is 308 px, so both faces break
             after "next" on a 360 or 390 px phone; one line from md. */}
-        <h2 className="type-headline max-md:max-w-[11em] text-balance">{headline}</h2>
+        <h2 className="type-headline text-(--home-heading) max-md:max-w-[11em] text-balance">
+          {headline}
+        </h2>
         <p className="text-muted-foreground max-w-reading mt-3">{blurb}</p>
         {children && <div className="mt-8">{children}</div>}
         <GameActions actions={actions} className="mt-8" />

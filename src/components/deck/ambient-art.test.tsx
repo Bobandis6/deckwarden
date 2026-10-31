@@ -5,7 +5,8 @@
  * the credit chip in the same component, the veil, and the gradient
  * yielding; a failed load falling back to the gradient with no chip; the
  * crossfade keeping the previous crop for 250 ms and dropping it at once
- * under reduced motion; the layer inert and hidden from assistive tech.
+ * under reduced motion; the layer inert and hidden from assistive tech. What
+ * the strengths are, and what they do to the text, is ambient-strength.test.ts.
  */
 import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -49,7 +50,7 @@ describe("AmbientArt", () => {
     expect(layer()?.className).toContain("-z-10");
     expect(gradient()?.style.backgroundImage).toBe(ambientGradient(MANA));
     expect(gradient()?.style.backgroundImage).toContain("var(--mana-w)");
-    expect(gradient()?.className).toContain("opacity-[0.04] dark:opacity-[0.08]");
+    expect(gradient()?.className).toContain("opacity-(--ambient-gradient-opacity)");
     expect(crops()).toHaveLength(0);
     expect(chip()).toBeNull();
     expect(veil()).toBeNull();
@@ -89,7 +90,10 @@ describe("AmbientArt", () => {
 
     fireEvent.load(img);
     expect(img.dataset.loaded).toBe("true");
-    expect(img.className).toContain("opacity-[0.04] dark:opacity-[0.08]");
+    // A crop reads its own token, never the gradient's: only the crop got
+    // stronger in the builder on light (ambient-strength.test.ts has the numbers).
+    expect(img.className).toContain("opacity-(--ambient-crop-opacity)");
+    expect(img.className).not.toContain("--ambient-gradient-opacity");
     expect(img.className).toContain("motion-safe:animate-dw-in");
     expect(img.className).toContain("object-cover");
     expect(chip()?.textContent).toBe("Art: Anna Podedworna · ™ & © Wizards of the Coast");

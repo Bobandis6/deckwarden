@@ -8,14 +8,15 @@
  * `aria-hidden` and inert to the pointer, so dialogs, menus and toasts
  * (portaled, z-50) sit above it and nothing here is reachable by keyboard.
  *
- * What paints, in order of preference: the crop at about 8 % opacity in
- * dark and 4 % in light (`opacity-[0.04] dark:opacity-[0.08]` — the theme
- * class on <html> decides, no JavaScript) under a gradient veil; else the
- * radial gradient from the deck's swatches at the SAME opacity policy, so
- * both games carry equal weight; else nothing (no leader). The gradient is
- * the fallback for every artless state — no art declared, art missing, the
- * image failed, or Background art Off — so turning art Off keeps the
- * gradient (§3 lists the preference under fallbacks).
+ * What paints, in order of preference: the crop under a gradient veil; else
+ * the radial gradient from the deck's swatches, so both games carry equal
+ * weight; else nothing (no leader). The gradient is the fallback for every
+ * artless state — no art declared, art missing, the image failed, or
+ * Background art Off — so turning art Off keeps the gradient (§3 lists the
+ * preference under fallbacks). Their strengths and the veil's stops are
+ * tokens in globals.css (`--ambient-*`; the theme class on <html> decides, no
+ * JavaScript): 4 % on light and 8 % on dark everywhere, but for a crop in the
+ * builder on light (LIGHT-MODE-DAYLIGHT), which EditorLayout's root scopes.
  *
  * Crossfade: the previous crop lingers for 250 ms (`animate-dw-out`, which
  * holds its end) while the replacement plays `animate-dw-in` (U2's own
@@ -42,8 +43,9 @@ import { ambientGradient } from "@/lib/decks/ambient-art";
 import type { Appearance } from "@/lib/theme/appearance";
 import { cn } from "@/lib/utils";
 
-/** The one opacity policy for crops and gradients alike. */
-const AMBIENT_OPACITY = "opacity-[0.04] dark:opacity-[0.08]";
+/** A crop's strength and the fallback gradient's: separate tokens, so one can move alone. */
+const CROP_OPACITY = "opacity-(--ambient-crop-opacity)";
+const GRADIENT_OPACITY = "opacity-(--ambient-gradient-opacity)";
 
 /** The previous crop is dropped once its fade-out (250 ms) has played. */
 const CROSSFADE_MS = 300;
@@ -118,7 +120,7 @@ export function AmbientArt({
             data-slot="ambient-gradient"
             className={cn(
               "absolute inset-0 motion-safe:transition-opacity motion-safe:duration-250",
-              artOnScreen ? "opacity-0" : AMBIENT_OPACITY,
+              artOnScreen ? "opacity-0" : GRADIENT_OPACITY,
             )}
             style={{ backgroundImage: ambientGradient(swatches) }}
           />
@@ -137,7 +139,7 @@ export function AmbientArt({
             data-leaving="true"
             className={cn(
               IMAGE_CLASS,
-              AMBIENT_OPACITY,
+              CROP_OPACITY,
               "motion-safe:animate-dw-out motion-reduce:opacity-0",
             )}
           />
@@ -162,14 +164,14 @@ export function AmbientArt({
             }}
             className={cn(
               IMAGE_CLASS,
-              artOnScreen ? `${AMBIENT_OPACITY} motion-safe:animate-dw-in` : "opacity-0",
+              artOnScreen ? `${CROP_OPACITY} motion-safe:animate-dw-in` : "opacity-0",
             )}
           />
         )}
         {artOnScreen && (
           <div
             data-slot="ambient-veil"
-            className="from-background/70 via-background/30 to-background/90 absolute inset-0 bg-linear-to-b"
+            className="absolute inset-0 bg-linear-to-b from-(--ambient-veil-top) via-(--ambient-veil-middle) to-(--ambient-veil-foot)"
           />
         )}
       </div>
@@ -178,7 +180,7 @@ export function AmbientArt({
           <p
             data-slot="art-credit"
             style={creditInset ? { bottom: creditInset } : undefined}
-            className="text-muted-foreground bg-background/80 absolute bottom-2 left-3 rounded-md px-1.5 py-0.5 type-micro whitespace-nowrap"
+            className="text-muted-foreground absolute bottom-2 left-3 rounded-md bg-(--ambient-credit) px-1.5 py-0.5 type-micro whitespace-nowrap"
           >
             {current.credit}
           </p>
