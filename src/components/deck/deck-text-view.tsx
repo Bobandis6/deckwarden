@@ -142,9 +142,15 @@ function useStuck(ref: RefObject<HTMLElement | null>, enabled: boolean): boolean
  * and its rows at 28 px (the 24 px steppers and the row's 4), 48 on touch —
  * and its drawn height after (`auto`), so the scroll height stays honest.
  * A stuck heading still sticks: it sticks inside its own section either way.
+ *
+ * WebKit (the only engine that parses that font keyword) draws every group:
+ * when the pane's width changes, as on a phone turned to landscape or a window
+ * crossing a tier, it can leave a group in view unpainted until a long scroll,
+ * while `checkVisibility` says it's visible. A re-render of a 100-card list
+ * costs the same there with the skip or without it, 39 and 40 ms on a Mac.
  */
 const DEFERRED_GROUP_CLASS =
-  "[content-visibility:auto] [contain-intrinsic-size:auto_calc(3.125rem_+_var(--group-rows)_*_1.75rem)] pointer-coarse:[contain-intrinsic-size:auto_calc(3.125rem_+_var(--group-rows)_*_3rem)]";
+  "[content-visibility:auto] supports-[font:-apple-system-body]:[content-visibility:visible] [contain-intrinsic-size:auto_calc(3.125rem_+_var(--group-rows)_*_1.75rem)] pointer-coarse:[contain-intrinsic-size:auto_calc(3.125rem_+_var(--group-rows)_*_3rem)]";
 
 /**
  * A list group's heading (U3a, WAVE5 D4): the uppercase 12 px label in muted

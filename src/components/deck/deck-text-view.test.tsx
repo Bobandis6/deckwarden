@@ -397,6 +397,10 @@ describe("DeckTextView — lines to space (U3a, WAVE5 D4)", () => {
     );
     const section = container.querySelector<HTMLElement>("section")!;
     expect(section.className).toContain("[content-visibility:auto]");
+    // Except in WebKit, which can leave a group in view unpainted after a width change.
+    expect(section.className).toContain(
+      "supports-[font:-apple-system-body]:[content-visibility:visible]",
+    );
     expect(section.className).toContain(
       "[contain-intrinsic-size:auto_calc(3.125rem_+_var(--group-rows)_*_1.75rem)]",
     );

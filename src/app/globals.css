@@ -432,7 +432,10 @@
    the 5rem past each edge reaches the strips where Safari shows the page through
    its status bar and floating toolbar (59 and 58 pt on an iPhone 15), or the art
    would end in a line. The whole layer stands, not the crop and veil apart: WebKit
-   painted two fixed siblings differently in those strips, the crop without its veil. */
+   painted two fixed siblings differently in those strips, the crop without its veil.
+   The status inks go a shade darker on the two: muted text has the headroom the
+   bound names, but emerald-700 and amber-700 are lighter than it, and "The Warden
+   approves this deck" read 3.92:1 where Sauron's crop darkens the page. */
 :root {
   --ambient-gradient-opacity: 0.04;
   --ambient-crop-opacity: 0.04;
@@ -455,6 +458,8 @@
   --ambient-credit: color-mix(in oklab, var(--background) 90%, transparent);
   --editor-pane-search: color-mix(in oklab, var(--card) 58%, transparent);
   --editor-pane-tools: color-mix(in oklab, var(--card) 38%, transparent);
+  --color-emerald-700: var(--color-emerald-800);
+  --color-amber-700: var(--color-amber-800);
 }
 :root:not(.dark) [data-surface="share"] {
   --ambient-crop-opacity: 0.14;
@@ -462,6 +467,8 @@
   --ambient-veil-middle: color-mix(in oklab, var(--background) 20%, transparent);
   --ambient-veil-foot: color-mix(in oklab, var(--background) 65%, transparent);
   --ambient-credit: color-mix(in oklab, var(--background) 90%, transparent);
+  --color-emerald-700: var(--color-emerald-800);
+  --color-amber-700: var(--color-amber-800);
   isolation: auto;
 }
 :root:not(.dark) [data-surface="share"] [data-slot="ambient-art"]:has([data-slot="ambient-crop"]) {
@@ -919,6 +926,25 @@
   .home-band-inner > :first-child {
     position: relative;
     z-index: 1;
+  }
+  /* From lg the stage runs behind these words and the band's foot line. After a
+     window jumps up from phone width (500 to 1024, 640 to 1280) WebKit can leave
+     the stage's layer over both until the next scroll or resize, "Free. No account
+     needed." all but gone on light. A standing layer keeps the order. Only WebKit
+     parses this font keyword, and only WebKit needs the layers: Chromium's stacking
+     holds, and a layer can cost its LCD text on a low-density screen. A layer ends
+     at its box, so the pixel of room keeps the serif of the "Y" that overhangs it. */
+  @supports (font: -apple-system-body) {
+    @media (width >= 64rem) {
+      .home-band-inner > :first-child {
+        margin-inline-start: -1px;
+        padding-inline-start: 1px;
+        will-change: transform;
+      }
+      .home-band::after {
+        will-change: transform;
+      }
+    }
   }
   .home-fan {
     position: relative;

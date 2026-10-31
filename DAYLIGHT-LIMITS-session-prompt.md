@@ -23,6 +23,8 @@ On `deckwarden.gg`, resizing the window to about 1024, 1280, 1440, 1536 and 1920
 
 To have a session do this instead: run `safaridriver --enable` once (it asks for your password), then ask for this checklist in desktop Safari.
 
+**Done 2026-10-31 (LATER row 383):** a session read this checklist in Safari itself, on the local build and on production. Record: REDESIGN.md, "Desktop Safari, read". The Develop tick alone wasn't enough on this Mac; `safaridriver --enable` was.
+
 ## The ask
 
 A reader on desktop Safari gets the home and builder that were measured in Chromium. Dark's game tiles read as clearly as light's at every width. The commander on a public deck page on light can actually be seen, as it now can in the builder. And the owner has seen, once, where the live page still differs from the concept on purpose, and said whether that stands.

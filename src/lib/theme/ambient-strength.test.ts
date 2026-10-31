@@ -26,7 +26,9 @@ function rule(selector: string, from = 0): Record<string, string> {
   if (at < 0) throw new Error(`no ${selector} block in globals.css`);
   const body = code.slice(at + selector.length + 2, code.indexOf("}", at));
   const out: Record<string, string> = {};
-  for (const match of body.matchAll(/--([a-z-]+):\s*([^;]+);/g)) out[match[1]] = match[2].trim();
+  for (const match of body.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)) {
+    out[match[1]] = match[2].trim();
+  }
   return out;
 }
 
@@ -117,6 +119,19 @@ describe("the ambient art's strength (globals.css)", () => {
         );
         expect(contrast(channels(light.foreground), under), stop).toBeGreaterThanOrEqual(7);
       }
+    });
+
+    it("the status inks hold too: the 700s read under 4.5:1 over a black crop, so these surfaces take the 800s", () => {
+      expect(surface["color-emerald-700"]).toBe("var(--color-emerald-800)");
+      expect(surface["color-amber-700"]).toBe("var(--color-amber-800)");
+      const crop = Number(surface["ambient-crop-opacity"]);
+      const page = channels(light.background);
+      const grounds = STOPS.map((stop) => floor(page, crop, veilShare(surface[stop])));
+      const lowest = (ink: string) =>
+        Math.min(...grounds.map((ground) => contrast(channels(ink), ground)));
+      // Tailwind's palette as the build writes it: emerald, then amber.
+      for (const ink of ["#005f46", "#953d00"]) expect(lowest(ink)).toBeGreaterThanOrEqual(4.5);
+      for (const ink of ["#007956", "#b75000"]) expect(lowest(ink)).toBeLessThan(4.5);
     });
 
     it("the credit chip keeps its words at 4.5:1 with a black thumbnail under it (the attribution rule)", () => {
