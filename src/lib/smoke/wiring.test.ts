@@ -9,7 +9,9 @@
  * user mint through `scripts/smoke/session.ts` and nothing else signs a
  * cookie or inserts a session row, every script that opens `DATABASE_URL`
  * for a local run calls the database guard (`scripts/smoke/db.ts`, LATER row
- * 295) right after its env load while the nightly's scripts do not, and
+ * 295) right after its env load while the nightly's scripts do not, both
+ * guards read the per-run opt-in at import (before any `loadEnv()`, so a
+ * line in `.env.local` never counts — db-opt-in.test.ts proves it), and
  * `.env.example` documents the switches.
  */
 import { readdirSync, readFileSync } from "node:fs";
@@ -122,7 +124,7 @@ describe("the host guard wiring", () => {
       if (file === "smoke/guard.ts") continue;
       const text = read(file);
       expect(text, file).not.toContain("process.env.BASE_URL");
-      // the database guard reads the same opt-in, after the env load (LATER row 295)
+      // the database guard reads the same opt-in, at import like this one (LATER row 295)
       if (file !== "smoke/db.ts") {
         expect(text, file).not.toContain("process.env.SMOKE_ALLOW_REMOTE");
       }
@@ -223,7 +225,7 @@ describe("the database guard wiring", () => {
     expect(call).toBeLessThan(text.indexOf("insert into users"));
   });
 
-  it("nothing but db.ts reads PRODUCTION_DB_ENDPOINT, and db.ts reads the three variables inside the call", () => {
+  it("nothing but db.ts reads PRODUCTION_DB_ENDPOINT; db.ts reads the two file-borne variables inside the call and the opt-in once, at import", () => {
     for (const file of everyScript) {
       if (file === "smoke/db.ts") continue;
       expect(read(file), file).not.toContain("process.env.PRODUCTION_DB_ENDPOINT");
@@ -231,14 +233,20 @@ describe("the database guard wiring", () => {
     const db = read("smoke/db.ts");
     expect(db).toContain('from "../../src/lib/smoke/db-guard"');
     expect(db).toContain("process.exit(1)");
+    // The opt-in is the captured identifier, never a read made after loadEnv (the audit's record).
     expect(db).toMatch(
-      /checkSmokeDatabase\(\s*process\.env\.DATABASE_URL,\s*process\.env\.PRODUCTION_DB_ENDPOINT,\s*process\.env\.SMOKE_ALLOW_REMOTE,?\s*\)/,
+      /checkSmokeDatabase\(\s*process\.env\.DATABASE_URL,\s*process\.env\.PRODUCTION_DB_ENDPOINT,\s*optInAtImport,?\s*\)/,
     );
     expect(db).not.toContain("process.env.BASE_URL");
     const moduleLevel = db
       .split("\n")
       .filter((line) => !line.startsWith(" ") && !line.startsWith("\t") && !line.startsWith("*"));
-    expect(moduleLevel.join("\n")).not.toContain("process.env");
+    // Exactly one module-level read, and it is the opt-in.
+    const reads = moduleLevel.filter((line) => line.includes("process.env"));
+    expect(reads).toEqual([
+      "const optInAtImport: string | undefined = process.env.SMOKE_ALLOW_REMOTE;",
+    ]);
+    expect(db.split("process.env.SMOKE_ALLOW_REMOTE")).toHaveLength(2);
   });
 });
 

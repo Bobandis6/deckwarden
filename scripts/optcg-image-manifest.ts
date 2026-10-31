@@ -11,6 +11,11 @@
  * the Bandai URL is re-derived from the printing key (the documented pattern:
  * en.onepiece-cardgame.com/images/cardlist/card/<KEY>.png).
  *
+ * The key becomes a file name, an R2 object key and a tab-separated row, so a
+ * key outside the printing-key grammar (punk-map.ts, the 2026-10-30 security
+ * audit's image-mirror record) is skipped here with a count — the ingest
+ * refuses such keys already; this is the consumer's own lock.
+ *
  * Run: pnpm optcg:image-manifest
  */
 import { loadEnv } from "../src/lib/load-env";
@@ -22,6 +27,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import postgres from "postgres";
 
 import { GAME_ID } from "../src/db/seed-data";
+import { isOptcgPrintingKey } from "../src/lib/games/optcg/punk-map";
 
 async function main() {
   const url = process.env.DATABASE_URL;
@@ -33,16 +39,24 @@ async function main() {
       FROM card_printings
       WHERE game_id = ${GAME_ID.optcg} AND NOT is_removed
       ORDER BY collector_number`;
-    const lines = rows.map((r) => {
+    let skipped = 0;
+    const lines = rows.flatMap((r) => {
+      if (!isOptcgPrintingKey(r.key)) {
+        skipped++;
+        console.warn(
+          `manifest: key ${JSON.stringify(r.key)} is outside the printing-key grammar — skipped`,
+        );
+        return [];
+      }
       const src =
         r.front?.startsWith("https://en.onepiece-cardgame.com/") === true
           ? r.front
           : `https://en.onepiece-cardgame.com/images/cardlist/card/${r.key}.png`;
-      return `${r.key}\t${src}`;
+      return [`${r.key}\t${src}`];
     });
     mkdirSync(".optcg-images", { recursive: true });
     writeFileSync(".optcg-images/manifest.tsv", lines.join("\n") + (lines.length ? "\n" : ""));
-    console.log(`wrote .optcg-images/manifest.tsv (${lines.length} printings)`);
+    console.log(`wrote .optcg-images/manifest.tsv (${lines.length} printings, ${skipped} skipped)`);
   } finally {
     await sql.end();
   }

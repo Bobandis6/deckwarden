@@ -5,6 +5,7 @@ import {
   baseCardId,
   decodeHtmlEntities,
   isBasePrinting,
+  isOptcgPrintingKey,
   mapOptcgIdentity,
   mapOptcgPrinting,
   optcgColorsToMask,
@@ -110,6 +111,47 @@ describe("colors", () => {
       "Yellow",
       "Purple",
     ]);
+  });
+});
+
+describe("the printing-key grammar (the mirror's file names)", () => {
+  it("accepts every shape the corpus holds: set code, hyphen, number, an optional _pN/_rN suffix", () => {
+    for (const key of [
+      "EB01-001",
+      "OP01-025",
+      "ST01-001",
+      "OP01-001_p1",
+      "OP12-041_r1",
+      "EB04-011_p1",
+      "P-019",
+      "P-019_p1",
+      "PRB02-005",
+      "PRB02-004_p1",
+      "OP10-121_p12",
+    ]) {
+      expect(isOptcgPrintingKey(key), key).toBe(true);
+    }
+  });
+
+  it("refuses what would leave the staging directory, split a manifest row or name another host", () => {
+    for (const key of [
+      "../escaped",
+      "OP01-001/..",
+      "OP01-001\tother",
+      "OP01-001\nP-001\thttps://evil.invalid/x.png",
+      "OP01-001 ",
+      " OP01-001",
+      "",
+      "OP01-001_P1",
+      "OP01-001_p",
+      "OP01-001_pa",
+      "OP01_001",
+      "OP01-001.png",
+      "O".repeat(17) + "-001",
+      "OP01-001_p1234",
+    ]) {
+      expect(isOptcgPrintingKey(key), JSON.stringify(key)).toBe(false);
+    }
   });
 });
 

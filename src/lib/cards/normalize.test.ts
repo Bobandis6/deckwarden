@@ -8,6 +8,27 @@ describe("normalizeCardName", () => {
     expect(normalizeCardName("Fire // Ice")).toBe("fire ice");
     expect(normalizeCardName("Æther Vial")).toBe("aether vial");
   });
+
+  // The separator regex once carried \s* on both sides and ran before the
+  // whitespace collapse, so a run of n spaces not followed by // was rescanned
+  // from every start: 6.5 s at 64,000 spaces (the 2026-10-30 security audit).
+  // Linear now, it costs about a millisecond; the bound leaves a wide margin
+  // for a slow runner while sitting far under the quadratic cost.
+  it("stays linear on a long whitespace run (64,000 spaces normalize to nothing in well under a quarter second)", () => {
+    const started = performance.now();
+    expect(normalizeCardName(" ".repeat(64_000))).toBe("");
+    expect(normalizeCardName(" ".repeat(64_000) + "/")).toBe("/");
+    expect(performance.now() - started).toBeLessThan(250);
+  });
+
+  it("keeps the documented output around separators", () => {
+    expect(normalizeCardName("Fire//Ice")).toBe("fire ice");
+    expect(normalizeCardName("a // // b")).toBe("a b");
+    expect(normalizeCardName("a /// b")).toBe("a / b");
+    expect(normalizeCardName("/ /")).toBe("/ /");
+    expect(normalizeCardName(" // Ice")).toBe("ice");
+    expect(normalizeCardName("\u00a0//\t Ice\u3000")).toBe("ice");
+  });
 });
 
 describe("cardSlug", () => {

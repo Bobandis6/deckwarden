@@ -18,8 +18,12 @@ export function normalizeCardName(name: string): string {
       .toLowerCase()
       // curly/backtick apostrophes → straight
       .replace(/[’‘´`]/g, "'")
-      // fold double-faced separators: "fire // ice" matches "fire ice"
-      .replace(/\s*\/\/\s*/g, " ")
+      // fold double-faced separators: "fire // ice" matches "fire ice". No \s*
+      // beside the slashes: the collapse below takes the spaces, and a \s* here
+      // rescanned a long whitespace run from every start (quadratic in the run:
+      // 16,000 spaces in a hub's ?q= cost 400 ms of request-thread CPU — the
+      // 2026-10-30 security audit). The output is the same (checked on 6 M strings).
+      .replace(/\/\//g, " ")
       .replace(/\s+/g, " ")
       .trim()
   );

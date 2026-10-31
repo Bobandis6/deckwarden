@@ -100,12 +100,23 @@ async function main() {
     console.log(createdIpReportLine(await clearStaleCreatedIps(db)));
 
     // Rate-limit counter sweep (P1.8): windows are ≤1 day, so anything older
-    // than 2 days is dead weight. Always applied — counters are not user data.
-    const sweep = await db
+    // than 2 days is dead weight, and Better Auth's `auth:` rows live in
+    // 10-second windows, so an hour is already dead weight for them (the
+    // 2026-10-30 security audit's counters record: those rows were the
+    // unbounded ones, and the sweep was their only eviction). Always applied —
+    // counters are not user data. The driver's count, never RETURNING: the
+    // sweep must stay cheap however many rows a flood left behind.
+    const sweptAuth = await db
       .delete(rateLimitCounters)
-      .where(sql`${rateLimitCounters.windowStart} < now() - interval '2 days'`)
-      .returning({ key: rateLimitCounters.key });
-    console.log(`rate-limit sweep: ${sweep.length} stale counter row(s) deleted.`);
+      .where(
+        sql`${rateLimitCounters.key} like 'auth:%' and ${rateLimitCounters.windowStart} < now() - interval '1 hour'`,
+      );
+    const swept = await db
+      .delete(rateLimitCounters)
+      .where(sql`${rateLimitCounters.windowStart} < now() - interval '2 days'`);
+    console.log(
+      `rate-limit sweep: ${sweptAuth.count} stale auth row(s) and ${swept.count} other stale row(s) deleted.`,
+    );
   } finally {
     await client.end();
   }

@@ -29,8 +29,9 @@ import {
   refuseUnverifiedUserInsert,
   REQUIRE_VERIFIED_EMAIL,
 } from "@/lib/auth/verified-email";
+import { mountedAuthPathPatterns } from "@/lib/auth/known-paths";
 import { AUTH_DISABLED_PATHS } from "@/lib/auth-disabled-paths";
-import { betterAuthRateLimitStorage } from "@/lib/rate-limit";
+import { betterAuthRateLimitStorage, setAuthPathPatterns } from "@/lib/rate-limit";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -133,6 +134,10 @@ export const auth = betterAuth({
   // server-side auth.api calls.
   plugins: [nextCookies()],
 });
+
+// The limiter's storage bounds its keys to the routes this instance mounts
+// (known-paths.ts, the 2026-10-30 security audit): the set exists only now.
+setAuthPathPatterns(mountedAuthPathPatterns(auth.api as Record<string, unknown>));
 
 /**
  * Session user id for deck routes; null when signed out. `authoritative`

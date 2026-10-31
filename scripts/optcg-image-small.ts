@@ -8,13 +8,17 @@
  * A file that fails is warned and skipped, and the next night retries it.
  * Each WebP is written whole after it renders, so the out dir never holds a
  * partial file. The exit code is 1 only when there was work and nothing was
- * written: a resizer that cannot run at all.
+ * written: a resizer that cannot run at all. A key outside the printing-key
+ * grammar (punk-map.ts, the 2026-10-30 security audit's image-mirror record)
+ * is a failure too, before it can name a path: `join(outDir, "../x.webp")`
+ * would write above the out dir.
  *
  * Run: pnpm optcg:image-small <list.tsv> <out dir>
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { isOptcgPrintingKey } from "../src/lib/games/optcg/punk-map";
 import { renderOptcgSmallImage } from "../src/lib/games/optcg/small-image";
 
 /** Parallel resizes; libvips threads inside each, so four keep a 4-vCPU runner busy. */
@@ -36,6 +40,13 @@ async function main() {
   async function worker() {
     while (next < jobs.length) {
       const { key, src } = jobs[next++];
+      if (!isOptcgPrintingKey(key)) {
+        failed++;
+        console.warn(
+          `WARN: key ${JSON.stringify(key)} is outside the printing-key grammar — skipped`,
+        );
+        continue;
+      }
       try {
         const webp = await renderOptcgSmallImage(readFileSync(src));
         writeFileSync(join(outDir, `${key}.webp`), webp);

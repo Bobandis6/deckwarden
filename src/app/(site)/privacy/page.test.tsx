@@ -5,7 +5,9 @@
  * backups kept 35 days (backups/retention.ts), sessions seven days — and the
  * sentences the audit found untrue stay gone. Since LATER.md row 313
  * (2026-10-24) it names Cloudflare Web Analytics, its two hosts and what
- * the beacon sends, and "no analytics" is gone.
+ * the beacon sends, and "no analytics" is gone. Since the 2026-10-30
+ * security audit (its next/og record) it names the two hosts a deck
+ * preview's missing glyphs go to, and what that request holds.
  */
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -60,6 +62,10 @@ describe("the privacy page", () => {
       "Cloudflare sees it with each analytics report",
       "The script sets no cookies and stores nothing in your browser",
       "never an individual visitor or an IP address",
+      // The deck preview's glyph fallback (the audit's next/og record): both hosts, what is sent.
+      "the server asks Google Fonts (fonts.googleapis.com, fonts.gstatic.com) for those letters and jsDelivr (cdn.jsdelivr.net) for those emoji",
+      "carries the letters themselves, never the deck, its link, or you",
+      "Private decks are never drawn",
     ]) {
       expect(text, phrase).toContain(phrase);
     }

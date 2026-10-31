@@ -198,6 +198,13 @@ export default function PrivacyPage() {
           </a>
           . One Piece card images load from our own image host, img.deckwarden.gg.
         </p>
+        <p>
+          A deck’s preview image (the picture a shared link unfurls into on Discord or Slack) is
+          drawn on our servers. If the deck’s name holds letters or emoji that our own fonts lack,
+          the server asks Google Fonts (fonts.googleapis.com, fonts.gstatic.com) for those letters
+          and jsDelivr (cdn.jsdelivr.net) for those emoji. That request carries the letters
+          themselves, never the deck, its link, or you. Private decks are never drawn.
+        </p>
       </section>
 
       <section className="mt-8 space-y-3">

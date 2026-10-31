@@ -131,6 +131,26 @@ export function optcgColorsToMask(colors: string[] | null | undefined): number {
 // --- Ids ---------------------------------------------------------------------
 
 /** "OP01-001_p2" → "OP01-001"; base ids pass through. */
+/**
+ * The grammar of a One Piece printing key as the corpus shows it (the
+ * 2026-10-30 security audit's image-mirror record, checked against every
+ * stored key: `EB01-001`, `OP01-025_p1`, `P-019`, `P-019_p1`, `PRB02-004_p1`
+ * — a set code, a hyphen, a number, an optional `_pN`/`_rN` variant suffix).
+ * The key is stored verbatim as collector_number and the nightly image mirror
+ * then uses it as a FILE NAME (`<stage>/<key>.png`, `<out>/<key>.webp`), an
+ * R2 object key and a tab-separated manifest row, so a key holding `/`,
+ * `..`, a tab or a newline from the third-party feed would write outside the
+ * staging directory, forge manifest rows or point curl at another host. The
+ * ingest refuses a key outside this grammar with a count, and each consumer
+ * checks it again before using it as a path.
+ */
+export const OPTCG_PRINTING_KEY = /^[A-Za-z0-9]{1,16}-[A-Za-z0-9]{1,16}(?:_[a-z]\d{1,3})?$/;
+
+/** Whether an upstream key may be stored, named a file and listed in the manifest. */
+export function isOptcgPrintingKey(key: string): boolean {
+  return OPTCG_PRINTING_KEY.test(key);
+}
+
 export function baseCardId(printingKey: string): string {
   return printingKey.split("_")[0];
 }

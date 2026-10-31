@@ -11,11 +11,12 @@
  * workflow's secrets.
  *
  * A call in the script's body, not `node --env-file`: the flag fills
- * `process.env` before the first import runs, and `scripts/smoke/guard.ts`
- * reads `BASE_URL` and `SMOKE_ALLOW_REMOTE` at import time so that a line in
+ * `process.env` before the first import runs, and both smoke guards read
+ * `SMOKE_ALLOW_REMOTE` at import time — `scripts/smoke/guard.ts` with
+ * `BASE_URL`, `scripts/smoke/db.ts` on its own — so that a line in
  * `.env.local` can neither move a smoke's target nor turn the per-run opt-in
  * into a standing one. Scripts call this where they called dotenv: after the
- * guard's import, before `guardDatabaseUrl()` and the first query
+ * guards' imports, before `guardDatabaseUrl()` and the first query
  * (`src/lib/smoke/wiring.test.ts` pins the order).
  */
 import { existsSync } from "node:fs";

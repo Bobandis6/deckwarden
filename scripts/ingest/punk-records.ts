@@ -36,6 +36,7 @@ import { fetchBounded } from "../../src/lib/ingest/fetch-bounded";
 import { assignOpLeaderSlugs } from "./assign-leader-slugs";
 import {
   baseCardId,
+  isOptcgPrintingKey,
   mapOptcgIdentity,
   mapOptcgPrinting,
   packSetCode,
@@ -111,6 +112,8 @@ interface Stats {
     leaders: number;
     variants_without_base: number;
     base_without_data_entry: number;
+    /** Upstream keys outside the printing-key grammar, skipped before anything is staged. */
+    keys_rejected: number;
   };
   post_pass: {
     identities_removed: number;
@@ -182,6 +185,7 @@ async function main() {
         leaders: 0,
         variants_without_base: 0,
         base_without_data_entry: 0,
+        keys_rejected: 0,
       },
       post_pass: { identities_removed: 0, printings_removed: 0, leader_slugs_assigned: 0 },
       duration_ms: 0,
@@ -199,6 +203,20 @@ async function main() {
     stats.packs = packIds.length;
     console.log(`packs: ${packIds.length}`);
 
+    // The key grammar gate (punk-map.ts, the 2026-10-30 security audit): a key
+    // becomes collector_number, then a file name, an R2 object key and a
+    // manifest row in the image mirror, so one the grammar refuses is skipped
+    // here with a count and a warning, never staged.
+    const rejectKey = (key: string, where: string): boolean => {
+      if (isOptcgPrintingKey(key)) return false;
+      stats.reconcile.keys_rejected++;
+      if (stats.reconcile.keys_rejected <= 20) {
+        console.warn(
+          `${where}: key ${JSON.stringify(key)} is outside the printing-key grammar — skipped`,
+        );
+      }
+      return true;
+    };
     const fullById = new Map<string, PunkCard>();
     for (const packId of packIds) {
       const cards = await raw<PunkCard[]>(`english/data/${packId}.json`);
@@ -206,12 +224,15 @@ async function main() {
       // first occurrence wins (duplicate contents verified identical upstream).
       for (const card of cards) {
         if (card.id.includes("_")) continue;
+        if (rejectKey(card.id, `pack ${packId}`)) continue;
         if (!fullById.has(card.id)) fullById.set(card.id, card);
       }
     }
     const index = await raw<Record<string, PunkIndexEntry>>("english/index/cards_by_id.json");
-    const indexKeys = Object.keys(index);
-    console.log(`base cards: ${fullById.size}, index entries: ${indexKeys.length}`);
+    const indexKeys = Object.keys(index).filter((key) => !rejectKey(key, "index"));
+    console.log(
+      `base cards: ${fullById.size}, index entries: ${indexKeys.length}, keys rejected: ${stats.reconcile.keys_rejected}`,
+    );
 
     // ---- Reconcile against the corpus shape before touching the DB ---------
     const baseKeys = indexKeys.filter((k) => !k.includes("_"));

@@ -32,6 +32,7 @@ import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { getDb, schema } from "@/db";
+import { boundAuthLimiterKey } from "@/lib/auth/known-paths";
 
 export interface RateLimit {
   /** Full counter key: route scope + principal, e.g. "deck-create:ip:1.2.3.4". */
@@ -366,9 +367,20 @@ export async function enforceRateLimit(limits: RateLimit[]): Promise<NextRespons
  * second write pattern (better-auth's default store is per-instance memory —
  * a placebo on serverless; its "database" backend would mean another table).
  *
- * Better-auth's keys are already ip+path; the "auth:" prefix just namespaces
- * them among ours in the shared table, and the nightly purge sweeps them
- * with everything else. Its `window` is seconds, like windowSeconds.
+ * Better-auth's keys are ip+path. The "auth:" prefix namespaces them among
+ * ours in the shared table, and since the 2026-10-30 security audit (its
+ * counters-cardinality record) the path half is bounded to the mounted
+ * route pattern it instantiates — or one shared `/__unknown` bucket — and
+ * the ip half to 64 characters (lib/auth/known-paths.ts): the library keys
+ * the raw path before the route resolves, so every GET /api/auth/<fresh>
+ * and every /callback/<fresh> had minted its own persistent row, uncapped in
+ * number. One address now holds at most (patterns + 1) keys, and a flood of
+ * fresh paths shares a key and meets the per-key ceiling. The patterns come
+ * from auth.ts once `betterAuth()` has returned (`setAuthPathPatterns`,
+ * since this module cannot import auth.ts without a cycle); until then
+ * every path maps to the unknown bucket — bounded, never open. The nightly
+ * purge sweeps `auth:` rows after an hour (their windows are 10 seconds)
+ * and the rest after two days. Its `window` is seconds, like windowSeconds.
  *
  * Cost note: only real HTTP requests to /api/auth/* pass through better-auth's
  * router (where the limiter runs) — server-side auth.api.getSession calls on
@@ -379,6 +391,18 @@ export async function enforceRateLimit(limits: RateLimit[]): Promise<NextRespons
  * sign-in, sign-out or other client auth call. Fail-open like
  * enforceRateLimit: sign-in must never die on a limiter error.
  */
+let authPatterns: readonly string[] = [];
+
+/** The mounted Better Auth route patterns (auth.ts sets them once the instance exists). */
+export function setAuthPathPatterns(patterns: readonly string[]): void {
+  authPatterns = patterns;
+}
+
+/** What the storage bounds a library key to — exported for the tests. */
+export function authLimiterKey(key: string): string {
+  return boundAuthLimiterKey(key, authPatterns);
+}
+
 export const betterAuthRateLimitStorage = {
   async consume(
     key: string,
@@ -386,7 +410,7 @@ export const betterAuthRateLimitStorage = {
   ): Promise<{ allowed: boolean; retryAfter: number | null }> {
     try {
       const result = await consumeRateLimit({
-        key: `auth:${key}`,
+        key: authLimiterKey(key),
         max: rule.max,
         windowSeconds: rule.window,
       });

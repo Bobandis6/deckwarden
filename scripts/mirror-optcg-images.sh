@@ -26,6 +26,14 @@
 # backfill, or a repair) — ONE recursive sync of the bucket's own
 # optcg/images/ (R2 egress is free). Public bucket only.
 #
+# Every key is checked against the printing-key grammar (src/lib/games/optcg/
+# punk-map.ts: set code, hyphen, number, an optional _pN/_rN suffix) and every
+# URL against Bandai's host before either is used, because the key names a
+# file under the staging dir and an R2 object (the 2026-10-30 security audit's
+# image-mirror record: a key holding "/" or ".." wrote above the staging dir,
+# a tab or newline forged a manifest row). The manifest writer skips such keys
+# already; this is the consumer's own lock, counted as `skipped`.
+#
 # Same skip-clean env pattern as archive-topdeck-raw.sh: no R2 secrets or no
 # manifest → exit 0.
 # Volume: ~4,843 PNGs ≈ 0.85 GB at the measured 174 KB mean, plus ~50 MB of
@@ -35,6 +43,10 @@ set -euo pipefail
 MANIFEST=".optcg-images/manifest.tsv"
 PREFIX="optcg/images"
 SMALL_PREFIX="optcg/small"
+# The lengths are the writer's (punk-map.ts); here the characters alone, in a
+# form every awk reads (mawk's interval support varies).
+KEY_GRAMMAR='^[A-Za-z0-9]+-[A-Za-z0-9]+(_[a-z][0-9]+)?$'
+BANDAI_PREFIX="https://en.onepiece-cardgame.com/"
 
 if [ -z "${R2_ENDPOINT:-}" ] || [ -z "${R2_ACCESS_KEY_ID:-}" ] || [ -z "${R2_SECRET_ACCESS_KEY:-}" ] || [ -z "${R2_BUCKET:-}" ]; then
   echo "R2 secrets not configured — skipping image mirror."
@@ -69,9 +81,14 @@ aws s3 ls "s3://$DEST_BUCKET/$PREFIX/" --recursive --endpoint-url "$R2_ENDPOINT"
   | awk '{print $NF}' | sed "s|^$PREFIX/||" > "$existing" || true
 
 stage=$(mktemp -d)
-total=0 present=0 downloaded=0 failed=0
+total=0 present=0 downloaded=0 failed=0 skipped=0
 while IFS=$'\t' read -r key url; do
   [ -n "$key" ] || continue
+  if ! [[ "$key" =~ $KEY_GRAMMAR ]] || [[ "$url" != "$BANDAI_PREFIX"* ]]; then
+    echo "WARN: skipping a manifest row outside the grammar (key $(printf '%q' "$key"))"
+    skipped=$((skipped + 1))
+    continue
+  fi
   total=$((total + 1))
   if grep -qxF "$key.png" "$existing"; then
     present=$((present + 1))
@@ -92,7 +109,7 @@ if [ "$downloaded" -gt 0 ]; then
     --endpoint-url "$R2_ENDPOINT" --content-type image/png --only-show-errors
 fi
 
-echo "mirror → $DEST_BUCKET: $total in manifest, $present already mirrored, $downloaded uploaded, $failed failed"
+echo "mirror → $DEST_BUCKET: $total in manifest, $present already mirrored, $downloaded uploaded, $failed failed, $skipped skipped"
 
 # Small renditions (P4.9, see the header). $stage still holds tonight's
 # downloads. The pre-flip archival mode serves nothing, so it needs none.
@@ -104,8 +121,8 @@ if [ -n "${R2_PUBLIC_BUCKET:-}" ]; then
   # FILENAME, not NR == FNR: the backfill night's listing is EMPTY, and
   # NR == FNR would then read the manifest as the "have" list.
   missing_small=$(mktemp)
-  awk -F'\t' 'FILENAME == ARGV[1] { have[$0] = 1; next }
-    $1 != "" && !(($1 ".webp") in have) { print $1 }' "$have_small" "$MANIFEST" > "$missing_small"
+  awk -F'\t' -v grammar="$KEY_GRAMMAR" 'FILENAME == ARGV[1] { have[$0] = 1; next }
+    $1 != "" && $1 ~ grammar && !(($1 ".webp") in have) { print $1 }' "$have_small" "$MANIFEST" > "$missing_small"
   missing_count=$(wc -l < "$missing_small" | tr -d ' ')
   small_present=$((total - missing_count))
   if [ "$missing_count" -gt 0 ]; then

@@ -13,6 +13,16 @@
  * Private/unknown decks get the generic branded image — zero deck data in
  * the pixels, and a 200 so link previews look intentional, never broken.
  *
+ * What leaves the server (the 2026-10-30 security audit's next/og record):
+ * satori fetches any grapheme the two committed fonts cannot draw — letters
+ * from Google Fonts in a `text=` query, emoji from jsDelivr by code point —
+ * and `render()` always passes that loader, so a public or unlisted deck
+ * name in Han, kana, Hangul, Hebrew, Arabic, Thai, Devanagari, emoji or
+ * stylised Latin sends those glyphs out (no deck id, link or user; a private
+ * deck never reaches the render). The owner accepted it and /privacy names
+ * both recipients (LATER.md's row); the alternatives (filter the title to
+ * Literata's cmap coverage, or ship a wide font) wait for that row's trigger.
+ *
  * A JPEG since 2026-10-18 (src/lib/og/jpeg.ts: the ~0.7 MB PNG re-encoded
  * at quality 80, an order of magnitude smaller per unfurl) under the same
  * header as before (`OG_UNCACHED_CACHE_CONTROL`, ImageResponse's own
