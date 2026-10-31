@@ -17,7 +17,9 @@
  * Background art preference, which IS read from localStorage, through
  * useSyncExternalStore with a null server snapshot (nothing paints until
  * hydration). The private-deck gate passes no `art`: its owner gets the
- * gradient.
+ * gradient. DAYLIGHT-LIMITS (2026-10-31): <main>'s `data-surface="share"` scopes
+ * the crop's strength and its place in the viewport on light (`--ambient-*` in
+ * globals.css); dark keeps R2's numbers.
  *
  * R5b (REDESIGN.md §2 "Public decks", G3 / F5 / F12): the artwork header —
  * the accent band with the SAME resolved `art` as a banner and its visible
@@ -484,6 +486,7 @@ export function DeckShareView({
       id="main"
       className="max-w-browse relative isolate mx-auto w-full flex-1 px-4 py-6"
       data-game={adapter.id}
+      data-surface="share"
     >
       <header>
         {/* The artwork header (R5b, G3): the resolved crop as the banner with

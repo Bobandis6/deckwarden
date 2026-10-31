@@ -170,6 +170,11 @@ describe("DeckShareView — the artwork header", () => {
     expect(screen.getByRole("banner").querySelector("[data-slot=art-credit]")).toBeNull();
   });
 
+  it("the deck's main carries the surface the stylesheet scopes the art by, on light (globals.css)", () => {
+    render(<DeckShareView deck={deck} cards={cards} author={author} art={ART} />);
+    expect(screen.getByRole("main").dataset.surface).toBe("share");
+  });
+
   it("a partner deck names both leaders in leaderIds order", () => {
     const partners: ShareDeckMeta = {
       ...deck,

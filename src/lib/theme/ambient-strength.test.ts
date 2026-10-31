@@ -1,11 +1,12 @@
 /**
- * The ambient art's strength in the stylesheet (LIGHT-MODE-DAYLIGHT, 2026-10-31).
- * jsdom applies no custom property, so a render can't see what a reader gets:
- * this reads globals.css the way tokens.test.ts does and works out the page
- * under the crop. The two limits it holds apart: the builder's art on light
- * must stay visible (it was 2.8 % of the image at its strongest, and the owner
- * couldn't see it), and the quietest text must stay readable over the blackest
- * pixel a crop can have. Every other surface keeps R2's numbers.
+ * The ambient art's strength in the stylesheet (LIGHT-MODE-DAYLIGHT, 2026-10-31;
+ * the share page since DAYLIGHT-LIMITS). jsdom applies no custom property, so a
+ * render can't see what a reader gets: this reads globals.css the way
+ * tokens.test.ts does and works out the page under the crop. The two limits it
+ * holds apart: the art on light must stay visible on the builder and the share
+ * page (it was 2.8 % of the image at its strongest, and the owner couldn't see
+ * it), and the quietest text must stay readable over the blackest pixel a crop
+ * can have. Every other surface keeps R2's numbers.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -30,6 +31,7 @@ function rule(selector: string, from = 0): Record<string, string> {
 }
 
 const BUILDER = ':root:not(.dark) [data-surface="editor"]';
+const SHARE = ':root:not(.dark) [data-surface="share"]';
 const FALLBACK = "@media (prefers-reduced-transparency: reduce), (prefers-contrast: more)";
 
 /** The veil stop's share of the page: `color-mix(in oklab, var(--background) N%, transparent)`. */
@@ -64,7 +66,10 @@ function floor(page: number[], crop: number, veil: number): number[] {
 const STOPS = ["ambient-veil-top", "ambient-veil-middle", "ambient-veil-foot"];
 
 describe("the ambient art's strength (globals.css)", () => {
-  const builder = rule(BUILDER);
+  const surfaces = [
+    ["the builder", rule(BUILDER)],
+    ["the share page", rule(SHARE)],
+  ] as const;
 
   it("every surface keeps R2's numbers: 4 % on light, 8 % on dark, the veil at 70 / 30 / 90", () => {
     const atBase = code.lastIndexOf(":root {", code.indexOf("--ambient-gradient-opacity"));
@@ -84,49 +89,72 @@ describe("the ambient art's strength (globals.css)", () => {
     expect(root["editor-pane-tools"]).toBe("transparent");
   });
 
-  it("the builder on light: only the crop moves, never the fallback gradient, and never on dark", () => {
-    expect(builder).not.toHaveProperty("ambient-gradient-opacity");
+  it("no surface rule on dark, whose art keeps R2's numbers", () => {
     expect(code).not.toMatch(/\.dark\s+\[data-surface/);
-    expect(Number(builder["ambient-crop-opacity"])).toBeGreaterThan(0.04);
   });
 
-  it("the commander stays visible: over 4x the old 2.8 % at its strongest, and at least 3x R2 at every stop", () => {
-    const crop = Number(builder["ambient-crop-opacity"]);
-    const [top, middle, foot] = STOPS.map((stop) => crop * (1 - veilShare(builder[stop])));
-    expect(middle).toBeGreaterThan(0.028 * 4);
-    expect(top).toBeGreaterThanOrEqual(0.012 * 3);
-    expect(foot).toBeGreaterThanOrEqual(0.004 * 3);
-  });
+  describe.each(surfaces)("%s on light", (_name, surface) => {
+    it("only the crop moves, never the fallback gradient", () => {
+      expect(surface).not.toHaveProperty("ambient-gradient-opacity");
+      expect(Number(surface["ambient-crop-opacity"])).toBeGreaterThan(0.04);
+    });
 
-  it("the text stays readable: muted and body text clear 4.5:1 over a black crop at every veil stop", () => {
-    const crop = Number(builder["ambient-crop-opacity"]);
-    const page = channels(light.background);
-    for (const stop of STOPS) {
-      const under = floor(page, crop, veilShare(builder[stop]));
-      expect(contrast(channels(light["muted-foreground"]), under), stop).toBeGreaterThanOrEqual(
-        4.5,
+    it("the commander stays visible: over 4x the old 2.8 % at its strongest, and at least 3x R2 at every stop", () => {
+      const crop = Number(surface["ambient-crop-opacity"]);
+      const [top, middle, foot] = STOPS.map((stop) => crop * (1 - veilShare(surface[stop])));
+      expect(middle).toBeGreaterThan(0.028 * 4);
+      expect(top).toBeGreaterThanOrEqual(0.012 * 3);
+      expect(foot).toBeGreaterThanOrEqual(0.004 * 3);
+    });
+
+    it("the text stays readable: muted and body text clear 4.5:1 over a black crop at every veil stop", () => {
+      const crop = Number(surface["ambient-crop-opacity"]);
+      const page = channels(light.background);
+      for (const stop of STOPS) {
+        const under = floor(page, crop, veilShare(surface[stop]));
+        expect(contrast(channels(light["muted-foreground"]), under), stop).toBeGreaterThanOrEqual(
+          4.5,
+        );
+        expect(contrast(channels(light.foreground), under), stop).toBeGreaterThanOrEqual(7);
+      }
+    });
+
+    it("the credit chip keeps its words at 4.5:1 with a black thumbnail under it (the attribution rule)", () => {
+      const backing = channels(light.background).map(
+        (v) => v * veilShare(surface["ambient-credit"]),
       );
-      expect(contrast(channels(light.foreground), under), stop).toBeGreaterThanOrEqual(7);
+      expect(contrast(channels(light["muted-foreground"]), backing)).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
+  it("a reader who asked for less transparency or more contrast gets R2's art back on both surfaces", () => {
+    const from = code.indexOf(FALLBACK);
+    expect(from).toBeGreaterThan(code.indexOf(`${BUILDER} {`));
+    expect(from).toBeGreaterThan(code.indexOf(`${SHARE} {`));
+    for (const fallback of [rule(BUILDER, from), rule(SHARE, from)]) {
+      expect(fallback["ambient-crop-opacity"]).toBe("0.04");
+      expect(STOPS.map((stop) => veilShare(fallback[stop]))).toEqual([0.7, 0.3, 0.9]);
     }
+    expect(rule(BUILDER, from)["editor-pane-search"]).toBe("transparent");
+    expect(rule(BUILDER, from)["editor-pane-tools"]).toBe("transparent");
   });
 
-  it("the credit chip keeps its words at 4.5:1 with a black thumbnail under it (the attribution rule)", () => {
-    const backing = channels(light.background).map((v) => v * veilShare(builder["ambient-credit"]));
-    expect(contrast(channels(light["muted-foreground"]), backing)).toBeGreaterThanOrEqual(4.5);
+  it("the share page has no panes to tint: its rows sit on the art, like the builder's deck pane", () => {
+    expect(rule(SHARE)).not.toHaveProperty("editor-pane-search");
+    expect(rule(SHARE)).not.toHaveProperty("editor-pane-tools");
   });
 
-  it("a reader who asked for less transparency or more contrast gets R2's art and clear panes back", () => {
-    const fallback = rule(BUILDER, code.indexOf(FALLBACK));
-    expect(code.indexOf(FALLBACK)).toBeGreaterThan(code.indexOf(`${BUILDER} {`));
-    expect(fallback["ambient-crop-opacity"]).toBe("0.04");
-    expect(STOPS.map((stop) => veilShare(fallback[stop]))).toEqual([0.7, 0.3, 0.9]);
-    expect(fallback["editor-pane-search"]).toBe("transparent");
-    expect(fallback["editor-pane-tools"]).toBe("transparent");
+  it("while a crop is up the share page's layer stands in the viewport, or a deck-tall layer shows a sliver of the picture", () => {
+    const standing = code.match(
+      /:root:not\(\.dark\)\s+\[data-surface="share"\]\s+\[data-slot="ambient-art"\]:has\(\[data-slot="ambient-crop"\]\)\s*\{([^}]*)\}/,
+    );
+    expect(standing?.[1]).toMatch(/position:\s*fixed/);
+    // It runs past the viewport: Safari shows the page through its bars, and the art must not end in a line there.
+    expect(standing?.[1]).toMatch(/inset:\s*-/);
   });
 
-  it("the scope is the builder's root: a public share page inherits none of it", () => {
-    const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
-    expect(read("src/components/editor/editor-layout.tsx")).toContain('data-surface="editor"');
-    expect(read("src/components/deck/deck-share-view.tsx")).not.toContain("data-surface");
+  it("the share page's art sits behind the header and footer: main's stacking context would lift it over them", () => {
+    const at = code.indexOf(`${SHARE} {`);
+    expect(code.slice(at, code.indexOf("}", at))).toMatch(/isolation:\s*auto/);
   });
 });

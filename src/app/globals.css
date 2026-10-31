@@ -404,9 +404,10 @@
 
 /* The ambient art's strength (R2, REDESIGN.md §3; split in LIGHT-MODE-DAYLIGHT,
    2026-10-31): the crop and the fallback gradient carry separate opacities, and
-   the veil over a crop is three stops of the page. Every surface but one keeps
-   R2's numbers: 4 % on light, 8 % on dark. The builder on light is the one
-   (`data-surface="editor"`, EditorLayout's root): the owner's report that its
+   the veil over a crop is three stops of the page. Every surface but two keeps
+   R2's numbers: 4 % on light, 8 % on dark. The two are on light only, the
+   builder (`data-surface="editor"`, EditorLayout's root) and the share page
+   (`data-surface="share"`, its main): the owner's report that the builder's
    commander art could hardly be seen measured 1.2 %, 2.8 % and 0.4 % of the
    image down the page, 4 % faded a second time by the veil. There the crop is
    14 % under a gentler veil, 7 %, 11.2 % and 4.9 %. The bound is the page's
@@ -419,7 +420,19 @@
    tells the three apart and keeps the search block's chrome from ending in an
    edge. The credit chip is 90 % there, so a dark thumbnail scrolling under it
    leaves its words at 4.5:1. A reader who asked for less transparency or more
-   contrast gets R2's numbers back, like the chrome's fallbacks above. */
+   contrast gets R2's numbers back, like the chrome's fallbacks above.
+   The share page's strengths alone wouldn't show the commander: its layer is as
+   tall as the deck (3,917 px for The Hosts of Mordor), where `object-cover`
+   magnifies the crop 8.6 times to a sliver of the picture, and it stops at the
+   column's 64rem, a visible edge at this strength. So on light, while a crop is
+   up, the layer stands in the viewport, as the builder's does, and main gives up
+   `isolate` to put it behind the header and the footer, whose words it would wash
+   out. With no crop the layer is what it was, so a deck with no art paints as it
+   did. `lvh` holds the picture still while a phone's address bar collapses, and
+   the 5rem past each edge reaches the strips where Safari shows the page through
+   its status bar and floating toolbar (59 and 58 pt on an iPhone 15), or the art
+   would end in a line. The whole layer stands, not the crop and veil apart: WebKit
+   painted two fixed siblings differently in those strips, the crop without its veil. */
 :root {
   --ambient-gradient-opacity: 0.04;
   --ambient-crop-opacity: 0.04;
@@ -443,6 +456,19 @@
   --editor-pane-search: color-mix(in oklab, var(--card) 58%, transparent);
   --editor-pane-tools: color-mix(in oklab, var(--card) 38%, transparent);
 }
+:root:not(.dark) [data-surface="share"] {
+  --ambient-crop-opacity: 0.14;
+  --ambient-veil-top: color-mix(in oklab, var(--background) 50%, transparent);
+  --ambient-veil-middle: color-mix(in oklab, var(--background) 20%, transparent);
+  --ambient-veil-foot: color-mix(in oklab, var(--background) 65%, transparent);
+  --ambient-credit: color-mix(in oklab, var(--background) 90%, transparent);
+  isolation: auto;
+}
+:root:not(.dark) [data-surface="share"] [data-slot="ambient-art"]:has([data-slot="ambient-crop"]) {
+  position: fixed;
+  inset: -5rem 0 auto;
+  height: calc(100lvh + 10rem);
+}
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   :root:not(.dark) [data-surface="editor"] {
     --ambient-crop-opacity: 0.04;
@@ -451,6 +477,12 @@
     --ambient-veil-foot: color-mix(in oklab, var(--background) 90%, transparent);
     --editor-pane-search: transparent;
     --editor-pane-tools: transparent;
+  }
+  :root:not(.dark) [data-surface="share"] {
+    --ambient-crop-opacity: 0.04;
+    --ambient-veil-top: color-mix(in oklab, var(--background) 70%, transparent);
+    --ambient-veil-middle: color-mix(in oklab, var(--background) 30%, transparent);
+    --ambient-veil-foot: color-mix(in oklab, var(--background) 90%, transparent);
   }
 }
 
@@ -986,9 +1018,6 @@
       ),
       linear-gradient(0deg, rgb(8 12 14 / 0.62) 0%, rgb(8 12 14 / 0.16) 48%, transparent 72%);
     --home-tile-scrim-mask: none;
-    --home-tile-arrow: color-mix(in oklab, var(--primary-foreground) 80%, transparent);
-    --home-tile-arrow-disc: transparent;
-    --home-tile-arrow-ring: none;
     --home-tile-art-filter: none;
   }
   .home-tile-arrow {
@@ -1002,11 +1031,6 @@
     color: var(--home-tile-arrow);
     background: var(--home-tile-arrow-disc);
     box-shadow: var(--home-tile-arrow-ring);
-  }
-  @media (hover: hover) {
-    .home-tile:hover .home-tile-arrow {
-      color: var(--primary-foreground);
-    }
   }
   .home-tile-art {
     position: absolute;
@@ -1055,8 +1079,30 @@
   /* A 228 px tile wraps "Magic: The Gathering" (191 px) over the scrim's top,
      2.1:1 on its first line. The right padding guards nothing at the foot. */
   @media (64rem <= width < 65rem) {
-    :root:not(.dark) .home-tile {
+    .home-tile {
       padding-right: 0.75rem;
+    }
+  }
+  /* Dark's scrim is in percent of the tile, so a narrow tile puts the end of a
+     name past its stops: 2.17:1 at the worst pixel at 231 px. Where the tile is
+     that narrow (a phone under 380, the stacked pair under 688, the even split
+     under 1280) a band measured from the words joins it, light's shape at about
+     two thirds of its strength, easing out to the right of the name, so the sail
+     and the sky above stay as bright as on a wide tile. */
+  @media (width < 23.75rem), (40rem <= width < 43rem), (64rem <= width < 80rem) {
+    .dark .home-tile::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(
+        0deg,
+        rgb(8 12 14 / 0.44) 4.25rem,
+        rgb(8 12 14 / 0.3) 5rem,
+        rgb(8 12 14 / 0.1) 5.75rem,
+        transparent 6.5rem
+      );
+      mask-image: linear-gradient(90deg, #000 13.5rem, transparent 20rem);
     }
   }
   @media (width >= 64rem) {

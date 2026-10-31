@@ -15,8 +15,11 @@
  * Background art Off — so turning art Off keeps the gradient (§3 lists the
  * preference under fallbacks). Their strengths and the veil's stops are
  * tokens in globals.css (`--ambient-*`; the theme class on <html> decides, no
- * JavaScript): 4 % on light and 8 % on dark everywhere, but for a crop in the
- * builder on light (LIGHT-MODE-DAYLIGHT), which EditorLayout's root scopes.
+ * JavaScript): 4 % on light and 8 % on dark everywhere, but for a crop on light
+ * in the builder (LIGHT-MODE-DAYLIGHT, scoped by EditorLayout's root) and on the
+ * share page (DAYLIGHT-LIMITS, scoped by its main), where the stylesheet also
+ * stands this layer in the viewport while a crop is up, since it's as tall as
+ * the deck there.
  *
  * Crossfade: the previous crop lingers for 250 ms (`animate-dw-out`, which
  * holds its end) while the replacement plays `animate-dw-in` (U2's own
