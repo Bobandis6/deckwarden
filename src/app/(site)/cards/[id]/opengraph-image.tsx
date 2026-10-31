@@ -8,7 +8,8 @@
  * Hobby's 200K monthly ISR write units per render, and every deployment
  * starts its own empty ISR cache; CDN cache writes are free. A JPEG since
  * the same day (src/lib/og/jpeg.ts: ~1 MB → ~80 KB). The Scryfall fetches
- * inside keep their own daily data cache (explicit `next.revalidate`).
+ * inside keep their own daily data cache (explicit `next.revalidate`). A
+ * failed art lookup renders artless and isn't kept (`OG_UNCACHED_CACHE_CONTROL`).
  */
 import { ImageResponse } from "next/og";
 
@@ -24,8 +25,8 @@ import {
   OgTitle,
 } from "@/lib/og/elements";
 import { loadOgFonts } from "@/lib/og/fonts";
-import { jpegPreview, OG_CDN_CACHE_CONTROL } from "@/lib/og/jpeg";
-import { fetchOgArt } from "@/lib/og/scryfall";
+import { jpegPreview, OG_CDN_CACHE_CONTROL, OG_UNCACHED_CACHE_CONTROL } from "@/lib/og/jpeg";
+import { lookupOgArt } from "@/lib/og/scryfall";
 import { ogAccent } from "@/lib/theme/tokens";
 
 export const dynamic = "force-dynamic";
@@ -53,11 +54,13 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     );
   }
 
-  // fetchOgArt is Scryfall-only; other games' printing ids 404 there and the
+  // lookupOgArt is Scryfall-only; other games' printing ids 404 there and the
   // unfurl renders artless — never hotlink Bandai art into OG images.
   const isMtg = card.gameId === GAME_ID.mtg;
   const printingId = isMtg ? await loadDefaultPrintingId(card.id) : null;
-  const art = printingId ? await fetchOgArt(printingId) : null;
+  const { art, transient } = printingId
+    ? await lookupOgArt(printingId)
+    : { art: null, transient: false };
   const accent = ogAccent(card.gameId);
 
   const kicker = isMtg
@@ -82,6 +85,6 @@ export default async function Image({ params }: { params: Promise<{ id: string }
       </OgFrame>,
       { ...size, fonts },
     ),
-    OG_CDN_CACHE_CONTROL,
+    transient ? OG_UNCACHED_CACHE_CONTROL : OG_CDN_CACHE_CONTROL,
   );
 }

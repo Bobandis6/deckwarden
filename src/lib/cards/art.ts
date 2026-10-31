@@ -31,11 +31,34 @@
  * and the cache is keyed by printing, so every deck sharing a commander
  * reuses one fetch whoever asks and from whichever route (the force-dynamic
  * deck OG image and the art endpoint included).
+ *
+ * When Scryfall says stop (the 2026-10-30 security audit's art-lookup
+ * record): its rate-limit page says a 429 limits access for 30 seconds and
+ * that continued overload can bring a temporary or permanent ban of the
+ * application, and the nightly ingest sends this same User-Agent. So a 429
+ * or a 403 opens a hold on this process for Retry-After, 60 seconds at the
+ * least: until it ends, a lookup reads the data cache and makes no call. The
+ * read is `fetch` with a signal that has already aborted, under a
+ * `revalidate` no entry can outlive. Next answers an entry from its cache
+ * before the signal matters, and the long `revalidate` means none reads as
+ * stale, so none starts a background refresh (those drop the signal). A
+ * printing with no entry rejects without touching the network. If a future
+ * Next checks the signal first, warm printings go artless during a hold too,
+ * which is still no call. Limits: a hold is per process, and Next runs a stale
+ * entry's refresh after answering, so a 429 on that refresh opens nothing;
+ * the first cold lookup to meet the 429 does.
  */
 import type { GameAdapter } from "@/lib/games/types";
 
 export const SCRYFALL_USER_AGENT = "Deckwarden/1.0 (https://deckwarden.gg)";
 export const SCRYFALL_REVALIDATE_S = 86400;
+
+const HOLD_MIN_S = 60;
+const HOLD_MAX_S = 3600;
+const HOLD_READ_REVALIDATE_S = 10 * 365 * 86400;
+
+/** On globalThis like the database handle: one process may hold several copies of this module. */
+const processState = globalThis as unknown as { __deckwardenScryfallHoldUntilMs?: number };
 
 export type CardArtLayout = "art_crop" | "full_card";
 
@@ -68,11 +91,24 @@ export function artCredit(artist: string): string {
 /**
  * Why a lookup has no art (X5): `"no-art"` — Scryfall answered and the
  * printing has no crop or no artist (or Scryfall does not know it: a 404);
- * `"unreachable"` — any other non-OK answer, or the fetch threw. The
- * picture route words the two differently; every other caller reads both
- * as "no art" through fetchScryfallArtMeta.
+ * `"unreachable"` — any other non-OK answer, the fetch threw, or a hold
+ * stopped the call. The first is an answer about the printing and the second
+ * says nothing about it, so a caller that keeps its response must not keep
+ * the second (lookupCardArt, lookupOgArt). The picture route words the two
+ * differently.
  */
 export type ArtLookup = { meta: ScryfallArtMeta } | { reason: "no-art" | "unreachable" };
+
+/** A status-only line for the logs, and the hold when the status says stop. */
+function noteRefusal(res: Response): void {
+  console.error(`[art] api.scryfall.com answered ${res.status}`);
+  if (res.status !== 429 && res.status !== 403) return;
+  const retryAfter = Number(res.headers.get("retry-after"));
+  const holdS = Number.isFinite(retryAfter)
+    ? Math.min(Math.max(retryAfter, HOLD_MIN_S), HOLD_MAX_S)
+    : HOLD_MIN_S;
+  processState.__deckwardenScryfallHoldUntilMs = Date.now() + holdS * 1000;
+}
 
 /**
  * Art crop + artist for a printing, from the Scryfall API, with the reason
@@ -81,19 +117,31 @@ export type ArtLookup = { meta: ScryfallArtMeta } | { reason: "no-art" | "unreac
  * for. A missing crop OR artist is no art (the attribution rule).
  */
 export async function lookupScryfallArtMeta(printingId: string): Promise<ArtLookup> {
+  const holding = Date.now() < (processState.__deckwardenScryfallHoldUntilMs ?? 0);
   try {
     const res = await fetch(`https://api.scryfall.com/cards/${printingId}`, {
       headers: { "User-Agent": SCRYFALL_USER_AGENT, Accept: "application/json" },
-      next: { revalidate: SCRYFALL_REVALIDATE_S },
+      ...(holding
+        ? { next: { revalidate: HOLD_READ_REVALIDATE_S }, signal: AbortSignal.abort() }
+        : { next: { revalidate: SCRYFALL_REVALIDATE_S } }),
     });
-    if (!res.ok) return { reason: res.status === 404 ? "no-art" : "unreachable" };
+    if (!res.ok) {
+      if (res.status === 404) return { reason: "no-art" };
+      noteRefusal(res);
+      return { reason: "unreachable" };
+    }
     const card = (await res.json()) as ScryfallArtCard;
     const face = card.card_faces?.[0];
     const artCropUrl = card.image_uris?.art_crop ?? face?.image_uris?.art_crop;
     const artist = card.artist ?? face?.artist;
     if (!artCropUrl || !artist) return { reason: "no-art" };
     return { meta: { artCropUrl, artist } };
-  } catch {
+  } catch (err) {
+    if (!holding) {
+      console.error(
+        `[art] api.scryfall.com unreachable: ${err instanceof Error ? err.name : typeof err}`,
+      );
+    }
     return { reason: "unreachable" };
   }
 }
@@ -132,13 +180,25 @@ export function ambientArtKind(adapter: Pick<GameAdapter, "capabilities">): Card
  * Art for one printing of a card in `adapter`'s game — the decision the
  * endpoint and the share page make identically: no declared kind → null
  * before any network; `art_crop` → the Scryfall resolver. Nothing declares
- * `full_card`, and no resolver exists for it.
+ * `full_card`, and no resolver exists for it. `transient` is true when the
+ * lookup failed (ArtLookup's "unreachable"): the endpoint must not let the
+ * CDN keep that null for a day.
  */
+export async function lookupCardArt(
+  adapter: Pick<GameAdapter, "capabilities">,
+  printingId: string,
+): Promise<{ art: CardArt | null; transient: boolean }> {
+  if (ambientArtKind(adapter) !== "art_crop") return { art: null, transient: false };
+  const lookup = await lookupScryfallArtMeta(printingId);
+  return "meta" in lookup
+    ? { art: artCropCardArt(lookup.meta), transient: false }
+    : { art: null, transient: lookup.reason === "unreachable" };
+}
+
+/** The same decision as a nullable — what a render with nothing to keep or refuse reads. */
 export async function resolveCardArt(
   adapter: Pick<GameAdapter, "capabilities">,
   printingId: string,
 ): Promise<CardArt | null> {
-  if (ambientArtKind(adapter) !== "art_crop") return null;
-  const meta = await fetchScryfallArtMeta(printingId);
-  return meta ? artCropCardArt(meta) : null;
+  return (await lookupCardArt(adapter, printingId)).art;
 }

@@ -11,7 +11,8 @@
  * render (five renders were 28% of one 12-hour window's writes), and every
  * deployment starts its own empty ISR cache; CDN cache writes are free. A
  * JPEG since the same day (src/lib/og/jpeg.ts: ~1 MB → ~80 KB). The
- * Scryfall fetches inside keep their own daily data cache.
+ * Scryfall fetches inside keep their own daily data cache. A failed art
+ * lookup renders artless and isn't kept (`OG_UNCACHED_CACHE_CONTROL`).
  */
 import { ImageResponse } from "next/og";
 
@@ -30,8 +31,8 @@ import {
   OgTitle,
 } from "@/lib/og/elements";
 import { loadOgFonts } from "@/lib/og/fonts";
-import { jpegPreview, OG_CDN_CACHE_CONTROL } from "@/lib/og/jpeg";
-import { fetchOgArt } from "@/lib/og/scryfall";
+import { jpegPreview, OG_CDN_CACHE_CONTROL, OG_UNCACHED_CACHE_CONTROL } from "@/lib/og/jpeg";
+import { lookupOgArt } from "@/lib/og/scryfall";
 import { ogAccent } from "@/lib/theme/tokens";
 
 export const dynamic = "force-dynamic";
@@ -64,7 +65,9 @@ export default async function Image({ params }: { params: Promise<{ slug: string
     loadStaples(leader),
     loadCombosForCard(leader.id, { fitCiMask: leader.ciMask }),
   ]);
-  const art = printing ? await fetchOgArt(printing.id) : null;
+  const { art, transient } = printing
+    ? await lookupOgArt(printing.id)
+    : { art: null, transient: false };
   const curveBlock = staplesCurveBlock(staples);
   const accent = ogAccent(GAME_ID.mtg);
 
@@ -96,6 +99,6 @@ export default async function Image({ params }: { params: Promise<{ slug: string
       </OgFrame>,
       { ...size, fonts },
     ),
-    OG_CDN_CACHE_CONTROL,
+    transient ? OG_UNCACHED_CACHE_CONTROL : OG_CDN_CACHE_CONTROL,
   );
 }

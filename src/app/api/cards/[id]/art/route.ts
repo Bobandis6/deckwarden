@@ -13,13 +13,18 @@
  * the resolver, which is null when the artist is unknown (attribution rule).
  *
  * Caching intent: dynamic rendering (query-string driven) with a day at
- * the edge on every 200 — art per printing is effectively immutable and the
- * Scryfall call behind it is data-cached daily regardless of who asks — and
- * an hour on 404s (ids are stable; a card that appears at the next nightly
- * heals within the hour). 400s carry no cache header. No rate limit: a GET
- * bounded by real printing ids, edge-cached, costing one indexed read plus a
- * data-cached upstream call is not the resolve route's shape (a POST of up
- * to 400 names per request).
+ * the edge on a 200 that answers for the printing — art per printing is
+ * effectively immutable and the Scryfall call behind it is data-cached daily
+ * regardless of who asks — and an hour on 404s (ids are stable; a card that
+ * appears at the next nightly heals within the hour). A lookup that failed
+ * answers `{ art: null }` under no-store, or a blip on Scryfall's side would
+ * sit at the edge for a day looking like a printing with no art. 400s carry
+ * no cache header.
+ *
+ * A per-address bucket comes first (`cardArt`; the 2026-10-30 security
+ * audit's art-lookup record). Real printing ids and the data cache bound how
+ * many calls reach Scryfall, not how fast, and a 429 can only be honored
+ * once it has been earned (src/lib/cards/art.ts has the hold).
  */
 import { and, eq } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
@@ -27,9 +32,12 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { gameCodeById } from "@/db/seed-data";
-import { ambientArtKind, resolveCardArt } from "@/lib/cards/art";
+import { noStoreJson } from "@/lib/api/json";
+import { ambientArtKind, lookupCardArt } from "@/lib/cards/art";
+import { clientIp } from "@/lib/decks/access";
 import { listAdapters } from "@/lib/games/registry";
 import { loadDefaultPrinting } from "@/lib/hub/queries";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +48,9 @@ const HIT_CACHE = { "Cache-Control": "public, s-maxage=86400, stale-while-revali
 const MISS_CACHE = { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=3600" };
 
 export async function GET(request: NextRequest, ctx: RouteContext<"/api/cards/[id]/art">) {
+  const limited = await enforceRateLimit(RATE_LIMITS.cardArt(clientIp(request.headers)));
+  if (limited) return limited;
+
   const params = PARAMS.safeParse(await ctx.params);
   if (!params.success) {
     return NextResponse.json(
@@ -95,6 +106,6 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/cards/[i
     );
   }
 
-  const art = await resolveCardArt(adapter, printing.id);
-  return NextResponse.json({ art }, { headers: HIT_CACHE });
+  const { art, transient } = await lookupCardArt(adapter, printing.id);
+  return transient ? noStoreJson({ art }) : NextResponse.json({ art }, { headers: HIT_CACHE });
 }

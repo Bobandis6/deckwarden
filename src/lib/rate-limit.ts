@@ -116,6 +116,18 @@ export const RATE_LIMITS = {
     { key: `card-suggest:ip-hour:${ip ?? "unknown"}`, max: 2000, windowSeconds: 3600 },
   ],
   /**
+   * GET /api/cards/[id]/art (the 2026-10-30 security audit's art-lookup
+   * record) — the cheapest anonymous way to make this site call
+   * api.scryfall.com: one call per cold printing for two indexed reads, and
+   * every distinct query string is a CDN miss. The builder asks once per
+   * leader change, so 60/min and 600/hour sit far above honest use, and one
+   * address stays near one call a second against Scryfall's stated ten.
+   */
+  cardArt: (ip: string | null): RateLimit[] => [
+    { key: `card-art:ip:${ip ?? "unknown"}`, max: 60, windowSeconds: 60 },
+    { key: `card-art:ip-hour:${ip ?? "unknown"}`, max: 600, windowSeconds: 3600 },
+  ],
+  /**
    * /d/[publicId]/opengraph-image (S4, the deck OG route) — a force-dynamic
    * satori + sharp render per request (~200 ms of function CPU, three Neon
    * reads), never kept at the CDN by the privacy contract, so one share

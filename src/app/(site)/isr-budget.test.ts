@@ -19,7 +19,11 @@ const mocks = vi.hoisted(() => ({
   loadDeckOgData: vi.fn(),
   loadDefaultPrintingId: vi.fn(),
   loadLeaderBySlug: vi.fn(),
+  loadDefaultPrinting: vi.fn(),
+  loadStaples: vi.fn(),
+  loadCombosForCard: vi.fn(),
   fetchOgArt: vi.fn(),
+  lookupOgArt: vi.fn(),
 }));
 
 vi.mock("@/lib/og/data", () => ({
@@ -29,10 +33,14 @@ vi.mock("@/lib/og/data", () => ({
 }));
 vi.mock("@/lib/hub/queries", () => ({
   loadLeaderBySlug: mocks.loadLeaderBySlug,
-  loadDefaultPrinting: vi.fn(),
-  loadStaples: vi.fn(),
+  loadDefaultPrinting: mocks.loadDefaultPrinting,
+  loadStaples: mocks.loadStaples,
 }));
-vi.mock("@/lib/og/scryfall", () => ({ fetchOgArt: mocks.fetchOgArt }));
+vi.mock("@/lib/combos/queries", () => ({ loadCombosForCard: mocks.loadCombosForCard }));
+vi.mock("@/lib/og/scryfall", () => ({
+  fetchOgArt: mocks.fetchOgArt,
+  lookupOgArt: mocks.lookupOgArt,
+}));
 // The deck preview reads the request's headers for its limiter (S4); both
 // are outside this test's subject (d/[publicId]/opengraph-image.test.ts).
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
@@ -61,6 +69,7 @@ async function expectJpeg(res: Response, cacheControl: string) {
 beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
   mocks.fetchOgArt.mockResolvedValue(null);
+  mocks.lookupOgArt.mockResolvedValue({ art: null, transient: false });
 });
 
 describe("the card page", () => {
@@ -95,7 +104,33 @@ describe("the previews", () => {
     mocks.loadDefaultPrintingId.mockResolvedValue("22222222-2222-4222-8222-222222222222");
     const res = await cardPreview.default({ params: Promise.resolve({ id: "x" }) });
     await expectJpeg(res, CDN);
-    expect(mocks.fetchOgArt).toHaveBeenCalledWith("22222222-2222-4222-8222-222222222222");
+    expect(mocks.lookupOgArt).toHaveBeenCalledWith("22222222-2222-4222-8222-222222222222");
+  });
+
+  it("a card's or hub's preview whose art lookup failed is never kept at the CDN", async () => {
+    mocks.lookupOgArt.mockResolvedValue({ art: null, transient: true });
+    mocks.loadCardOgData.mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
+      gameId: 1,
+      name: "Sol Ring",
+      typeLine: "Artifact",
+      isLeaderCandidate: false,
+    });
+    mocks.loadDefaultPrintingId.mockResolvedValue("22222222-2222-4222-8222-222222222222");
+    await expectJpeg(await cardPreview.default({ params: Promise.resolve({ id: "x" }) }), UNCACHED);
+
+    mocks.loadLeaderBySlug.mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "Atraxa, Grand Unifier",
+      ciMask: 15,
+    });
+    mocks.loadDefaultPrinting.mockResolvedValue({ id: "22222222-2222-4222-8222-222222222222" });
+    mocks.loadStaples.mockResolvedValue([]);
+    mocks.loadCombosForCard.mockResolvedValue({ total: 0 });
+    await expectJpeg(
+      await hubPreview.default({ params: Promise.resolve({ slug: "x" }) }),
+      UNCACHED,
+    );
   });
 
   it("an unknown card, hub or leader gets the generic JPEG under the same CDN header", async () => {

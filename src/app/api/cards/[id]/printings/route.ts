@@ -16,8 +16,8 @@
  * too, and an hour of staleness on a gallery tail is invisible. 404s get the
  * miss cache (ids are stable; a card that appears at the next nightly heals
  * within the hour). 400s carry no cache header. No rate limit: a GET bounded
- * by real card ids costing two indexed reads is the art route's shape, not
- * the resolve route's.
+ * by real card ids costing two indexed reads, with no upstream call behind
+ * it, is not the resolve route's shape.
  */
 import { and, count, eq, sql } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";

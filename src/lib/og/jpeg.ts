@@ -34,7 +34,8 @@ export const OG_CDN_CACHE_CONTROL = "public, s-maxage=86400, stale-while-revalid
  * Deck previews: never kept at the CDN — a deck flipped private must stop
  * unfurling on the next request (the /d privacy contract). This is the
  * header ImageResponse sends by default in production, so the deck
- * preview's caching is unchanged.
+ * preview's caching is unchanged. A card or hub preview whose art lookup
+ * failed sends it too, so the next request can have the art.
  */
 export const OG_UNCACHED_CACHE_CONTROL = "public, max-age=0, must-revalidate";
 
