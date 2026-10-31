@@ -13,6 +13,8 @@
  *  - serverSentryOptions ships the method and the URL alone — no header,
  *    no cookie, no IP, no marker anywhere in the serialized envelope;
  *  - the second lock alone (the defaults plus beforeSend) is enough.
+ * A failed statement's text — the 2026-10-30 finding — is bound-params.test.ts,
+ * on production's whole init.
  */
 import * as Sentry from "@sentry/nextjs";
 import { describe, expect, it } from "vitest";
@@ -75,14 +77,19 @@ async function envelopeFor(options: Omit<ClientOptions, "transport" | "stackPars
 }
 
 describe("serverSentryOptions", () => {
-  it("carries the DSN and environment, tracing off, PII off, the scrubber and one RequestData integration", () => {
+  it("carries the DSN and environment, tracing off, PII off, the scrubber, one RequestData integration and an empty ContextLines", () => {
     const options = serverSentryOptions({ dsn: DSN, environment: "probe" });
     expect(options.dsn).toBe(DSN);
     expect(options.environment).toBe("probe");
     expect(options.tracesSampleRate).toBe(0);
     expect(options.sendDefaultPii).toBe(false);
     expect(options.beforeSend).toBe(beforeSend);
-    expect(options.integrations.map((integration) => integration.name)).toEqual(["RequestData"]);
+    expect(options.integrations.map((integration) => integration.name)).toEqual([
+      "RequestData",
+      "ContextLines",
+    ]);
+    // The replacement has no hook at all: nothing opens a file, nothing touches a frame.
+    expect(options.integrations[1]).toEqual({ name: "ContextLines" });
   });
 });
 

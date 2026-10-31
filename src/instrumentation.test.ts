@@ -47,7 +47,7 @@ describe("register", () => {
     expect(onRequestError).toBe(sentry.captureRequestError);
   });
 
-  it("hands Sentry the server options: tracing off, PII off, the scrubber, RequestData copying nothing", async () => {
+  it("hands Sentry the server options: tracing off, PII off, the scrubber, RequestData copying nothing, ContextLines emptied", async () => {
     vi.stubEnv("SENTRY_DSN", "https://key@o0.ingest.sentry.invalid/1");
     vi.stubEnv("VERCEL_ENV", "production");
     const { register, beforeSend } = await load();
@@ -63,7 +63,10 @@ describe("register", () => {
       tracesSampleRate: 0,
       sendDefaultPii: false,
       beforeSend,
-      integrations: [sentry.requestDataIntegration.mock.results[0]?.value],
+      integrations: [
+        sentry.requestDataIntegration.mock.results[0]?.value,
+        { name: "ContextLines" },
+      ],
     });
   });
 
