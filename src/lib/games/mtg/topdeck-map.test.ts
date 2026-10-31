@@ -54,6 +54,77 @@ function tournament(overrides: Partial<TopdeckTournament> = {}): TopdeckTourname
   };
 }
 
+describe("text a whole run would fail on (feed-text.ts)", () => {
+  const BAD = [
+    ["U+0000", "bad\u0000text"],
+    ["a lone surrogate", "bad\ud83dtext"],
+  ];
+
+  it.each(BAD)("%s in an event's id or name skips it as malformed", (_, bad) => {
+    for (const event of [tournament({ TID: bad }), tournament({ tournamentName: bad })]) {
+      expect(mapTournament(event, resolve)).toEqual({ ok: false, skip: "malformed" });
+    }
+  });
+
+  it.each(BAD)("%s in a player's name keeps the standing, nameless", (_, bad) => {
+    const rest = Array.from({ length: MIN_EVENT_PLAYERS - 1 }, (_, i) =>
+      standing({ standing: i + 2 }),
+    );
+    const res = mapTournament(
+      tournament({ standings: [standing({ standing: 1, name: bad }), ...rest] }),
+      resolve,
+    );
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.standings[0].player_name).toBeNull();
+    expect(res.standings[0].leader_ids).toEqual(["id-kinnan"]);
+  });
+
+  it.each(BAD)("%s in an allowed host's link drops the link, counted", (_, bad) => {
+    const link = `https://moxfield.com/decks/${bad}`;
+    expect(decklistUrlOrNull(link)).toBeNull();
+    const rest = Array.from({ length: MIN_EVENT_PLAYERS - 1 }, (_, i) =>
+      standing({ standing: i + 2 }),
+    );
+    const res = mapTournament(
+      tournament({ standings: [standing({ standing: 1, decklist: link }), ...rest] }),
+      resolve,
+    );
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.standings[0].decklist_url).toBeNull();
+    expect(res.decklistUrlsDropped).toBe(1);
+  });
+
+  it.each(BAD)("%s in a commander's name is a counted miss, as any other name", (_, bad) => {
+    const rest = Array.from({ length: MIN_EVENT_PLAYERS - 1 }, (_, i) =>
+      standing({ standing: i + 2 }),
+    );
+    const res = mapTournament(
+      tournament({
+        standings: [standing({ standing: 1, deckObj: { Commanders: { [bad]: 1 } } }), ...rest],
+      }),
+      resolve,
+    );
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.standingSkips).toEqual({ unresolved_commander: 1 });
+  });
+
+  it("an emoji is not a lone surrogate", () => {
+    const rest = Array.from({ length: MIN_EVENT_PLAYERS - 1 }, (_, i) =>
+      standing({ standing: i + 2 }),
+    );
+    const res = mapTournament(
+      tournament({
+        tournamentName: "Cup \u{1F984}",
+        standings: [standing({ standing: 1, name: "Some \u{1F984} Player" }), ...rest],
+      }),
+      resolve,
+    );
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.tournament.name).toBe("Cup \u{1F984}");
+    expect(res.standings[0].player_name).toBe("Some \u{1F984} Player");
+  });
+});
+
 describe("commanderNamesFrom", () => {
   it("reads deckObj Commanders keys first", () => {
     expect(commanderNamesFrom(standing())).toEqual(["Kinnan, Bonder Prodigy"]);

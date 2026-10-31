@@ -25,6 +25,7 @@
  *   and leave the default blank. Mapping decision: null/"STANDARD" →
  *   optcgStandard (our only OP format row), anything else skips counted.
  */
+import { isStorableText } from "../../ingest/feed-text";
 
 // --- Kept bounds (exported so the /l/ shelf can disclose exactly what's stored) ---
 
@@ -48,6 +49,7 @@ export const TRAILING_REFETCH_DAYS = 14;
 const SMALLINT_MAX = 32767;
 const MAX_NAME_LEN = 120;
 const MAX_EVENT_NAME_LEN = 300;
+const MAX_EVENT_ID_LEN = 200;
 
 const SITE_BASE = "https://play.limitlesstcg.com";
 
@@ -147,7 +149,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 function textOrNull(v: unknown, maxLen: number): string | null {
-  if (typeof v !== "string") return null;
+  if (typeof v !== "string" || !isStorableText(v)) return null;
   const trimmed = v.trim();
   return trimmed.length > 0 && trimmed.length <= maxLen ? trimmed : null;
 }
@@ -178,6 +180,16 @@ export function leaderCodeFrom(decklist: unknown): string | null {
   return `${set}-${number}`.toUpperCase();
 }
 
+/**
+ * A list row's event id, or null when the row is malformed. The id goes into
+ * the next two request URLs before the mapper sees it, and
+ * `encodeURIComponent` throws on a lone surrogate, so it gets the mapper's
+ * own check here.
+ */
+export function listRowId(row: LimitlessListRow): string | null {
+  return textOrNull(row.id, MAX_EVENT_ID_LEN);
+}
+
 // --- Assess (before the standings request is spent) ---------------------------
 
 export type AssessResult = { ok: true } | { ok: false; skip: TournamentSkip };
@@ -190,7 +202,7 @@ export type AssessResult = { ok: true } | { ok: false; skip: TournamentSkip };
  * is the organizer's call and we honor it).
  */
 export function assessTournament(details: LimitlessDetails, window?: WindowBounds): AssessResult {
-  const externalKey = textOrNull(details.id, 200);
+  const externalKey = textOrNull(details.id, MAX_EVENT_ID_LEN);
   const name = textOrNull(details.name, MAX_EVENT_NAME_LEN);
   const startMs = dateMs(details.date);
   if (!externalKey || !name || startMs === null) return { ok: false, skip: "malformed" };
@@ -226,7 +238,7 @@ export function mapLimitlessTournament(
   standings: unknown,
   resolveLeader: (code: string) => string | undefined,
 ): TournamentMapResult {
-  const externalKey = textOrNull(details.id, 200);
+  const externalKey = textOrNull(details.id, MAX_EVENT_ID_LEN);
   const name = textOrNull(details.name, MAX_EVENT_NAME_LEN);
   const startMs = dateMs(details.date);
   if (!externalKey || !name || startMs === null) return { ok: false, skip: "malformed" };

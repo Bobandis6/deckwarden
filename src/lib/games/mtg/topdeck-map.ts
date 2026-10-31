@@ -24,6 +24,7 @@
  * the URL is NOT followed (fetching third-party decklists is out of scope).
  */
 import { normalizeCardName } from "../../cards/normalize";
+import { isStorableText } from "../../ingest/feed-text";
 
 // --- Kept bounds (exported so the shelf can disclose exactly what's stored) ---
 
@@ -314,7 +315,7 @@ function smallintOrNull(v: unknown): number | null {
 }
 
 function textOrNull(v: unknown, maxLen: number): string | null {
-  if (typeof v !== "string") return null;
+  if (typeof v !== "string" || !isStorableText(v)) return null;
   const trimmed = v.trim();
   return trimmed.length > 0 && trimmed.length <= maxLen ? trimmed : null;
 }

@@ -45,6 +45,7 @@ import {
 import {
   assessTournament,
   isStandardFormat,
+  listRowId,
   mapLimitlessTournament,
   MIN_EVENT_PLAYERS,
   TRAILING_REFETCH_DAYS,
@@ -288,7 +289,7 @@ async function main() {
 
       let pageHasOlder = false;
       for (const row of rows) {
-        const id = typeof row.id === "string" && row.id.length > 0 ? row.id : null;
+        const id = listRowId(row);
         const dateMs = typeof row.date === "string" ? Date.parse(row.date) : NaN;
         if (id === null || !Number.isFinite(dateMs)) {
           skipTournament("malformed");

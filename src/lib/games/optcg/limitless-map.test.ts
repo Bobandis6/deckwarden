@@ -12,6 +12,7 @@ import {
   leaderCodeFrom,
   limitlessDecklistUrl,
   limitlessEventUrl,
+  listRowId,
   mapLimitlessTournament,
   MIN_EVENT_PLAYERS,
   TOP_PLACEMENT,
@@ -54,6 +55,69 @@ function standing(placing: number | null, overrides: Partial<LimitlessStanding> 
 function standings(n: number): LimitlessStanding[] {
   return Array.from({ length: n }, (_, i) => standing(i + 1));
 }
+
+describe("text a whole run would fail on (feed-text.ts)", () => {
+  const BAD = [
+    ["U+0000", "bad\u0000text"],
+    ["a lone surrogate", "bad\ud83dtext"],
+  ];
+
+  it.each(BAD)("%s in a list row's id makes the row malformed, not a request", (_, bad) => {
+    expect(listRowId({ id: bad })).toBeNull();
+    expect(listRowId({ id: "6a8f06390580a332c84204b0" })).toBe("6a8f06390580a332c84204b0");
+    expect(listRowId({ id: 7 })).toBeNull();
+    expect(listRowId({})).toBeNull();
+  });
+
+  it.each(BAD)("%s in an event's id or name skips it as malformed", (_, bad) => {
+    for (const event of [details({ id: bad }), details({ name: bad })]) {
+      expect(assessTournament(event)).toEqual({ ok: false, skip: "malformed" });
+      expect(mapLimitlessTournament(event, standings(MIN_EVENT_PLAYERS), resolve)).toEqual({
+        ok: false,
+        skip: "malformed",
+      });
+    }
+  });
+
+  it.each(BAD)("%s in a display name falls back to the username", (_, bad) => {
+    const rows = standings(MIN_EVENT_PLAYERS);
+    rows[0] = standing(1, { name: bad });
+    const res = mapLimitlessTournament(details(), rows, resolve);
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.standings[0].player_name).toBe("soulkingg");
+    expect(res.standings[0].decklist_url).toContain("/player/soulkingg/decklist");
+  });
+
+  it.each(BAD)("%s in a username keeps the standing with no decklist link", (_, bad) => {
+    const rows = standings(MIN_EVENT_PLAYERS);
+    rows[0] = standing(1, { player: bad });
+    rows[1] = standing(2, { name: bad, player: bad });
+    const res = mapLimitlessTournament(details(), rows, resolve);
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.standings[0].player_name).toBe("SoulKingg");
+    expect(res.standings[0].decklist_url).toBeNull();
+    expect(res.standings[1].player_name).toBeNull();
+    expect(res.standings[1].decklist_url).toBeNull();
+    expect(res.standings).toHaveLength(TOP_PLACEMENT);
+  });
+
+  it.each(BAD)("%s in a leader's set skips the standing, counted", (_, bad) => {
+    const rows = standings(MIN_EVENT_PLAYERS);
+    rows[0] = standing(1, { decklist: { leader: { set: bad, number: "020" } } });
+    const res = mapLimitlessTournament(details(), rows, resolve);
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.standingSkips).toEqual({ malformed_leader: 1 });
+  });
+
+  it("an emoji is not a lone surrogate", () => {
+    const rows = standings(MIN_EVENT_PLAYERS);
+    rows[0] = standing(1, { name: "Soul \u{1F984} King" });
+    const res = mapLimitlessTournament(details({ name: "Cup \u{1F984}" }), rows, resolve);
+    if (!res.ok) throw new Error("expected ok");
+    expect(res.tournament.name).toBe("Cup \u{1F984}");
+    expect(res.standings[0].player_name).toBe("Soul \u{1F984} King");
+  });
+});
 
 describe("URL builders", () => {
   it("builds the public event permalink from the external key", () => {
