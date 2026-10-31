@@ -104,7 +104,8 @@ export function ForkCreditLine({
           </Link>
         </>
       ) : (
-        "Forked from a private deck"
+        // A private upstream, or an unlisted one read by a stranger on a public fork (forks.ts).
+        "Forked from a deck that isn't public"
       )}
     </span>
   );

@@ -4,10 +4,19 @@
  * Auth session (claimed decks, P2.1) — and gate the handler. Handlers get
  * back either the context they need or a ready-made error response.
  *
- * Status contract (locked by the smoke tests): unknown/invalid id → 404;
- * no valid proof on a write (or a private read) → 403. Private decks
- * still 404-vs-403 distinguishably — acceptable for now: public_ids are
- * unguessable and P1.7 revisits read semantics with share pages.
+ * Status contract (locked by the smoke tests): unknown/invalid id → 404; no
+ * valid proof on a write to a public or unlisted deck → 403. A PRIVATE deck a
+ * caller cannot read or edit answers exactly what an unknown id answers — the
+ * same no-store 404 "Deck not found" — on every gate in this file (the
+ * 2026-10-30 security audit's deck-oracle record). S6 settled that contract
+ * on the share page by public id ("the link no longer says the deck
+ * exists"), and a deck's uuid is public while the deck is readable
+ * (deckMetaJson, the share page's client props, the editor URL), so a uuid
+ * kept from then must not tell "made private" from "deleted" either. Both
+ * proofs resolve whether or not a row was found, so the two answers do
+ * comparable work. The folder gate keeps the same rule: a private folder is
+ * the unknown id's 404 for every session but its owner's, as its share page
+ * is since the same audit.
  */
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -51,17 +60,18 @@ export async function loadDeckByPublicId(publicId: string): Promise<DeckRow | nu
 /** `userId` is the session the gate resolved (S8, I3): handlers reuse it instead of reading the session twice. */
 type DeckContext = { deck: DeckRow; isOwner: boolean; userId: string | null };
 
+/** The one answer for an unknown id and for a private deck the caller may not reach (the docblock). */
+const deckNotFound = () => noStoreJson({ error: "Deck not found" }, { status: 404 });
+const folderNotFound = () => noStoreJson({ error: "Folder not found" }, { status: 404 });
+
 export async function requireReadableDeck(
   headers: Headers,
   id: string,
 ): Promise<DeckContext | NextResponse> {
   const deck = await loadDeck(id);
-  if (!deck) return NextResponse.json({ error: "Deck not found" }, { status: 404 });
   const token = deckTokenFrom(headers);
   const userId = await getSessionUserId(headers);
-  if (!canReadDeck(deck, token, userId)) {
-    return NextResponse.json({ error: "This deck is private" }, { status: 403 });
-  }
+  if (!deck || !canReadDeck(deck, token, userId)) return deckNotFound();
   return { deck, isOwner: isDeckOwner(deck, token, userId), userId };
 }
 
@@ -76,9 +86,11 @@ export async function requireOwnedDeck(
   opts: { authoritative?: boolean } = {},
 ): Promise<DeckContext | NextResponse> {
   const deck = await loadDeck(id);
-  if (!deck) return NextResponse.json({ error: "Deck not found" }, { status: 404 });
   const userId = await getSessionUserId(headers, opts);
+  if (!deck) return deckNotFound();
   if (!isDeckOwner(deck, deckTokenFrom(headers), userId)) {
+    // A private deck's existence is the secret S6 keeps: the unknown id's answer.
+    if (deck.visibility === "private") return deckNotFound();
     return NextResponse.json({ error: "You don't have edit access to this deck" }, { status: 403 });
   }
   return { deck, isOwner: true, userId };
@@ -103,9 +115,7 @@ export async function requireOwnedDeckWrite(
   limits: GatedWriteLimits,
   opts: { authoritative?: boolean } = {},
 ): Promise<DeckContext | NextResponse> {
-  if (!UUID.safeParse(id).success) {
-    return NextResponse.json({ error: "Deck not found" }, { status: 404 });
-  }
+  if (!UUID.safeParse(id).success) return deckNotFound();
   const limited = await enforceRateLimit(limits.ip(clientIp(headers)));
   if (limited) return limited;
   const access = await requireOwnedDeck(headers, id, opts);
@@ -119,9 +129,10 @@ export async function requireOwnedDeckWrite(
 /**
  * Engagement gate (P2.3): likes/bookmarks are session actions on any deck
  * the viewer can read. 401 signed out — that's the UI's "sign in to like"
- * path — then the usual 404/403 read contract. The guest token still counts
- * toward readability, so a signed-in holder of an unclaimed private deck's
- * token can engage with it.
+ * path — then the read contract: the one 404 for an unknown id and for a
+ * private deck this viewer can't read. The guest token still counts toward
+ * readability, so a signed-in holder of an unclaimed private deck's token
+ * can engage with it.
  */
 export async function requireEngageableDeck(
   headers: Headers,
@@ -132,16 +143,14 @@ export async function requireEngageableDeck(
     return NextResponse.json({ error: "Sign in to do that" }, { status: 401 });
   }
   const deck = await loadDeck(id);
-  if (!deck) return NextResponse.json({ error: "Deck not found" }, { status: 404 });
-  if (!canReadDeck(deck, deckTokenFrom(headers), userId)) {
-    return NextResponse.json({ error: "This deck is private" }, { status: 403 });
-  }
+  if (!deck || !canReadDeck(deck, deckTokenFrom(headers), userId)) return deckNotFound();
   return { deck, userId };
 }
 
 /**
  * The journal gate (Y9a, WAVE4 D10), in the contract's order: session (401)
- * → the per-user bucket → the deck (404) and its owner (403) → a guest deck
+ * → the per-user bucket → the deck (404) and its owner (403, or the same 404
+ * when the deck is private: the docblock's contract) → a guest deck
  * answers 400 "Sign in to keep a game journal" (the folderId precedent: a
  * signed-in holder of an unclaimed deck's key claims it by signing in on
  * /account) → a game without a journal declaration, 400. The journal is
@@ -160,10 +169,9 @@ export async function requireJournalDeck(
   const limited = await enforceRateLimit(limits(userId));
   if (limited) return limited;
   const deck = await loadDeck(id);
-  if (!deck) {
-    return noStoreJson({ error: "Deck not found" }, { status: 404 });
-  }
+  if (!deck) return deckNotFound();
   if (!isDeckOwner(deck, deckTokenFrom(headers), userId)) {
+    if (deck.visibility === "private") return deckNotFound();
     return noStoreJson({ error: "You don't have edit access to this deck" }, { status: 403 });
   }
   if (deck.userId === null) {
@@ -178,15 +186,18 @@ export async function requireJournalDeck(
 
 /**
  * Folder twin of requireOwnedDeck (P2.2); session is the only proof. Same
- * status contract: unknown/invalid id → 404, not owner → 403.
+ * status contract: unknown/invalid id → 404, not the owner → 403 — and a
+ * private folder the unknown id's 404, the answer its share page gives.
  */
 export async function requireOwnedFolder(
   headers: Headers,
   id: string,
 ): Promise<{ folder: FolderRow } | NextResponse> {
   const folder = await loadFolder(id);
-  if (!folder) return NextResponse.json({ error: "Folder not found" }, { status: 404 });
-  if (!isFolderOwner(folder, await getSessionUserId(headers))) {
+  const userId = await getSessionUserId(headers);
+  if (!folder) return folderNotFound();
+  if (!isFolderOwner(folder, userId)) {
+    if (folder.visibility === "private") return folderNotFound();
     return NextResponse.json({ error: "This folder isn't yours" }, { status: 403 });
   }
   return { folder };
@@ -198,9 +209,7 @@ export async function requireOwnedFolderWrite(
   id: string,
   limits: GatedWriteLimits,
 ): Promise<{ folder: FolderRow } | NextResponse> {
-  if (!UUID.safeParse(id).success) {
-    return NextResponse.json({ error: "Folder not found" }, { status: 404 });
-  }
+  if (!UUID.safeParse(id).success) return folderNotFound();
   const limited = await enforceRateLimit(limits.ip(clientIp(headers)));
   if (limited) return limited;
   const access = await requireOwnedFolder(headers, id);

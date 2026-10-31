@@ -399,7 +399,7 @@ describe("EditorHeader — the phone header (U4a, WAVE5 D5)", () => {
       "max-md:col-start-2 max-md:row-start-1",
     );
     // A fork's credit: its own line under the name, the full width.
-    expect(classes(screen.getByText("Forked from a private deck"))).toContain(
+    expect(classes(screen.getByText("Forked from a deck that isn't public"))).toContain(
       "max-md:col-[1/-1] max-md:row-start-2",
     );
     // The status row: the save slot under the name, left-aligned; the primary at the right.
@@ -435,7 +435,7 @@ describe("EditorHeader — the phone header (U4a, WAVE5 D5)", () => {
     unmount();
     // A private credit has nothing to tap, so `has-[a]` leaves its 16 px line.
     render(header({ forkedFrom: { state: "private" } }));
-    expect(screen.getByText("Forked from a private deck").querySelector("a")).toBeNull();
+    expect(screen.getByText("Forked from a deck that isn't public").querySelector("a")).toBeNull();
   });
 
   it("every deck keeps the status row: a saved deck's save slot and Share sit where a draft's Draft and Keep did", () => {

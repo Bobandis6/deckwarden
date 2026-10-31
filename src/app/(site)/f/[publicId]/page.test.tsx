@@ -6,8 +6,11 @@
  * query bound to `public` alone — an unlisted deck filed there is no longer
  * listed to the world — while a stranger on an UNLISTED folder still sees
  * public + unlisted (the folder link is the secret), and the owner sees all
- * three. The folder lookup is stubbed; the session comes from the mock.
- * The title is `.type-title` like every page h1 (LATER row 220).
+ * three. A private folder is the unknown id's 404 for a stranger and for the
+ * signed-out alike, with no decks statement (the 2026-10-30 security audit's
+ * private-folder record, LATER row 41). The folder lookup is stubbed; the
+ * session comes from the mock. The title is `.type-title` like every page h1
+ * (LATER row 220).
  */
 import { drizzle } from "drizzle-orm/postgres-js";
 import { renderToString } from "react-dom/server";
@@ -117,13 +120,30 @@ describe("the folder page's deck rows", () => {
     }
   });
 
-  it("a stranger on a private folder: the denial shell, no decks query at all", async () => {
-    mocks.folder = folder("private");
+  it("a private folder is the unknown id's 404 to a stranger and to the signed-out, with no decks query", async () => {
+    for (const viewer of [STRANGER, null]) {
+      calls = [];
+      mocks.folder = folder("private");
+      mocks.viewer = viewer;
+      await expect(
+        page.default({
+          params: Promise.resolve({ publicId: "f0lder0id" }),
+          searchParams: Promise.resolve({}),
+        }),
+      ).rejects.toThrow("NEXT_NOT_FOUND");
+      expect(calls).toEqual([]);
+    }
+  });
+
+  it("an unknown id throws the same NEXT_NOT_FOUND", async () => {
+    mocks.folder = null;
     mocks.viewer = STRANGER;
-    await page.default({
-      params: Promise.resolve({ publicId: "f0lder0id" }),
-      searchParams: Promise.resolve({}),
-    });
+    await expect(
+      page.default({
+        params: Promise.resolve({ publicId: "f0lder0id" }),
+        searchParams: Promise.resolve({}),
+      }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
     expect(calls).toEqual([]);
   });
 });

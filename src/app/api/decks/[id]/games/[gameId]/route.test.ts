@@ -262,4 +262,13 @@ describe("DELETE — the game, and a played snapshot with its last game", () => 
     expect((await DELETE(del(), ctx())).status).toBe(403);
     expect(statements.filter((s) => s.sql.startsWith("delete"))).toEqual([]);
   });
+
+  it("someone else's PRIVATE deck → the unknown deck's 404 (the audit's deck-oracle record)", async () => {
+    session.userId = "99999999-9999-4999-8999-999999999999";
+    answers = [[deckRow({ visibility: "private" })]];
+    const res = await DELETE(del(), ctx());
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Deck not found" });
+    expect(statements.filter((s) => s.sql.startsWith("delete"))).toEqual([]);
+  });
 });

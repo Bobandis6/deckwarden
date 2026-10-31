@@ -8,9 +8,14 @@
  *
  * Access: folder ownership is session-based (folders exist only for
  * accounts), so unlike the deck page there's no client token gate — the
- * server can answer "is this the owner" directly. Private folders render a
- * denial shell (HTTP 200, noindex; private account decks 404 since S6 —
- * LATER row 41). Deck rows are filtered per-viewer (folderDeckVisibilities, S6,
+ * server can answer "is this the owner" directly. A private folder is a real
+ * 404 for every session but its owner's — the same answer an unknown id
+ * gets, so a withdrawn link no longer confirms the folder exists (S6's rule
+ * for private account decks, applied here by the 2026-10-30 security audit;
+ * LATER row 41's folder half). The page-level `notFound()` is a pre-streaming
+ * 404 because this segment has no `loading.tsx`: should one be added, the
+ * check moves into a segment layout above it, as d/[publicId]/layout.tsx
+ * does. Deck rows are filtered per-viewer (folderDeckVisibilities, S6,
  * SECURITY-AUDIT-report.md L5): non-owners of an UNLISTED folder see its
  * public + unlisted decks (sharing a folder link shares its decks' links —
  * same reachability class); non-owners of a PUBLIC folder see its public
@@ -76,20 +81,8 @@ export default async function FolderSharePage({ params }: PageProps<"/f/[publicI
 
   const sessionUserId = await getSessionUserId(await headers());
   const isOwner = isFolderOwner(folder, sessionUserId);
-
-  if (!canReadFolder(folder, sessionUserId)) {
-    return (
-      <main
-        id="main"
-        className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center"
-      >
-        <h1 className="font-display text-xl font-semibold">This folder is private</h1>
-        <p className="text-muted-foreground max-w-md text-sm">
-          The owner hasn&apos;t shared it. If it&apos;s yours, sign in to view it.
-        </p>
-      </main>
-    );
-  }
+  // The unknown id's answer (the header comment): the link says nothing about the folder.
+  if (!canReadFolder(folder, sessionUserId)) notFound();
 
   const db = getDb();
   const [decks, [owner]] = await Promise.all([

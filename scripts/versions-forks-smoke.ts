@@ -517,13 +517,15 @@ async function main() {
     );
     const forkSharePrivate = (await api("GET", `/d/${fork.publicId}`)).text;
     check(
-      "fork's share page: 'Forked from a private deck', no upstream name or link",
-      forkSharePrivate.includes("Forked from a private deck") &&
+      "fork's share page: 'Forked from a deck that isn't public', no upstream name or link",
+      /Forked from a deck that isn(?:'|&#x27;|&#39;)t public/.test(forkSharePrivate) &&
         !forkSharePrivate.includes(`/d/${deck.publicId}`),
     );
+    // A private deck a stranger can't read is the unknown id's 404 on every deck gate
+    // (route-helpers.ts, the 2026-10-30 security audit's deck-oracle record).
     check(
-      "private upstream can't be forked by a stranger → 403",
-      (await api("POST", `/api/decks/${deck.id}/fork`, { cookie: bob.cookie })).status === 403,
+      "private upstream can't be forked by a stranger → 404 (the unknown id's answer)",
+      (await api("POST", `/api/decks/${deck.id}/fork`, { cookie: bob.cookie })).status === 404,
     );
     await api("PATCH", `/api/decks/${deck.id}`, {
       cookie: alice.cookie,

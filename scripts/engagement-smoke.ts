@@ -166,9 +166,10 @@ async function main() {
       cookie: alice.cookie,
       body: { visibility: "private" },
     });
+    // The unknown id's answer (route-helpers.ts, the 2026-10-30 security audit).
     check(
-      "stranger likes a private deck → 403",
-      (await api("PUT", `/api/decks/${deck.id}/like`, { cookie: bob.cookie })).status === 403,
+      "stranger likes a private deck → 404",
+      (await api("PUT", `/api/decks/${deck.id}/like`, { cookie: bob.cookie })).status === 404,
     );
     check(
       "owner still can → 200",

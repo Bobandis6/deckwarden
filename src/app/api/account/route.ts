@@ -14,6 +14,12 @@
  * phantom "signed in" on checks that skip the DB, and every DB-backed read
  * comes back empty. Not worth a hard failure after the account is gone.
  *
+ * The ISR listings the account's public decks and its /u/ profile sat on
+ * (hub shelves, the core sitemap) are refreshed after the transaction
+ * (lib/hub/paths.ts, the 2026-10-30 security audit's hub record): the
+ * privacy page promises deletion "immediately removes your account and
+ * everything in it from the live site".
+ *
  * Caching intent: dynamic mutation, no-store.
  */
 import { NextResponse, type NextRequest } from "next/server";
@@ -21,6 +27,7 @@ import { z } from "zod";
 
 import { noStoreJson, parseJsonBody } from "@/lib/api/json";
 import { auth, getSessionUserId } from "@/lib/auth";
+import { revalidateDeckListings } from "@/lib/hub/paths";
 import { deleteAccount } from "@/lib/profile/delete-account";
 import { DELETE_CONFIRM_PHRASE } from "@/lib/profile/delete-account-phrase";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
@@ -47,7 +54,9 @@ export async function DELETE(request: NextRequest) {
   });
   if (body instanceof NextResponse) return body;
 
-  const { decksDeleted } = await deleteAccount(userId);
+  const { decksDeleted, publicDecks } = await deleteAccount(userId);
+  // Always: the sitemap listed the profile too, public decks or not.
+  await revalidateDeckListings(publicDecks);
 
   try {
     await auth.api.signOut({ headers: request.headers });

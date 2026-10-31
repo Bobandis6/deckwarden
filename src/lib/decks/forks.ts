@@ -32,12 +32,20 @@
  * package's own diff renders it. Cost: one version slot of the fork's cap.
  *
  * Credit states (rendered on /d/[publicId] and in the editor):
- *   linked  — upstream readable by this viewer: "Forked from <name>" links
- *             its share page (unlisted upstreams link too — the forker had
- *             the link, and unlisted means reachable-by-link by design).
- *   private — upstream exists but this viewer can't read it: credit without
- *             name or link. A private deck's NAME is its owner's private
- *             data; the fork's public page must not leak it.
+ *   linked  — this viewer may be told where the upstream lives: "Forked from
+ *             <name>" links its share page. A public upstream links for
+ *             everyone; an unlisted one for its owner, for the fork's owner
+ *             (who had the link) and for the readers of a fork that isn't
+ *             public (its link is the same reachability class, P2.2's
+ *             reasoning).
+ *   private — everyone else: credit without name or link. A private deck's
+ *             NAME is its owner's private data, and a public fork is
+ *             browsable (the sitemap, the home rail, crawlers), so its page
+ *             shows a stranger public upstreams only — folderDeckVisibilities'
+ *             rule (S6), applied to the credit by the 2026-10-30 security
+ *             audit (its fork-credit record): before it the anchor to an
+ *             unlisted upstream sat on an indexable page for every reader.
+ *             The line reads "a deck that isn't public", which covers both.
  *   (none)  — upstream deleted: every delete path NULLs the pointer (the
  *             self-FK has no ON DELETE), so the deck simply stops being a
  *             fork in the data model. The frozen v1 keeps the provenance in
@@ -46,7 +54,7 @@
 import { eq, inArray } from "drizzle-orm";
 
 import { getDb, schema, type Db, type DbExecutor } from "@/db";
-import { canReadDeck } from "@/lib/decks/access";
+import { canReadDeck, isDeckOwner, type DeckAccessRow } from "@/lib/decks/access";
 import type { ForkCredit } from "@/lib/decks/fork-credit";
 import { newPublicId } from "@/lib/decks/public-id";
 import type { DeckRow } from "@/lib/decks/serialize";
@@ -57,7 +65,7 @@ const { decks, deckCards } = schema;
 export type { ForkCredit };
 
 export async function forkCredit(
-  deck: { forkedFromDeckId: string | null },
+  deck: { forkedFromDeckId: string | null } & DeckAccessRow,
   viewer: { token: string | null; userId: string | null },
 ): Promise<ForkCredit | null> {
   if (!deck.forkedFromDeckId) return null;
@@ -76,6 +84,18 @@ export async function forkCredit(
   // Pointer to a missing row can't happen (the FK), but stay honest if it did.
   if (!upstream) return null;
   if (!canReadDeck(upstream, viewer.token, viewer.userId)) return { state: "private" };
+  // A public fork is browsable, so a stranger reading it gets folderDeckVisibilities'
+  // answer: public upstreams only. The link to an unlisted upstream goes to its owner
+  // and to the fork's owner, who had it; an unlisted or private fork's readers hold a
+  // link of the same reachability class already (the header comment).
+  if (
+    upstream.visibility === "unlisted" &&
+    deck.visibility === "public" &&
+    !isDeckOwner(upstream, viewer.token, viewer.userId) &&
+    !isDeckOwner(deck, viewer.token, viewer.userId)
+  ) {
+    return { state: "private" };
+  }
   return { state: "linked", publicId: upstream.publicId, name: upstream.name };
 }
 

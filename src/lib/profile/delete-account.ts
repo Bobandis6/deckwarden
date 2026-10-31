@@ -27,15 +27,23 @@
  *      the user's like/bookmark rows on other people's decks (already
  *      recounted in step 1), and (P3.7) their imported collection —
  *      collections.user_id is ON DELETE CASCADE; smoke:account proves it.
+ *
+ * The public decks' game and command zone come back with the count: the
+ * route refreshes the ISR listings they sat on (hub shelves, the sitemap —
+ * lib/hub/paths.ts, the 2026-10-30 security audit's hub record) once the
+ * transaction has committed. This module stays free of `next/cache`.
  */
 import { eq, inArray, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
 import { detachForksAndDeleteDecks } from "@/lib/decks/forks";
+import type { DeckListingRef } from "@/lib/hub/paths";
 
 const { decks, deckLikes, users } = schema;
 
-export async function deleteAccount(userId: string): Promise<{ decksDeleted: number }> {
+export async function deleteAccount(
+  userId: string,
+): Promise<{ decksDeleted: number; publicDecks: DeckListingRef[] }> {
   const db = getDb();
   return db.transaction(async (tx) => {
     const liked = await tx
@@ -54,7 +62,15 @@ export async function deleteAccount(userId: string): Promise<{ decksDeleted: num
         );
     }
 
-    const owned = await tx.select({ id: decks.id }).from(decks).where(eq(decks.userId, userId));
+    const owned = await tx
+      .select({
+        id: decks.id,
+        gameId: decks.gameId,
+        leaderIds: decks.leaderIds,
+        visibility: decks.visibility,
+      })
+      .from(decks)
+      .where(eq(decks.userId, userId));
     // Steps 2-3 (P3.6: shared with every other delete path, forks.ts).
     await detachForksAndDeleteDecks(
       tx,
@@ -62,6 +78,11 @@ export async function deleteAccount(userId: string): Promise<{ decksDeleted: num
     );
 
     await tx.delete(users).where(eq(users.id, userId));
-    return { decksDeleted: owned.length };
+    return {
+      decksDeleted: owned.length,
+      publicDecks: owned
+        .filter((row) => row.visibility === "public")
+        .map(({ gameId, leaderIds }) => ({ gameId, leaderIds })),
+    };
   });
 }

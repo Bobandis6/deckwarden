@@ -6,6 +6,12 @@
  * Through the REAL drizzle builders over a fake postgres.js client (the
  * X2/X3/X5 route-test pattern), so the statements asserted are the route's
  * own. The session and the limiter are mocked at their module seams.
+ *
+ * Since the 2026-10-30 security audit: a private deck is the unknown id's
+ * 404 to anyone but its owner (the deck-oracle record), and a PATCH that
+ * moves a deck into or out of `public` — or the DELETE of a public deck —
+ * revalidates the ISR listings the deck sat on (the hub record): `next/cache`
+ * is mocked, lib/hub/paths.ts runs for real over the fake client.
  */
 import { getTableColumns } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -32,6 +38,7 @@ const fakeClient = {
     const rows = routed.find((r) => r.match.test(sql))?.rows ?? answers.shift() ?? [];
     return { values: async () => rows, then: undefined };
   },
+  begin: async (fn: (client: unknown) => Promise<unknown>) => fn(fakeClient),
 };
 const fakeDb = drizzle(fakeClient as never, { schema });
 
@@ -54,7 +61,14 @@ vi.mock("@/lib/rate-limit", async (importOriginal) => ({
   },
 }));
 
-const { GET, PATCH } = await import("./route");
+const revalidated: string[] = [];
+vi.mock("next/cache", () => ({
+  revalidatePath: (path: string) => {
+    revalidated.push(path);
+  },
+}));
+
+const { DELETE, GET, PATCH } = await import("./route");
 
 const OWNER = "0b5a4f8e-1111-4222-8333-944445555666";
 const DECK = "33333333-3333-4333-8333-333333333333";
@@ -110,6 +124,7 @@ beforeEach(() => {
   session.userId = OWNER;
   limiter.calls = [];
   limiter.answer = null;
+  revalidated.length = 0;
 });
 
 describe("PATCH {goals} (Y4b)", () => {
@@ -441,5 +456,133 @@ describe("GET — the precon a deck started from (PRECON-OWNED)", () => {
     expect(text).not.toContain(FOREST);
     expect(text).not.toMatch(/ownsPrecon|preconDeckId|breed_lethality|"owns"/);
     expect(preconReads()).toEqual([]);
+  });
+});
+
+describe("a private deck is the unknown id's 404 to anyone but its owner (the audit's deck-oracle record)", () => {
+  const STRANGER = "99999999-9999-4999-8999-999999999999";
+  const TOKEN = "5f2c8a7e-0000-4000-8000-00000000abcd";
+  const get = (token?: string) =>
+    new NextRequest(`http://localhost:3000/api/decks/${DECK}`, {
+      headers: token ? { "x-deck-token": token } : {},
+    });
+  /** What a caller can compare: the status, the body and the cache header. */
+  async function shape(res: Response) {
+    return { status: res.status, body: await res.json(), cache: res.headers.get("cache-control") };
+  }
+
+  it("GET: signed out, a stranger and a wrong token get exactly the unknown uuid's answer", async () => {
+    session.userId = null;
+    answers = [[]];
+    const unknown = await shape(await GET(get(), ctx));
+    expect(unknown).toEqual({
+      status: 404,
+      body: { error: "Deck not found" },
+      cache: "no-store",
+    });
+
+    answers = [[deckRow({ visibility: "private" })]];
+    expect(await shape(await GET(get(), ctx))).toEqual(unknown);
+    session.userId = STRANGER;
+    answers = [[deckRow({ visibility: "private" })]];
+    expect(await shape(await GET(get(), ctx))).toEqual(unknown);
+    session.userId = null;
+    answers = [[deckRow({ visibility: "private", userId: null, claimToken: TOKEN })]];
+    expect(await shape(await GET(get("not-the-token"), ctx))).toEqual(unknown);
+    // Four reads, four identical answers: the old 403 and its body are gone from the wire.
+    expect(statements.map((s) => s.sql.split(" ")[0])).toEqual(Array(4).fill("select"));
+  });
+
+  it("GET: the owner's session or token still reads it", async () => {
+    answers = [[deckRow({ visibility: "private" })]];
+    expect((await GET(get(), ctx)).status).toBe(200);
+    session.userId = null;
+    answers = [[deckRow({ visibility: "private", userId: null, claimToken: TOKEN })]];
+    expect((await GET(get(TOKEN), ctx)).status).toBe(200);
+  });
+
+  it("PATCH: a stranger on a private deck gets the 404 before the body; on a public deck the 403 stays", async () => {
+    session.userId = STRANGER;
+    answers = [[deckRow({ visibility: "private" })]];
+    const refused = await PATCH(patch({ name: "x" }), ctx);
+    expect(await shape(refused)).toEqual({
+      status: 404,
+      body: { error: "Deck not found" },
+      cache: "no-store",
+    });
+    expect(updates()).toEqual([]);
+    answers = [[deckRow()]];
+    expect((await PATCH(patch({ name: "x" }), ctx)).status).toBe(403);
+  });
+});
+
+describe("the ISR listings follow a visibility move and a delete (the audit's hub record)", () => {
+  const LEADER = "aaaaaaaa-1111-4111-8111-000000000001";
+  const SLUG = "atraxa-praetors-voice";
+  const slugReads = () => statements.filter((s) => s.sql.includes('from "card_identities"'));
+  const del = () =>
+    new NextRequest(`http://localhost:3000/api/decks/${DECK}`, { method: "DELETE" });
+
+  it("public → private: the commander's hub and the sitemap are revalidated, after the write", async () => {
+    answers = [
+      [deckRow({ leaderIds: [LEADER] })],
+      [deckRow({ leaderIds: [LEADER], visibility: "private" })],
+      [[SLUG]],
+    ];
+    const res = await PATCH(patch({ visibility: "private" }), ctx);
+    expect(res.status).toBe(200);
+    expect(revalidated.sort()).toEqual([`/c/${SLUG}`, "/sitemap.xml"]);
+    expect(slugReads()).toHaveLength(1);
+    expect(slugReads()[0].params).toEqual([LEADER]);
+    // The write came first; the listings read the row it returned.
+    expect(statements.map((s) => s.sql.split(" ")[0])).toEqual(["select", "update", "select"]);
+  });
+
+  it("unlisted → public: the same", async () => {
+    answers = [
+      [deckRow({ leaderIds: [LEADER], visibility: "unlisted" })],
+      [deckRow({ leaderIds: [LEADER], visibility: "public" })],
+      [[SLUG]],
+    ];
+    await PATCH(patch({ visibility: "public" }), ctx);
+    expect(revalidated.sort()).toEqual([`/c/${SLUG}`, "/sitemap.xml"]);
+  });
+
+  it("a name-only PATCH, unlisted → private, or public → public: nothing to refresh", async () => {
+    answers = [[deckRow({ leaderIds: [LEADER] })], [deckRow({ leaderIds: [LEADER] })]];
+    await PATCH(patch({ name: "Renamed" }), ctx);
+    answers = [
+      [deckRow({ leaderIds: [LEADER], visibility: "unlisted" })],
+      [deckRow({ leaderIds: [LEADER], visibility: "private" })],
+    ];
+    await PATCH(patch({ visibility: "private" }), ctx);
+    answers = [[deckRow({ leaderIds: [LEADER] })], [deckRow({ leaderIds: [LEADER] })]];
+    await PATCH(patch({ visibility: "public" }), ctx);
+    expect(revalidated).toEqual([]);
+    expect(slugReads()).toEqual([]);
+  });
+
+  it("a One Piece deck refreshes the sitemap alone: its /l/ hubs carry no shelf", async () => {
+    answers = [
+      [deckRow({ gameId: GAME_ID.optcg, formatId: 3, leaderIds: [LEADER] })],
+      [deckRow({ gameId: GAME_ID.optcg, formatId: 3, leaderIds: [LEADER], visibility: "private" })],
+    ];
+    await PATCH(patch({ visibility: "private" }), ctx);
+    expect(revalidated).toEqual(["/sitemap.xml"]);
+    expect(slugReads()).toEqual([]);
+  });
+
+  it("DELETE of a public deck refreshes its listings; of an unlisted deck, nothing", async () => {
+    // the gate's row · the forks' detach · the delete · the slug read
+    answers = [[deckRow({ leaderIds: [LEADER] })], [], [[DECK]], [[SLUG]]];
+    expect((await DELETE(del(), ctx)).status).toBe(204);
+    expect(revalidated.sort()).toEqual([`/c/${SLUG}`, "/sitemap.xml"]);
+
+    revalidated.length = 0;
+    statements = [];
+    answers = [[deckRow({ leaderIds: [LEADER], visibility: "unlisted" })], [], [[DECK]]];
+    expect((await DELETE(del(), ctx)).status).toBe(204);
+    expect(revalidated).toEqual([]);
+    expect(slugReads()).toEqual([]);
   });
 });

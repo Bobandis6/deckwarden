@@ -289,9 +289,16 @@ async function main() {
       cookie: alice.cookie,
       body: { visibility: "private" },
     });
+    // A private folder is the unknown id's 404 (LATER row 41's folder half, the
+    // 2026-10-30 security audit): the link no longer says the folder exists.
+    const fPrivate = await api("GET", `/f/${folder.publicId}`);
     check(
-      "private folder page → denial shell for anon",
-      (await api("GET", `/f/${folder.publicId}`)).text.includes("This folder is private"),
+      "private folder page → 404 for anon, the unknown id's answer",
+      fPrivate.status === 404 && !fPrivate.text.includes("This folder is private"),
+    );
+    check(
+      "private folder page → 200 for its owner",
+      (await api("GET", `/f/${folder.publicId}`, { cookie: alice.cookie })).status === 200,
     );
 
     // ---- delete folder keeps decks ---------------------------------------

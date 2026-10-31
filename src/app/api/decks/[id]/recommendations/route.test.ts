@@ -100,12 +100,12 @@ describe("GET /api/decks/[id]/recommendations — goals (Y6a)", () => {
     expect(mocks.recommendForDeck.mock.calls[0][1].goals).toBeNull();
   });
 
-  it("the read contract holds: a private deck's 403 answers before any engine work", async () => {
+  it("the read contract holds: a private deck's 404 (the unknown id's answer) comes before any engine work", async () => {
     mocks.requireReadableDeck.mockResolvedValue(
-      NextResponse.json({ error: "This deck is private" }, { status: 403 }),
+      NextResponse.json({ error: "Deck not found" }, { status: 404 }),
     );
     const { res } = await get();
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
     expect(mocks.recommendForDeck).not.toHaveBeenCalled();
   });
 });

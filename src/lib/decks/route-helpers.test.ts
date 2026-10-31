@@ -8,6 +8,12 @@
  * postgres.js client. A non-uuid id is a 404 before any counter; a
  * stranger's refusal leaves no per-resource row; the owner's call counts
  * both; the resource bucket is keyed by the ROW's id.
+ *
+ * And the read contract since the 2026-10-30 security audit (its deck-oracle
+ * record): on every gate in the file a PRIVATE deck a caller cannot read or
+ * edit answers exactly what an unknown id answers — the same no-store 404 —
+ * while a public or unlisted deck keeps its 403, and the owner's proof still
+ * passes. The folder gate does the same for a private folder.
  */
 import { getTableColumns } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -44,7 +50,13 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
-const { requireOwnedDeckWrite, requireOwnedFolderWrite } = await import("./route-helpers");
+const {
+  requireEngageableDeck,
+  requireJournalDeck,
+  requireOwnedDeckWrite,
+  requireOwnedFolderWrite,
+  requireReadableDeck,
+} = await import("./route-helpers");
 const { RATE_LIMITS } = await import("@/lib/rate-limit");
 
 const OWNER = "0b5a4f8e-1111-4222-8333-944445555666";
@@ -84,7 +96,7 @@ function deckRow(over: Partial<Record<keyof DeckRow, unknown>> = {}): unknown[] 
   return DECK_COLUMNS.map((c) => deck[c]);
 }
 const FOLDER_COLUMNS = Object.keys(getTableColumns(schema.deckFolders)) as (keyof FolderRow)[];
-function folderRow(): unknown[] {
+function folderRow(over: Partial<Record<keyof FolderRow, unknown>> = {}): unknown[] {
   const folder: Record<string, unknown> = {
     id: FOLDER,
     publicId: "fldr12345678",
@@ -94,6 +106,7 @@ function folderRow(): unknown[] {
     visibility: "unlisted",
     createdAt: "2026-09-01T00:00:00.000Z",
     updatedAt: "2026-10-01T12:00:00.000Z",
+    ...over,
   };
   return FOLDER_COLUMNS.map((c) => folder[c]);
 }
@@ -217,5 +230,114 @@ describe("requireOwnedFolderWrite", () => {
     const res = await requireOwnedFolderWrite(headers(), FOLDER, RATE_LIMITS.folderMetaWrite);
     expect(res).toMatchObject({ folder: { id: FOLDER, name: "Brews" } });
     expect(counters.keys()).toEqual([`folder-meta:folder:${FOLDER}`, "folder-meta:ip:203.0.113.9"]);
+  });
+});
+
+describe("a private deck is the unknown id's 404 on every gate (the audit's deck-oracle record)", () => {
+  const STRANGER = "99999999-9999-4999-8999-999999999999";
+  const UNKNOWN = "33333333-3333-4333-8333-000000000000";
+  /** What a caller can compare across two answers. */
+  async function shape(res: unknown) {
+    const r = res as NextResponse;
+    return { status: r.status, body: await r.json(), cache: r.headers.get("cache-control") };
+  }
+  const NOT_FOUND = { status: 404, body: { error: "Deck not found" }, cache: "no-store" };
+
+  it("requireReadableDeck: signed out, a stranger's session and a wrong token read the unknown id's answer", async () => {
+    expect(await shape(await requireReadableDeck(headers(), UNKNOWN))).toEqual(NOT_FOUND);
+    rowAnswer = [deckRow({ visibility: "private" })];
+    expect(await shape(await requireReadableDeck(headers(), DECK))).toEqual(NOT_FOUND);
+    expect(
+      await shape(await requireReadableDeck(headers({ "x-deck-token": "wrong" }), DECK)),
+    ).toEqual(NOT_FOUND);
+    rowAnswer = [deckRow({ visibility: "private", userId: OWNER, claimToken: null })];
+    session.userId = STRANGER;
+    expect(await shape(await requireReadableDeck(headers(), DECK))).toEqual(NOT_FOUND);
+    // The session resolves on the unknown-id path too, so both answers do the same work.
+    expect(session.authoritative).toHaveLength(4);
+  });
+
+  it("requireReadableDeck: the owner's token or session still reads a private deck; a visitor reads a public one", async () => {
+    rowAnswer = [deckRow({ visibility: "private" })];
+    expect(await requireReadableDeck(headers({ "x-deck-token": TOKEN }), DECK)).toMatchObject({
+      isOwner: true,
+    });
+    rowAnswer = [deckRow({ visibility: "private", userId: OWNER, claimToken: null })];
+    session.userId = OWNER;
+    expect(await requireReadableDeck(headers(), DECK)).toMatchObject({ isOwner: true });
+    session.userId = null;
+    rowAnswer = [deckRow()];
+    expect(await requireReadableDeck(headers(), DECK)).toMatchObject({ isOwner: false });
+  });
+
+  it("requireEngageableDeck: 401 signed out as before; a stranger's like on a private deck is the 404", async () => {
+    rowAnswer = [deckRow({ visibility: "private", userId: OWNER, claimToken: null })];
+    expect((await requireEngageableDeck(headers(), DECK)) as NextResponse).toHaveProperty(
+      "status",
+      401,
+    );
+    session.userId = STRANGER;
+    expect(await shape(await requireEngageableDeck(headers(), DECK))).toEqual(NOT_FOUND);
+    expect(await shape(await requireEngageableDeck(headers(), UNKNOWN))).toEqual(NOT_FOUND);
+    rowAnswer = [deckRow()];
+    expect(await requireEngageableDeck(headers(), DECK)).toMatchObject({ userId: STRANGER });
+  });
+
+  it("requireJournalDeck: a stranger gets the 404 on a private deck and the 403 on a public one", async () => {
+    session.userId = STRANGER;
+    rowAnswer = [deckRow({ visibility: "private", userId: OWNER, claimToken: null })];
+    expect(await shape(await requireJournalDeck(headers(), DECK, RATE_LIMITS.gamesRead))).toEqual(
+      NOT_FOUND,
+    );
+    rowAnswer = [deckRow({ userId: OWNER, claimToken: null })];
+    const open = (await requireJournalDeck(headers(), DECK, RATE_LIMITS.gamesRead)) as NextResponse;
+    expect(open.status).toBe(403);
+    expect(await open.json()).toEqual({ error: "You don't have edit access to this deck" });
+  });
+
+  it("requireOwnedDeckWrite: a stranger's write to a private deck is the 404 — the IP bucket counted, no per-deck row", async () => {
+    rowAnswer = [deckRow({ visibility: "private", userId: OWNER, claimToken: null })];
+    session.userId = STRANGER;
+    expect(
+      await shape(await requireOwnedDeckWrite(headers(), DECK, RATE_LIMITS.deckMetaWrite)),
+    ).toEqual(NOT_FOUND);
+    expect(counters.keys()).toEqual(["deck-meta:ip:203.0.113.9"]);
+    rowAnswer = [deckRow({ visibility: "unlisted", userId: OWNER, claimToken: null })];
+    const open = (await requireOwnedDeckWrite(
+      headers(),
+      DECK,
+      RATE_LIMITS.deckMetaWrite,
+    )) as NextResponse;
+    expect(open.status).toBe(403);
+  });
+
+  it("requireOwnedFolderWrite: a stranger on a private folder gets the unknown folder's 404", async () => {
+    session.userId = STRANGER;
+    const unknown = await shape(
+      await requireOwnedFolderWrite(headers(), FOLDER, RATE_LIMITS.folderMetaWrite),
+    );
+    expect(unknown).toEqual({
+      status: 404,
+      body: { error: "Folder not found" },
+      cache: "no-store",
+    });
+    rowAnswer = [folderRow({ visibility: "private" })];
+    expect(
+      await shape(await requireOwnedFolderWrite(headers(), FOLDER, RATE_LIMITS.folderMetaWrite)),
+    ).toEqual(unknown);
+    rowAnswer = [folderRow({ visibility: "public" })];
+    const open = (await requireOwnedFolderWrite(
+      headers(),
+      FOLDER,
+      RATE_LIMITS.folderMetaWrite,
+    )) as NextResponse;
+    expect(open.status).toBe(403);
+    session.userId = OWNER;
+    rowAnswer = [folderRow({ visibility: "private" })];
+    expect(
+      await requireOwnedFolderWrite(headers(), FOLDER, RATE_LIMITS.folderMetaWrite),
+    ).toMatchObject({
+      folder: { id: FOLDER },
+    });
   });
 });

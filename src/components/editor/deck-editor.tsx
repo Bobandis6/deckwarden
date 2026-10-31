@@ -717,8 +717,11 @@ export function DeckEditor({
       signal,
       cache: "no-store",
     });
-    if (res.status === 404) throw new Error("Deck not found.");
-    if (res.status === 403) throw new Error("This deck is private and you don't have its key.");
+    // A private deck this browser holds no key for answers the unknown id's 404
+    // (route-helpers.ts), so the one message covers both.
+    if (res.status === 404) {
+      throw new Error("Deck not found. If it's private, this browser doesn't have its key.");
+    }
     if (!res.ok) throw new Error(`Failed to load deck (${res.status}).`);
     const json: DeckResponse = await res.json();
     if (!json.deck.isOwner) {

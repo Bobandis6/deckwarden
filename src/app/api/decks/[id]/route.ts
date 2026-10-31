@@ -29,6 +29,12 @@
  * DELETE — hard delete; deck_cards + deck_versions cascade. Owner only.
  *          Fork-safe (P3.6, fired LATER row): forks' upstream pointers are
  *          NULLed in the same transaction — the self-FK has no ON DELETE.
+ * Listings (the 2026-10-30 security audit's hub record): the /c/ shelf and
+ *          the core sitemap are ISR copies that only a render refreshes, so a
+ *          PATCH that moves a deck into or out of `public` and the DELETE of
+ *          a public deck revalidate them (lib/hub/paths.ts) — a withdrawn
+ *          deck's tile used to serve for the rest of the copy's hour and to
+ *          the first request after it.
  *
  * Caching intent: force-dynamic + Cache-Control no-store on every response —
  * output depends on the x-deck-token header (isOwner, private reads), so
@@ -53,6 +59,7 @@ import { loadDeckPrecon } from "@/lib/decks/precons";
 import { hiddenTokensSchema, normalizeHiddenTokens } from "@/lib/decks/token-fill";
 import { deckFormat, requireOwnedDeckWrite, requireReadableDeck } from "@/lib/decks/route-helpers";
 import { deckMetaJson } from "@/lib/decks/serialize";
+import { revalidateDeckListings } from "@/lib/hub/paths";
 import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -173,6 +180,16 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/decks/
     .where(eq(decks.id, access.deck.id))
     .returning();
 
+  // A deck entering or leaving `public` joins or leaves the hub shelves and the
+  // sitemap, whose ISR copies only a render refreshes (lib/hub/paths.ts).
+  if (
+    meta.visibility !== undefined &&
+    meta.visibility !== access.deck.visibility &&
+    (meta.visibility === "public" || access.deck.visibility === "public")
+  ) {
+    await revalidateDeckListings([updated]);
+  }
+
   return noStoreJson({ deck: deckMetaJson(updated, { isOwner: true }) });
 }
 
@@ -187,5 +204,7 @@ export async function DELETE(request: NextRequest, ctx: RouteContext<"/api/decks
   if (access instanceof NextResponse) return access;
 
   await deleteDecksForkSafe(getDb(), [access.deck.id]);
+  // A public deck leaves every listing at once (the ISR copies, lib/hub/paths.ts).
+  if (access.deck.visibility === "public") await revalidateDeckListings([access.deck]);
   return new NextResponse(null, { status: 204, headers: NO_STORE });
 }

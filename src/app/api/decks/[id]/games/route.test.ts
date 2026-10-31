@@ -215,6 +215,20 @@ describe("the gate, in the contract's order", () => {
     expect(statements.some((s) => s.sql.startsWith("insert"))).toBe(false);
   });
 
+  it("someone else's PRIVATE deck is the unknown deck's 404 (the audit's deck-oracle record)", async () => {
+    answers = [[]];
+    const unknown = await GET(req("GET"), ctx);
+    session.userId = "99999999-9999-4999-8999-999999999999";
+    answers = [[deckRow({ visibility: "private" })]];
+    const refused = await GET(req("GET"), ctx);
+    expect(refused.status).toBe(404);
+    expect(await refused.json()).toEqual(await unknown.json());
+    expect(refused.headers.get("cache-control")).toBe(unknown.headers.get("cache-control"));
+    answers = [[deckRow({ visibility: "private" })]];
+    expect((await POST(req("POST", { result: "win", podSize: 4 }), ctx)).status).toBe(404);
+    expect(statements.some((s) => s.sql.startsWith("insert"))).toBe(false);
+  });
+
   it("a guest deck — even with its key, signed in — answers 400 'Sign in to keep a game journal'", async () => {
     const token = "5f2c8a7e-0000-4000-8000-00000000abcd";
     answers = [[deckRow({ userId: null, claimToken: token })]];

@@ -4,7 +4,9 @@
  * upstream's goals — its insert names explicit columns, so `goals` falls to
  * the column default (NULL) by construction. Through the REAL drizzle
  * builders over a fake postgres.js client (the route tests' pattern), with
- * `begin` running the transaction on the same client.
+ * `begin` running the transaction on the same client. And forkCredit (the
+ * 2026-10-30 security audit's fork-credit record): a public fork never hands
+ * a stranger an unlisted upstream's link.
  */
 import { getTableColumns } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -38,7 +40,7 @@ vi.mock("@/db", async (importOriginal) => ({
   getDb: () => fakeDb,
 }));
 
-const { forkDeck } = await import("./forks");
+const { forkCredit, forkDeck } = await import("./forks");
 
 const UPSTREAM = "33333333-3333-4333-8333-333333333333";
 const FORK = "44444444-4444-4444-8444-444444444444";
@@ -139,5 +141,59 @@ describe("forkDeck — the precon lineage (PRECON-OWNED)", () => {
     const sent = await forkInsert(deck({ preconDeckId: PRECON, ownsPrecon: true }));
     expect(sent("precon_deck_id")).toBe("default");
     expect(sent("owns_precon")).toBe("default");
+  });
+});
+
+describe("forkCredit — a public fork never hands a stranger an unlisted upstream's link", () => {
+  type Visibility = DeckRow["visibility"];
+  const OWNER = "99999999-9999-4999-8999-999999999999";
+  const STRANGER = "11111111-1111-4111-8111-111111111111";
+  const LINKED = { state: "linked", publicId: "abcdefgh2345", name: "Atraxa Superfriends" };
+  const HIDDEN = { state: "private" };
+  const VIEWERS = {
+    anonymous: { token: null, userId: null },
+    stranger: { token: null, userId: STRANGER },
+    forker: { token: null, userId: FORKER },
+    upstreamOwner: { token: null, userId: OWNER },
+  };
+  /** forkCredit's one select, positionally: publicId, name, userId, claimToken, visibility. */
+  const upstream = (
+    visibility: Visibility,
+    userId: string | null = OWNER,
+    token: string | null = null,
+  ) => [["abcdefgh2345", "Atraxa Superfriends", userId, token, visibility]];
+  const fork = (visibility: Visibility) =>
+    deck({ id: FORK, userId: FORKER, visibility, forkedFromDeckId: UPSTREAM });
+
+  const cases: [Visibility, Visibility, keyof typeof VIEWERS, unknown][] = [
+    ["unlisted", "public", "anonymous", HIDDEN],
+    ["unlisted", "public", "stranger", HIDDEN],
+    ["unlisted", "public", "forker", LINKED],
+    ["unlisted", "public", "upstreamOwner", LINKED],
+    ["unlisted", "unlisted", "anonymous", LINKED],
+    ["unlisted", "unlisted", "stranger", LINKED],
+    ["unlisted", "private", "forker", LINKED],
+    ["public", "public", "anonymous", LINKED],
+    ["public", "unlisted", "anonymous", LINKED],
+    ["private", "public", "anonymous", HIDDEN],
+    ["private", "public", "forker", HIDDEN],
+    ["private", "public", "upstreamOwner", LINKED],
+  ];
+  it.each(cases)("upstream %s, fork %s, %s", async (up, f, who, want) => {
+    answers = [upstream(up)];
+    expect(await forkCredit(fork(f), VIEWERS[who])).toEqual(want);
+  });
+
+  it("a guest upstream's owner keeps the link where their token is sent", async () => {
+    const TOKEN = "22222222-2222-4222-8222-222222222222";
+    answers = [upstream("unlisted", null, TOKEN)];
+    expect(await forkCredit(fork("public"), { token: TOKEN, userId: null })).toEqual(LINKED);
+    answers = [upstream("unlisted", null, TOKEN)];
+    expect(await forkCredit(fork("public"), { token: null, userId: null })).toEqual(HIDDEN);
+  });
+
+  it("a deck that is no fork asks nothing", async () => {
+    expect(await forkCredit(deck(), VIEWERS.anonymous)).toBeNull();
+    expect(statements).toEqual([]);
   });
 });

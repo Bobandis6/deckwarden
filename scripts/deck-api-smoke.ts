@@ -250,15 +250,23 @@ async function main() {
     });
     check("One Piece create with a target → 400", opTarget.status === 400, opTarget.json);
 
-    // Ownership on reads: flip private first (creates default to unlisted since P1.7)
+    // Ownership on reads: flip private first (creates default to unlisted since P1.7).
+    // A private deck a caller can't read or edit is the unknown id's 404 on every
+    // gate (route-helpers.ts, the 2026-10-30 security audit's deck-oracle record):
+    // the uuid a reader kept must not tell "made private" from "deleted".
     await api("PATCH", `/api/decks/${deckId}`, { token, body: { visibility: "private" } });
+    const unknownRead = await api("GET", `/api/decks/${crypto.randomUUID()}`);
+    const privateRead = await api("GET", `/api/decks/${deckId}`);
     check(
-      "read private, no token → 403",
-      (await api("GET", `/api/decks/${deckId}`)).status === 403,
+      "read private, no token → 404, the unknown id's answer",
+      privateRead.status === 404 &&
+        unknownRead.status === 404 &&
+        privateRead.text === unknownRead.text,
+      [privateRead.status, privateRead.text, unknownRead.text],
     );
     check(
-      "read private, wrong token → 403",
-      (await api("GET", `/api/decks/${deckId}`, { token: crypto.randomUUID() })).status === 403,
+      "read private, wrong token → 404",
+      (await api("GET", `/api/decks/${deckId}`, { token: crypto.randomUUID() })).status === 404,
     );
     const ownerRead = await api("GET", `/api/decks/${deckId}`, { token });
     check("read private, owner token → 200", ownerRead.status === 200);
@@ -268,19 +276,20 @@ async function main() {
       (ownerRead.json as { deck?: { isOwner?: boolean } })?.deck?.isOwner === true,
     );
 
-    // Ownership on writes
+    // Ownership on writes — still private here, so the refusal is the same 404;
+    // the unlisted deck's 403s are pinned below (goals, cards, DELETE).
     check(
-      "PATCH without token → 403",
-      (await api("PATCH", `/api/decks/${deckId}`, { body: { name: "x" } })).status === 403,
+      "PATCH private without token → 404",
+      (await api("PATCH", `/api/decks/${deckId}`, { body: { name: "x" } })).status === 404,
     );
     check(
-      "PATCH wrong token → 403",
+      "PATCH private with a wrong token → 404",
       (
         await api("PATCH", `/api/decks/${deckId}`, {
           token: crypto.randomUUID(),
           body: { name: "x" },
         })
-      ).status === 403,
+      ).status === 404,
     );
     const patched = await api("PATCH", `/api/decks/${deckId}`, {
       token,
