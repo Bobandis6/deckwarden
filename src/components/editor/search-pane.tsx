@@ -42,6 +42,18 @@
  * passing under it show through, softened, and the ambient art with them;
  * solid for a reader who asked for less transparency or more contrast.
  *
+ * FRESH-UI-EDITOR (the Codex editor half, reconciled): the pane has a
+ * visible title, "Find a card", in the deck pane's heading class and, like
+ * its "Deck", sr-only on phones where the tab bar is the title (U4a). A
+ * result row is a grid: the thumb, the name, then its meta (×N and the
+ * pips) and the actions in one row at rest, so an unselected row on a fine
+ * pointer keeps its geometry; on the SELECTED row, and on every row on a
+ * coarse pointer (where the actions always show), the actions drop to a
+ * second line under the name, right-aligned, so they never squeeze it; the
+ * name keeps its line with its meta, and the pip column stays where every
+ * other row has it. Hover reveals the actions inline as before: a layout
+ * that moved under the pointer would change the row under it.
+ *
  * Game knowledge (zone ids/labels, leader noun, pips, subtitles) comes off the
  * adapter — this component never mentions a specific game.
  */
@@ -215,6 +227,12 @@ export function SearchPane({
       {/* Sticky (C12): the box, the keycap hint and the live line stay put
           while the results scroll under them inside the search section. */}
       <div className={cn(CHROME_CLASS, "sticky top-0 z-10 px-3 pt-3 pb-1")}>
+        {/* The pane's title (FRESH-UI-EDITOR): the deck pane's heading class in a
+            32 px row, so the two titles share one line (the deck pane's summary
+            row is the ring's 32 px); on phones the tab is the title. */}
+        <h2 className="mb-1 flex h-8 items-center text-sm font-semibold max-md:sr-only">
+          Find a card
+        </h2>
         {/* U10a (WAVE5.md D10): the Input primitive at the pane's 36 px; the
             combobox wiring passes through untouched (search-pane.test pins it). */}
         <Input
@@ -281,7 +299,11 @@ export function SearchPane({
               role="option"
               aria-selected={i === sel}
               className={cn(
-                "group/row flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm pointer-coarse:min-h-11",
+                // The row's grid (FRESH-UI-EDITOR): the thumb, the name, the meta; the
+                // actions take an implicit fourth column when hover shows them inline.
+                // Selected, or on a coarse pointer, the actions take a second row
+                // under the name and its meta (gap-y only then).
+                "group/row grid cursor-pointer grid-cols-[1.625rem_minmax(0,1fr)_auto] items-center gap-x-2 rounded-md px-2 py-1 text-sm aria-selected:gap-y-1 pointer-coarse:min-h-11 pointer-coarse:gap-y-1",
                 // U3a: a press shows the hit (the selection's look) before the add's toast.
                 i === sel
                   ? "bg-accent text-accent-foreground"
@@ -299,13 +321,14 @@ export function SearchPane({
               <span
                 aria-hidden
                 data-slot="thumb"
-                className="h-9 w-[1.625rem] shrink-0 overflow-hidden rounded-[2px]"
+                className="h-9 w-[1.625rem] shrink-0 overflow-hidden rounded-[2px] group-aria-selected/row:row-span-2 pointer-coarse:row-span-2"
               >
                 {thumb && (
                   <CardImage src={thumb} alt="" width={146} height={204} className="h-9 w-auto" />
                 )}
               </span>
-              <span className="min-w-0 flex-1 truncate">
+              {/* The name: one line beside its meta; the actions never share it once shown by state. */}
+              <span data-slot="search-card-name" className="min-w-0 truncate">
                 {card.name}
                 {/* Printed-id chip (P4.6): OP names don't identify a card —
                     two Enel leaders exist; the chip is the disambiguator. */}
@@ -315,15 +338,23 @@ export function SearchPane({
                   </span>
                 )}
               </span>
-              {owned > 0 && (
-                <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-                  ×{owned}
-                </span>
-              )}
-              <CostPips html={adapter.display.costHtml(card)} className="shrink-0 text-xs" />
+              {/* The meta cell: ×N and the pips together, at the row's right edge like
+                  every other row's pips, whichever line the actions take. */}
+              <span data-slot="search-meta" className="flex shrink-0 items-center gap-2">
+                {owned > 0 && (
+                  <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                    ×{owned}
+                  </span>
+                )}
+                <CostPips html={adapter.display.costHtml(card)} className="shrink-0 text-xs" />
+              </span>
               {/* Actions on the active row and on touch (the spec's
-                  group-aria-selected fix): hover still reveals them on the rest. */}
-              <span className="hidden shrink-0 gap-1 group-aria-selected/row:flex group-hover/row:flex pointer-coarse:flex">
+                  group-aria-selected fix): hover still reveals them on the rest.
+                  Selected or on touch they take the second row, right-aligned. */}
+              <span
+                data-slot="search-actions"
+                className="hidden shrink-0 gap-1 group-aria-selected/row:col-start-2 group-aria-selected/row:col-end-4 group-aria-selected/row:row-start-2 group-aria-selected/row:flex group-aria-selected/row:justify-self-end group-hover/row:flex pointer-coarse:col-start-2 pointer-coarse:col-end-4 pointer-coarse:row-start-2 pointer-coarse:flex pointer-coarse:justify-self-end"
+              >
                 {mainZone && (
                   <Button
                     size="xs"

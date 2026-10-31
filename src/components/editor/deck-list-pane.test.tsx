@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { toEditorCard, type EditorEntry } from "@/lib/decks/editor-state";
 import { COMMANDER } from "@/lib/games/mtg/formats";
 import { card } from "@/lib/games/mtg/test-fixtures";
+import { startDoors } from "@/lib/decks/start-doors";
 import { getAdapter } from "@/lib/games/registry";
 import type { ValidationIssue } from "@/lib/games/types";
 
@@ -505,5 +506,80 @@ describe("DeckListPane — Do you own this precon? (PRECON-OWNED)", () => {
     const classes = screen.getByTestId("ownership-line").className.split(" ");
     expect(classes).toContain("md:truncate");
     expect(classes).not.toContain("truncate");
+  });
+});
+
+describe("DeckListPane — one primary door in the empty state (FRESH-UI-EDITOR)", () => {
+  const doors = startDoors(mtg, COMMANDER);
+  const PRIMARY = "bg-primary";
+  const OUTLINE = "border-(--border-control)";
+  const GHOST = "text-muted-foreground";
+  function empty(over: Partial<React.ComponentProps<typeof DeckListPane>> = {}) {
+    return render(
+      <DeckListPane
+        adapter={mtg}
+        format={COMMANDER}
+        entries={[]}
+        cards={new Map()}
+        issues={[]}
+        analytics={[]}
+        onSetQty={() => undefined}
+        onRemove={() => {}}
+        onPreview={() => {}}
+        onAddCards={() => {}}
+        doors={doors}
+        onPasteList={() => {}}
+        onSurprise={() => {}}
+        extras={false}
+        {...over}
+      />,
+    );
+  }
+
+  it("no leader: Add cards is the primary, Paste a list, Start from a precon and Surprise me are ghosts", () => {
+    empty();
+    const add = screen.getByRole("button", { name: "Add cards" });
+    expect(add.className).toContain(PRIMARY);
+    expect(add.className).not.toContain(OUTLINE);
+    for (const name of ["Paste a list", "Surprise me"]) {
+      const door = screen.getByRole("button", { name });
+      expect(door.className).toContain(GHOST);
+      expect(door.className).not.toContain(OUTLINE);
+      expect(door.className).not.toContain(PRIMARY);
+    }
+    const precon = screen.getByRole("link", { name: "Start from a precon" });
+    expect(precon.getAttribute("href")).toBe("/precons");
+    expect(precon.className).toContain(GHOST);
+    expect(precon.className).not.toContain(OUTLINE);
+    // One primary in the row, and the Y2b order holds.
+    const row = add.parentElement!;
+    expect([...row.children].filter((el) => el.className.includes(PRIMARY))).toHaveLength(1);
+    expect([...row.children].map((el) => el.textContent)).toEqual([
+      "Add cards",
+      "Paste a list",
+      "Start from a precon",
+      "Surprise me",
+    ]);
+  });
+
+  it("a leader set: the Autofill door is the primary (W9b), Add cards the outline beside it, Paste a list a ghost; still one primary", () => {
+    empty({ entries, cards, onAutofill: () => {} });
+    const autofill = screen.getByRole("button", { name: "Autofill a starter shell" });
+    expect(autofill.className).toContain(PRIMARY);
+    const add = screen.getByRole("button", { name: "Add cards" });
+    expect(add.className).toContain(OUTLINE);
+    expect(add.className).not.toContain(PRIMARY);
+    const paste = screen.getByRole("button", { name: "Paste a list" });
+    expect(paste.className).toContain(GHOST);
+    expect(screen.queryByRole("link", { name: "Start from a precon" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Surprise me" })).toBeNull();
+    const row = autofill.parentElement!;
+    expect([...row.children].filter((el) => el.className.includes(PRIMARY))).toHaveLength(1);
+  });
+
+  it("a leader set and no autofill door (One Piece's shape): Add cards is the primary again", () => {
+    empty({ entries, cards });
+    expect(screen.getByRole("button", { name: "Add cards" }).className).toContain(PRIMARY);
+    expect(screen.getByRole("button", { name: "Paste a list" }).className).toContain(GHOST);
   });
 });

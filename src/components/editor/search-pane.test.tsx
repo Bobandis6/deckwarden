@@ -339,3 +339,83 @@ describe("SearchPane — the materials (U3b, WAVE5 D4)", () => {
     expect(block.className).not.toContain("bg-background");
   });
 });
+
+describe("SearchPane — the title and the two-line selected row (FRESH-UI-EDITOR)", () => {
+  it("a visible 'Find a card' h2 heads the sticky block in the deck pane's heading class, sr-only on phones", () => {
+    const { input } = renderPane();
+    const heading = screen.getByRole("heading", { level: 2, name: "Find a card" });
+    expect(heading.className).toContain("text-sm font-semibold");
+    // A 32 px row, so its text sits on the deck pane's "Deck" line (measured 131 to 151 px at 1440).
+    expect(heading.className).toContain("flex h-8 items-center");
+    expect(heading.className).toContain("max-md:sr-only");
+    const block = input.parentElement!;
+    expect(block.contains(heading)).toBe(true);
+    expect(heading.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("a row is a grid of thumb · name · meta · actions; selected or on touch the actions take a second row under the name; hover moves nothing", async () => {
+    const { input } = renderPane();
+    respond([sol, signet]);
+    type(input, "s");
+    await settle();
+    const [selected, rest] = screen.getAllByRole("option");
+    for (const row of [selected, rest]) {
+      expect(row.className).toContain(
+        "grid cursor-pointer grid-cols-[1.625rem_minmax(0,1fr)_auto]",
+      );
+      expect(row.className).toContain("aria-selected:gap-y-1");
+      expect(row.className).toContain("pointer-coarse:gap-y-1");
+      expect(row.className).toContain("pointer-coarse:min-h-11");
+      expect(row.className).not.toContain("flex ");
+      const [thumb, name, meta, actions] = [...row.children] as HTMLElement[];
+      expect(thumb.dataset.slot).toBe("thumb");
+      // The thumb spans both rows only once there are two: at rest the row is 44 px with the thumb centered.
+      expect(thumb.className).toContain(
+        "group-aria-selected/row:row-span-2 pointer-coarse:row-span-2",
+      );
+      expect(thumb.className).not.toMatch(/(^|\s)row-span-2/);
+      expect(name.dataset.slot).toBe("search-card-name");
+      expect(name.className).toContain("truncate");
+      // The name keeps its line and its truncation; no placement moves with hover.
+      expect(name.className).not.toMatch(/col-span|row-start|group-hover\/row:/);
+      expect(meta.dataset.slot).toBe("search-meta");
+      expect(meta.querySelector(".pip, [data-slot=pips], span")).not.toBeNull();
+      expect(actions.dataset.slot).toBe("search-actions");
+      expect(actions.className).toContain("hidden");
+      expect(actions.className).toContain("group-aria-selected/row:flex");
+      expect(actions.className).toContain("group-hover/row:flex");
+      expect(actions.className).toContain("pointer-coarse:flex");
+      // The second row: under the name, spanning the name and meta columns, right-aligned.
+      for (const v of ["group-aria-selected/row:", "pointer-coarse:"]) {
+        expect(actions.className).toContain(`${v}col-start-2`);
+        expect(actions.className).toContain(`${v}col-end-4`);
+        expect(actions.className).toContain(`${v}row-start-2`);
+        expect(actions.className).toContain(`${v}justify-self-end`);
+      }
+      expect(actions.className).not.toMatch(/group-hover\/row:(col|row|justify)/);
+    }
+    expect(selected.getAttribute("aria-selected")).toBe("true");
+    expect(rest.getAttribute("aria-selected")).toBe("false");
+    // The selection's look is the row's; an unselected row keeps the press.
+    expect(rest.className).toContain("active:bg-accent");
+  });
+
+  it("×N rides the meta cell beside the pips, after the name and before the actions", async () => {
+    render(
+      <SearchPane
+        adapter={mtg}
+        format={COMMANDER}
+        inDeckQty={new Map([[sol.id, 2]])}
+        onAdd={vi.fn()}
+        onPreview={() => {}}
+      />,
+    );
+    const input = screen.getByRole("combobox", { name: "Card search" });
+    respond([sol]);
+    type(input, "sol");
+    await settle();
+    const meta = document.querySelector<HTMLElement>("[data-slot=search-meta]")!;
+    expect(meta.textContent).toContain("×2");
+    expect(meta.nextElementSibling?.getAttribute("data-slot")).toBe("search-actions");
+  });
+});

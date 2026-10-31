@@ -75,6 +75,12 @@
  * waits for the first card like View / Group / Sort do (the quiet first
  * screen), unless the deck already holds a token.
  *
+ * FRESH-UI-EDITOR (the Codex editor half, reconciled): the empty state has
+ * one primary door. "Add cards" leads an empty deck; once a leader is set
+ * the Autofill door is the primary (W9b: the shell is built around one) and
+ * "Add cards" stands beside it as the outline it was. The Y2b doors, Paste a
+ * list, Start from a precon and Surprise me, are ghosts: the side doors.
+ *
  * PRECON-OWNED: `precon` puts "Do you own this precon?" (precon-line.tsx)
  * directly after the leader zone, the owner's alone. It arrives with the
  * list: in a saved deck's first paint, and in a precon draft's seed, where
@@ -512,10 +518,12 @@ export function DeckListPane({
                   Autofill a starter shell
                 </Button>
               ),
+              // One primary (FRESH-UI-EDITOR): Add cards leads unless the
+              // Autofill door above it does, then it is the outline beside it.
               onAddCards && (
                 <Button
                   key="add"
-                  variant="outline"
+                  variant={onAutofill && leader.length > 0 ? "outline" : "default"}
                   size="sm"
                   className="pointer-coarse:min-h-11"
                   onClick={onAddCards}
@@ -524,13 +532,14 @@ export function DeckListPane({
                 </Button>
               ),
               // The start doors (Y2b): a precon or a roll starts from nothing.
+              // Ghosts (FRESH-UI-EDITOR): the side doors beside the one primary.
               ...doors
                 .filter((door) => door.kind === "paste" || leader.length === 0)
                 .map((door) =>
                   door.kind === "paste" && onPasteList ? (
                     <Button
                       key="paste"
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       className="pointer-coarse:min-h-11"
                       onClick={onPasteList}
@@ -542,7 +551,7 @@ export function DeckListPane({
                       key="precon"
                       href={door.href}
                       className={cn(
-                        buttonVariants({ variant: "outline", size: "sm" }),
+                        buttonVariants({ variant: "ghost", size: "sm" }),
                         "pointer-coarse:min-h-11",
                       )}
                     >
@@ -551,7 +560,7 @@ export function DeckListPane({
                   ) : door.kind === "surprise" && onSurprise ? (
                     <Button
                       key="surprise"
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       className="pointer-coarse:min-h-11"
                       disabled={rolling}
