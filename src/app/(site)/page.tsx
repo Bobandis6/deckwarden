@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import { ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -75,12 +76,30 @@ const SECTION_CLASS = "border-gold/30 border-t py-12";
 const CONTAINER_CLASS = "max-w-wide mx-auto w-full px-4";
 
 /**
- * A game's door (FRESH-UI-HOME): a field of the game's accent (`data-game`
- * sets --accent-game; the field itself is the `.home-tile` rule), the serif
- * name, the format line and an arrow; the lift is DeckTile's. The
- * reference drew landscape art and the games' marks on these; both are left
- * out (invented art, marks outside the Fan Content Policy, One Piece
- * decorative art off until Bandai answers).
+ * The tiles' paintings (HOME-ATMOSPHERE, 2026-10-31, the owner's ask on the
+ * reference, which LATER row 372 had held open): the two landscapes cut from
+ * the owner's own rendered reference with its labels and marks painted out
+ * (no game logo or name is in the pixels; the words are the HTML below),
+ * upscaled for 2x screens and saved under public/home. `focus` is the
+ * `object-position` the `cover` crop keeps in view at every tile size: the
+ * castle on its island for Magic, the ship between the islands for One
+ * Piece. Change a file or a crop here; nothing else knows the paths.
+ */
+const TILE_ART: Record<TileGame, { src: string; width: number; height: number; focus: string }> = {
+  mtg: { src: "/home/mtg-tile.webp", width: 1088, height: 405, focus: "62% 50%" },
+  optcg: { src: "/home/optcg-tile.webp", width: 1158, height: 405, focus: "56% 45%" },
+};
+
+/**
+ * A game's door (FRESH-UI-HOME; a painting since HOME-ATMOSPHERE): the
+ * game's landscape under a scrim (`.home-tile`, `.home-tile-art` and the
+ * scrim are the rules in globals.css; `data-game` sets --accent-game, the
+ * field that shows until the art lands), the serif name, the format line and
+ * an arrow in the primary's ivory over it, the same in both themes since the
+ * painting is the same; the lift is DeckTile's. The art is a plain `<img>`
+ * of a static file (no optimizer transformation, CLAUDE.md), eager but at
+ * low fetch priority so it never competes with the trio for the LCP, and
+ * decorative (empty alt): the link's words are its name.
  */
 function GameTile({
   game,
@@ -93,20 +112,31 @@ function GameTile({
   name: string;
   format: string;
 }) {
+  const art = TILE_ART[game];
   return (
     <Link
       href={href}
       data-game={game}
-      className="home-tile group/tile focus-visible:ring-accent-game focus-visible:ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-safe:transition-[background-color,translate] motion-safe:hover:-translate-y-0.5"
+      style={{ "--tile-focus": art.focus } as CSSProperties}
+      className="home-tile group/tile focus-visible:ring-accent-game focus-visible:ring-offset-background text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-safe:transition-[translate] motion-safe:hover:-translate-y-0.5"
     >
-      <span className="flex items-start justify-between gap-3">
-        <span className="type-section">{name}</span>
-        <ArrowUpRightIcon
-          className="text-muted-foreground group-hover/tile:text-foreground size-5 shrink-0"
-          aria-hidden
-        />
-      </span>
-      <span className="type-label-sm text-muted-foreground">{format}</span>
+      {/* eslint-disable-next-line @next/next/no-img-element -- a static file under /public, served as is (docblock). */}
+      <img
+        src={art.src}
+        alt=""
+        width={art.width}
+        height={art.height}
+        loading="eager"
+        decoding="async"
+        fetchPriority="low"
+        className="home-tile-art"
+      />
+      <ArrowUpRightIcon
+        className="home-tile-arrow text-primary-foreground/80 group-hover/tile:text-primary-foreground size-5"
+        aria-hidden
+      />
+      <span className="type-section">{name}</span>
+      <span className="type-label-sm text-primary-foreground/85">{format}</span>
     </Link>
   );
 }

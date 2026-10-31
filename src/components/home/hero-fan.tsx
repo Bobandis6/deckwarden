@@ -4,13 +4,20 @@
  * `normal` cards — since 2026-10-17 the day's seeded draw from the index's
  * top 30 (`magicHome` in src/lib/home/shelves.ts; D6's "top three" before),
  * so the hero changes at 00:00 UTC — the highest-ranked of the three first.
- * The cards render in array order and stand upright side by side on the
- * stage: the geometry is the `.home-fan` rule in globals.css, a three-column
- * grid whose boxes come from `aspect-ratio`, so nothing shifts when the
- * cards land, with the green glow as the grid's own ::before behind them.
- * U5's fan turned the side cards 8° and dropped them 14 % so the center card
- * never covered their artist and © lines; upright cards cover nothing, so
- * the rule holds by construction (D0).
+ * The cards render in array order and stand side by side on the stage: the
+ * geometry is the `.home-fan` rule in globals.css, a three-column grid whose
+ * boxes come from `aspect-ratio`, so nothing shifts when the cards land.
+ * The stage is the grid's own pseudo-elements (HOME-ATMOSPHERE, 2026-10-31,
+ * the owner's reference): the lit wall behind the cards (::before) and the
+ * lit floor at their bases (::after), both with the band's grain blended in,
+ * and each card grounded by the rule's own box-shadows (which replace
+ * HERO_CARD_SHADOW's tinted utility on the trio; U2: never a filter). The
+ * two side cards turn 9° about the
+ * vertical axis toward the viewer, the reference's shallow arc. U5's fan
+ * turned the side cards 8° in the plane and dropped them 14 % so the center
+ * card never covered their artist and © lines; a turn about the vertical
+ * axis only narrows a card's footprint inside its own grid cell, so no card
+ * covers another and the rule holds by construction (D0).
  *
  * All three are `priority` (eager, fetchpriority high, React's preload, no
  * fade): at 1440 one of them is the LCP element (they paint within ~40 ms of
@@ -20,9 +27,7 @@
  * CardImage's named box in the same place.
  */
 import { CardImage } from "@/components/cards/card-image";
-import { HERO_CARD_SHADOW } from "@/components/surface-header";
 import type { FanCard } from "@/lib/home/shelves";
-import { cn } from "@/lib/utils";
 
 /** Scryfall's `normal` box: about 230 px wide at 1440 (690 device px on a 3x phone at 390). */
 const NORMAL = { width: 488, height: 680 } as const;
@@ -39,7 +44,7 @@ export function HeroFan({ cards }: { cards: FanCard[] }) {
           width={NORMAL.width}
           height={NORMAL.height}
           priority
-          className={cn("rounded-[4.75%/3.5%]", HERO_CARD_SHADOW)}
+          className="rounded-[4.75%/3.5%]"
         />
       ))}
     </div>

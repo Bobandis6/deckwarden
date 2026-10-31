@@ -209,6 +209,20 @@ describe("home (U5, home B)", () => {
     expect([...tiles.matchAll(/data-game="(\w+)"/g)].map((m) => m[1])).toEqual(["mtg", "optcg"]);
     expect(tiles).toContain("Commander · 100 cards");
     expect(tiles).toContain("Leader + 50 cards");
+    // The paintings (HOME-ATMOSPHERE, 2026-10-31): a decorative, eager,
+    // low-priority <img> of a static file under /home in each tile, the
+    // crop's focal point in --tile-focus on the link, the words after it.
+    expect([...tiles.matchAll(/<img[^>]*src="([^"]+)"/g)].map((m) => m[1])).toEqual([
+      "/home/mtg-tile.webp",
+      "/home/optcg-tile.webp",
+    ]);
+    expect(
+      tiles.match(
+        /<img[^>]*alt=""[^>]*loading="eager"[^>]*fetch[Pp]riority="low"[^>]*class="home-tile-art"/g,
+      ),
+    ).toHaveLength(2);
+    expect(tiles).toMatch(/style="--tile-focus:\s*62% 50%"/);
+    expect(tiles).toMatch(/style="--tile-focus:\s*56% 45%"/);
     expect(html).not.toContain("Open beta");
   });
 
