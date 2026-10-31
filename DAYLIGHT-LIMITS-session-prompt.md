@@ -1,6 +1,27 @@
 # DAYLIGHT-LIMITS session prompt: what LIGHT-MODE-DAYLIGHT left open
 
-*Status: not started. Written 2026-10-31 in the session that shipped LIGHT-MODE-DAYLIGHT (`a555343`, ship note `d3d3645`), from the limitations its closing report named. Anchors verified against `d3d3645`; re-grep lines, trust the shapes. The record to read first: REDESIGN.md, "The daylight table".*
+*Status: shipped 2026-10-31. Written that day in the session that shipped LIGHT-MODE-DAYLIGHT (`a555343`, ship note `d3d3645`), from the limitations its closing report named. Anchors below were verified against `d3d3645`. The record: REDESIGN.md, "The limits of the daylight table".*
+
+## Ship note — 2026-10-31, feat `21a57aa`, deployed (Vercel status success on the full sha at 20:57:56 Z; CI run 41241284405 green at 21:00:37 Z)
+
+- **Dark's tiles (row 381 closed).** Names under 4.5:1 at 1024 to 1279, 640 to 684 and under 380 (2.17 at the worst pixel, at 1036), the arrow about 1.2:1, Magic's name on two lines at 1024 to 1035. Now 118 widths, both tiles, hover on and off: names at least 5.37 on a narrow tile and 4.55 elsewhere, format lines at least 8.40, the arrow at least 3.72, one line everywhere. **Against the shapes above:** `max(48%, 13.5rem)` wasn't used, since it moved the 342 px tile and darkened the sail on a narrow one; a band measured from the words joins the scrim only where the tile is narrow. The disc stayed at light's 0.48. Outside the disc, 0.000 % beyond 2 levels at the ten passing widths; **375 changed**, since it reads 4.55 between 372 and 379 at 4.48 (with reasons in the record). Light's numbers are where they were: 5.18, 4.98, 3.12.
+- **The share page's art on light (row 380 closed).** The builder's values, as planned, and **one thing the plan didn't have:** the tokens alone didn't show the commander, because the layer is as tall as the deck (the crop magnified 8.6 times to a sliver) and stops at the column in a visible rectangle. So on light, while a crop is up, the whole layer stands in the viewport, and `<main>` gives up `isolate`. Census of 7,918 text runs: lowest 4.70. Forty baseline pairs at 0.000 %. Dark keeps R2's numbers and its layer (row 382).
+- **The browser actually read: Safari 27 in the iPad Pro 13-inch (M5) Simulator (1032 and 1376 wide, 24 views) and the iPhone 15 Simulator.** The engine desktop Safari uses, not desktop Safari. **Desktop Safari remains unviewed:** `safaridriver` refuses until "Allow remote automation" is on, and that's the owner's switch (row 383; the checklist is below). Both `lg` layouts match Chromium within 1.1 levels at the sampled spots, the shots unshifted (the page ground reads its token exactly). The iPhone caught two defects in this package's first shapes before they shipped: the art ending in a line in the strips Safari shows through its bars, then the crop without its veil there.
+- **Production, read from outside, page views only.** Dark's tiles at 1024: names 5.49 and 5.69, format 8.61 and 9.84, arrow 4.49 and 4.38, the band on, 12 px padding, one line; at 390: names 5.95 and 4.88, format 9.06 and 8.71, arrow 4.05 and 4.65, the band off. The share page's crop at 1536, 1440, 768 and 390: 0.14 in the fixed layer on light, 0.08 in the tall layer on dark, the veil 50 / 20 / 65 and 70 / 30 / 90, one crop request at Low, both credits, no overflow. No console message on any of them; the only CSP event is `script-src eval`, zod's guarded probe (next.config.ts). Captures: `.claude/daylight-limits-evidence/production/`.
+- **Checks.** `pnpm check`: 3,352 tests in 297 files, 0 lint errors, 6 warnings as before. `pnpm build` green. `git diff --check` clean.
+- **The owner's look.** The sheet (`.claude/daylight-limits-evidence/sheets/SHEET-differences-from-the-concept.png`) went to the owner with the one question, keep them as recorded? Nothing ships from it; a "change" answer is its own package.
+- **New rows:** 382 (dark's share art), 383 (desktop Safari), 384 (the credit chip over the phone's first-screen button).
+
+### Desktop Safari: what to look at (row 383)
+
+On `deckwarden.gg`, resizing the window to about 1024, 1280, 1440, 1536 and 1920 where the display allows:
+
+1. **Home, Light** (Appearance menu): the stage shows no box edge or seam; the wall stays clear of the headline; the table sits at the card bases; the side cards turn slightly toward you, with short shadows. Both tile labels on one line at the narrowest width.
+2. **Home, Dark:** the same stage checks. The names read clearly at every width. The arrow sits on its disc. Hovering a tile lifts it 2 px and grows the painting a little.
+3. **`/d/p_the_hosts_of_mordor_ltc`, Light:** Sauron behind the whole page, still there as you scroll into the list; no rectangle at the column's edges; the header's and footer's words clear; the banner's credit at the top and the small credit riding the window's lower left. **Dark:** faint, as before.
+4. **`/decks/new?game=mtg&from=the_hosts_of_mordor_ltc`, Light:** the art through the deck pane, a soft tint over search and tools, the credit at the lower left.
+
+To have a session do this instead: run `safaridriver --enable` once (it asks for your password), then ask for this checklist in desktop Safari.
 
 ## The ask
 
