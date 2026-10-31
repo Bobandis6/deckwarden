@@ -7,11 +7,9 @@
  * The cards render in array order and stand side by side on the stage: the
  * geometry is the `.home-fan` rule in globals.css, a three-column grid whose
  * boxes come from `aspect-ratio`, so nothing shifts when the cards land.
- * The stage is the grid's own pseudo-elements (HOME-ATMOSPHERE, 2026-10-31,
- * the owner's reference): the lit wall behind the cards (::before) and the
- * lit floor at their bases (::after), both with the band's grain blended in,
- * and each card grounded by the rule's own box-shadows (which replace
- * HERO_CARD_SHADOW's tinted utility on the trio; U2: never a filter). The
+ * The stage is the grid's ::before: a generated photographic wall and
+ * tabletop matching home.png, kept behind the full card images. Compact
+ * downward box-shadows ground the cards while preserving the lit gaps. The
  * two side cards turn 9° about the
  * vertical axis toward the viewer, the reference's shallow arc. U5's fan
  * turned the side cards 8° in the plane and dropped them 14 % so the center

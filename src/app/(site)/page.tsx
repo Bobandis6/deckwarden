@@ -76,18 +76,13 @@ const SECTION_CLASS = "border-gold/30 border-t py-12";
 const CONTAINER_CLASS = "max-w-wide mx-auto w-full px-4";
 
 /**
- * The tiles' paintings (HOME-ATMOSPHERE, 2026-10-31, the owner's ask on the
- * reference, which LATER row 372 had held open): the two landscapes cut from
- * the owner's own rendered reference with its labels and marks painted out
- * (no game logo or name is in the pixels; the words are the HTML below),
- * upscaled for 2x screens and saved under public/home. `focus` is the
- * `object-position` the `cover` crop keeps in view at every tile size: the
- * castle on its island for Magic, the ship between the islands for One
- * Piece. Change a file or a crop here; nothing else knows the paths.
+ * Native-resolution paintings generated from the owner's home.png reference.
+ * HTML supplies the labels; the ship's sail, emblem and rigging remain crisp
+ * painted details. Each focal point keeps the subject in view under `cover`.
  */
 const TILE_ART: Record<TileGame, { src: string; width: number; height: number; focus: string }> = {
-  mtg: { src: "/home/mtg-tile.webp", width: 1088, height: 405, focus: "62% 50%" },
-  optcg: { src: "/home/optcg-tile.webp", width: 1158, height: 405, focus: "56% 45%" },
+  mtg: { src: "/home/mtg-tile.webp", width: 1600, height: 533, focus: "62% 50%" },
+  optcg: { src: "/home/optcg-tile.webp", width: 1600, height: 533, focus: "68% 50%" },
 };
 
 /**

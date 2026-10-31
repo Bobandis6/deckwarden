@@ -731,35 +731,15 @@
    headline at the left and the day's three commanders standing upright at
    the right on a green-lit stage; under it the doors row; then the gallery.
 
-   .home-band is the band, the stage (HOME-ATMOSPHERE, 2026-10-31, the
-   owner's reference): a faint cast of the primary green over the page's
-   background at its edges, edge to edge (the container sits inside it), a
-   thin dark line where it meets the page (the table's edge), and over the
-   whole of it a fine grain (public/home/stage-grain.svg on its ::after, a
-   repeating tile blended soft-light at --home-grain), so the surface reads
-   as lit fabric rather than a flat gradient. It clips its own light, which
-   overhangs the trio's grid and would otherwise widen the document where
-   the container fills the viewport.
-   .home-band-inner is the container's grid: stacked below lg, 5 : 7 from it.
-   .home-fan is the trio (the name and the slot stay for HeroFan and its
-   tests): a three-column grid of `normal` cards whose boxes come from
-   `aspect-ratio`, so nothing shifts when they land. The light is the grid's
-   own ::before, inside the grid's stacking context (isolation), so it never
-   paints over the text: the spotlight, a radial gradient from --home-stage
-   (the lit backdrop's peak) to the band's dark, and under it the floor, a
-   flat ellipse of --home-floor pooling at the cards' bases. The grain
-   returns on the grid's ::after, masked to the same falloff, so the texture
-   shows where the light falls, as on a real surface. Each card stands on
-   that floor: a grounded shadow (box-shadows: the long soft one of
-   --home-shade, a halo of --home-halo, the contact line of --home-contact;
-   never a filter, U2) and, for the two side
-   cards, a slight turn about the vertical axis toward the viewer (rotateY on
-   the shared perspective, pivoting on the edge nearest the center), the
-   reference's shallow arc. No in-plane rotation, no drop, no fan step: a
-   turn about the vertical axis only narrows a card's footprint inside its
-   own grid cell, so no card ever covers another's artist and © lines (D0
-   holds by construction, as it did upright).
-   Children, not `img`: a card with no image is CardImage's named <span>.
+   .home-band clips the reference-led photographic stage to the hero. The
+   backdrop follows .home-fan, so its textured tabletop stays beneath the
+   cards at every width. A broad lit wall replaces the noisy radial spotlight;
+   small downward shadows ground each card without darkening the gaps.
+   The stage is faint over paper in light mode, full strength in dark mode.
+   The trio stays a three-column grid of full `normal` cards, with aspect-ratio
+   reserving their boxes and a shallow rotateY on the two outer cards. No
+   card overlaps another's artist or copyright line. Children, not `img`:
+   a missing image is CardImage's named <span>.
    .home-doors is the row under the band: the wide Build bar and Browse at
    the left, the two game tiles at the right, the same 5 : 7 from lg.
    .home-tile is a game's door, a painting with the words over it: the art
@@ -771,52 +751,32 @@
    .home-gallery is the six-up grid both shelves share, three across below lg. */
 @layer components {
   .home-band {
-    /* The stage's light, light theme: the primary over the page's paper. */
-    --home-cast: color-mix(in oklab, var(--primary) 6%, var(--background));
-    --home-cast-end: color-mix(in oklab, var(--primary) 3%, var(--background));
-    --home-stage: color-mix(in oklab, var(--primary) 30%, var(--background));
-    --home-floor: color-mix(in oklab, var(--primary) 24%, var(--background));
-    --home-grain: 0.12;
-    --home-shade: rgb(20 36 30 / 0.3);
-    --home-halo: rgb(20 36 30 / 0.12);
-    --home-contact: rgb(20 36 30 / 0.4);
-    --home-grain-url: url("/home/stage-grain.svg");
+    --home-cast: color-mix(in oklab, var(--primary) 4%, var(--background));
+    --home-stage-opacity: 0.16;
+    --home-shade: rgb(20 36 30 / 0.2);
+    --home-contact: rgb(20 36 30 / 0.3);
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    background: linear-gradient(180deg, var(--home-cast), var(--home-cast-end));
-    box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--primary) 18%, transparent);
+    background: var(--home-cast);
+    box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--primary) 12%, transparent);
   }
   .dark .home-band {
-    /* Dark, the reference's own readings: the edges a hair greener than the
-       page, the lit wall oklch(0.36 0.03 165) and the lit floor
-       oklch(0.39 0.03 175), a desaturated forest green, not the primary. */
-    --home-cast: color-mix(in oklab, var(--primary) 10%, var(--background));
-    --home-cast-end: color-mix(in oklab, var(--primary) 6%, var(--background));
-    --home-stage: oklch(0.365 0.034 166);
-    --home-floor: oklch(0.46 0.046 172);
-    --home-grain: 0.26;
-    --home-shade: rgb(0 0 0 / 0.6);
-    --home-halo: rgb(0 0 0 / 0.22);
-    --home-contact: rgb(0 0 0 / 0.55);
-    box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.55);
-  }
-  .home-band::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    background-image: var(--home-grain-url);
-    background-size: 240px 240px;
-    opacity: calc(var(--home-grain) * 0.5);
-    mix-blend-mode: soft-light;
-    pointer-events: none;
+    --home-cast: color-mix(in oklab, var(--primary) 6%, var(--background));
+    --home-stage-opacity: 0.78;
+    --home-shade: rgb(0 0 0 / 0.32);
+    --home-contact: rgb(0 0 0 / 0.5);
+    box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.4);
   }
   .home-band-inner {
     display: grid;
     align-items: center;
     gap: 2rem;
     padding-block: 2.5rem 2rem;
+  }
+  .home-band-inner > :first-child {
+    position: relative;
+    z-index: 1;
   }
   .home-fan {
     position: relative;
@@ -828,63 +788,29 @@
     padding-block: 1rem 1.5rem;
     perspective: 1400px;
   }
-  /* The lit wall behind the trio: the spotlight's ellipse, centered a little
-     above the cards' middle, with the grain blended into the light itself
-     (a surface shows its texture where the light falls); the mask fades the
-     grain out with the light so neither leaves an edge. */
+  /* One continuous wall and tabletop, generated from home.png. Its bottom
+     follows the fan's base; the horizontal mask blends into the page without
+     the old radial pool or synthetic noise. It never overlays card pixels. */
   .home-fan::before {
     content: "";
     position: absolute;
-    inset: -40% -14%;
-    z-index: -2;
-    background:
-      var(--home-grain-url) 0 0 / 240px 240px,
-      radial-gradient(
-        closest-side at 50% 45%,
-        var(--home-stage) 0%,
-        color-mix(in oklab, var(--home-stage) 92%, transparent) 55%,
-        color-mix(in oklab, var(--home-stage) 45%, transparent) 80%,
-        transparent 100%
-      );
-    background-blend-mode: soft-light, normal;
-    mask-image: radial-gradient(closest-side at 50% 45%, #000 55%, transparent 100%);
-    pointer-events: none;
-  }
-  /* The floor the cards stand on: a pool of light at their bases (the box
-     starts 2.5rem above the bottom padding's edge, the horizon, and runs
-     down into the band, which clips it), the grain blended in, masked to
-     the same pool. */
-  .home-fan::after {
-    content: "";
-    position: absolute;
-    inset: calc(100% - 1.5rem - 5rem) -30% auto;
-    height: 10rem;
+    inset: -3rem -30% -2.5rem -92%;
     z-index: -1;
-    background:
-      var(--home-grain-url) 0 0 / 240px 240px,
-      radial-gradient(
-        closest-side,
-        var(--home-floor) 0%,
-        color-mix(in oklab, var(--home-floor) 85%, transparent) 50%,
-        color-mix(in oklab, var(--home-floor) 35%, transparent) 80%,
-        transparent 100%
-      );
-    background-blend-mode: soft-light, normal;
-    mask-image: radial-gradient(closest-side, #000 50%, transparent 100%);
+    background: url("/home/hero-stage.webp") center bottom / 100% 100% no-repeat;
+    opacity: var(--home-stage-opacity);
+    mask-image:
+      linear-gradient(90deg, transparent, #000 30%, #000 85%, transparent),
+      linear-gradient(180deg, transparent, #000 18%);
+    mask-composite: intersect;
     pointer-events: none;
   }
-  /* Each card grounded: the long soft shadow onto the floor, a thin halo of
-     occlusion all round and the contact line at the base, as box-shadows
-     (U2: never a filter; these replace HERO_CARD_SHADOW's tinted utility on
-     the trio, since the stage lights these cards). */
   .home-fan > * {
     width: 100%;
     height: auto;
     aspect-ratio: 488 / 680;
     box-shadow:
-      0 20px 16px -4px var(--home-shade),
-      0 0 8px var(--home-halo),
-      0 2px 3px var(--home-contact);
+      0 10px 12px -8px var(--home-shade),
+      0 2px 3px -1px var(--home-contact);
   }
   /* The side cards turned a little toward the viewer, pivoting on the edge
      nearest the center: the reference's shallow arc. */
@@ -952,9 +878,10 @@
     background:
       linear-gradient(
         90deg,
-        rgb(8 12 14 / 0.66) 0%,
-        rgb(8 12 14 / 0.34) 48%,
-        rgb(8 12 14 / 0.04) 80%
+        rgb(8 12 14 / 0.76) 0%,
+        rgb(8 12 14 / 0.7) 48%,
+        rgb(8 12 14 / 0.24) 80%,
+        rgb(8 12 14 / 0.04) 100%
       ),
       linear-gradient(0deg, rgb(8 12 14 / 0.62) 0%, rgb(8 12 14 / 0.16) 48%, transparent 72%);
   }
@@ -1001,6 +928,12 @@
     .home-band-inner,
     .home-doors {
       grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    }
+    .home-fan {
+      margin-right: clamp(-5rem, calc((80rem - 100vw) / 2), 0rem);
+    }
+    .home-band-inner {
+      padding-block: 2rem 1.5rem;
     }
   }
 }

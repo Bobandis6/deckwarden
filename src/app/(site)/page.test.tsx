@@ -222,7 +222,7 @@ describe("home (U5, home B)", () => {
       ),
     ).toHaveLength(2);
     expect(tiles).toMatch(/style="--tile-focus:\s*62% 50%"/);
-    expect(tiles).toMatch(/style="--tile-focus:\s*56% 45%"/);
+    expect(tiles).toMatch(/style="--tile-focus:\s*68% 50%"/);
     expect(html).not.toContain("Open beta");
   });
 

@@ -10,10 +10,8 @@
  * FRESH-UI-HOME (2026-10-30) a three-column grid whose boxes come from
  * `aspect-ratio` (so nothing shifts when the images land), children rather
  * than `img` (the fallback is a <span>), and since HOME-ATMOSPHERE
- * (2026-10-31) the stage: the lit wall and the lit floor behind the cards
- * with the grain blended in and masked to the light, the grounded
- * drop-shadows, the side cards' turn about the vertical axis, and still no
- * in-plane rotation or drop (no card covers another's artist or © line).
+ * (2026-10-31) the stage. The backdrop is decorative; full cards, reserved
+ * image boxes and non-overlapping transforms remain the layout contract.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -80,7 +78,7 @@ describe("HeroFan", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("globals.css stands the three cards on the lit stage: a grid whose boxes come from aspect-ratio, the wall and floor lights behind them, the side cards turned", () => {
+  it("globals.css keeps full card boxes in a three-column grid with non-overlapping side turns", () => {
     const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
     const rules = css.slice(css.indexOf(".home-fan {"));
     // A three-column grid (the trio), isolated so its own light sits behind
@@ -88,22 +86,10 @@ describe("HeroFan", () => {
     expect(rules).toMatch(
       /\.home-fan \{[^}]*isolation: isolate;[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[^}]*perspective: /,
     );
-    // The lit wall (::before, the lower layer): the grain over the spotlight's
-    // radial from --home-stage, masked to the same falloff so no edge shows.
+    // Children include the no-image <span>. Reserve the full card ratio;
+    // visual details of the stage are checked in the browser.
     expect(rules).toMatch(
-      /\.home-fan::before \{[^}]*z-index: -2;[^}]*var\(--home-grain-url\)[^}]*radial-gradient\(\s*closest-side at 50% 45%,\s*var\(--home-stage\) 0%,[^}]*transparent 100%[^}]*background-blend-mode: soft-light, normal;[^}]*mask-image: radial-gradient\(closest-side at 50% 45%,/,
-    );
-    // The lit floor (::after, above the wall, below the cards): the pool of
-    // --home-floor at the cards' bases, masked the same way.
-    expect(rules).toMatch(
-      /\.home-fan::after \{[^}]*z-index: -1;[^}]*var\(--home-grain-url\)[^}]*radial-gradient\(\s*closest-side,\s*var\(--home-floor\) 0%,[^}]*transparent 100%[^}]*mask-image: radial-gradient\(closest-side,/,
-    );
-    // Children, never `img` alone: the no-image fallback is a <span>. Their
-    // box is the card's ratio at the column's width, so nothing shifts when
-    // the images land (U5's explicit height, by construction now); each is
-    // grounded by the rule's box-shadows (U2: never a filter).
-    expect(rules).toMatch(
-      /\.home-fan > \* \{\s*width: 100%;\s*height: auto;\s*aspect-ratio: 488 \/ 680;\s*box-shadow:\s*0 20px 16px -4px var\(--home-shade\),/,
+      /\.home-fan > \* \{\s*width: 100%;\s*height: auto;\s*aspect-ratio: 488 \/ 680;/,
     );
     expect(rules).not.toMatch(/\.home-fan > img/);
     // The side cards turn about the vertical axis toward the viewer, pivoting
