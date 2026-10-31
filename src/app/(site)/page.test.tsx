@@ -2,7 +2,7 @@
 /**
  * Home (U5, WAVE5 D6: home B), rendered the way the server renders it — the
  * real page with its queries mocked, async server components resolved by
- * React's stream: the section order (the split hero, the Magic region, the
+ * React's stream: the section order (the band, the doors row, the Magic region, the
  * One Piece field, Continue building only with own decks, the rail, the
  * capabilities, the outro); the pinned strings and links smoke:seo and
  * smoke:engagement read (the H1, `/leaders`, `/cards?game=optcg`, the exact
@@ -150,7 +150,9 @@ describe("home (U5, home B)", () => {
   it("orders the sections: hero, Magic, One Piece, the rail, the capabilities, the outro", async () => {
     const html = await renderHome();
     const main = html.slice(html.indexOf('<main id="main"'), html.indexOf("</main>"));
-    expect(main).toMatch(/^<main id="main" class="[^"]*max-w-wide[^"]*"/);
+    // The container moved onto the bands (the hero band runs edge to edge).
+    expect(main).toMatch(/^<main id="main" class="w-full flex-1">/);
+    expect(main).toContain('<div class="max-w-wide mx-auto w-full px-4 home-band-inner">');
     const order = [
       "<h1",
       'aria-label="Magic: The Gathering · Commander"',
@@ -165,30 +167,48 @@ describe("home (U5, home B)", () => {
     expect(html).not.toContain("Continue building");
   });
 
-  it("the split hero: the pinned H1, the 15-word sentence, Build a deck and Browse commanders", async () => {
+  it("the band: the pinned H1 on the fluid step, the 15-word sentence in two tones, then the doors row and the two game tiles", async () => {
     const html = await renderHome();
-    // The H1 wraps the same in Literata and its fallback at every width (no reflow on the swap).
+    // The H1 wraps the same in Literata and its fallback at every width (no
+    // reflow on the swap): the per-tier caps, re-measured for `.type-hero`.
     expect(html).toMatch(
-      /<h1 class="type-display max-w-\[7em\] text-balance md:max-w-\[12em\] lg:max-w-none">Your next great deck starts here\.<\/h1>/,
+      /<h1 class="type-hero max-w-\[9em\] text-balance md:max-w-\[12em\] lg:max-w-none">Your next great deck starts here\.<\/h1>/,
     );
-    const sentence =
-      "Keyboard-first deck building for Commander and the One Piece Card Game. Free, no account needed.";
+    const sentence = "Keyboard-first deck building for Commander and the One Piece Card Game.";
+    const second = "Free. No account needed.";
     expect(html).toContain(sentence);
-    expect(sentence.split(" ")).toHaveLength(15);
+    expect(html).toContain(`<span class="text-muted-foreground block">${second}</span>`);
+    expect(`${sentence} ${second}`.split(" ")).toHaveLength(15);
     // The intro's target (HOME-INTRO): the hero section carries its slot, and
     // the sentence is the <p> right after the h1 (globals.css keys `h1 + p`).
-    expect(html).toMatch(
-      /<section data-slot="home-hero" class="grid items-center gap-10 pt-16 pb-12[^"]*">/,
-    );
-    expect(html).toMatch(/<\/h1><p class="text-muted-foreground[^"]*">Keyboard-first/);
+    expect(html).toMatch(/<section data-slot="home-hero" class="home-band">/);
+    expect(html).toMatch(/<\/h1><p class="max-w-xl text-lg text-pretty">Keyboard-first/);
     expect(html.match(/data-slot="home-hero"/g)).toHaveLength(1);
-    const hero = html.slice(html.indexOf("<h1"), html.indexOf('data-slot="hero-fan"'));
+    // The band holds the words and the trio, nothing else: no link before the trio.
+    const band = html.slice(html.indexOf("<h1"), html.indexOf('data-slot="hero-fan"'));
+    expect(band).not.toContain("<a ");
+    // The doors row: the wide Build a deck (the `hero` size, full width, the
+    // arrow after the label) and Browse commanders, then a tile per game.
+    const doors = html.slice(
+      html.indexOf('aria-label="Start building"'),
+      html.indexOf('aria-label="Magic: The Gathering · Commander"'),
+    );
+    const build = doors.slice(0, doors.indexOf('aria-label="Choose your game"'));
     expect(
-      [...hero.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/g)].map((m) => [m[2], m[1]]),
+      [...build.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([^<]*)</g)].map((m) => [m[2], m[1]]),
     ).toEqual([
       ["Build a deck", "/decks/new"],
       ["Browse commanders", "/commanders"],
     ]);
+    expect(build).toMatch(/<a[^>]*class="[^"]*\bh-14\b[^"]*"[^>]*href="\/decks\/new"/);
+    const tiles = doors.slice(doors.indexOf('aria-label="Choose your game"'));
+    expect([...tiles.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual([
+      "/decks/new?game=mtg",
+      "/decks/new?game=optcg",
+    ]);
+    expect([...tiles.matchAll(/data-game="(\w+)"/g)].map((m) => m[1])).toEqual(["mtg", "optcg"]);
+    expect(tiles).toContain("Commander · 100 cards");
+    expect(tiles).toContain("Leader + 50 cards");
     expect(html).not.toContain("Open beta");
   });
 
@@ -256,7 +276,7 @@ describe("home (U5, home B)", () => {
     expect(fanAndShelf(await renderHome())).toEqual(today);
   });
 
-  it("zero uppercase section labels; serif section headings; the rail's ♥", async () => {
+  it("zero uppercase section labels; serif section headings (the gallery's on the fluid step); the rail's ♥", async () => {
     const html = await renderHome();
     const main = html.slice(html.indexOf('<main id="main"'), html.indexOf("</main>"));
     // The only uppercase left is One Piece's printed card ids (data, not labels).
@@ -267,7 +287,7 @@ describe("home (U5, home B)", () => {
     ]);
     const h2s = [...main.matchAll(/<h2 class="([^"]*)">([^<]*)<\/h2>/g)].map((m) => [m[2], m[1]]);
     expect(h2s).toEqual([
-      ["Magic: The Gathering", "type-section"],
+      ["Find your next commander.", "type-headline max-md:max-w-[11em] text-balance"],
       ["One Piece Card Game", "type-section"],
       ["Recent public decks", "type-section"],
       ["What Deckwarden does", "type-section"],

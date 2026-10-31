@@ -544,6 +544,23 @@
     letter-spacing: -0.02em;
     font-weight: 700;
   }
+  /* FRESH-UI-HOME (2026-10-30): two fluid steps for home's opening, the
+     owner's reference. Each is one rule like the rest, pinned in
+     tokens.test.ts as clamp(min, base + slope, max) with a ratio leading. */
+  .type-hero {
+    font-family: var(--font-display);
+    font-size: clamp(2.25rem, 1rem + 3vw, 3.5rem);
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    font-weight: 700;
+  }
+  .type-headline {
+    font-family: var(--font-display);
+    font-size: clamp(1.75rem, 1.25rem + 1.6vw, 2.5rem);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
   .type-title {
     font-family: var(--font-display);
     font-size: 1.875rem;
@@ -709,51 +726,143 @@
   }
 }
 
-/* Home's hero fan (U5, WAVE5 D6 section 1): three full `normal` cards at
-   --fan-h (180 px below md, so the turned side cards stay inside a 360 px
-   phone's gutters, and less on a narrower screen, where the fan's 1.88
-   card heights of width would otherwise scroll the page sideways; 280 from
-   md) in a box of explicit height, so nothing shifts when they land. The
-   center card (the first child, the most played) sits on top; the other
-   two step out by 0.62 of a card width, overlapping it by about a third,
-   and turn 8 degrees about their bottom edges. They also sit --fan-drop
-   lower, so the center card's bottom edge clears their artist and © lines
-   (D0: never covered; 0.13 is the least that clears them, measured with
-   elementFromPoint). Children, not `img`: a card with no image is
-   CardImage's named <span>. */
+/* Home's opening (FRESH-UI-HOME, 2026-10-30, the owner's chosen reference;
+   amends U5's fan, WAVE5.md D6 section 1): a full-bleed band with the
+   headline at the left and the day's three commanders standing upright at
+   the right on a green-lit stage; under it the doors row; then the gallery.
+
+   .home-band is the band: a cast of the primary green over the page's
+   background, deeper at the top, still greener than the page at its lower
+   edge (so the edge reads), edge to edge (the container sits inside it); it
+   clips its own glow, which overhangs the trio's grid by 12 % and would
+   otherwise widen the document where the container fills the viewport.
+   .home-band-inner is the container's grid: stacked below lg, 5 : 7 from it.
+   .home-fan is the trio (the name and the slot stay for HeroFan and its
+   tests): a three-column grid of upright `normal` cards whose boxes come
+   from `aspect-ratio`, so nothing shifts when they land; no rotation and no
+   drop, since an upright card covers nothing (D0: the artist and © lines
+   never covered). The stage glow is the grid's own ::before, a radial
+   gradient of the primary at --home-stage behind the cards, inside the
+   grid's stacking context (isolation), so it never paints over the text.
+   Children, not `img`: a card with no image is CardImage's named <span>.
+   .home-doors is the row under the band: the wide Build bar and Browse at
+   the left, the two game tiles at the right, the same 5 : 7 from lg.
+   .home-tile is a game's door: a field of its accent (data-game sets
+   --accent-game) over the card tone, one step brighter on hover; the lift
+   and the ring are the link's own utilities.
+   .home-gallery is the six-up grid both shelves share, three across below lg. */
 @layer components {
-  .home-fan {
-    --fan-h: min(180px, calc((100vw - 1rem) / 1.88));
-    --fan-w: calc(var(--fan-h) * 488 / 680);
-    --fan-step: calc(var(--fan-w) * 0.62);
-    --fan-drop: calc(var(--fan-h) * 0.14);
-    position: relative;
-    height: calc(var(--fan-h) * 1.05 + var(--fan-drop) + 2.5rem);
+  .home-band {
+    --home-cast: color-mix(in oklab, var(--primary) 10%, var(--background));
+    --home-cast-end: color-mix(in oklab, var(--primary) 5%, var(--background));
+    --home-stage: color-mix(in oklab, var(--primary) 38%, transparent);
+    overflow: hidden;
+    background: linear-gradient(180deg, var(--home-cast), var(--home-cast-end));
   }
-  @media (width >= 48rem) {
-    .home-fan {
-      --fan-h: 280px;
-    }
+  .dark .home-band {
+    --home-cast: color-mix(in oklab, var(--primary) 24%, var(--background));
+    --home-cast-end: color-mix(in oklab, var(--primary) 12%, var(--background));
+    --home-stage: color-mix(in oklab, var(--primary) 88%, transparent);
+  }
+  .home-band-inner {
+    display: grid;
+    align-items: center;
+    gap: 2rem;
+    padding-block: 2.5rem 2rem;
+  }
+  .home-fan {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
+    gap: clamp(0.5rem, 1.6vw, 1.25rem);
+    padding-block: 1rem;
+  }
+  .home-fan::before {
+    content: "";
+    position: absolute;
+    inset: -18% -12%;
+    z-index: -1;
+    border-radius: 50%;
+    background: radial-gradient(
+      closest-side,
+      var(--home-stage) 0%,
+      color-mix(in oklab, var(--home-stage) 45%, transparent) 55%,
+      transparent 100%
+    );
   }
   .home-fan > * {
-    position: absolute;
-    top: calc(1.25rem + var(--fan-drop));
-    left: calc(50% - var(--fan-w) / 2);
-    width: var(--fan-w);
-    height: var(--fan-h);
-    transform-origin: 50% 100%;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 488 / 680;
   }
-  .home-fan > :first-child {
-    top: 1.25rem;
-    z-index: 1;
+  .home-doors {
+    display: grid;
+    gap: 1.5rem 3rem;
+    padding-block: 2rem 0;
   }
-  .home-fan > :nth-child(2) {
-    translate: calc(-1 * var(--fan-step)) 0;
-    rotate: -8deg;
+  .home-doors-build {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
   }
-  .home-fan > :nth-child(3) {
-    translate: var(--fan-step) 0;
-    rotate: 8deg;
+  .home-doors-build > :first-child {
+    width: 100%;
+  }
+  .home-tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .home-tile {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 1.25rem;
+    min-height: 7rem;
+    padding: 1.25rem;
+    border-radius: 1rem;
+    background-color: color-mix(in oklab, var(--accent-game) 12%, var(--card));
+  }
+  .home-tile:hover {
+    background-color: color-mix(in oklab, var(--accent-game) 18%, var(--card));
+  }
+  .home-gallery {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem 0.75rem;
+  }
+  @media (width < 40rem) {
+    .home-tiles {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .home-tile {
+      min-height: 5.5rem;
+      gap: 0.75rem;
+      padding: 1rem 1.25rem;
+    }
+  }
+  @media (width >= 64rem) {
+    .home-band-inner,
+    .home-doors {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 3rem;
+    }
+    .home-band-inner {
+      padding-block: 4rem 3rem;
+    }
+    .home-gallery {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 1rem;
+    }
+  }
+  @media (width >= 80rem) {
+    .home-band-inner,
+    .home-doors {
+      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    }
   }
 }
 

@@ -99,7 +99,11 @@ export interface MagicShelfCard {
   name: string;
   href: string;
   ciMask: number;
-  /** The `small` rendition; null when the leader has no default printing. */
+  /**
+   * The `normal` rendition (488 × 680): the gallery shows these at up to about
+   * 200 px (FRESH-UI-HOME), where `small`'s 146 px would blur on a 2x screen;
+   * null when the leader has no default printing.
+   */
   image: string | null;
 }
 
@@ -111,9 +115,12 @@ export function magicShelf(rows: readonly MagicShelfRow[]): MagicShelfCard[] {
       name: row.name,
       href: `/c/${row.slug}`,
       ciMask: row.ciMask,
-      image: leaderTileImage(
-        row.printingId ? { id: row.printingId, imageOverride: row.imageOverride } : null,
-      ),
+      image: row.printingId
+        ? embeddablePrintingImageUrl(
+            { id: row.printingId, imageOverride: row.imageOverride },
+            "normal",
+          )
+        : null,
     }));
 }
 

@@ -26,7 +26,7 @@ import {
 } from "./shelves";
 
 describe("magicShelf", () => {
-  it("links each hub and takes the small rendition of the default printing", () => {
+  it("links each hub and takes the normal rendition of the default printing (the gallery size)", () => {
     const cards = magicShelf([
       {
         id: "a",
@@ -48,7 +48,7 @@ describe("magicShelf", () => {
     ]);
     expect(cards.map((c) => c.href)).toEqual(["/c/syr-konrad-the-grim", "/c/printless"]);
     expect(cards[0].image).toBe(
-      "https://cards.scryfall.io/small/front/5/b/5b40815d-0104-461e-b193-fcf5e1f35299.jpg",
+      "https://cards.scryfall.io/normal/front/5/b/5b40815d-0104-461e-b193-fcf5e1f35299.jpg",
     );
     expect(cards[1].image).toBeNull();
   });
@@ -121,7 +121,7 @@ describe("magicHome (U5; the daily rotation of 2026-10-17)", () => {
     }
   });
 
-  it("renditions: the fan `normal`, the shelf `small`, both from the default printing", () => {
+  it("renditions: the fan and the shelf both `normal` (the gallery shows the shelf at up to 200 px), from the default printing", () => {
     const { fan, shelf } = magicHome(corpus(POOL_SIZE), DAY);
     for (const card of fan) {
       const hex = rank(card.id).toString(16).padStart(2, "0");
@@ -133,7 +133,7 @@ describe("magicHome (U5; the daily rotation of 2026-10-17)", () => {
     }
     for (const card of shelf) {
       expect(card.href).toBe(`/c/commander-${rank(card.id)}`);
-      expect(card.image).toMatch(/^https:\/\/cards\.scryfall\.io\/small\/front\//);
+      expect(card.image).toMatch(/^https:\/\/cards\.scryfall\.io\/normal\/front\//);
     }
   });
 

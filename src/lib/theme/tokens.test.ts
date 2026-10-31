@@ -261,12 +261,36 @@ describe("theme tokens ↔ globals.css", () => {
   });
 
   // U8 (WAVE5.md D3): the type ladder, D3's table in px — each step's face,
-  // size, leading, tracking and weight set together by one class.
+  // size, leading, tracking and weight set together by one class. Two steps
+  // are fluid (FRESH-UI-HOME, 2026-10-30: home's headline and its gallery
+  // heading): their size is clamp(min, base + slope, max) and their leading
+  // a ratio of the size, still one rule each.
+  type Fluid = { min: number; base: number; vw: number; max: number };
   const LADDER: Record<
     string,
-    { face: "display" | "sans"; size: number; leading: number; tracking: string; weight: number }
+    {
+      face: "display" | "sans";
+      size: number | Fluid;
+      leading: number;
+      tracking: string;
+      weight: number;
+    }
   > = {
     "type-display": { face: "display", size: 48, leading: 50, tracking: "-0.02em", weight: 700 },
+    "type-hero": {
+      face: "display",
+      size: { min: 36, base: 16, vw: 3, max: 56 },
+      leading: 1.05,
+      tracking: "-0.025em",
+      weight: 700,
+    },
+    "type-headline": {
+      face: "display",
+      size: { min: 28, base: 20, vw: 1.6, max: 40 },
+      leading: 1.15,
+      tracking: "-0.02em",
+      weight: 600,
+    },
     "type-title": { face: "display", size: 30, leading: 36, tracking: "-0.015em", weight: 600 },
     "type-section": { face: "display", size: 18, leading: 26, tracking: "0", weight: 600 },
     "type-small": { face: "display", size: 14, leading: 20, tracking: "0.005em", weight: 600 },
@@ -281,6 +305,14 @@ describe("theme tokens ↔ globals.css", () => {
     "type-micro": { face: "sans", size: 10.4, leading: 16, tracking: "0.02em", weight: 500 },
   };
   const rem = (px: number) => `${px / 16}rem`;
+  /** A fixed step's size in rem; a fluid step's clamp, min and max in rem, the slope in vw. */
+  const fontSize = (size: number | Fluid) =>
+    typeof size === "number"
+      ? rem(size)
+      : `clamp(${rem(size.min)}, ${rem(size.base)} + ${size.vw}vw, ${rem(size.max)})`;
+  /** A fixed step's leading in rem; a fluid step's as the unitless ratio it is. */
+  const lineHeight = (step: { size: number | Fluid; leading: number }) =>
+    typeof step.size === "number" ? rem(step.leading) : String(step.leading);
 
   /** Declarations of `.name { … }` in the comment-stripped stylesheet. */
   function rule(name: string): Record<string, string> {
@@ -295,8 +327,8 @@ describe("theme tokens ↔ globals.css", () => {
     for (const [name, step] of Object.entries(LADDER)) {
       expect(rule(name), name).toEqual({
         "font-family": step.face === "display" ? "var(--font-display)" : "var(--font-sans)",
-        "font-size": rem(step.size),
-        "line-height": rem(step.leading),
+        "font-size": fontSize(step.size),
+        "line-height": lineHeight(step),
         "letter-spacing": step.tracking,
         "font-weight": String(step.weight),
         // The eyebrow is meta's uppercase form (D0: list groups only).

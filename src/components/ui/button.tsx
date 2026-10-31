@@ -59,6 +59,9 @@ const buttonVariants = cva(
       // (`rounded-md`), so steppers read as one family of squares; `sm`
       // labels are 13 px, a real step between 12 and 14.
       size: {
+        // FRESH-UI-HOME: home's one wide door, 56 px with a 16 px label and
+        // a 20 px arrow; already past 44 px, so no coarse-pointer rule.
+        hero: "h-14 gap-3 px-6 text-base has-data-[icon=inline-end]:pr-5 has-data-[icon=inline-start]:pl-5 [&_svg:not([class*='size-'])]:size-5",
         default:
           "h-8 gap-1.5 px-3 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
         xs: "h-6 gap-1 rounded-md px-2 text-xs motion-safe:active:scale-[0.96] has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3 pointer-coarse:min-h-11 pointer-coarse:min-w-11",

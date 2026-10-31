@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import { headers } from "next/headers";
 import Link from "next/link";
 
@@ -14,6 +15,7 @@ import { OptcgPostureLine } from "@/components/optcg-posture-line";
 import { Button } from "@/components/ui/button";
 import { GAME_ID } from "@/db/seed-data";
 import { getSessionUserId } from "@/lib/auth";
+import type { TileGame } from "@/lib/decks/tiles";
 import { magicHome, opShelf, POOL_SIZE, SHELF_SIZE, utcDayKey } from "@/lib/home/shelves";
 import { loadTopCommanders } from "@/lib/hub/queries";
 import { JsonLd, websiteJsonLd } from "@/lib/seo/jsonld";
@@ -23,34 +25,38 @@ import { cn } from "@/lib/utils";
 /**
  * The real landing page (P2.8 — beta launch package; widened to both games
  * in P4.6; the equal two-game homepage of REDESIGN.md §2 since R5a; home B,
- * the gallery, since U5 — WAVE5.md D6). Every claim below is a shipped
+ * the gallery, since U5 — WAVE5.md D6; the opening in the owner's chosen
+ * look since FRESH-UI-HOME, 2026-10-30). Every claim below is a shipped
  * feature, and there are no invented numbers or testimonials (cold-start
- * rule): the fan and the shelves are real leaders — Magic's most-played
+ * rule): the trio and the shelves are real leaders — Magic's most-played
  * commanders, One Piece's leaders with recent Top finishes — and the rail
  * is real public decks or an honest empty state.
  *
- * Order per D6, on the wide container with a gold hairline and 96 px
- * between sections instead of boxes: the split hero (the H1, the 15-word
- * sentence, Build a deck and Browse commanders; the fan of the day's three
- * commanders from the index's top 30, eager, the LCP from `md`) → the
- * Magic region (the shelf shows six more, never a fan card, so no image is
- * on the page twice) → the One Piece color field → Continue building (the
+ * Order: the band (full-bleed, its content in the wide container: the H1,
+ * the 15-word sentence, and the day's three commanders from the index's
+ * top 30 standing upright on the green stage, eager, the LCP from `lg`) →
+ * the doors row (the wide Build a deck and Browse commanders at the left,
+ * the two game tiles at the right, each the door to that game's draft) →
+ * "Find your next commander." (the Magic region: the six highest-ranked of
+ * the rest, never a trio card, so no image is on the page twice, then the
+ * region's button row) → the One Piece color field → Continue building (the
  * visitor's own decks: the account's, server-rendered, or the browser's
  * claim tokens, client-rendered; its wrapper hides while empty, so a guest
  * without decks gets no hairline and no words) → Recent public decks →
- * What Deckwarden does → the outro.
+ * What Deckwarden does → the outro. From the One Piece field on, D6's
+ * rhythm: a gold hairline with 48 px either side, never a box.
  *
  * Caching intent: force-dynamic since the rail landed (P2.3) — a deck
  * flipped private must vanish from the rail immediately. Query budget
  * (R5a, counted with DB_LOG on dev; U5 widened one LIMIT to 9, the daily
  * fan rotation of 2026-10-17 to 30): the rail (1, with the printing
  * joined), the Magic rows (1: the index's top 30, split in code into the
- * day's fan of three and the shelf's six — `magicHome`), the One Piece
+ * day's trio of three and the shelf's six — `magicHome`), the One Piece
  * shelf (1) — three statements for a guest, plus the guest's client POST
  * /api/decks/mine; a signed-in visitor adds Better Auth's session lookup
- * and one decks_owner read. The fan's day is the UTC date read once per
+ * and one decks_owner read. The trio's day is the UTC date read once per
  * request (`utcDayKey(new Date())`) and handed to the pure split: a
- * force-dynamic page renders per request, so the fan turns over at 00:00
+ * force-dynamic page renders per request, so the trio turns over at 00:00
  * UTC with no cache to wait out. Being force-dynamic is what lets this
  * PAGE read headers() for the session — the (site) layout never may (the
  * ISR routes).
@@ -65,6 +71,45 @@ export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 /** Home's rhythm (U5, D6): a gold hairline with 48 px either side, never a box. */
 const SECTION_CLASS = "border-gold/30 border-t py-12";
+/** The wide container every band's content sits in; the hero band itself runs edge to edge. */
+const CONTAINER_CLASS = "max-w-wide mx-auto w-full px-4";
+
+/**
+ * A game's door (FRESH-UI-HOME): a field of the game's accent (`data-game`
+ * sets --accent-game; the field itself is the `.home-tile` rule), the serif
+ * name, the format line and an arrow; the lift is DeckTile's. The
+ * reference drew landscape art and the games' marks on these; both are left
+ * out (invented art, marks outside the Fan Content Policy, One Piece
+ * decorative art off until Bandai answers).
+ */
+function GameTile({
+  game,
+  href,
+  name,
+  format,
+}: {
+  game: TileGame;
+  href: string;
+  name: string;
+  format: string;
+}) {
+  return (
+    <Link
+      href={href}
+      data-game={game}
+      className="home-tile group/tile focus-visible:ring-accent-game focus-visible:ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-safe:transition-[background-color,translate] motion-safe:hover:-translate-y-0.5"
+    >
+      <span className="flex items-start justify-between gap-3">
+        <span className="type-section">{name}</span>
+        <ArrowUpRightIcon
+          className="text-muted-foreground group-hover/tile:text-foreground size-5 shrink-0"
+          aria-hidden
+        />
+      </span>
+      <span className="type-label-sm text-muted-foreground">{format}</span>
+    </Link>
+  );
+}
 
 export default async function Home() {
   const [userId, topCommanders, finishLeaders] = await Promise.all([
@@ -75,39 +120,51 @@ export default async function Home() {
   const magic = magicHome(topCommanders, utcDayKey(new Date()));
 
   return (
-    <main id="main" className="max-w-wide mx-auto w-full flex-1 px-4">
+    <main id="main" className="w-full flex-1">
       <JsonLd data={websiteJsonLd()} />
 
       {/* data-slot="home-hero": the home intro's target (HOME-INTRO,
           2026-10-22): the root layout's pre-paint gate and globals.css's rule
           animate this section's h1 and the <p> right after it, once per tab,
-          and nothing else in it. */}
-      <section
-        data-slot="home-hero"
-        className={cn(
-          "grid items-center gap-10 pt-16 pb-12",
-          magic.fan.length > 0 && "xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]",
-        )}
-      >
-        <div className="flex flex-col items-start gap-5">
-          {/* The same line count in Literata and its metric-matched fallback,
-              so the font's arrival never reflows the hero (U5, measured on
-              prod at 390: a 50 px shift when the fan's preloads delayed the
-              font): the two disagree in boxes 352-382 px wide (3 lines
-              against 2, phones of 384-414 px) and 700-750 (2 against 1,
-              768-782), so phones get 7em (336 px, 3 lines in both), md
-              12em (2 lines), lg the whole column (1 line; xl's third holds
-              2 in both). */}
-          <h1 className="type-display max-w-[7em] text-balance md:max-w-[12em] lg:max-w-none">
-            Your next great deck starts here.
-          </h1>
-          <p className="text-muted-foreground max-w-xl text-lg text-pretty">
-            Keyboard-first deck building for Commander and the One Piece Card Game. Free, no account
-            needed.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button size="lg" nativeButton={false} render={<Link href="/decks/new" />}>
+          and nothing else in it. The band runs edge to edge (`.home-band`);
+          its content sits in the wide container. */}
+      <section data-slot="home-hero" className="home-band">
+        <div className={cn(CONTAINER_CLASS, "home-band-inner")}>
+          <div className="flex flex-col items-start gap-5">
+            {/* The same line count in Literata and its metric-matched fallback,
+                so the font's arrival never reflows the hero (U5, measured on
+                prod at 390: a 50 px shift when the trio's preloads delayed the
+                font). `.type-hero` is fluid (36 px at 390, 44 at 768, 56 from
+                1333), so the cap is per tier: 9em below md (two lines at 36 px
+                in both faces), 12em from md (two at 39 to 46), the column from
+                lg (two lines in the half, then in the 5/12 from xl). */}
+            <h1 className="type-hero max-w-[9em] text-balance md:max-w-[12em] lg:max-w-none">
+              Your next great deck starts here.
+            </h1>
+            <p className="max-w-xl text-lg text-pretty">
+              Keyboard-first deck building for Commander and the One Piece Card Game.{" "}
+              <span className="text-muted-foreground block">Free. No account needed.</span>
+            </p>
+          </div>
+          <HeroFan cards={magic.fan} />
+        </div>
+      </section>
+
+      <div className={CONTAINER_CLASS}>
+        {/* The doors row (FRESH-UI-HOME): the one wide door to the chooser
+            with Browse under it, and a tile per game straight into that
+            game's draft (the same hrefs as the regions' Build buttons below,
+            which stay where a visitor reading about a game expects them). */}
+        <section aria-label="Start building" className="home-doors">
+          <div className="home-doors-build">
+            <Button
+              size="hero"
+              className="justify-between"
+              nativeButton={false}
+              render={<Link href="/decks/new" />}
+            >
               Build a deck
+              <ArrowRightIcon data-icon="inline-end" aria-hidden />
             </Button>
             <Button
               size="lg"
@@ -116,67 +173,80 @@ export default async function Home() {
               render={<Link href="/commanders" />}
             >
               Browse commanders
+              <ArrowRightIcon data-icon="inline-end" aria-hidden />
             </Button>
           </div>
+          <nav aria-label="Choose your game" className="home-tiles">
+            <GameTile
+              game="mtg"
+              href="/decks/new?game=mtg"
+              name="Magic: The Gathering"
+              format="Commander · 100 cards"
+            />
+            <GameTile
+              game="optcg"
+              href="/decks/new?game=optcg"
+              name="One Piece Card Game"
+              format="Leader + 50 cards"
+            />
+          </nav>
+        </section>
+
+        <GameCard
+          className="py-12"
+          game="mtg"
+          label="Magic: The Gathering · Commander"
+          title="Magic: The Gathering"
+          headline="Find your next commander."
+          blurb="Commander. 100 cards, one legend, every legality rule checked as you build."
+          actions={{
+            build: "/decks/new?game=mtg",
+            browse: { href: "/commanders", label: "Browse commanders" },
+            search: { href: "/cards", label: "Search cards" },
+            // W9c: the Magic region's random-commander door (the contract
+            // names the Magic region only — OP's roll exists via the API and
+            // the same latch, just doorless until it earns one).
+            surprise: { href: "/decks/new?game=mtg&surprise=1", label: "Surprise me" },
+          }}
+        >
+          <MagicShelf cards={magic.shelf} />
+        </GameCard>
+        <GameCard
+          className={SECTION_CLASS}
+          field
+          game="optcg"
+          label="One Piece Card Game"
+          title="One Piece Card Game"
+          blurb="50-card leader decks validated against Bandai's banlist as you type."
+          actions={{
+            build: "/decks/new?game=optcg",
+            browse: { href: "/leaders", label: "Browse leaders" },
+            search: { href: "/cards?game=optcg", label: "Search cards" },
+          }}
+          footer={<OptcgPostureLine className="text-muted-foreground type-meta-multiline mt-6" />}
+        >
+          <OpShelf shelf={opShelf(finishLeaders)} />
+        </GameCard>
+
+        <div className={cn(SECTION_CLASS, "empty:hidden")}>
+          {userId ? <ContinueBuilding userId={userId} /> : <YourDecks />}
         </div>
-        <HeroFan cards={magic.fan} />
-      </section>
+        <div className={SECTION_CLASS}>
+          <RecentPublicDecks />
+        </div>
 
-      <GameCard
-        className={SECTION_CLASS}
-        game="mtg"
-        label="Magic: The Gathering · Commander"
-        title="Magic: The Gathering"
-        blurb="Commander. 100 cards, one legend, every legality rule checked as you build."
-        actions={{
-          build: "/decks/new?game=mtg",
-          browse: { href: "/commanders", label: "Browse commanders" },
-          search: { href: "/cards", label: "Search cards" },
-          // W9c: the Magic region's random-commander door (the contract
-          // names the Magic region only — OP's roll exists via the API and
-          // the same latch, just doorless until it earns one).
-          surprise: { href: "/decks/new?game=mtg&surprise=1", label: "Surprise me" },
-        }}
-      >
-        <MagicShelf cards={magic.shelf} />
-      </GameCard>
-      <GameCard
-        className={SECTION_CLASS}
-        field
-        game="optcg"
-        label="One Piece Card Game"
-        title="One Piece Card Game"
-        blurb="50-card leader decks validated against Bandai's banlist as you type."
-        actions={{
-          build: "/decks/new?game=optcg",
-          browse: { href: "/leaders", label: "Browse leaders" },
-          search: { href: "/cards?game=optcg", label: "Search cards" },
-        }}
-        footer={
-          <OptcgPostureLine className="text-muted-foreground mt-6 text-[11px] leading-snug" />
-        }
-      >
-        <OpShelf shelf={opShelf(finishLeaders)} />
-      </GameCard>
+        <CapabilitiesStrip className={SECTION_CLASS} />
 
-      <div className={cn(SECTION_CLASS, "empty:hidden")}>
-        {userId ? <ContinueBuilding userId={userId} /> : <YourDecks />}
-      </div>
-      <div className={SECTION_CLASS}>
-        <RecentPublicDecks />
-      </div>
-
-      <CapabilitiesStrip className={SECTION_CLASS} />
-
-      <div className={cn(SECTION_CLASS, "flex flex-col items-center gap-4 text-center")}>
-        <BrandMark className="size-8" />
-        <p className="font-display max-w-reading text-lg text-balance">
-          Decks built here follow you into an account whenever you{" "}
-          <Link href="/account" className="underline underline-offset-4">
-            sign in
-          </Link>
-          .
-        </p>
+        <div className={cn(SECTION_CLASS, "flex flex-col items-center gap-4 text-center")}>
+          <BrandMark className="size-8" />
+          <p className="font-display max-w-reading text-lg text-balance">
+            Decks built here follow you into an account whenever you{" "}
+            <Link href="/account" className="underline underline-offset-4">
+              sign in
+            </Link>
+            .
+          </p>
+        </div>
       </div>
     </main>
   );

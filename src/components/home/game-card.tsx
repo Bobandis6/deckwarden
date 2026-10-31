@@ -1,16 +1,23 @@
 /**
  * GameCard (R5a, REDESIGN.md §2 "Site shell and homepage", item 2; an open
- * region since U5, WAVE5 D6): one of home's two game regions — a labelled
- * section carrying `data-game` (so its buttons, links and shelf cards ring
- * in the game accent), the game's serif title and one-line pitch, the
- * Build / Browse / Search (and Magic's Surprise me) row, and the shelf of
- * real leaders the page hands it. The bordered `bg-card` box is gone: the
- * region sits on the page under home's gold hairline (Magic), or inside a
- * field of the game accent at 8 % (`field`, One Piece) with the words and
- * the buttons in a left quarter from `xl` and the shelf in the rest (D6
- * said thirds: there the six cards were 118 px and a leader's name
- * clipped; a quarter gives 134 px and keeps the blurb on two lines).
- * Server-renderable; the shelf components are too.
+ * region since U5, WAVE5 D6; the gallery form since FRESH-UI-HOME,
+ * 2026-10-30): one of home's two game regions — a labelled section carrying
+ * `data-game` (so its buttons, links and shelf cards ring in the game
+ * accent), a serif heading and one-line pitch, the Build / Browse / Search
+ * (and Magic's Surprise me) row, and the shelf of real leaders the page
+ * hands it. Three shapes:
+ * - the open region (U5): the `.type-section` title, the blurb, the button
+ *   row, then the shelf, on the page under home's gold hairline;
+ * - the gallery (`headline`; the owner's reference, where "Find your next
+ *   commander." leads the six commanders): the headline on
+ *   `.type-headline`, the blurb, the shelf, then the button row under it,
+ *   so the cards come right after the words that invite the visitor to them;
+ * - the field (`field`, One Piece): the accent at 8 % with the words and
+ *   the buttons in a left quarter from `xl` and the shelf in the rest (D6
+ *   said thirds: there the six cards were 118 px and a leader's name
+ *   clipped; a quarter gives 134 px and keeps the blurb on two lines).
+ * The bordered `bg-card` box is gone since U5. Server-renderable; the shelf
+ * components are too.
  */
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -63,6 +70,7 @@ export function GameCard({
   game,
   label,
   title,
+  headline,
   blurb,
   actions,
   children,
@@ -74,6 +82,12 @@ export function GameCard({
   /** The section's accessible name ("Magic: The Gathering · Commander"). */
   label: string;
   title: string;
+  /**
+   * The gallery form (FRESH-UI-HOME): this text leads the region on
+   * `.type-headline` and the shelf comes before the button row; `title`
+   * stays the region's name for the open region and the field.
+   */
+  headline?: string;
   blurb: string;
   actions: GameCardActions;
   children?: ReactNode;
@@ -83,6 +97,20 @@ export function GameCard({
   /** Home's rhythm (the hairline and the 96 px between sections). */
   className?: string;
 }) {
+  if (headline !== undefined) {
+    return (
+      <section aria-label={label} data-game={game} className={cn("min-w-0", className)}>
+        {/* Two lines below md in Literata and its fallback alike (the swap
+            must not reflow it): 11em at 28 px is 308 px, so both faces break
+            after "next" on a 360 or 390 px phone; one line from md. */}
+        <h2 className="type-headline max-md:max-w-[11em] text-balance">{headline}</h2>
+        <p className="text-muted-foreground max-w-reading mt-3">{blurb}</p>
+        {children && <div className="mt-8">{children}</div>}
+        <GameActions actions={actions} className="mt-8" />
+        {footer}
+      </section>
+    );
+  }
   const intro = (
     <>
       <h2 className="type-section">{title}</h2>

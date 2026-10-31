@@ -3,8 +3,9 @@
  * heading's words, the heading a serif h3 (`.type-small`, no uppercase
  * label: F4 keeps those for list groups), the one-clause note under it (Y1's
  * honesty for Magic; the source and its link for One Piece's tournament
- * ordering), three by two below `lg` and six in a row from it, each card one
- * link to its hub with a lazy, framed small image or the color gradient;
+ * ordering), three across below `lg` and six in a row from it (the
+ * `.home-gallery` grid), each card one link to its hub with a lazy, framed
+ * image (Magic's `normal`, One Piece's small WebP) or the color gradient;
  * the One Piece cold-start shelf has no heading and no popularity words.
  */
 import { render, screen, within } from "@testing-library/react";
@@ -13,8 +14,7 @@ import { describe, expect, it } from "vitest";
 import type { MagicShelfCard, OpShelf as OpShelfData } from "@/lib/home/shelves";
 import { MagicShelf, OpShelf } from "./leader-shelves";
 
-const GRID =
-  "mt-3 grid grid-cols-[repeat(3,minmax(0,9.5rem))] gap-3 lg:grid-cols-[repeat(6,minmax(0,9.5rem))]";
+const GRID = "home-gallery mt-4";
 
 const magic: MagicShelfCard[] = [
   {
@@ -22,7 +22,7 @@ const magic: MagicShelfCard[] = [
     name: "Braids, Arisen Nightmare",
     href: "/c/braids-arisen-nightmare",
     ciMask: 4,
-    image: "https://cards.scryfall.io/small/front/0/1/01aaaaaa-0000-4000-8000-000000000000.jpg",
+    image: "https://cards.scryfall.io/normal/front/0/1/01aaaaaa-0000-4000-8000-000000000000.jpg",
   },
   { id: "b", name: "Printless", href: "/c/printless", ciMask: 8, image: null },
 ];
@@ -48,7 +48,7 @@ describe("MagicShelf", () => {
     expect(
       within(region).getByText("Ranked by EDHREC decklist count via Scryfall, not games played.")
         .className,
-    ).toBe("text-muted-foreground mt-1 text-xs");
+    ).toBe("text-muted-foreground mt-1 text-sm");
     expect(region.querySelector("ul")?.className).toBe(GRID);
     expect(
       within(region)

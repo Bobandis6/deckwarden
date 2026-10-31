@@ -1,15 +1,16 @@
 /**
- * HeroFan (U5, WAVE5 D6 section 1): three full `normal` cards, all eager and
- * high priority (the turned side cards' boxes are larger than the center
- * card's, so a lazy side card became the LCP after hydration), named by the
- * card, never links, in array order — the first card is the center, on
- * top, which is why `magicHome` lists the day's highest-ranked first (the
- * daily rotation of 2026-10-17); a card without an image is CardImage's
+ * HeroFan (U5, WAVE5 D6 section 1; upright since FRESH-UI-HOME): three full
+ * `normal` cards, all eager and high priority (they paint together, and at
+ * 1440 one of them is the LCP element), named by the card, never links, in
+ * array order — the first card is the day's highest-ranked, which is why
+ * `magicHome` lists it first (the daily rotation of 2026-10-17); a card
+ * without an image is CardImage's
  * named box; no cards, no fan. The geometry lives in globals.css's
- * `.home-fan` rule, pinned here
- * where a regression would hide: children rather than `img` (the fallback
- * is a <span>), an explicit box height, the side cards' drop that keeps
- * the center card off their artist and © lines, and the 180 / 280 px sizes.
+ * `.home-fan` rule, pinned here where a regression would hide: since
+ * FRESH-UI-HOME (2026-10-30) an upright three-column grid whose boxes come
+ * from `aspect-ratio` (so nothing shifts when the images land), children
+ * rather than `img` (the fallback is a <span>), the glow behind the cards,
+ * and no rotation or drop (an upright card covers no artist or © line).
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -33,7 +34,7 @@ const FAN = [
 ];
 
 describe("HeroFan", () => {
-  it("renders the three cards in array order (the first is the center), every one eager, high priority and unfaded", () => {
+  it("renders the three cards in array order (the first is the day's highest-ranked), every one eager, high priority and unfaded", () => {
     const { container } = render(<HeroFan cards={FAN} />);
     const fan = container.querySelector("[data-slot=hero-fan]") as HTMLElement;
     expect(fan.className).toBe("home-fan");
@@ -75,26 +76,25 @@ describe("HeroFan", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("globals.css lays the fan out by child, in a box of explicit height, the side cards dropped", () => {
+  it("globals.css stands the three cards upright in a grid whose boxes come from aspect-ratio, the glow behind them", () => {
     const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
     const rules = css.slice(css.indexOf(".home-fan {"));
+    // A three-column grid (the trio), isolated so its own glow sits behind the cards.
     expect(rules).toMatch(
-      /\.home-fan \{[^}]*--fan-h: min\(180px, calc\(\(100vw - 1rem\) \/ 1\.88\)\);/,
+      /\.home-fan \{[^}]*isolation: isolate;[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/,
     );
-    expect(rules).toMatch(/--fan-drop: calc\(var\(--fan-h\) \* 0\.14\);/);
     expect(rules).toMatch(
-      /height: calc\(var\(--fan-h\) \* 1\.05 \+ var\(--fan-drop\) \+ 2\.5rem\);/,
+      /\.home-fan::before \{[^}]*z-index: -1;[^}]*radial-gradient\(\s*closest-side,\s*var\(--home-stage\) 0%,[^}]*transparent 100%/,
     );
-    expect(rules).toMatch(/@media \(width >= 48rem\) \{\s*\.home-fan \{\s*--fan-h: 280px;/);
-    // Children, never `img` alone: the no-image fallback is a <span>.
-    expect(rules).toContain(".home-fan > * {");
+    // Children, never `img` alone: the no-image fallback is a <span>. Their
+    // box is the card's ratio at the column's width, so nothing shifts when
+    // the images land (U5's explicit height, by construction now).
+    expect(rules).toMatch(
+      /\.home-fan > \* \{\s*width: 100%;\s*height: auto;\s*aspect-ratio: 488 \/ 680;/,
+    );
     expect(rules).not.toMatch(/\.home-fan > img/);
-    expect(rules).toMatch(/\.home-fan > :first-child \{\s*top: 1\.25rem;\s*z-index: 1;/);
-    expect(rules).toMatch(
-      /\.home-fan > :nth-child\(2\) \{\s*translate: calc\(-1 \* var\(--fan-step\)\) 0;\s*rotate: -8deg;/,
-    );
-    expect(rules).toMatch(
-      /\.home-fan > :nth-child\(3\) \{\s*translate: var\(--fan-step\) 0;\s*rotate: 8deg;/,
-    );
+    // Upright: no rotation, no drop, no fan step (D0's artist and © rule holds by construction).
+    const block = rules.slice(0, rules.indexOf("/* The home intro"));
+    expect(block).not.toMatch(/rotate:|--fan-drop|--fan-step/);
   });
 });
