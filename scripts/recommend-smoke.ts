@@ -594,7 +594,7 @@ async function main() {
           tEvidence.every(
             (e) =>
               e.howOften !== null &&
-              /\d[\d,]* of \d[\d,]* top-16 lists at 16\+ player events on Topdeck\.gg/.test(
+              /\d[\d,]* of \d[\d,]* top-16 lists at competitive 16\+ player events on Topdeck\.gg/.test(
                 e.howOften,
               ),
           ),

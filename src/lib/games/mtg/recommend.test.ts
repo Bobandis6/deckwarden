@@ -100,7 +100,7 @@ describe("evidence phrasing (sources named, honesty scoped)", () => {
     });
     expect(why).toBe("Played in 62% of competitive top-16 lists with Kinnan, Bonder Prodigy");
     expect(howOften).toBe(
-      "58 of 94 top-16 lists at 16+ player events on Topdeck.gg, settled events since 2026-03; 17 placed top 4",
+      "58 of 94 top-16 lists at competitive 16+ player events on Topdeck.gg, settled events since 2026-03; 17 placed top 4",
     );
 
     // partner pairs name both commanders; no top-4s and no date stay silent
@@ -113,7 +113,9 @@ describe("evidence phrasing (sources named, honesty scoped)", () => {
       since: null,
     });
     expect(pair.why).toContain("Kraum, Ludevic's Opus + Tymna the Weaver");
-    expect(pair.howOften).toBe("1 of 2 top-16 lists at 16+ player events on Topdeck.gg");
+    expect(pair.howOften).toBe(
+      "1 of 2 top-16 lists at competitive 16+ player events on Topdeck.gg",
+    );
   });
 
   it("credits Topdeck.gg with a link — the hard attribution rule", () => {
@@ -188,7 +190,7 @@ describe("cut phrasing (P3.4 — the tradeoff in the deck's own terms)", () => {
     expect(zero.side).toBe("cut");
     expect(zero.why).toBe("Played in 0 of 94 competitive top-16 lists with Kinnan, Bonder Prodigy");
     expect(zero.howOften).toBe(
-      "0 of 94 top-16 lists at 16+ player events on Topdeck.gg, settled events since 2026-03",
+      "0 of 94 top-16 lists at competitive 16+ player events on Topdeck.gg, settled events since 2026-03",
     );
 
     // Thin play stays a cut argument; top4 is DISCLOSED in howOften, never ranked on.
@@ -208,7 +210,7 @@ describe("cut phrasing (P3.4 — the tradeoff in the deck's own terms)", () => {
       "Played in 62% of competitive top-16 lists with Kinnan, Bonder Prodigy. Cutting it gives up a measured staple",
     );
     expect(staple.howOften).toBe(
-      "58 of 94 top-16 lists at 16+ player events on Topdeck.gg, settled events since 2026-03; 17 placed top 4",
+      "58 of 94 top-16 lists at competitive 16+ player events on Topdeck.gg, settled events since 2026-03; 17 placed top 4",
     );
 
     // Percentage honesty (the P3.10 shareLabel rule): 187 of 188 is 99%,

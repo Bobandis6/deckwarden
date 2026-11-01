@@ -286,8 +286,9 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           <p className="text-muted-foreground type-meta-multiline mt-2">
             The {metaLens.rows.length} most-played cards in {metaLens.totalLists} settled top-
             {TOP_PLACEMENT} lists running {leader.name}
-            {metaLens.setCount > 1 ? " (any pairing)" : ""} at {MIN_EVENT_PLAYERS}+ player events
-            since {sinceLabel(metaLens.since)}, ranked by lists played. Top-4 counts shown for
+            {metaLens.setCount > 1 ? " (any pairing)" : ""} at competitive {MIN_EVENT_PLAYERS}+
+            player events since {sinceLabel(metaLens.since)}, ranked by lists played. Competitive
+            means most lists at the event hold four or more Game Changers. Top-4 counts shown for
             context. Results from{" "}
             <a
               href={tournamentsMeta.sourceHref}

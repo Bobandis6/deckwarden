@@ -12,6 +12,11 @@
  * the same input is a no-op. Settledness (start_date strictly older than the
  * trailing re-fetch window) is the CALLER's filter; this module trusts the
  * lists it is given and gates only on the marker.
+ *
+ * Which events' lists count is src/lib/games/mtg/topdeck-competitive.ts (LATER
+ * row 296): toAggregateInput applies it for both callers, so they can't drift.
+ * An event that doesn't count is still marked, with nothing added. Rebuilding
+ * (row 36) replaces both tables from a raw window: rebuildAggregate.
  */
 import type postgres from "postgres";
 
@@ -23,6 +28,10 @@ import {
   type ListCardMaps,
 } from "../../src/lib/tournaments/aggregate";
 import { buildLeaderResolver, type StandingListCards } from "../../src/lib/games/mtg/topdeck-map";
+import {
+  GAME_CHANGERS_FLOOR,
+  isCompetitiveEvent,
+} from "../../src/lib/games/mtg/topdeck-competitive";
 import { GAME_ID } from "../../src/db/seed-data";
 
 /**
@@ -109,12 +118,48 @@ export async function loadLeaderResolver(sql: postgres.Sql) {
   );
 }
 
+/**
+ * Wizards' Game Changers as Scryfall flags them, read before anything is
+ * counted. Throws under the floor (a failed feed): the run goes red and its
+ * watermark stays, so the window still covers these events the next night. A
+ * run that succeeded without counting them could lose an event for good.
+ */
+export async function loadGameChangers(sql: postgres.Sql): Promise<Set<string>> {
+  const rows = await sql<{ id: string }[]>`
+    SELECT id::text AS id FROM card_identities
+    WHERE game_id = ${GAME_ID.mtg} AND NOT is_removed AND attrs @> '{"game_changer": true}'`;
+  if (rows.length < GAME_CHANGERS_FLOOR) {
+    throw new Error(
+      `only ${rows.length} Game Changers flagged (floor ${GAME_CHANGERS_FLOOR}): not counting events against a failed feed`,
+    );
+  }
+  return new Set(rows.map((r) => r.id));
+}
+
 /** One mapped tournament's aggregate-relevant slice, as either script collects it. */
 export interface AggregateInput {
   external_key: string;
   /** ISO start date — the caller has already filtered to SETTLED events. */
   start_date: string;
+  /** The lists that count: empty when the event isn't competitive (row 296). */
   lists: StandingListCards[];
+  /** Readable lists left out because the event isn't competitive. */
+  lists_not_competitive: number;
+}
+
+/** A mapped event as the aggregate takes it, with the competitive rule applied. */
+export function toAggregateInput(
+  tournament: { external_key: string; start_date: string },
+  lists: StandingListCards[],
+  gameChangers: ReadonlySet<string>,
+): AggregateInput {
+  const counts = isCompetitiveEvent(lists, gameChangers);
+  return {
+    external_key: tournament.external_key,
+    start_date: tournament.start_date,
+    lists: counts ? lists : [],
+    lists_not_competitive: counts ? 0 : lists.length,
+  };
 }
 
 export interface AggregateOutcome {
@@ -123,6 +168,9 @@ export interface AggregateOutcome {
   /** Events in the input that don't exist in the tournaments table (counted, skipped). */
   tournaments_missing: number;
   card_lists_aggregated: number;
+  /** Of the marked events, those whose lists didn't count (row 296), and their lists. */
+  tournaments_not_competitive: number;
+  lists_not_competitive: number;
   pair_rows_upserted: number;
   commander_rows_upserted: number;
 }
@@ -143,6 +191,8 @@ export async function aggregateSettledTournaments(
     tournaments_aggregated: 0,
     tournaments_missing: 0,
     card_lists_aggregated: 0,
+    tournaments_not_competitive: 0,
+    lists_not_competitive: 0,
     pair_rows_upserted: 0,
     commander_rows_upserted: 0,
   };
@@ -174,6 +224,10 @@ export async function aggregateSettledTournaments(
     const t = byKey.get(row.external_key)!;
     for (const list of t.lists) {
       datedLists.push({ ...list, startDate: t.start_date });
+    }
+    if (t.lists_not_competitive > 0) {
+      outcome.tournaments_not_competitive++;
+      outcome.lists_not_competitive += t.lists_not_competitive;
     }
   }
   const { pairs, commanders } = rollUpLists(datedLists);
@@ -210,4 +264,76 @@ export async function aggregateSettledTournaments(
   outcome.pair_rows_upserted = pairs.length;
   outcome.commander_rows_upserted = commanders.length;
   return outcome;
+}
+
+/**
+ * A rebuild has to count at least this many lists (settled, competitive). A
+ * wrong or nearly empty directory stops here, before any write, and can't
+ * replace the aggregate with almost nothing: 180 days held about 18,000.
+ */
+export const REBUILD_MIN_LISTS = 5000;
+
+/**
+ * Replace both tables with exactly the given events' lists (rows 36 and 296).
+ * Rows are staged in temp tables first, so the tables are locked only while
+ * TRUNCATE and two INSERT ... SELECTs commit, and readers wait rather than see
+ * an empty aggregate. TRUNCATE hands the old rows' disk back at once. Events
+ * outside the input keep their markers, so the nightly never counts them again:
+ * they have left the aggregate for good. Requires a one-connection client, for
+ * the temp tables.
+ */
+export async function rebuildAggregate(
+  sql: postgres.Sql,
+  input: readonly AggregateInput[],
+): Promise<AggregateOutcome> {
+  const byKey = new Map(input.map((t) => [t.external_key, t]));
+  const keys = [...byKey.keys()];
+  const known = await sql<{ id: number; external_key: string }[]>`
+    SELECT id, external_key FROM tournaments
+    WHERE source = 'topdeck' AND external_key = ANY(${keys})`;
+
+  const datedLists: DatedList[] = [];
+  let tournamentsNotCompetitive = 0;
+  let listsNotCompetitive = 0;
+  for (const row of known) {
+    const t = byKey.get(row.external_key)!;
+    for (const list of t.lists) datedLists.push({ ...list, startDate: t.start_date });
+    if (t.lists_not_competitive > 0) {
+      tournamentsNotCompetitive++;
+      listsNotCompetitive += t.lists_not_competitive;
+    }
+  }
+  if (datedLists.length < REBUILD_MIN_LISTS) {
+    throw new Error(
+      `a rebuild over ${datedLists.length} lists is under the ${REBUILD_MIN_LISTS} floor: nothing written`,
+    );
+  }
+  const { pairs, commanders } = rollUpLists(datedLists);
+
+  await sql`CREATE TEMP TABLE stage_pair (LIKE commander_card_stats)`;
+  await sql`CREATE TEMP TABLE stage_commander (LIKE commander_stats)`;
+  for (let i = 0; i < pairs.length; i += BATCH) {
+    await sql`INSERT INTO stage_pair ${sql(pairs.slice(i, i + BATCH))}`;
+  }
+  for (let i = 0; i < commanders.length; i += BATCH) {
+    await sql`INSERT INTO stage_commander ${sql(commanders.slice(i, i + BATCH))}`;
+  }
+  await sql.begin(async (tx) => {
+    await tx`TRUNCATE commander_card_stats, commander_stats`;
+    await tx`INSERT INTO commander_card_stats SELECT * FROM stage_pair`;
+    await tx`INSERT INTO commander_stats SELECT * FROM stage_commander`;
+    await tx`
+      UPDATE tournaments SET cards_aggregated_at = now()
+      WHERE id = ANY(${known.map((r) => r.id)})`;
+  });
+
+  return {
+    tournaments_aggregated: known.length,
+    tournaments_missing: keys.length - known.length,
+    card_lists_aggregated: datedLists.length,
+    tournaments_not_competitive: tournamentsNotCompetitive,
+    lists_not_competitive: listsNotCompetitive,
+    pair_rows_upserted: pairs.length,
+    commander_rows_upserted: commanders.length,
+  };
 }

@@ -895,7 +895,9 @@ export const tournaments = pgTable(
      * (P3.8) — the aggregate-EXACTLY-ONCE marker. Set only once the event is
      * SETTLED (start_date older than the ingest's 14-day trailing re-fetch,
      * so the nightly window never re-fetches it); NULL = not yet aggregated.
-     * Standings that change after aggregation are accepted drift.
+     * Marked with nothing added when the event isn't competitive, and left
+     * marked when a rebuild's window drops it. Standings that change after
+     * aggregation are accepted drift.
      */
     cardsAggregatedAt: timestamp("cards_aggregated_at", { withTimezone: true }),
   },
@@ -962,10 +964,11 @@ export const tournamentStandings = pgTable(
  * (23B header + 1–2-uuid array 24–40B + uuid + 2×int4 + 2×date) + ~60B PK
  * btree ≈ 150B all-in → the corpus' ~170k pairs ≈ 26MB. One-list commanders
  * (386 of 990 sets) are kept — their single list is real data that reads
- * low-confidence, not noise to floor away. The aggregate is all-time (NOT
- * time-windowed, though the ingest window is): growth ≈ 26MB per 180 days ≈
- * 50MB/year; pruning = rebuild from the R2 raw archive (LATER row with a
- * size trigger).
+ * low-confidence, not noise to floor away. Only competitive events count
+ * (src/lib/games/mtg/topdeck-competitive.ts, LATER row 296). The aggregate
+ * only grows between rebuilds (the workflow "Rebuild tournament aggregate",
+ * which keeps a fresh 180 days; LATER row 36): about 50MB/year before that
+ * rule.
  */
 export const commanderCardStats = pgTable(
   "commander_card_stats",

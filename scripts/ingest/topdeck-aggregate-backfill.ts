@@ -4,19 +4,20 @@
  * files the ingest writes to .topdeck-raw/ and the nightly Action uploads to
  * R2. Usage:
  *
- *   pnpm tsx scripts/ingest/topdeck-aggregate-backfill.ts [raw-dir]
+ *   pnpm tsx scripts/ingest/topdeck-aggregate-backfill.ts [raw-dir] [--rebuild]
  *
- * (default raw-dir: .topdeck-raw). The initial 180-day backfill's raw files
- * (2026-03-05 → 2026-09-01, 18 chunks) exist only on the owner's machine —
- * ingest_runs row 26 ran locally; R2 holds nightly windows from 2026-09-02 —
- * so the first build runs there. A future rebuild (the LATER pruning row)
- * downloads the R2 archive into a directory and points this script at it.
+ * (default raw-dir: .topdeck-raw). Without --rebuild it adds only events not
+ * yet counted. With it (LATER rows 36 and 296) both tables are REPLACED by the
+ * directory's settled competitive events, so the directory's window becomes
+ * the aggregate's window: the workflow "Rebuild tournament aggregate" fills
+ * the directory with a fresh 180 days from Topdeck, then runs this.
  *
  * Same roll-up code path as the nightly increment (topdeck-aggregate.ts +
  * the pure src/lib/tournaments/aggregate.ts), same exactly-once gate: only
  * SETTLED events (start_date older than TRAILING_REFETCH_DAYS) with
  * cards_aggregated_at IS NULL are counted, so running this after nightly
- * increments have begun — or twice — double counts nothing.
+ * increments have begun — or twice — double counts nothing. A rebuild starts
+ * both tables empty, so it counts every settled event in the directory.
  *
  * Events in the archive re-mapped as kept but absent from the tournaments
  * table are counted (tournaments_missing) and skipped, never inserted: this
@@ -46,8 +47,11 @@ import { rollUpLists, settledCutoffIso, type DatedList } from "../../src/lib/tou
 import {
   aggregateSettledTournaments,
   listCardResolver,
+  loadGameChangers,
   loadLeaderResolver,
   loadListCardMaps,
+  rebuildAggregate,
+  toAggregateInput,
   TRAILING_REFETCH_DAYS,
   type AggregateInput,
 } from "./topdeck-aggregate";
@@ -62,7 +66,9 @@ function directUrl(): string {
 }
 
 async function main() {
-  const rawDir = process.argv[2] ?? ".topdeck-raw";
+  const args = process.argv.slice(2);
+  const rebuild = args.includes("--rebuild");
+  const rawDir = args.find((a) => !a.startsWith("--")) ?? ".topdeck-raw";
   const files = readdirSync(rawDir)
     .filter((f) => f.endsWith(".json.gz"))
     .sort();
@@ -90,10 +96,12 @@ async function main() {
     // skipped, healing history the trailing window can't reach.
     const leader = await loadLeaderResolver(sql);
     const resolveListCard = listCardResolver(await loadListCardMaps(sql));
-    console.log(`maps loaded: ${leader.size} leader names`);
+    const gameChangers = await loadGameChangers(sql);
+    console.log(`maps loaded: ${leader.size} leader names, ${gameChangers.size} Game Changers`);
 
     const stats = {
       files: files.length,
+      rebuild,
       tournaments_seen: 0,
       tournaments_kept: 0,
       tournament_skips: {} as Partial<Record<TournamentSkip, number>>,
@@ -102,8 +110,8 @@ async function main() {
       standing_skips: {} as Partial<Record<StandingSkip, number>>,
       list_cards_seen: 0,
       list_cards_unresolved: 0,
-      // Whole-archive roll-up counts (reconciliation against the corpus
-      // measurement) — the settled aggregation below writes a subset.
+      // Whole-archive roll-up counts over the lists that count (reconciliation
+      // against the corpus measurement) — the settled aggregation writes a subset.
       archive_pairs: 0,
       archive_commander_sets: 0,
       settled_cutoff: settledCutoffIso(started, TRAILING_REFETCH_DAYS),
@@ -137,12 +145,9 @@ async function main() {
           const key = reason as StandingSkip;
           stats.standing_skips[key] = (stats.standing_skips[key] ?? 0) + count;
         }
-        inputs.set(mapped.tournament.external_key, {
-          external_key: mapped.tournament.external_key,
-          start_date: mapped.tournament.start_date,
-          lists: mapped.lists,
-        });
-        for (const list of mapped.lists) {
+        const input = toAggregateInput(mapped.tournament, mapped.lists, gameChangers);
+        inputs.set(mapped.tournament.external_key, input);
+        for (const list of input.lists) {
           allLists.push({ ...list, startDate: mapped.tournament.start_date });
         }
       }
@@ -155,7 +160,9 @@ async function main() {
 
     const settled = [...inputs.values()].filter((t) => t.start_date < stats.settled_cutoff);
     stats.tournaments_settled = settled.length;
-    const outcome = await aggregateSettledTournaments(sql, settled);
+    const outcome = rebuild
+      ? await rebuildAggregate(sql, settled)
+      : await aggregateSettledTournaments(sql, settled);
     stats.aggregate = outcome;
     stats.duration_ms = Date.now() - started;
 

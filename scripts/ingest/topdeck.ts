@@ -57,8 +57,10 @@ import { settledCutoffIso } from "../../src/lib/tournaments/aggregate";
 import {
   aggregateSettledTournaments,
   listCardResolver,
+  loadGameChangers,
   loadLeaderResolver,
   loadListCardMaps,
+  toAggregateInput,
   TRAILING_REFETCH_DAYS,
   type AggregateInput,
   type AggregateOutcome,
@@ -125,6 +127,9 @@ interface Stats {
    */
   tournaments_aggregated: number;
   card_lists_aggregated: number;
+  /** Of those events, the ones whose lists didn't count (row 296), and their lists. */
+  tournaments_not_competitive: number;
+  lists_not_competitive: number;
   list_cards_seen: number;
   list_cards_unresolved: number;
   aggregate_rows: Pick<
@@ -279,6 +284,8 @@ async function main() {
       standings_merged: { inserted: 0, updated: 0, stale_deleted: 0 },
       tournaments_aggregated: 0,
       card_lists_aggregated: 0,
+      tournaments_not_competitive: 0,
+      lists_not_competitive: 0,
       list_cards_seen: 0,
       list_cards_unresolved: 0,
       aggregate_rows: { pair_rows_upserted: 0, commander_rows_upserted: 0, tournaments_missing: 0 },
@@ -298,6 +305,8 @@ async function main() {
     // Full-identity resolver maps for mainboard cards (P3.8 aggregate) —
     // oracle id → exact name → face name, unresolved counted, never trgm.
     const resolveListCard = listCardResolver(await loadListCardMaps(sql));
+    // Before any request: a failed feed stops the run here (row 296).
+    const gameChangers = await loadGameChangers(sql);
 
     mkdirSync(RAW_DIR, { recursive: true });
 
@@ -355,11 +364,7 @@ async function main() {
         }
         tournamentRows.push(mapped.tournament);
         standingRows.push(...mapped.standings);
-        aggregateInputs.push({
-          external_key: mapped.tournament.external_key,
-          start_date: mapped.tournament.start_date,
-          lists: mapped.lists,
-        });
+        aggregateInputs.push(toAggregateInput(mapped.tournament, mapped.lists, gameChangers));
       }
       console.log(
         `…chunk ${i}: ${tournaments.length} events (${stats.tournaments_kept} kept so far)`,
@@ -438,6 +443,8 @@ async function main() {
     const outcome = await aggregateSettledTournaments(sql, settled);
     stats.tournaments_aggregated = outcome.tournaments_aggregated;
     stats.card_lists_aggregated = outcome.card_lists_aggregated;
+    stats.tournaments_not_competitive = outcome.tournaments_not_competitive;
+    stats.lists_not_competitive = outcome.lists_not_competitive;
     stats.aggregate_rows = {
       pair_rows_upserted: outcome.pair_rows_upserted,
       commander_rows_upserted: outcome.commander_rows_upserted,
@@ -445,7 +452,8 @@ async function main() {
     };
     console.log(
       `aggregated ${outcome.tournaments_aggregated} settled events (cutoff ${cutoff}): ` +
-        `${outcome.card_lists_aggregated} lists → ${outcome.pair_rows_upserted} pair upserts`,
+        `${outcome.card_lists_aggregated} lists → ${outcome.pair_rows_upserted} pair upserts; ` +
+        `${outcome.tournaments_not_competitive} events not competitive (${outcome.lists_not_competitive} lists left out)`,
     );
 
     const [{ size }] = await sql<{ size: string }[]>`

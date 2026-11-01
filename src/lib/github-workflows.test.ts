@@ -39,15 +39,20 @@ function topLevelPermissions(text: string): string[] | null {
 }
 
 describe("the workflows (SECURITY-AUDIT-report.md L18)", () => {
-  it("are the three files the package covers", () => {
-    expect(files).toEqual(["ci.yml", "nightly-ingest.yml", "restore-drill.yml"]);
+  it("are the files the package covers, plus the tournament rebuild (LATER row 36)", () => {
+    expect(files).toEqual([
+      "ci.yml",
+      "nightly-ingest.yml",
+      "restore-drill.yml",
+      "topdeck-rebuild.yml",
+    ]);
   });
 
   it.each(files)("%s pins every action to a commit SHA with its version in a comment", (file) => {
     for (const line of usesLines(read(file))) expect(line).toMatch(PINNED);
   });
 
-  it.each(["ci.yml", "nightly-ingest.yml"])(
+  it.each(["ci.yml", "nightly-ingest.yml", "topdeck-rebuild.yml"])(
     "%s runs the three setup actions, each pinned",
     (file) => {
       const uses = usesLines(read(file));
@@ -76,6 +81,14 @@ describe("the workflows (SECURITY-AUDIT-report.md L18)", () => {
 
   it("the restore drill reads only", () => {
     expect(topLevelPermissions(read("restore-drill.yml"))).toEqual(["contents: read"]);
+  });
+
+  it("the tournament rebuild reads only, runs on request alone, and can't overlap the nightly", () => {
+    const text = read("topdeck-rebuild.yml");
+    expect(topLevelPermissions(text)).toEqual(["contents: read"]);
+    expect(text).toMatch(/^on:\n  workflow_dispatch:\n/m);
+    expect(text).not.toMatch(/^\s*schedule:/m);
+    expect(text).toMatch(/^concurrency:\n  group: nightly-ingest\n/m);
   });
 });
 

@@ -66,7 +66,7 @@ function topdeckHowOften(
 ): string {
   const sinceText = since ? `, settled events since ${since.slice(0, 7)}` : "";
   const top4Text = top4 > 0 ? `; ${fmt(top4)} placed top 4` : "";
-  return `${fmt(lists)} of ${fmt(ofLists)} top-16 lists at 16+ player events on Topdeck.gg${sinceText}${top4Text}`;
+  return `${fmt(lists)} of ${fmt(ofLists)} top-16 lists at competitive 16+ player events on Topdeck.gg${sinceText}${top4Text}`;
 }
 
 /**
@@ -178,8 +178,8 @@ export const mtgRecommend: RecommendMeta = {
   /**
    * The commander×card tournament aggregate (P3.8): settled Topdeck.gg
    * top-16 lists with the deck's EXACT commander set. Every sentence names
-   * the real scope — top-16 lists, 16+ player events, the 14-day settling
-   * lag — and the raw numbers ride in howOften so a 1-of-2 never reads like
+   * the real scope — top-16 lists, competitive 16+ player events (the rule is
+   * ./topdeck-competitive.ts), the 14-day settling lag — and the raw numbers ride in howOften so a 1-of-2 never reads like
    * a 58-of-94 (confidence is the machine's, from the sample size).
    */
   tournaments: {
