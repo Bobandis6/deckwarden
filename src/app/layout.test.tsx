@@ -12,6 +12,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { cardEntranceScript } from "@/lib/home/card-entrance";
 import { introScript } from "@/lib/home/intro-gate";
 
 import nextConfig from "../../next.config";
@@ -53,7 +54,7 @@ describe("RootLayout", () => {
     const first = doc.body.firstElementChild!;
     expect(first.tagName).toBe("SCRIPT");
     expect(first.getAttribute("src")).toBeNull();
-    expect(first.textContent).toBe(introScript());
+    expect(first.textContent).toBe(`${introScript()};${cardEntranceScript()}`);
     expect(first.nextElementSibling?.textContent).toBe("Skip to content");
     const focusables = doc.body.querySelectorAll("a[href], button, input, select, textarea");
     expect(focusables[0].textContent).toBe("Skip to content");

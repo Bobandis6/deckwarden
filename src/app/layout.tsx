@@ -4,6 +4,7 @@ import "./globals.css";
 
 import { SkipLink } from "@/components/skip-link";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { cardEntranceScript } from "@/lib/home/card-entrance";
 import { introScript } from "@/lib/home/intro-gate";
 import { siteOrigin } from "@/lib/seo/site";
 import { dark } from "@/lib/theme/tokens";
@@ -91,7 +92,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             next-themes' class) and removes it when the hero's two animations
             have ended. A <script> is not focusable: Skip to content stays the
             first focusable. */}
-        <script dangerouslySetInnerHTML={{ __html: introScript() }} />
+        {/* The card gate shares this pre-paint boundary but owns its own tab
+            marker and image readiness. It consumes sessions on every route,
+            and cancels on navigation, removal, reduced motion or failure. */}
+        <script dangerouslySetInnerHTML={{ __html: `${introScript()};${cardEntranceScript()}` }} />
         {/* Skip to content (U8): the first focusable on every page, editor
             routes included; it targets the page's <main id="main">. */}
         <SkipLink />
