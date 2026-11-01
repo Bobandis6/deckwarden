@@ -7,9 +7,9 @@
 export const CARD_SESSION_KEY = "deckwarden:hero-session";
 export const CARD_ENTRANCE_ATTRIBUTE = "data-card-entrance";
 export const CARD_READY_MS = 1500;
-/** 62.5% of the original playback speed; motion, stagger and fade scale together. */
-export const CARD_DURATION_MS = 960;
-export const CARD_STAGGER_MS = 80;
+/** 43.75% of the original speed: halfway between 62.5% and 25%, totaling 1.6 s. */
+export const CARD_DURATION_MS = 600 / 0.4375;
+export const CARD_STAGGER_MS = 50 / 0.4375;
 
 export interface CardEntranceInput {
   pathname: string;
@@ -165,7 +165,7 @@ export function cardEntranceGate(
                 fill: "both",
               }),
               img.animate([{ opacity: 0 }, { opacity: 1 }], {
-                duration: 192,
+                duration: duration / 5,
                 delay: index * stagger,
                 easing: "linear",
                 fill: "both",
