@@ -1,5 +1,5 @@
 /**
- * One entrance per tab, eligible only if its first document is Home.
+ * Entrance on a fresh tab starting on Home, or a browser refresh of Home.
  * Runs from the root layout during parsing, independently of React mounts.
  * The default HTML/CSS is the existing static trio. Only this pre-paint gate
  * can hide it, and both a deadline and CSS fail-open restore that default.
@@ -18,14 +18,13 @@ export interface CardEntranceInput {
   navigationType?: string;
 }
 
-/** Any existing marker consumes the session; changing versions must not replay it. */
+/** A refresh explicitly replays; existing markers still block navigation returns. */
 export function cardEntranceEligible(input: CardEntranceInput): boolean {
   return (
     input.pathname === "/" &&
-    input.stored === null &&
     !input.reducedMotion &&
-    input.navigationType !== "reload" &&
-    input.navigationType !== "back_forward"
+    input.navigationType !== "back_forward" &&
+    (input.navigationType === "reload" || input.stored === null)
   );
 }
 

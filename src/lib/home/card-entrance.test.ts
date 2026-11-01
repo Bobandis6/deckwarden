@@ -10,7 +10,7 @@ import {
 
 describe("card entrance session policy", () => {
   const fresh = { pathname: "/", stored: null, reducedMotion: false, navigationType: "navigate" };
-  it("allows only a fresh Home document, including query/hash variants via pathname", () => {
+  it("allows only a fresh Home navigation, including query/hash variants via pathname", () => {
     expect(cardEntranceEligible(fresh)).toBe(true);
     for (const input of [
       { pathname: "/commanders" },
@@ -18,10 +18,19 @@ describe("card entrance session policy", () => {
       { stored: "old-version" },
       { stored: "" },
       { reducedMotion: true },
-      { navigationType: "reload" },
       { navigationType: "back_forward" },
     ])
       expect(cardEntranceEligible({ ...fresh, ...input })).toBe(false);
+  });
+
+  it("allows Home refreshes with any session marker while respecting reduced motion", () => {
+    for (const stored of [null, "1", "old-version", ""]) {
+      const reload = { ...fresh, stored, navigationType: "reload" };
+      expect(cardEntranceEligible(reload)).toBe(true);
+      expect(cardEntranceEligible({ ...reload, pathname: "/commanders" })).toBe(false);
+      expect(cardEntranceEligible({ ...reload, reducedMotion: true })).toBe(false);
+      expect(cardEntranceEligible({ ...reload, navigationType: "back_forward" })).toBe(false);
+    }
   });
 });
 
@@ -149,7 +158,7 @@ describe("serialized pre-paint card gate", () => {
     expect(state()).toBeNull();
   });
 
-  it("also consumes a reduced-motion session before a later preference change/reload", () => {
+  it("also consumes a reduced-motion session before a later preference change", () => {
     reduced = true;
     run();
     expect(state()).toBeNull();
@@ -159,13 +168,46 @@ describe("serialized pre-paint card gate", () => {
     expect(state()).toBeNull();
   });
 
-  it.each(["reload", "back_forward"])("never plays a %s document even without a marker", (type) => {
+  it("never plays a back/forward document even without a marker", () => {
     vi.mocked(performance.getEntriesByType).mockReturnValue([
-      { type },
+      { type: "back_forward" },
     ] as unknown as PerformanceEntry[]);
     run();
     expect(state()).toBeNull();
     expect(store.get(KEY)).toBe("1");
+  });
+
+  it("replays a refreshed Home after decode despite the marker, but remounting cannot restart it", async () => {
+    store.set(KEY, "1");
+    vi.mocked(performance.getEntriesByType).mockReturnValue([
+      { type: "reload" },
+    ] as unknown as PerformanceEntry[]);
+    run();
+    expect(state()).toBe("pending");
+    expect(animate).not.toHaveBeenCalled();
+    resolveDecode();
+    await flush();
+    expect(state()).toBe("playing");
+    expect(animate).toHaveBeenCalledTimes(6);
+    animations.forEach((animation) => animation.resolve());
+    await flush();
+    expect(state()).toBeNull();
+    document.body.innerHTML = markup();
+    observer([], {} as MutationObserver);
+    expect(state()).toBeNull();
+    expect(animate).toHaveBeenCalledTimes(6);
+    expect(store.get(KEY)).toBe("1");
+  });
+
+  it("keeps a refreshed Home static under reduced motion", () => {
+    store.set(KEY, "1");
+    reduced = true;
+    vi.mocked(performance.getEntriesByType).mockReturnValue([
+      { type: "reload" },
+    ] as unknown as PerformanceEntry[]);
+    run();
+    expect(state()).toBeNull();
+    expect(animate).not.toHaveBeenCalled();
   });
 
   it.each(["getItem", "setItem"])(
