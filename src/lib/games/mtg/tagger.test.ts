@@ -117,6 +117,9 @@ describe("parseTaggerOverrides", () => {
     expect(o.flags.mld.enabled && o.flags.extra_turn.enabled).toBe(true);
     expect(Object.keys(o.flags.mld.clear)).toHaveLength(42);
     expect(Object.keys(o.flags.mld.edge)).toHaveLength(69);
+    expect(Object.values(o.flags.mld.disabledCards).map((n) => n.split(" — ")[0])).toEqual([
+      "Dovin Baan Emblem",
+    ]);
     // Y3b: extra_turn means a turn for you — the three cards that give it to
     // an opponent are disabled (Spellbook's combo flag leaves those out too).
     expect(Object.values(o.flags.extra_turn.disabledCards).map((n) => n.split(" — ")[0])).toEqual([
@@ -124,7 +127,7 @@ describe("parseTaggerOverrides", () => {
       "Eon Frolicker",
       "Perch Protection",
     ]);
-    expect(overrideOracleIds(o)).toHaveLength(114);
+    expect(overrideOracleIds(o)).toHaveLength(115);
     // Wizards' five examples read clear; the prompt's named edges read edge.
     const clearNames = Object.values(o.flags.mld.clear);
     for (const name of ["Armageddon", "Ruination", "Sunder", "Winter Orb", "Blood Moon"]) {
@@ -215,6 +218,29 @@ describe("the oracle_tags index", () => {
 });
 
 describe("resolveTagger", () => {
+  it("the real file: Dovin Baan's emblem never carries land denial, and he still asks", () => {
+    const EMBLEM = "885c2943-8f47-4faa-9953-4ea045ab7eea";
+    const DOVIN = "5b33bfbf-e4e1-43de-9c96-ccdc2916510a";
+    const real = parseTaggerOverrides(
+      JSON.parse(readFileSync(path.join(process.cwd(), "data/mtg/tagger-overrides.json"), "utf8")),
+    );
+    const res = resolveTagger(
+      inputs({
+        overrides: real,
+        index: bulk(line(MLD_TAG, [EMBLEM, DOVIN]), line(TURN_TAG, [TIME_WARP])),
+      }),
+    );
+    expect(res.cards.has(EMBLEM)).toBe(false);
+    expect(res.cards.get(DOVIN)).toEqual({ mld: "edge" });
+    const stored = { mld: new Set([EMBLEM, DOVIN]), extra_turn: new Set<string>() };
+    expect(taggerCounts(res, real, stored, new Set([EMBLEM, DOVIN])).mld).toMatchObject({
+      flagged: 1,
+      edge: 1,
+      unreviewed: 0,
+      removed: 1,
+    });
+  });
+
   it("fresh: splits land denial by the file (unreviewed → edge) and drops disabled cards", () => {
     const res = resolveTagger(inputs());
     expect(res.status).toEqual({ mld: "fresh", extra_turn: "fresh" });

@@ -1,7 +1,8 @@
 /**
  * HeroFan (U5, WAVE5 D6 section 1; upright since FRESH-UI-HOME): three full
- * `normal` cards, all eager and high priority (they paint together, and at
- * 1440 one of them is the LCP element), named by the card, never links, in
+ * `normal` cards, all eager and high priority (they paint together; since
+ * 5d27146 the stage art behind them is the LCP element, LATER row 249),
+ * named by the card, never links, in
  * array order — the first card is the day's highest-ranked, which is why
  * `magicHome` lists it first (the daily rotation of 2026-10-17); a card
  * without an image is CardImage's

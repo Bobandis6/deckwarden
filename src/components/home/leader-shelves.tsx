@@ -22,7 +22,7 @@
  * 195 px wide in the wide container (FRESH-UI-HOME; 150 before), their
  * names on up to two 14 px lines with a two-line floor so rows align.
  * Images are lazy: both shelves sit below the fold at every width, under
- * the hero trio's eager cards (the LCP from `lg`; the H1 on a phone).
+ * the hero trio's eager cards.
  */
 import Link from "next/link";
 import type { ReactNode } from "react";

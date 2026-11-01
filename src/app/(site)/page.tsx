@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
  * Order: the band (full-bleed, its content in the wide container: the H1,
  * the 15-word sentence, and the day's three commanders from the index's
  * top 30 standing upright on the stage, green on dark, the daylight table on
- * light; eager, the LCP from `lg`) →
+ * light; the cards eager, the stage art the LCP element, LATER row 249) →
  * the doors row (the wide Build a deck and Browse commanders at the left,
  * the two game tiles at the right, each the door to that game's draft) →
  * "Find your next commander." (the Magic region: the six highest-ranked of
@@ -95,7 +95,7 @@ const TILE_ART: Record<TileGame, { src: string; width: number; height: number; f
  * painting is the same (only the scrim's reach differs: on light it stays
  * around the words); the lift is DeckTile's. The art is a plain `<img>`
  * of a static file (no optimizer transformation, CLAUDE.md), eager but at
- * low fetch priority so it never competes with the trio for the LCP, and
+ * low fetch priority so it never competes with the trio, and
  * decorative (empty alt): the link's words are its name.
  */
 function GameTile({
