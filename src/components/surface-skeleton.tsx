@@ -1,7 +1,10 @@
 /**
- * SurfaceSkeleton (R6, C9): the instant loading shell behind the four
- * surface pages' `loading.tsx` — the commander hub (/c/), the leader hub
- * (/l/), the card page (/cards/[id]) and the deck share page (/d/). A
+ * SurfaceSkeleton (R6, C9): the instant loading shell behind the surface
+ * pages' `loading.tsx` — the card page (/cards/[id]) and the deck share
+ * page (/d/); the commander hub (/c/) and the leader hub (/l/) had one
+ * until VIEW-TRANSITIONS (2026-11-03, LATER row 395), when a route-level
+ * fallback proved to be what kept the grid tile from morphing into the
+ * hero (the `hub` kind stays for the day a hub shell returns). A
  * `loading.tsx` is a segment-level Suspense fallback: on a client
  * navigation it paints at once while the RSC payload loads; on a dynamic
  * render (/d/) it streams first and the content follows in a later chunk;

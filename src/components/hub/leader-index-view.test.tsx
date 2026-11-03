@@ -18,6 +18,12 @@ import { EAGER_CARDS, LeaderIndexView, type IndexLeader } from "./leader-index-v
 /** The app router (VIEW-TRANSITIONS): the grid asks it for a hub's full payload on intent. */
 const router = vi.hoisted(() => ({ prefetch: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
+/** The Link's status (VIEW-TRANSITIONS, LATER row 395): the tile dims while its hub is on the way. */
+const link = vi.hoisted(() => ({ pending: false }));
+vi.mock("next/link", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/link")>()),
+  useLinkStatus: () => ({ pending: link.pending }),
+}));
 
 const IMAGE = "https://cards.scryfall.io/small/front/5/b/5b40815d-0104-461e-b193-fcf5e1f35299.jpg";
 
@@ -43,6 +49,7 @@ const LEADERS: IndexLeader[] = [
 afterEach(() => {
   window.localStorage.clear();
   router.prefetch.mockClear();
+  link.pending = false;
 });
 
 describe("LeaderIndexView", () => {
@@ -107,6 +114,17 @@ describe("LeaderIndexView", () => {
     router.prefetch.mockClear();
     fireEvent.mouseEnter(screen.getByRole("link", { name: /Syr Konrad/ }));
     expect(router.prefetch).not.toHaveBeenCalled();
+  });
+
+  it("a tile whose hub is on the way carries data-pending; at rest it does not (LATER row 395)", () => {
+    const { unmount } = render(<LeaderIndexView leaders={LEADERS} />);
+    const body = () =>
+      screen.getByRole("link", { name: /Syr Konrad/ }).querySelector('[data-slot="tile-body"]');
+    expect(body()?.hasAttribute("data-pending")).toBe(false);
+    unmount();
+    link.pending = true;
+    render(<LeaderIndexView leaders={LEADERS} />);
+    expect(body()?.getAttribute("data-pending")).toBe("true");
   });
 
   it("List swaps in the compact list with the same hrefs, persists, and Grid comes back", () => {

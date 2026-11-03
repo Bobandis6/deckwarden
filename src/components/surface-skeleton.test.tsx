@@ -1,19 +1,22 @@
 /**
- * SurfaceSkeleton (R6, C9): the four loading shells render the real band at
+ * SurfaceSkeleton (R6, C9): the loading shells render the real band at
  * the surface's own height (SURFACE_BAND — the same string the page
  * reads), a hero box at the hub card's aspect where the page has one, title
  * bars, and NO text; every skeleton pulses motion-safe only. U6: the deck
  * shell is the share page's header B on DECK_HEADER, the classes the share
- * view reads.
+ * view reads. VIEW-TRANSITIONS (2026-11-03, LATER row 395): the two hub
+ * routes have no `loading.tsx` any more (a route-level fallback committed
+ * before the hub on every navigation and broke the card morph's pair), so
+ * the `hub` kind is rendered here directly, kept for the day a hub shell
+ * returns.
  */
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import CardLoading from "@/app/(site)/cards/[id]/loading";
-import HubLoading from "@/app/(site)/c/[slug]/loading";
 import DeckLoading from "@/app/(site)/d/[publicId]/loading";
-import LeaderLoading from "@/app/(site)/l/[slug]/loading";
 import { DECK_HEADER, SURFACE_BAND } from "@/components/surface-header";
+import { SurfaceSkeleton } from "@/components/surface-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const band = () => document.querySelector<HTMLElement>("[data-slot=surface-header]")!;
@@ -27,8 +30,8 @@ describe("SurfaceSkeleton", () => {
     expect(el.className.split(" ")).not.toContain("animate-pulse");
   });
 
-  it("/c/ renders the hub band, the hero box and no text under the Magic accent", () => {
-    render(<HubLoading />);
+  it("the hub kind renders the hub band, the hero box and no text under the Magic accent", () => {
+    render(<SurfaceSkeleton kind="hub" game="mtg" />);
     expect(main().dataset.kind).toBe("hub");
     expect(main().dataset.game).toBe("mtg");
     expect(main().className).toContain("max-w-browse");
@@ -46,8 +49,8 @@ describe("SurfaceSkeleton", () => {
     expect(main().getAttribute("aria-busy")).toBe("true");
   });
 
-  it("/l/ is the hub shell under the One Piece accent", () => {
-    render(<LeaderLoading />);
+  it("the hub kind under the One Piece accent", () => {
+    render(<SurfaceSkeleton kind="hub" game="optcg" />);
     expect(main().dataset.kind).toBe("hub");
     expect(main().dataset.game).toBe("optcg");
     expect(document.querySelector("[data-slot=skeleton-hero]")).toBeTruthy();

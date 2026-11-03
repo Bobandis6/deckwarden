@@ -32,9 +32,9 @@
  * a server-made element placed beside the toggle trips React's key check
  * across the RSC boundary (seen in dev, P4.9).
  */
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { useRouter } from "next/navigation";
-import { ViewTransition } from "react";
+import { ViewTransition, type ReactNode } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { ColorChipList } from "@/components/color-chip";
@@ -89,6 +89,30 @@ export const EAGER_CARDS = 6;
  */
 type PrefetchOptions = NonNullable<Parameters<ReturnType<typeof useRouter>["prefetch"]>[1]>;
 const FULL_PREFETCH: PrefetchOptions = { kind: "full" as PrefetchOptions["kind"] };
+
+/**
+ * The tile while its hub is on the way (VIEW-TRANSITIONS, LATER row 395's
+ * experiment a): the hubs have no `loading.tsx` any more, so a click whose
+ * hub is not yet cached waits on the grid instead of swapping to a
+ * skeleton. This is the answer to that click: after 150 ms of waiting the
+ * tile settles to 60 % over settle-250, and a prefetched hub (at once) or a
+ * fast one (under 150 ms) never shows it. `useLinkStatus` reads the Link
+ * above; opacity only, `motion-safe:` like every transition, and the dim
+ * sits outside the card's ViewTransition boundary so the morph's old
+ * snapshot is the card itself.
+ */
+function TileBody({ children }: { children: ReactNode }) {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      data-slot="tile-body"
+      data-pending={pending || undefined}
+      className="block motion-safe:[transition:opacity_250ms_var(--ease-settle-250)_150ms] data-pending:opacity-60"
+    >
+      {children}
+    </span>
+  );
+}
 
 function ListRow({ game, leader }: { game: IndexGame; leader: IndexLeader }) {
   if (game === "optcg") {
@@ -184,23 +208,25 @@ export function LeaderIndexView({
                 onTouchStart={warmHub(`${hub}${leader.slug}`)}
                 className="focus-visible:ring-accent-game block rounded-[4.75%/3.5%] outline-none focus-visible:ring-2"
               >
-                {/* The card persists into its hub (VIEW-TRANSITIONS, 2026-11-02):
-                    the hub hero carries the same name, so the navigation moves
-                    this one card instead of swapping two pages (globals.css,
-                    the .morph pseudo-elements). Nothing else animates. */}
-                <ViewTransition name={`hub-card-${leader.slug}`} share="morph" default="none">
-                  <CardImage
-                    src={leader.image}
-                    alt=""
-                    width={TILE_IMAGE.width}
-                    height={TILE_IMAGE.height}
-                    priority={i < EAGER_CARDS}
-                    frame
-                    className="h-auto w-full"
-                    fallback={leader.name}
-                  />
-                </ViewTransition>
-                <GridCaption game={game} leader={leader} />
+                <TileBody>
+                  {/* The card persists into its hub (VIEW-TRANSITIONS, 2026-11-02):
+                      the hub hero carries the same name, so the navigation moves
+                      this one card instead of swapping two pages (globals.css,
+                      the .morph pseudo-elements). Nothing else animates. */}
+                  <ViewTransition name={`hub-card-${leader.slug}`} share="morph" default="none">
+                    <CardImage
+                      src={leader.image}
+                      alt=""
+                      width={TILE_IMAGE.width}
+                      height={TILE_IMAGE.height}
+                      priority={i < EAGER_CARDS}
+                      frame
+                      className="h-auto w-full"
+                      fallback={leader.name}
+                    />
+                  </ViewTransition>
+                  <GridCaption game={game} leader={leader} />
+                </TileBody>
               </Link>
             </li>
           ))}
