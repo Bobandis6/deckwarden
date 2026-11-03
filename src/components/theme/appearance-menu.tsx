@@ -22,9 +22,17 @@
  * page. HEADER-SEARCH: the same items now sit in the site header's phone
  * Menu, and the header hides this trigger below `md` (`className`), giving
  * its 44 px to the search button.
+ *
+ * VIEW-TRANSITIONS (2026-11-02): a theme pick reveals from the item that
+ * chose it (lib/theme/theme-reveal.ts): the item's centre is read in the
+ * capture phase of the pointer and click events, before Base UI selects
+ * the radio, and handed to the reveal with the flip. A pick that changes
+ * nothing on screen (System while the system already matches) flips
+ * plainly.
  */
 import { ImageIcon, MonitorIcon, MoonIcon, SunIcon, SunMoonIcon } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useRef, type SyntheticEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +45,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { saveAppearance, useAppearance } from "@/lib/theme/appearance";
+import { revealThemeChange, type RevealOrigin } from "@/lib/theme/theme-reveal";
 
 const OPTIONS = [
   { value: "dark", label: "Dark", Icon: MoonIcon },
@@ -46,13 +55,31 @@ const OPTIONS = [
 
 /** The menu's items: the theme radio group and the Background art switch (inside any open menu). */
 export function AppearanceItems() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme, systemTheme } = useTheme();
   const appearance = useAppearance();
+  // The radio item the reader pressed, read before Base UI selects it. A
+  // keyboard pick arrives as the item's own click(), so it is covered too.
+  const originRef = useRef<RevealOrigin | null>(null);
+  const rememberOrigin = (event: SyntheticEvent) => {
+    const item = (event.target as Element).closest('[role="menuitemradio"]');
+    if (!item) return;
+    const rect = item.getBoundingClientRect();
+    originRef.current = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  };
+  const pickTheme = (value: string) => {
+    const next = value === "system" ? systemTheme : value;
+    const visible = resolvedTheme === undefined || next !== resolvedTheme;
+    revealThemeChange(() => setTheme(value), visible ? originRef.current : null);
+    originRef.current = null;
+  };
   return (
     <>
       <DropdownMenuRadioGroup
         value={theme ?? "dark"}
-        onValueChange={(value) => setTheme(String(value))}
+        onValueChange={(value) => pickTheme(String(value))}
+        onPointerDownCapture={rememberOrigin}
+        onPointerUpCapture={rememberOrigin}
+        onClickCapture={rememberOrigin}
       >
         {OPTIONS.map(({ value, label, Icon }) => (
           <DropdownMenuRadioItem key={value} value={value} closeOnClick>

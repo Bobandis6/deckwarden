@@ -10,10 +10,14 @@
  */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { INDEX_VIEW_KEY } from "@/lib/hub/index-view";
 import { EAGER_CARDS, LeaderIndexView, type IndexLeader } from "./leader-index-view";
+
+/** The app router (VIEW-TRANSITIONS): the grid asks it for a hub's full payload on intent. */
+const router = vi.hoisted(() => ({ prefetch: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 const IMAGE = "https://cards.scryfall.io/small/front/5/b/5b40815d-0104-461e-b193-fcf5e1f35299.jpg";
 
@@ -38,6 +42,7 @@ const LEADERS: IndexLeader[] = [
 
 afterEach(() => {
   window.localStorage.clear();
+  router.prefetch.mockClear();
 });
 
 describe("LeaderIndexView", () => {
@@ -86,6 +91,22 @@ describe("LeaderIndexView", () => {
       expect(img.getAttribute("loading")).toBe(eager ? "eager" : "lazy");
       expect(img.getAttribute("fetchpriority")).toBe(eager ? "high" : null);
     });
+  });
+
+  it("asks the router for the hub whole on hover, focus and touch (VIEW-TRANSITIONS), so the card morph can pair", () => {
+    render(<LeaderIndexView leaders={LEADERS} />);
+    const link = screen.getByRole("link", { name: /Syr Konrad/ });
+    fireEvent.mouseEnter(link);
+    expect(router.prefetch).toHaveBeenCalledWith("/c/syr-konrad-the-grim", { kind: "full" });
+    router.prefetch.mockClear();
+    fireEvent.focus(link);
+    fireEvent.touchStart(link);
+    expect(router.prefetch).toHaveBeenCalledTimes(2);
+    // The list view has no card to morph, so it asks for nothing.
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
+    router.prefetch.mockClear();
+    fireEvent.mouseEnter(screen.getByRole("link", { name: /Syr Konrad/ }));
+    expect(router.prefetch).not.toHaveBeenCalled();
   });
 
   it("List swaps in the compact list with the same hrefs, persists, and Grid comes back", () => {

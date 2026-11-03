@@ -356,25 +356,44 @@ describe("theme tokens ↔ globals.css", () => {
     expect(hits).toEqual(["src/components/site-header.tsx"]);
   });
 
-  it("the theme change eases body's background 250 ms on settle-250, motion-safe, only after hydration (U8)", () => {
+  it("view transitions: the root never cross-fades, the card morph and the theme reveal run 400 ms on settle-400, reduced motion ends both at once (VIEW-TRANSITIONS)", () => {
     const base = code.slice(code.indexOf("@layer base {"));
     const baseBlock = base.slice(0, base.indexOf("\n}\n"));
-    const media =
-      baseBlock.match(
-        /@media \(prefers-reduced-motion: no-preference\)\s*\{([\s\S]*?)\n  \}/,
-      )?.[1] ?? "";
-    // Gated by the attribute ThemeProvider sets after hydration (first paint never animates).
-    expect(media).toMatch(/\[data-theme-ready\] body\s*\{/);
-    // Layered !important: outranks next-themes' unlayered `transition: none !important`.
-    // The background only: an eased color is inherited, so every element
-    // would restyle on every frame (measured, REDESIGN "U8 decisions").
-    expect(media).toContain("transition-property: background-color !important;");
-    expect(media).toContain("transition-duration: 250ms !important;");
-    expect(media).toContain("transition-timing-function: var(--ease-settle-250) !important;");
-    // Never in the reduced-motion block (its exception lists no html or body).
+    // The page swaps at once under the moving card: no cross-fade of the whole
+    // document (no entry fades on page-like surfaces), and normal blending,
+    // because the UA's plus-lighter is tuned for a fade and would brighten
+    // two opaque snapshots.
+    expect(baseBlock).toMatch(
+      /::view-transition-old\(root\),\s*::view-transition-new\(root\)\s*\{\s*animation: none;\s*mix-blend-mode: normal;\s*\}/,
+    );
+    // The morph (React's share="morph" on the grid tile and the hub hero): a
+    // one-off moment on the 400 slot, group and both images alike.
+    expect(baseBlock).toMatch(
+      /::view-transition-group\(\.morph\),\s*::view-transition-old\(\.morph\),\s*::view-transition-new\(\.morph\)\s*\{\s*animation-duration: 400ms;\s*animation-timing-function: var\(--ease-settle-400\);\s*\}/,
+    );
+    // The theme reveal: only while the Appearance menu flags <html>, so a
+    // navigation's transition is never clipped; the old page stays still.
+    expect(baseBlock).toMatch(
+      /html\[data-theme-reveal\]::view-transition-new\(root\)\s*\{\s*animation: dw-theme-reveal 400ms var\(--ease-settle-400\) both;\s*\}/,
+    );
+    const keyframes = code.match(/@keyframes dw-theme-reveal\s*\{([\s\S]*?)\n  \}/)?.[1] ?? "";
+    expect(keyframes).toMatch(
+      /from\s*\{\s*clip-path: circle\(0 at var\(--reveal-x\) var\(--reveal-y\)\);\s*\}/,
+    );
+    expect(keyframes).toMatch(
+      /to\s*\{\s*clip-path: circle\(var\(--reveal-r\) at var\(--reveal-x\) var\(--reveal-y\)\);\s*\}/,
+    );
+    // A clip only: no filter, no opacity, no transform in the sweep.
+    expect(keyframes).not.toMatch(/filter|opacity|transform/);
+    // U8's eased body background and its hydration gate are gone.
+    expect(code).not.toMatch(/data-theme-ready|\[data-theme-ready\] body/);
+    // Reduced motion ends every view transition at once, naming no html or body.
     const reduce =
       code.match(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n  \}/)?.[1] ?? "";
-    expect(reduce).not.toMatch(/data-theme-ready|\bbody\b|\bhtml\b/);
+    expect(reduce).toMatch(
+      /::view-transition-group\(\*\),\s*::view-transition-image-pair\(\*\),\s*::view-transition-old\(\*\),\s*::view-transition-new\(\*\)\s*\{\s*animation: none !important;\s*\}/,
+    );
+    expect(reduce).not.toMatch(/\bbody\b|\bhtml\b/);
   });
 
   it("the skip link's landing on main draws no page-sized ring (U8)", () => {

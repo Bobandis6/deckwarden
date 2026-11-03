@@ -33,6 +33,7 @@ import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ViewTransition } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { chipsForMask, ColorChip } from "@/components/color-chip";
@@ -143,15 +144,20 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
       <SurfaceHeader art={art} className="mt-4" />
       <div className="flex flex-col gap-6 md:flex-row md:gap-8">
         <div className="relative -mt-24 shrink-0 md:-mt-28">
-          <CardImage
-            src={imageUrl}
-            alt={leader.name}
-            width={488}
-            height={680}
-            priority
-            className={`w-72 rounded-2xl ${HERO_CARD_SHADOW}`}
-            fallback="Card image coming soon"
-          />
+          {/* The tile on /leaders morphs into this card and back
+              (VIEW-TRANSITIONS, 2026-11-02): one boundary per page, named
+              like the grid's, so the names never collide. */}
+          <ViewTransition name={`hub-card-${slug}`} share="morph" default="none">
+            <CardImage
+              src={imageUrl}
+              alt={leader.name}
+              width={488}
+              height={680}
+              priority
+              className={`w-72 rounded-2xl ${HERO_CARD_SHADOW}`}
+              fallback="Card image coming soon"
+            />
+          </ViewTransition>
         </div>
 
         <div className="min-w-0 flex-1 md:pt-4">

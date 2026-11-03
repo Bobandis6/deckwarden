@@ -33,6 +33,8 @@
  * across the RSC boundary (seen in dev, P4.9).
  */
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ViewTransition } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { ColorChipList } from "@/components/color-chip";
@@ -71,6 +73,22 @@ const BADGE_CLASS = "bg-background/85 absolute top-1 left-1 rounded px-1 text-[1
 
 /** The grid's first cards, eager: the first row at 1440 (six columns), three rows at 390. */
 export const EAGER_CARDS = 6;
+
+/**
+ * The hub's whole payload, asked for on intent (VIEW-TRANSITIONS, 2026-11-02).
+ * The card morph into the hub pairs only when the hub renders in the
+ * navigation's own commit, and a hub is ISR with a `loading.tsx`, so Link's
+ * default prefetch fetches the skeleton alone (756 bytes) and a click shows
+ * it first, with no pair. A full prefetch (about 16 KB over the wire, 88 KB
+ * decoded, read on a local production build) lands the hub whole. The first
+ * EAGER_CARDS tiles ask for it on sight (`prefetch`), the rest on hover,
+ * focus or touch through the router, so a reader scrolling the grid never
+ * fetches sixty hubs and a crawler rendering the page fetches six.
+ * `kind` is the router's public option (lib docs name only `onInvalidate`);
+ * its enum lives in Next's internals, so the literal is asserted once here.
+ */
+type PrefetchOptions = NonNullable<Parameters<ReturnType<typeof useRouter>["prefetch"]>[1]>;
+const FULL_PREFETCH: PrefetchOptions = { kind: "full" as PrefetchOptions["kind"] };
 
 function ListRow({ game, leader }: { game: IndexGame; leader: IndexLeader }) {
   if (game === "optcg") {
@@ -136,6 +154,8 @@ export function LeaderIndexView({
 }) {
   const view = useIndexView();
   const hub = HUB_PREFIX[game];
+  const router = useRouter();
+  const warmHub = (href: string) => () => router.prefetch(href, FULL_PREFETCH);
   return (
     <div className="mt-6">
       <div className={cn("flex items-center gap-3", summary ? "justify-between" : "justify-end")}>
@@ -158,18 +178,28 @@ export function LeaderIndexView({
             <li key={leader.id} className="relative">
               <Link
                 href={`${hub}${leader.slug}`}
+                prefetch={i < EAGER_CARDS ? true : undefined}
+                onMouseEnter={warmHub(`${hub}${leader.slug}`)}
+                onFocus={warmHub(`${hub}${leader.slug}`)}
+                onTouchStart={warmHub(`${hub}${leader.slug}`)}
                 className="focus-visible:ring-accent-game block rounded-[4.75%/3.5%] outline-none focus-visible:ring-2"
               >
-                <CardImage
-                  src={leader.image}
-                  alt=""
-                  width={TILE_IMAGE.width}
-                  height={TILE_IMAGE.height}
-                  priority={i < EAGER_CARDS}
-                  frame
-                  className="h-auto w-full"
-                  fallback={leader.name}
-                />
+                {/* The card persists into its hub (VIEW-TRANSITIONS, 2026-11-02):
+                    the hub hero carries the same name, so the navigation moves
+                    this one card instead of swapping two pages (globals.css,
+                    the .morph pseudo-elements). Nothing else animates. */}
+                <ViewTransition name={`hub-card-${leader.slug}`} share="morph" default="none">
+                  <CardImage
+                    src={leader.image}
+                    alt=""
+                    width={TILE_IMAGE.width}
+                    height={TILE_IMAGE.height}
+                    priority={i < EAGER_CARDS}
+                    frame
+                    className="h-auto w-full"
+                    fallback={leader.name}
+                  />
+                </ViewTransition>
                 <GridCaption game={game} leader={leader} />
               </Link>
             </li>

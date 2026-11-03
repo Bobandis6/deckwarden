@@ -535,6 +535,16 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+    /* View transitions (VIEW-TRANSITIONS): the pseudo-element tree the
+       browser animates is reached by no `*`, so the card morph and the
+       theme reveal end here explicitly; the page swaps and the theme flips
+       at once. */
+    ::view-transition-group(*),
+    ::view-transition-image-pair(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+      animation: none !important;
+    }
     /* The exception (U2, F7; Apple's reduced motion is a gentler cross-fade,
        not a pop): the five surfaces whose appearance would otherwise blink
        in — a dialog, an alert dialog, the drawer, a toast and the editor's
@@ -577,28 +587,52 @@
     }
   }
 
-  /* The theme change eases (U8, WAVE5.md D3; the lab's Apple 14: dark to
-     light should not be an abrupt brightness jump). The page's canvas,
-     body's background, eases over 250 ms on settle-250 when the theme flips,
-     and only once ThemeProvider has set data-theme-ready after hydration, so
-     a first paint never animates. Body, not html: body paints the page (html
-     has no background of its own). The background only, not the text color
-     D3 also named: color is inherited, so easing it restyles every element
-     on every frame (measured on the editor at 4x CPU: 45-51 ms frames
-     against 12-13 ms for the background alone, the instant flip's cost), and
-     each element with its own color transition restarted it every frame
-     (2,274 transition starts in one switch). Everything else changes at
-     once: next-themes' disableTransitionOnChange injects an unlayered
-     `transition: none !important` for the flip, and an !important
-     declaration inside a cascade layer outranks an unlayered one, so this
-     is the only transition that runs. Reduced motion: the rule doesn't apply
-     (no-preference only, the motion-safe: query), so the theme changes at
-     once, as before U8. */
-  @media (prefers-reduced-motion: no-preference) {
-    [data-theme-ready] body {
-      transition-property: background-color !important;
-      transition-duration: 250ms !important;
-      transition-timing-function: var(--ease-settle-250) !important;
+  /* View transitions (VIEW-TRANSITIONS, 2026-11-02; the owner's pick from
+     DESIGN-REFERENCES-2026-11-02.md, ideas 1 and 2). Two uses share the
+     browser's View Transitions API, this block and one reduced-motion rule
+     (above). Browsers without the API navigate and flip as before.
+
+     1. The card persists across navigation (Design Spells 346, Doji): the
+        grid tile on /commanders and /leaders and the hub hero on /c/ and
+        /l/ are React <ViewTransition> boundaries named by the leader's slug
+        with share="morph", so a navigation between them moves one card
+        instead of swapping two pages. The root snapshots never animate (no
+        entry fades on page-like surfaces, the lab's anti-slop note): the
+        page swaps at once under the moving card. Normal blending, because
+        the UA's plus-lighter is tuned for a cross-fade and would brighten
+        two opaque snapshots. The morph is a one-off moment on the 400 slot.
+
+     2. The theme switch reveals from where it was chosen (Design Spells 146,
+        HackerRank): AppearanceItems sets data-theme-reveal and the
+        --reveal-* origin on <html> around document.startViewTransition
+        (lib/theme/theme-reveal.ts), and the new page is clipped to a circle
+        growing from that point over the old one, which stays still. Keyed
+        on the flag so a navigation's transition is never clipped. This
+        replaced U8's eased body background: that ease could reach the
+        canvas only (easing the inherited text color restyled every element
+        on every frame, 45-51 ms frames on the editor), where one composited
+        reveal costs a snapshot. next-themes' disableTransitionOnChange
+        still drops every element's own transition at the flip. */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+  ::view-transition-group(.morph),
+  ::view-transition-old(.morph),
+  ::view-transition-new(.morph) {
+    animation-duration: 400ms;
+    animation-timing-function: var(--ease-settle-400);
+  }
+  html[data-theme-reveal]::view-transition-new(root) {
+    animation: dw-theme-reveal 400ms var(--ease-settle-400) both;
+  }
+  @keyframes dw-theme-reveal {
+    from {
+      clip-path: circle(0 at var(--reveal-x) var(--reveal-y));
+    }
+    to {
+      clip-path: circle(var(--reveal-r) at var(--reveal-x) var(--reveal-y));
     }
   }
 

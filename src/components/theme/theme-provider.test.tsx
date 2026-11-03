@@ -1,24 +1,23 @@
 /**
- * The eased theme change's gate (U8, WAVE5.md D3): globals.css eases the
- * page's paint only under `[data-theme-ready]`, which ThemeProvider sets on
- * <html> once it has hydrated, never in the server markup, so a first
- * paint never animates. disableTransitionOnChange stays on (it drops every
- * other transition for the flip; the stylesheet's layered !important lets
- * the page's one rule through, pinned in tokens.test.ts).
+ * ThemeProvider (R1a, C11): next-themes with the dark default, marking
+ * nothing on <html> of its own. U8's eased theme change gated on
+ * `data-theme-ready`; VIEW-TRANSITIONS (2026-11-02) retired that ease for
+ * the Appearance menu's reveal (lib/theme/theme-reveal.ts), so the gate is
+ * gone from the markup, the provider and the stylesheet (pinned in
+ * tokens.test.ts).
  */
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ThemeProvider } from "./theme-provider";
 
 afterEach(() => {
-  document.documentElement.removeAttribute("data-theme-ready");
   vi.unstubAllGlobals();
 });
 
 describe("ThemeProvider", () => {
-  it("opens the theme-ease gate after hydration, never in the server markup", () => {
+  it("renders its children and sets no gate attribute, on the server or after hydration", () => {
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({ matches: false, addListener() {}, removeListener() {} })),
@@ -28,14 +27,15 @@ describe("ThemeProvider", () => {
         <p>Page</p>
       </ThemeProvider>,
     );
+    expect(server).toContain("<p>Page</p>");
     expect(server).not.toContain("data-theme-ready");
-    expect(document.documentElement.hasAttribute("data-theme-ready")).toBe(false);
 
     render(
       <ThemeProvider>
         <p>Page</p>
       </ThemeProvider>,
     );
-    expect(document.documentElement.hasAttribute("data-theme-ready")).toBe(true);
+    expect(screen.getByText("Page")).toBeTruthy();
+    expect(document.documentElement.hasAttribute("data-theme-ready")).toBe(false);
   });
 });
