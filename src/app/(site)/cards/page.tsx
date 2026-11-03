@@ -16,6 +16,15 @@
  * X4a: `?set=<code>` presets the Set group — read only when the game's
  * adapter declares a `"set"` field (Magic), like CardSearch's own gate, and
  * canonicalized away like every other filter (the canonical stays bare).
+ *
+ * SEARCH-EXAMPLES: the day's "Try" examples for this tab's game (the day's
+ * two commanders and Sol Ring on Magic, a card number on One Piece), read
+ * from the data cache of src/lib/search/load-examples.ts, so the page still
+ * runs no statement per request. The day is the UTC date read once per
+ * request, as home reads it for its hero. The name joins the game in
+ * CardSearch's key: a link from /cards to /cards?q= (an example, here or in
+ * the header) mounts a fresh search instead of handing new props to a grid
+ * that read its starting values once.
  */
 import type { Metadata } from "next";
 
@@ -23,6 +32,8 @@ import { CardSearch } from "@/components/cards/card-search";
 import { GameSwitch } from "@/components/game-switch";
 import { OptcgPostureLine } from "@/components/optcg-posture-line";
 import { getAdapter } from "@/lib/games/registry";
+import { utcDayKey } from "@/lib/home/shelves";
+import { loadSearchExamples } from "@/lib/search/load-examples";
 import { setFieldKey } from "@/lib/sets/lines";
 
 function gameFrom(sp: Record<string, string | string[] | undefined>): "mtg" | "optcg" {
@@ -53,6 +64,10 @@ export default async function CardsPage({ searchParams }: PageProps<"/cards">) {
   const sp = await searchParams;
   const game = gameFrom(sp);
   const setField = setFieldKey(getAdapter(game).searchFields);
+  const initialName = str(sp.q) || str(sp.name);
+  const examples = (await loadSearchExamples(utcDayKey(new Date()))).filter(
+    (example) => example.game === game,
+  );
 
   return (
     <main id="main" className="max-w-wide mx-auto w-full flex-1 px-4 py-8" data-game={game}>
@@ -66,15 +81,16 @@ export default async function CardsPage({ searchParams }: PageProps<"/cards">) {
       />
 
       <CardSearch
-        key={game}
+        key={`${game}:${initialName}`}
         game={game}
         // ?q= serves home's SearchAction JSON-LD; ?name= is the API's own key.
-        initialName={str(sp.q) || str(sp.name)}
+        initialName={initialName}
         initialType={str(sp.type)}
         initialColors={game === "mtg" ? str(sp.ci) : str(sp.color)}
         distinctField={game === "optcg" ? "traits" : undefined}
         initialDistinct={game === "optcg" ? str(sp.traits) : ""}
         initialSet={setField ? str(sp[setField]) : ""}
+        examples={examples}
       />
 
       {game === "optcg" ? (

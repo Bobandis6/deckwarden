@@ -7,7 +7,9 @@
  * no CSS and no implicit submission: the phone's row is pinned by its state
  * (the attribute the header's `:has` rule reads, the classes), focus by
  * `document.activeElement` read with no await in between, and a submit by
- * the FormData a `submit` listener sees.
+ * the FormData a `submit` listener sees. SEARCH-EXAMPLES: the first focus
+ * asks /api/cards/examples once, so tests that focus the box tell the two
+ * routes apart by path (`suggests()`).
  */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
@@ -24,6 +26,8 @@ import { SUGGEST_DEBOUNCE_MS } from "./name-suggest";
 interface Pending {
   url: URL;
   answer: (rows: SuggestRow[]) => void;
+  /** Any JSON body (the examples route's `{ examples }`). */
+  respond: (body: unknown) => void;
   fail: () => void;
 }
 let pending: Pending[] = [];
@@ -48,6 +52,7 @@ beforeEach(() => {
                 status: 200,
               }),
             ),
+          respond: (body) => resolve(new Response(JSON.stringify(body), { status: 200 })),
           fail: () => resolve(new Response("{}", { status: 500 })),
         });
       });
@@ -131,6 +136,7 @@ async function answer(rows: SuggestRow[], which = pending.at(-1)!) {
 const listbox = () => screen.queryByRole("listbox");
 const options = () => within(screen.getByRole("listbox")).getAllByRole("option");
 const params = (p: Pending) => Object.fromEntries(p.url.searchParams);
+const suggests = () => pending.filter((p) => p.url.pathname === "/api/cards/suggest");
 
 /** What the form would send: FormData seen by a `submit` listener (jsdom cannot navigate). */
 function captureSubmits(form: HTMLFormElement) {
@@ -159,20 +165,21 @@ describe("HeaderSearch: the form", () => {
     expect(form.querySelectorAll('button[type="submit"]')).toHaveLength(1);
   });
 
-  it("asks nothing on render or on focus; two typed letters ask for every Magic card", async () => {
+  it("asks nothing on render; the first focus asks for the examples, once; two typed letters ask for every Magic card", async () => {
     const { input } = renderOn("/");
     await debounce();
+    expect(pending).toHaveLength(0);
     act(() => input.focus());
     await debounce();
-    expect(pending).toHaveLength(0);
+    expect(pending.map((p) => p.url.pathname + p.url.search)).toEqual(["/api/cards/examples"]);
     typeText(input, "s");
     await debounce();
-    expect(pending).toHaveLength(0);
+    expect(suggests()).toHaveLength(0);
     typeText(input, "so");
     await debounce();
-    expect(pending).toHaveLength(1);
-    expect(pending[0].url.pathname).toBe("/api/cards/suggest");
-    expect(params(pending[0])).toEqual({ game: "mtg", scope: "cards", q: "so" });
+    expect(suggests()).toHaveLength(1);
+    expect(params(suggests()[0])).toEqual({ game: "mtg", scope: "cards", q: "so" });
+    expect(pending).toHaveLength(2);
   });
 
   it("rows open card pages with the type line as their detail; Enter with nothing highlighted is left to the browser", async () => {
@@ -233,7 +240,7 @@ describe("HeaderSearch: the game", () => {
     expect(form.querySelector('input[name="game"]')?.getAttribute("value")).toBe("optcg");
     typeText(input, "luf");
     await debounce();
-    expect(params(pending[0])).toEqual({ game: "optcg", scope: "cards", q: "luf" });
+    expect(params(suggests()[0])).toEqual({ game: "optcg", scope: "cards", q: "luf" });
     await answer([LUFFY]);
     expect(Object.fromEntries(new FormData(form))).toEqual({ q: "luf", game: "optcg" });
     expect(options()[0].getAttribute("href")).toBe("/cards/id-monkey-d-luffy");
@@ -503,5 +510,124 @@ describe("HeaderSearch: the phone's search row", () => {
       </>,
     );
     expect(document.activeElement).not.toBe(searchButton);
+  });
+});
+
+describe("HeaderSearch: the examples (SEARCH-EXAMPLES)", () => {
+  const EXAMPLES = [
+    { text: "Atraxa", game: "mtg", href: "/cards?q=Atraxa" },
+    { text: "Edgar Markov", game: "mtg", href: "/cards?q=Edgar+Markov" },
+    { text: "Sol Ring", game: "mtg", href: "/cards?q=Sol+Ring" },
+    { text: "OP01-001", game: "optcg", href: "/cards?game=optcg&q=OP01-001" },
+  ];
+  const examplesAsked = () => pending.filter((p) => p.url.pathname === "/api/cards/examples");
+  const shown = () => options().map((o) => [o.textContent, o.getAttribute("href")]);
+
+  async function respond(body: unknown, which: Pending) {
+    await act(async () => {
+      which.respond(body);
+    });
+    await flush();
+  }
+
+  it("the first focus asks once; when they land the popup offers them under Try, the page's game first, its short name beside each", async () => {
+    const { input } = renderOn("/commanders", "mtg");
+    // Fetched before the popup opens: Base UI hides the page from the
+    // accessibility tree while it is open, so a role query would miss it.
+    const field = screen.getByRole("textbox", { name: "Page field" });
+    act(() => input.focus());
+    expect(examplesAsked()).toHaveLength(1);
+    expect(listbox()).toBeNull(); // nothing to show until they land
+    await respond({ examples: EXAMPLES }, examplesAsked()[0]);
+    expect(document.querySelector('[data-slot="name-suggest-try"]')?.textContent).toBe("Try");
+    expect(shown()).toEqual([
+      ["AtraxaMagic", "/cards?q=Atraxa"],
+      ["Edgar MarkovMagic", "/cards?q=Edgar+Markov"],
+      ["Sol RingMagic", "/cards?q=Sol+Ring"],
+      ["OP01-001One Piece", "/cards?game=optcg&q=OP01-001"],
+    ]);
+    expect(screen.getByRole("status").textContent).toBe("4 examples");
+
+    // Out and back in: shown again from what landed, never asked twice.
+    // (Base UI dismisses on focus-out from a timer, the fake clock's.)
+    act(() => field.focus());
+    await act(async () => {
+      vi.advanceTimersByTime(50);
+    });
+    expect(listbox()).toBeNull();
+    act(() => input.focus());
+    expect(shown()).toHaveLength(4);
+    expect(examplesAsked()).toHaveLength(1);
+  });
+
+  it("a One Piece page puts the One Piece card number first", async () => {
+    const { input } = renderOn("/leaders", "optcg");
+    act(() => input.focus());
+    await respond({ examples: EXAMPLES }, examplesAsked()[0]);
+    expect(shown().map(([text]) => text)).toEqual([
+      "OP01-001One Piece",
+      "AtraxaMagic",
+      "Edgar MarkovMagic",
+      "Sol RingMagic",
+    ]);
+  });
+
+  it("the phone's search button: one tap opens the row, and the examples open under it once they land", async () => {
+    const { input, searchButton } = renderOn("/");
+    fireEvent.click(searchButton);
+    expect(document.activeElement).toBe(input);
+    await respond({ examples: EXAMPLES }, examplesAsked()[0]);
+    expect(shown()).toHaveLength(4);
+  });
+
+  it("following an example closes the phone's row (from /cards it is the same path, so no route change would); a new-tab click keeps it", async () => {
+    const followed: string[] = [];
+    const follow = (e: MouseEvent) => {
+      const a = (e.target as Element).closest("a");
+      if (a) {
+        followed.push(a.getAttribute("href")!);
+        e.preventDefault(); // jsdom cannot navigate
+      }
+    };
+    document.addEventListener("click", follow);
+    try {
+      const { form, searchButton } = renderOn("/cards", "mtg");
+      fireEvent.click(searchButton);
+      await respond({ examples: EXAMPLES }, examplesAsked()[0]);
+      expect(form.hasAttribute("data-search-open")).toBe(true);
+
+      fireEvent.click(options()[3], { metaKey: true });
+      expect(form.hasAttribute("data-search-open")).toBe(true);
+
+      fireEvent.click(options()[0]);
+      expect(followed.at(-1)).toBe("/cards?q=Atraxa");
+      expect(form.hasAttribute("data-search-open")).toBe(false);
+      expect(document.activeElement).toBe(searchButton);
+    } finally {
+      document.removeEventListener("click", follow);
+    }
+  });
+
+  it("a failed ask leaves the box as it was, and the next focus asks again", async () => {
+    const { input } = renderOn("/");
+    const field = screen.getByRole("textbox", { name: "Page field" });
+    act(() => input.focus());
+    await act(async () => {
+      examplesAsked()[0].fail();
+    });
+    await flush();
+    expect(listbox()).toBeNull();
+    act(() => field.focus());
+    act(() => input.focus());
+    expect(examplesAsked()).toHaveLength(2);
+    await respond({ examples: EXAMPLES }, examplesAsked()[1]);
+    expect(shown()).toHaveLength(4);
+  });
+
+  it("a malformed answer shows nothing", async () => {
+    const { input } = renderOn("/");
+    act(() => input.focus());
+    await respond({ nope: true }, examplesAsked()[0]);
+    expect(listbox()).toBeNull();
   });
 });

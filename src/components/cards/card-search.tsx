@@ -58,10 +58,20 @@
  * The Name box's dropdown stays unscoped while a set scopes the grid — a
  * suggestion is "go to this card" (LATER row 124). Filters are still read
  * once at load and never written back to the URL.
+ *
+ * SEARCH-EXAMPLES (DESIGN-REFERENCES-session-prompt.md build 3): under the
+ * filters, one sentence of real searches at the meta step, "Try Atraxa,
+ * Edgar Markov or Sol Ring." (One Piece: "Try OP01-001."), the page's
+ * examples for this game. Each is a link to `/cards?q=…`, which the page
+ * mounts as a fresh search. The line shows only while no name is typed and
+ * no set scopes the grid, and leaves for good at the first typed character
+ * or chosen set: clearing the box never brings it back, so it never
+ * flashes while a name is edited. On touch each link is a 44 px target
+ * whose margins give the extra back, so the line keeps its height.
  */
 import { XIcon } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import { PRINTING_PARAM } from "@/app/(site)/cards/[id]/printing-param";
 import { CardImage } from "@/components/cards/card-image";
@@ -73,6 +83,7 @@ import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAdapter } from "@/lib/games/registry";
+import type { SearchExample } from "@/lib/search/examples";
 import { setFieldKey, setPlace, type ReleasedSet } from "@/lib/sets/lines";
 import { eventDateLabel } from "@/lib/tournaments/format";
 
@@ -92,6 +103,14 @@ const LEGEND_CLASS = "text-muted-foreground mb-1 text-xs font-medium";
  */
 const FIELD_CLASS =
   "h-9 rounded-lg border border-(--border-control) bg-transparent px-3 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30 pointer-coarse:min-h-11";
+/**
+ * An example's link (SEARCH-EXAMPLES): foreground ink on the muted line. On
+ * touch the box is 44 px and its margins give back the 28 px past the
+ * meta step's 16 px line (the bracket line's recipe), so the target grows
+ * and the line doesn't.
+ */
+const EXAMPLE_LINK_CLASS =
+  "text-foreground focus-visible:ring-ring/50 rounded-sm font-medium underline underline-offset-4 outline-none hover:no-underline focus-visible:ring-2 pointer-coarse:-my-[14px] pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center";
 
 interface SearchResult {
   id: string;
@@ -132,6 +151,30 @@ export interface CardSearchProps {
   initialDistinct?: string;
   /** X4a: a set code (`?set=`), honored only when the game declares a set field. */
   initialSet?: string;
+  /** SEARCH-EXAMPLES: this game's "Try" searches for the day, the page's. */
+  examples?: readonly SearchExample[];
+}
+
+/**
+ * "Atraxa, Edgar Markov or Sol Ring": the examples as one phrase of links.
+ * Each is named for what it does ("Search for Sol Ring", the words inside
+ * the name): the grid's first tile is often the same card by the same
+ * name, and a list of links must tell the search from the card page.
+ */
+function ExampleLinks({ examples }: { examples: readonly SearchExample[] }) {
+  return examples.map((example, i) => (
+    <Fragment key={example.href}>
+      {i > 0 && (i === examples.length - 1 ? " or " : ", ")}
+      <Link
+        href={example.href}
+        prefetch={false}
+        aria-label={`Search for ${example.text}`}
+        className={EXAMPLE_LINK_CLASS}
+      >
+        {example.text}
+      </Link>
+    </Fragment>
+  ));
 }
 
 /** One selected filter as the chip row shows it: the group's word and the value. */
@@ -150,6 +193,7 @@ export function CardSearch({
   distinctField,
   initialDistinct = "",
   initialSet = "",
+  examples = [],
 }: CardSearchProps) {
   const [q, setQ] = useState(initialName);
   const [type, setType] = useState(initialType);
@@ -190,6 +234,8 @@ export function CardSearch({
   const stripAbortRef = useRef<AbortController | null>(null);
   const chosenSet = setCode ? (sets?.find((set) => set.code === setCode) ?? null) : null;
   const scoped = setField !== null && setCode !== "";
+  /** SEARCH-EXAMPLES: gone at the first typed name or chosen set, and for good. */
+  const [examplesGone, setExamplesGone] = useState(() => initialName.trim() !== "" || scoped);
 
   const colorParam = game === "mtg" ? "ci" : "color";
 
@@ -381,7 +427,10 @@ export function CardSearch({
             rowHref={{ prefix: "/cards/", key: "id" }}
             detail={game === "mtg" ? "type" : "number"}
             value={q}
-            onValueChange={setQ}
+            onValueChange={(next) => {
+              setQ(next);
+              if (next.trim()) setExamplesGone(true);
+            }}
             placeholder="Search card names…"
             aria-label="Card name"
             autoFocus
@@ -449,12 +498,25 @@ export function CardSearch({
               failed={setsFailed}
               chosen={chosenSet}
               onWantSets={wantSetList}
-              onPick={(set) => setSetCode(set.code)}
+              onPick={(set) => {
+                setSetCode(set.code);
+                setExamplesGone(true);
+              }}
               inputClassName={`${FIELD_CLASS} w-full max-w-sm`}
             />
           </fieldset>
         )}
       </div>
+
+      {examples.length > 0 && !examplesGone && !q.trim() && !scoped && (
+        // On touch the margin matches the links' 14 px reach, so no target overlaps the filters.
+        <p
+          data-slot="search-examples"
+          className="type-meta text-muted-foreground mt-3 pointer-coarse:mt-3.5"
+        >
+          Try <ExampleLinks examples={examples} />.
+        </p>
+      )}
 
       {active.length > 0 && (
         <div data-slot="active-filters" className="mt-3 flex flex-wrap items-center gap-1.5">

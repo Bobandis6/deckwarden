@@ -471,3 +471,108 @@ describe("NameSuggest", () => {
     expect(buttons[0].hidden).toBe(false); // rendered: WebKit skips a box-less default button
   });
 });
+
+describe("NameSuggest: the examples (SEARCH-EXAMPLES)", () => {
+  const EXAMPLES = [
+    { text: "Atraxa", href: "/cards?q=Atraxa", detail: "Magic" },
+    { text: "OP01-001", href: "/cards?game=optcg&q=OP01-001", detail: "One Piece" },
+  ];
+  const tryLine = () => document.querySelector('[data-slot="name-suggest-try"]');
+
+  it("without examples (every box but the header's) a focus opens nothing and asks nothing", async () => {
+    const { input } = renderInForm();
+    act(() => input.focus());
+    await debounce();
+    expect(listbox()).toBeNull();
+    expect(pending).toHaveLength(0);
+  });
+
+  it("a focus with under two characters offers them under Try: links to their searches, a detail each, announced as a count", async () => {
+    const { input } = renderInForm({ examples: EXAMPLES });
+    act(() => input.focus());
+    expect(tryLine()?.textContent).toBe("Try");
+    expect(options().map((o) => [o.tagName, o.getAttribute("href"), o.textContent])).toEqual([
+      ["A", "/cards?q=Atraxa", "AtraxaMagic"],
+      ["A", "/cards?game=optcg&q=OP01-001", "OP01-001One Piece"],
+    ]);
+    expect(options()[0].querySelector('[data-slot="example-icon"] svg')).not.toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("2 examples");
+    typeText(input, "a");
+    expect(options().map((o) => o.getAttribute("href"))).toEqual([
+      "/cards?q=Atraxa",
+      "/cards?game=optcg&q=OP01-001",
+    ]);
+    await debounce();
+    expect(pending).toHaveLength(0); // one letter still asks nothing
+  });
+
+  it("nothing is highlighted until an arrow key; Enter on an example follows its link and leaves the text alone", async () => {
+    const followed: string[] = [];
+    const follow = (e: MouseEvent) => {
+      const a = (e.target as Element).closest("a");
+      if (a) {
+        followed.push(a.getAttribute("href")!);
+        e.preventDefault(); // jsdom cannot navigate
+      }
+    };
+    document.addEventListener("click", follow);
+    try {
+      const { input } = renderInForm({ examples: EXAMPLES });
+      act(() => input.focus());
+      expect(options().some((o) => o.hasAttribute("data-highlighted"))).toBe(false);
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      const notPrevented = fireEvent.keyDown(input, { key: "Enter" });
+      expect(notPrevented).toBe(false); // a pick, not a form submit
+      expect(followed).toEqual(["/cards?game=optcg&q=OP01-001"]);
+      expect(input.value).toBe("");
+      expect(listbox()).toBeNull();
+    } finally {
+      document.removeEventListener("click", follow);
+    }
+  });
+
+  it("two letters: the examples stand while the ask is in flight, the answer's rows take their place, and under two letters they come back", async () => {
+    const { input } = renderInForm({ examples: EXAMPLES });
+    act(() => input.focus());
+    typeText(input, "at");
+    await debounce();
+    expect(pending).toHaveLength(1);
+    expect(options().map((o) => o.getAttribute("href"))).toEqual([
+      "/cards?q=Atraxa",
+      "/cards?game=optcg&q=OP01-001",
+    ]);
+    await answer([ATRAXA]);
+    expect(tryLine()).toBeNull();
+    expect(options().map((o) => o.getAttribute("href"))).toEqual([
+      "/c/atraxa-praetors-voice",
+      null, // the footer
+    ]);
+    expect(screen.getByRole("status").textContent).toBe("1 suggestion");
+    typeText(input, "a");
+    expect(tryLine()?.textContent).toBe("Try");
+    expect(screen.getByRole("status").textContent).toBe("2 examples");
+    // Emptied: Base UI asks to shut ("input-clear"), and the examples stay.
+    typeText(input, "");
+    expect(tryLine()?.textContent).toBe("Try");
+    expect(options()).toHaveLength(2);
+  });
+
+  it("without examples, emptying the box shuts the popup as before", async () => {
+    const { input } = renderInForm();
+    typeText(input, "at");
+    await debounce();
+    await answer([ATRAXA]);
+    expect(listbox()).not.toBeNull();
+    typeText(input, "");
+    expect(listbox()).toBeNull();
+  });
+
+  it("a focus on a box that already holds a name changes nothing until a key is typed", async () => {
+    const { input } = renderInForm({ examples: EXAMPLES, defaultValue: "atraxa" });
+    act(() => input.focus());
+    await debounce();
+    expect(listbox()).toBeNull();
+    expect(pending).toHaveLength(0);
+  });
+});

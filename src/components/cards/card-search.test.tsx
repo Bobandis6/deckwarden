@@ -10,7 +10,8 @@
  * X4a: the Set group (Magic only), its list fetched once — on the picker's
  * first press, or at mount for a preset `?set=` — and a chosen set's
  * requests, chip, header, "Most popular" strip and `?printing=` tile links;
- * the picker's own behavior is set-picker.test.tsx's.
+ * the picker's own behavior is set-picker.test.tsx's. SEARCH-EXAMPLES: the
+ * Try line's sentence of /cards links, and when it leaves for good.
  */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -384,5 +385,87 @@ describe("CardSearch — the Set group (X4a)", () => {
     debounce();
     expect(requests.map((r) => r.url)).toEqual(["/api/cards/search?game=optcg&limit=60&sort=name"]);
     expect(setChip()).toBeNull();
+  });
+});
+
+const EXAMPLES = [
+  { text: "Atraxa", game: "mtg" as const, href: "/cards?q=Atraxa" },
+  { text: "Edgar Markov", game: "mtg" as const, href: "/cards?q=Edgar+Markov" },
+  { text: "Sol Ring", game: "mtg" as const, href: "/cards?q=Sol+Ring" },
+];
+const tryLine = () => document.querySelector<HTMLElement>("[data-slot=search-examples]");
+
+describe("CardSearch — the Try line (SEARCH-EXAMPLES)", () => {
+  it("one sentence of links under the filters, each a /cards search", () => {
+    render(<CardSearch game="mtg" examples={EXAMPLES} />);
+    const line = tryLine()!;
+    expect(line.tagName).toBe("P");
+    expect(line.textContent).toBe("Try Atraxa, Edgar Markov or Sol Ring.");
+    expect(line.classList.contains("type-meta")).toBe(true);
+    const links = within(line).getAllByRole("link");
+    expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["Atraxa", "/cards?q=Atraxa"],
+      ["Edgar Markov", "/cards?q=Edgar+Markov"],
+      ["Sol Ring", "/cards?q=Sol+Ring"],
+    ]);
+    // Named for what they do, the visible words inside: a tile named
+    // "Sol Ring" opens the card, this link runs the search.
+    expect(within(line).getByRole("link", { name: "Search for Sol Ring" })).toBe(links[2]);
+    // Under the filter groups, before the chips row and the count.
+    const groups = document.querySelector("[data-slot=filter-groups]")!;
+    expect(groups.nextElementSibling).toBe(line);
+  });
+
+  it("One Piece's one example reads as a sentence too", () => {
+    render(
+      <CardSearch
+        game="optcg"
+        distinctField="traits"
+        examples={[{ text: "OP01-001", game: "optcg", href: "/cards?game=optcg&q=OP01-001" }]}
+      />,
+    );
+    expect(tryLine()!.textContent).toBe("Try OP01-001.");
+    expect(within(tryLine()!).getByRole("link").getAttribute("href")).toBe(
+      "/cards?game=optcg&q=OP01-001",
+    );
+  });
+
+  it("no examples, no line", () => {
+    render(<CardSearch game="mtg" />);
+    expect(tryLine()).toBeNull();
+  });
+
+  it("leaves at the first typed character and never comes back, even once the box is cleared", () => {
+    render(<CardSearch game="mtg" examples={EXAMPLES} />);
+    const box = screen.getByRole("combobox", { name: "Card name" });
+    fireEvent.change(box, { target: { value: "   " } });
+    expect(tryLine()).not.toBeNull(); // spaces are not a name
+    fireEvent.change(box, { target: { value: "a" } });
+    expect(tryLine()).toBeNull();
+    fireEvent.change(box, { target: { value: "" } });
+    expect(tryLine()).toBeNull();
+  });
+
+  it("a page that lands with a name or a set starts without it", () => {
+    const { unmount } = render(<CardSearch game="mtg" initialName="Atraxa" examples={EXAMPLES} />);
+    expect(tryLine()).toBeNull();
+    unmount();
+    render(<CardSearch game="mtg" initialSet="blb" examples={EXAMPLES} />);
+    expect(tryLine()).toBeNull();
+  });
+
+  it("a chosen set takes it away for good", async () => {
+    render(<CardSearch game="mtg" examples={EXAMPLES} />);
+    const setBox = screen.getByRole("combobox", { name: "Set" }) as HTMLInputElement;
+    fireEvent.mouseDown(setBox, { button: 0 });
+    await flush();
+    await answer("/api/sets", { sets: SETS });
+    fireEvent.input(setBox, { target: { value: "blo" }, inputType: "insertText" });
+    expect(tryLine()).not.toBeNull(); // typing in the Set box is not a name
+    fireEvent.click(within(screen.getByRole("listbox")).getAllByRole("option")[0]);
+    expect(setChip()).toBe("Remove filter: Set Bloomburrow (BLB)");
+    expect(tryLine()).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter: Set Bloomburrow (BLB)" }));
+    expect(tryLine()).toBeNull();
   });
 });

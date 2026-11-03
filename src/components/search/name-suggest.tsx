@@ -71,9 +71,21 @@
  * asks again for the same text. Without these props (every other caller,
  * whose game never changes while mounted) nothing differs: the same one
  * request per key, the same rows, words and timing.
+ *
+ * SEARCH-EXAMPLES' opt-in `examples` (the header's box again): an empty
+ * state. Focus with fewer than NAME_MIN_CHARS characters, and the popup
+ * offers the examples under a quiet "Try" line: options like the rows
+ * (arrow keys, Enter, 44 px on coarse pointers), each a link to its /cards
+ * search, a search icon where a row's thumbnail sits and the caller's
+ * detail (the game) where its type line sits. They stand while the text is
+ * too short to ask and while the first ask for a longer text is in flight,
+ * so the popup never shuts and reopens between examples and rows. A focus
+ * on a box that already holds a name changes nothing (no request, no
+ * popup) until a key is typed, as before.
  */
+import { SearchIcon } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
 import { ColorChipList } from "@/components/color-chip";
@@ -92,7 +104,16 @@ import { cn } from "@/lib/utils";
 export const SUGGEST_DEBOUNCE_MS = 150;
 
 const FOOTER = { footer: true } as const;
-type Entry = SuggestRow | typeof FOOTER;
+
+/** SEARCH-EXAMPLES: one offered search — its words, its link, its quiet detail. */
+export interface NameExample {
+  text: string;
+  href: string;
+  detail: string;
+}
+
+type ExampleEntry = NameExample & { example: true };
+type Entry = SuggestRow | typeof FOOTER | ExampleEntry;
 
 export interface NameSuggestProps {
   game: "mtg" | "optcg";
@@ -127,6 +148,12 @@ export interface NameSuggestProps {
   fallback?: { game: SuggestGame; names: Record<SuggestGame, string> };
   /** HEADER-SEARCH: each answer that lands — its key, and the game whose rows it shows. */
   onAnswer?: (answer: { key: string; game: SuggestGame }) => void;
+  /**
+   * SEARCH-EXAMPLES: searches offered while the box is focused with fewer
+   * than NAME_MIN_CHARS characters. Undefined (every box but the header's):
+   * no empty state. Empty: none yet, nothing shows until they arrive.
+   */
+  examples?: readonly NameExample[];
 }
 
 /** The line over the other game's rows, and the status line's words for them. */
@@ -164,6 +191,7 @@ export function NameSuggest({
   "aria-label": ariaLabel,
   fallback,
   onAnswer,
+  examples,
 }: NameSuggestProps) {
   const [inner, setInner] = useState(defaultValue ?? "");
   const text = value ?? inner;
@@ -238,8 +266,14 @@ export function NameSuggest({
   }, [want, key, answerKey, answerAsked, game, scope, fallbackGame]);
 
   const rows = (answer?.rows ?? []).filter((row) => onPick || rowHref(row, target) !== null);
-  const open = want && active && answer !== null && !failed;
-  const entries: Entry[] = footerNoun ? [...rows, FOOTER] : rows;
+  const exampleEntries = useMemo(
+    () => (examples ?? []).map((example): ExampleEntry => ({ ...example, example: true })),
+    [examples],
+  );
+  // The examples stand until the first answer for a long enough text lands.
+  const showExamples = exampleEntries.length > 0 && (!active || (answer === null && !failed));
+  const open = want && (showExamples || (active && answer !== null && !failed));
+  const entries: Entry[] = showExamples ? exampleEntries : footerNoun ? [...rows, FOOTER] : rows;
   const typed = text.trim();
   /** The game whose rows show (the other game's after a fallback). */
   const rowGame = answer?.game ?? game;
@@ -264,9 +298,16 @@ export function NameSuggest({
       value={text}
       onValueChange={handleValueChange}
       open={open}
-      onOpenChange={setWant}
+      onOpenChange={(next, details) => {
+        // SEARCH-EXAMPLES: Base UI shuts the popup when the box is emptied;
+        // with examples, an empty box still offers them.
+        if (!next && details.reason === "input-clear" && examples !== undefined) return;
+        setWant(next);
+      }}
       highlightItemOnHover={false}
-      itemToStringValue={(entry: Entry) => ("footer" in entry ? text : entry.name)}
+      itemToStringValue={(entry: Entry) =>
+        "footer" in entry ? text : "example" in entry ? entry.text : entry.name
+      }
       name={name}
     >
       <AutocompleteInput
@@ -276,6 +317,10 @@ export function NameSuggest({
         placeholder={placeholder}
         autoFocus={autoFocus}
         aria-label={ariaLabel}
+        onFocus={() => {
+          // SEARCH-EXAMPLES: too little text to ask, so offer the examples.
+          if (examples !== undefined && !active) setWant(true);
+        }}
         onBlur={() => {
           if (!open) setWant(false);
         }}
@@ -294,14 +339,25 @@ export function NameSuggest({
       )}
       <AutocompleteStatus>
         {open
-          ? rows.length
-            ? (note ?? `${rows.length} suggestion${rows.length === 1 ? "" : "s"}`)
-            : "No matches"
+          ? showExamples
+            ? `${exampleEntries.length} example${exampleEntries.length === 1 ? "" : "s"}`
+            : rows.length
+              ? (note ?? `${rows.length} suggestion${rows.length === 1 ? "" : "s"}`)
+              : "No matches"
           : ""}
       </AutocompleteStatus>
       <AutocompleteContent data-slot="name-suggest-popup">
-        {rows.length === 0 && (
-          <p className="text-muted-foreground px-1.5 py-1 text-sm">No matches</p>
+        {showExamples ? (
+          <p
+            data-slot="name-suggest-try"
+            className="text-muted-foreground px-1.5 py-1 text-xs font-medium"
+          >
+            Try
+          </p>
+        ) : (
+          rows.length === 0 && (
+            <p className="text-muted-foreground px-1.5 py-1 text-sm">No matches</p>
+          )
         )}
         {note && (
           <p data-slot="name-suggest-note" className="text-muted-foreground px-1.5 py-1 text-sm">
@@ -310,7 +366,18 @@ export function NameSuggest({
         )}
         <AutocompleteList>
           {(entry: Entry) =>
-            "footer" in entry ? (
+            "example" in entry ? (
+              <AutocompleteItem
+                key={`example:${entry.href}`}
+                value={entry}
+                render={<Link href={entry.href} prefetch={false} />}
+                onClick={(e) => {
+                  if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) setWant(false);
+                }}
+              >
+                <ExampleBody example={entry} />
+              </AutocompleteItem>
+            ) : "footer" in entry ? (
               <FooterRow
                 key="footer"
                 noun={footerNoun ?? ""}
@@ -347,6 +414,25 @@ export function NameSuggest({
         </AutocompleteList>
       </AutocompleteContent>
     </Autocomplete>
+  );
+}
+
+/** An example's search icon (in the thumbnail's column), words and detail. */
+function ExampleBody({ example }: { example: NameExample }) {
+  return (
+    <>
+      <span
+        aria-hidden
+        data-slot="example-icon"
+        className="text-muted-foreground flex w-[1.625rem] shrink-0 justify-center"
+      >
+        <SearchIcon />
+      </span>
+      <span className="min-w-0 flex-1 truncate">{example.text}</span>
+      <span className="text-muted-foreground max-w-[45%] shrink-0 truncate text-xs">
+        {example.detail}
+      </span>
+    </>
   );
 }
 

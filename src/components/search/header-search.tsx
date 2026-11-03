@@ -11,10 +11,11 @@
  * hydration (the input is `name="q"`, which /cards reads, and NameSuggest
  * brings the invisible default button implicit submission needs).
  *
- * Caching intent: nothing new. The island asks only after typing (no
- * request on page load), and the suggest route keeps its own CDN header
- * (`s-maxage=3600`). It reads no request data — only the path, through
- * usePathname, as the nav beside it does — so no page changes mode.
+ * Caching intent: nothing new. The island asks nothing on page load: the
+ * suggest route after typing (its own CDN header, `s-maxage=3600`), and
+ * since SEARCH-EXAMPLES the static examples route on the first focus. It
+ * reads no request data — only the path, through usePathname, as the nav
+ * beside it does — so no page changes mode.
  *
  * The game: the open page's, read off `data-game` (pageGame) when the
  * reader focuses or types, never at render, so the server HTML has one
@@ -48,17 +49,35 @@
  * while typing in a field, not with a modifier, not inside an open dialog or
  * menu (isTextTarget). The keycap hint shows only where `/` works, and only
  * for a fine pointer.
+ *
+ * SEARCH-EXAMPLES: the box's empty state. The first focus asks GET
+ * /api/cards/examples once (a static body, regenerated hourly: no request
+ * runs a statement), and the popup offers the day's four searches while
+ * the box holds fewer than two characters: the open page's game first,
+ * each with its game's short name as the detail, each a link to its /cards
+ * search. A failed ask leaves the box as it was, and the next focus asks
+ * again. Still nothing on page load: the header renders the same HTML on
+ * every page, every day.
  */
 import { SearchIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import { flushSync } from "react-dom";
 
 import { isTextTarget } from "@/components/editor/use-editor-hotkeys";
 import type { SwitchGame } from "@/components/game-switch";
-import { NameSuggest } from "@/components/search/name-suggest";
+import { NameSuggest, type NameExample } from "@/components/search/name-suggest";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
+import type { SearchExample } from "@/lib/search/examples";
 import { nameKey } from "@/lib/search/name-key";
 import { cn } from "@/lib/utils";
 
@@ -120,6 +139,9 @@ export function HeaderSearch() {
   const [answered, setAnswered] = useState<{ key: string; game: SwitchGame } | null>(null);
   /** Phones: the search row is laid over the header row. */
   const [open, setOpen] = useState(false);
+  /** The day's examples, once the first focus has asked for them (SEARCH-EXAMPLES). */
+  const [examples, setExamples] = useState<readonly SearchExample[]>([]);
+  const examplesAsked = useRef(false);
 
   // A route change closes the row while rendering (no effect, no extra
   // paint), and remembers that it did so the focus can follow it.
@@ -156,6 +178,35 @@ export function HeaderSearch() {
 
   const readGame = () => setGame(pageGame() ?? "mtg");
 
+  /** The examples are asked for once; a failure lets the next focus ask again. */
+  const askExamples = () => {
+    if (examplesAsked.current) return;
+    examplesAsked.current = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/cards/examples");
+        if (!res.ok) throw new Error(`Examples failed (${res.status})`);
+        const json = (await res.json()) as { examples?: SearchExample[] };
+        setExamples(Array.isArray(json.examples) ? json.examples : []);
+      } catch {
+        examplesAsked.current = false;
+      }
+    })();
+  };
+
+  /** The page's game first, each with its game's short name as the row's detail. */
+  const shownExamples = useMemo<NameExample[]>(
+    () =>
+      [...examples]
+        .sort((a, b) => Number(b.game === game) - Number(a.game === game))
+        .map((example) => ({
+          text: example.text,
+          href: example.href,
+          detail: GAME_NAMES[example.game],
+        })),
+    [examples, game],
+  );
+
   /** The tap that opens the row focuses its input in the same task (iOS keyboard). */
   const openRow = () => {
     flushSync(() => setOpen(true));
@@ -165,6 +216,15 @@ export function HeaderSearch() {
   const closeRow = () => {
     flushSync(() => setOpen(false));
     buttonRef.current?.focus();
+  };
+
+  // A followed link in the popup closes the row (its clicks bubble here
+  // through the portal, React's tree). An example opens /cards?q=…, which
+  // from /cards is the same path, so the route-change close above never
+  // sees it; a new-tab click keeps the row.
+  const onClick = (e: MouseEvent<HTMLFormElement>) => {
+    if (!open || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (e.target instanceof Element && e.target.closest("a[href]")) closeRow();
   };
 
   // Esc with the popup shut closes the row — before Base UI's own Esc, which
@@ -190,8 +250,12 @@ export function HeaderSearch() {
         method="get"
         data-slot="header-search"
         data-search-open={open ? "" : undefined}
-        onFocus={readGame}
+        onFocus={() => {
+          readGame();
+          askExamples();
+        }}
         onKeyDownCapture={onKeyDownCapture}
+        onClick={onClick}
         className={cn(
           "group/search @container/search min-w-0 items-center gap-2",
           open ? "bg-background visible absolute inset-0 z-10 flex px-4" : "hidden",
@@ -220,6 +284,7 @@ export function HeaderSearch() {
             inputClassName={INPUT_CLASS}
             fallback={{ game: OTHER_GAME[game], names: GAME_NAMES }}
             onAnswer={setAnswered}
+            examples={shownExamples}
           />
           {!onEditor && (
             <Kbd
