@@ -36,6 +36,7 @@ import { notFound } from "next/navigation";
 import { ViewTransition } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
+import { TiltSurface } from "@/components/cards/tilt-surface";
 import { chipsForMask, ColorChip } from "@/components/color-chip";
 import { HubBuildCta } from "@/components/hub/hub-build-cta";
 import { HERO_CARD_SHADOW, SurfaceHeader } from "@/components/surface-header";
@@ -49,6 +50,7 @@ import type { OptcgAttrs } from "@/lib/games/optcg/adapter";
 import { maskToOptcgColorNames, maskToOptcgLetters } from "@/lib/games/optcg/colors";
 import { MIN_EVENT_PLAYERS, TOP_PLACEMENT } from "@/lib/games/optcg/limitless-map";
 import { loadDefaultPrinting, loadLeaderStatus, loadOpLeaderSiblings } from "@/lib/hub/queries";
+import { HERO_TILT_DEG } from "@/lib/motion/tilt";
 import { breadcrumbJsonLd, JsonLd } from "@/lib/seo/jsonld";
 // U7b (LATER row 107): the finishes shelf reads the shared formatters the
 // /tournaments pages and the set places use; the local mirrors are gone.
@@ -143,10 +145,12 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
       {/* The accent band (R5b, G3); the hero card overlaps its lower edge. */}
       <SurfaceHeader art={art} className="mt-4" />
       <div className="flex flex-col gap-6 md:flex-row md:gap-8">
-        <div className="relative -mt-24 shrink-0 md:-mt-28">
+        <TiltSurface maxDeg={HERO_TILT_DEG} className="relative -mt-24 shrink-0 md:-mt-28">
           {/* The tile on /leaders morphs into this card and back
               (VIEW-TRANSITIONS, 2026-11-02): one boundary per page, named
-              like the grid's, so the names never collide. */}
+              like the grid's, so the names never collide. The card turns
+              toward a fine pointer (CARD-TILT) and squares up on a press,
+              so a click's morph starts from a square card. */}
           <ViewTransition name={`hub-card-${slug}`} share="morph" default="none">
             <CardImage
               src={imageUrl}
@@ -158,7 +162,7 @@ export default async function LeaderHubPage({ params }: PageProps<"/l/[slug]">) 
               fallback="Card image coming soon"
             />
           </ViewTransition>
-        </div>
+        </TiltSurface>
 
         <div className="min-w-0 flex-1 md:pt-4">
           <div className="flex flex-wrap items-baseline gap-3">

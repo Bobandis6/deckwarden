@@ -69,5 +69,12 @@ describe("the hub card morph (VIEW-TRANSITIONS)", () => {
       );
       expect(code.match(/<ViewTransition /g)).toHaveLength(1);
     });
+
+    it(`${route}'s hero turns toward a fine pointer around the boundary (CARD-TILT): the morphing card is the tilting card`, () => {
+      expect(code).toContain('import { TiltSurface } from "@/components/cards/tilt-surface";');
+      expect(code).toMatch(
+        /<TiltSurface maxDeg=\{HERO_TILT_DEG\} className="relative -mt-24 shrink-0 md:-mt-28">\s*\{\/\*[\s\S]*?\*\/\}\s*<ViewTransition /,
+      );
+    });
   }
 });

@@ -51,12 +51,19 @@
  * is the one caller; the read-only shape (no `onRemove`, the accent ring,
  * the mono caption under an unraised card) is kept, unused, until the
  * next change here folds it (LATER).
+ *
+ * CARD-TILT (2026-11-03): the raised card turns up to 4° toward a fine
+ * pointer over its button (the button is the surface, so the card tipping
+ * away never moves the hit area), and squares up on a press before the
+ * preview opens. A working surface, so less than the heroes' 6°; the rows
+ * and the search results get none.
  */
 import { ArrowRightIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useId } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
+import { useTiltSurface } from "@/components/cards/tilt-surface";
 import { GroupHeading } from "@/components/deck/deck-text-view";
 import { EmptyState } from "@/components/empty-state";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -66,6 +73,7 @@ import type { EditorCard, EditorEntry } from "@/lib/decks/editor-state";
 import { leaderCaption, leaderFacts } from "@/lib/decks/leader-caption";
 import type { ViewItem } from "@/lib/decks/view-model";
 import type { GameAdapter, ZoneDef } from "@/lib/games/types";
+import { LEADER_TILT_DEG } from "@/lib/motion/tilt";
 import { cn } from "@/lib/utils";
 
 /** A leader's box: 160 px (45 % at most) above its name, the share page's. */
@@ -132,6 +140,7 @@ export function LeaderZone({
   // R6 (status never color-only): the validation ring's severity as text,
   // described onto the card button — the name stays "Show {name}".
   const idPrefix = useId();
+  const tilt = useTiltSurface(LEADER_TILT_DEG);
   return (
     <section>
       <GroupHeading label={zone.label} qty={items.reduce((n, i) => n + i.entry.qty, 0)} />
@@ -245,6 +254,7 @@ export function LeaderZone({
             return (
               <li key={entry.cardId} className={raised ? RAISED_ROW_CLASS : CARD_ROW_CLASS}>
                 <button
+                  ref={raised ? tilt : undefined}
                   type="button"
                   onClick={() => onPreview(card)}
                   aria-label={`Show ${card.name}`}

@@ -11,7 +11,9 @@
  * on U2's tokens (U5, LATER row 230): the lift and the ring over 120 ms on
  * settle-120, the fade over 250 ms on settle-250. The list names `translate`,
  * the property Tailwind v4's `-translate-y-0.5` writes (it named `transform`
- * until U5, so the lift had never animated).
+ * until U5, so the lift had never animated), and `transform` beside it for
+ * the pointer tilt on the hero cards and the leader card (CARD-TILT,
+ * src/lib/motion/tilt.ts), which follows the pointer through it on 120 ms.
  * Keyboard focus belongs to the interactive parent (the buttons and links
  * around these images already draw --ring, the game accent on data-game
  * surfaces), so the frame draws no focus ring of its own.
@@ -101,7 +103,7 @@ export function CardImage({
             }
       }
       className={cn(
-        "motion-safe:[transition:opacity_250ms_var(--ease-settle-250),translate_120ms_var(--ease-settle-120),box-shadow_120ms_var(--ease-settle-120)]",
+        "motion-safe:[transition:opacity_250ms_var(--ease-settle-250),translate_120ms_var(--ease-settle-120),transform_120ms_var(--ease-settle-120),box-shadow_120ms_var(--ease-settle-120)]",
         !priority && (loaded ? "opacity-100" : "opacity-0"),
         frame && FRAME_CLASS,
         className,

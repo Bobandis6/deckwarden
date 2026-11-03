@@ -905,8 +905,6 @@
   .home-band {
     --home-cast: var(--background);
     --home-foot: color-mix(in oklab, var(--primary) 16%, transparent);
-    --home-card-shadow:
-      -9px 9px 13px -8px rgb(66 52 34 / 0.5), -2px 3px 4px -1px rgb(46 38 26 / 0.55);
     --home-stage-image: url("/home/hero-stage-light.webp");
     --home-stage-opacity: 1;
     --home-stage-inset: -2rem -1rem;
@@ -929,7 +927,6 @@
   .dark .home-band {
     --home-cast: color-mix(in oklab, var(--primary) 6%, var(--background));
     --home-foot: transparent;
-    --home-card-shadow: 0 10px 12px -8px rgb(0 0 0 / 0.32), 0 2px 3px -1px rgb(0 0 0 / 0.5);
     --home-stage-image: url("/home/hero-stage.webp");
     --home-stage-opacity: 0.78;
     --home-stage-inset: -3rem -30% -2.5rem -92%;
@@ -1009,7 +1006,20 @@
     width: 100%;
     height: auto;
     aspect-ratio: 488 / 680;
-    box-shadow: var(--home-card-shadow);
+    /* The grounded shadow, on the card itself so its tilt can slide it
+       (CARD-TILT: --tilt-dx and --tilt-dy, 0 at rest; a custom property set
+       on the band would resolve there, at 0, for good). Light's short warm
+       cast toward the lower left; dark's short pool under the card. The
+       tight contact layer slides half as far as the cast. */
+    box-shadow:
+      calc(-9px + var(--tilt-dx, 0px)) calc(9px + var(--tilt-dy, 0px)) 13px -8px rgb(66 52 34 / 0.5),
+      calc(-2px + var(--tilt-dx, 0px) / 2) calc(3px + var(--tilt-dy, 0px) / 2) 4px -1px
+        rgb(46 38 26 / 0.55);
+  }
+  .dark .home-fan > * {
+    box-shadow:
+      var(--tilt-dx, 0px) calc(10px + var(--tilt-dy, 0px)) 12px -8px rgb(0 0 0 / 0.32),
+      calc(var(--tilt-dx, 0px) / 2) calc(2px + var(--tilt-dy, 0px) / 2) 3px -1px rgb(0 0 0 / 0.5);
   }
   /* The side cards turned a little toward the viewer, pivoting on the edge
      nearest the center: the reference's shallow arc. */
@@ -1020,6 +1030,20 @@
   .home-fan > :last-child {
     transform: rotateY(9deg);
     transform-origin: 0% 50%;
+  }
+  /* The pointer tilt composes after the stage's turn (CARD-TILT, the block
+     after the card entrance below): the side cards keep their 9° about the
+     inner edge and tip about their own centre on top of it, the centre card
+     tips alone, all in the stage's perspective. Only while the tilt is
+     attached: a fine pointer, no reduced motion, the entrance over. */
+  .home-fan > [data-tilt] {
+    transform: var(--tilt);
+  }
+  .home-fan > [data-tilt]:first-child {
+    transform: rotateY(-9deg) translateX(-50%) var(--tilt) translateX(50%);
+  }
+  .home-fan > [data-tilt]:last-child {
+    transform: rotateY(9deg) translateX(50%) var(--tilt) translateX(-50%);
   }
   .home-doors {
     display: grid;
@@ -1235,6 +1259,37 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+/* The card tilt (CARD-TILT, 2026-11-03; DESIGN-REFERENCES-2026-11-02.md
+   idea 3): src/lib/motion/tilt.ts turns a card toward a fine pointer by
+   setting data-tilt on it and writing --tilt-x and --tilt-y (degrees) and
+   --tilt-dx and --tilt-dy (the shadow's slide, px), and nothing else;
+   CardImage's 120 ms transform and box-shadow transitions on settle-120
+   smooth each write. A card standing alone (the hub hero, the editor's
+   leader card) brings its own perspective; the trio turns in the stage's
+   (.home-fan, above). Transforms and box-shadows only, never a filter.
+   Coarse pointers and reduced motion never get data-tilt, so none of this
+   reaches them. */
+@layer components {
+  [data-tilt] {
+    --tilt: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    transform: perspective(1000px) var(--tilt);
+  }
+}
+/* U8's hero shadow (HERO_CARD_SHADOW, shadow-lg in the primary at 25 % on
+   ivory, black at 60 % on charcoal) slides with a tilting card: shadow-lg's
+   two layers with the offsets added, the contact layer half as far, the
+   color still the shadow-color utility's. In the utilities layer, where the
+   shadow-lg it reshapes lives. */
+@layer utilities {
+  .shadow-lg[data-tilt] {
+    --tw-shadow:
+      var(--tilt-dx, 0px) calc(10px + var(--tilt-dy, 0px)) 15px -3px
+        var(--tw-shadow-color, rgb(0 0 0 / 0.1)),
+      calc(var(--tilt-dx, 0px) / 2) calc(4px + var(--tilt-dy, 0px) / 2) 6px -4px
+        var(--tw-shadow-color, rgb(0 0 0 / 0.1));
   }
 }
 

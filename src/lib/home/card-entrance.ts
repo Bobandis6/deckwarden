@@ -207,3 +207,29 @@ export function cardEntranceScript(): string {
   ].map((value) => JSON.stringify(value));
   return `"use strict";(${cardEntranceGate.toString()})(${cardEntranceEligible.toString()},${args.join(",")})`;
 }
+
+/**
+ * Starts something that writes the cards' transforms once the entrance has
+ * let go of them (CARD-TILT, the hero's pointer tilt), so the two never
+ * fight: at once when no entrance runs, else when the gate's attribute
+ * leaves <html>, which every ending of the gate does. Returns the stop: it
+ * ends the wait, and the started thing through the stop it returned.
+ */
+export function afterCardEntrance(start: () => () => void): () => void {
+  const root = document.documentElement;
+  let stop: (() => void) | undefined;
+  if (!root.hasAttribute(CARD_ENTRANCE_ATTRIBUTE)) {
+    stop = start();
+    return () => stop?.();
+  }
+  const observer = new MutationObserver(() => {
+    if (stop || root.hasAttribute(CARD_ENTRANCE_ATTRIBUTE)) return;
+    observer.disconnect();
+    stop = start();
+  });
+  observer.observe(root, { attributes: true, attributeFilter: [CARD_ENTRANCE_ATTRIBUTE] });
+  return () => {
+    observer.disconnect();
+    stop?.();
+  };
+}

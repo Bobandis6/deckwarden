@@ -40,6 +40,7 @@ import { notFound } from "next/navigation";
 import { ViewTransition } from "react";
 
 import { CardImage } from "@/components/cards/card-image";
+import { TiltSurface } from "@/components/cards/tilt-surface";
 import { ComboList } from "@/components/combos/combo-list";
 import { AnalyticsBlocks } from "@/components/deck/analytics-blocks";
 import { DeckTile, DeckTileGrid } from "@/components/deck/deck-tile";
@@ -69,6 +70,7 @@ import {
   loadStaples,
   STAPLES_LIMIT,
 } from "@/lib/hub/queries";
+import { HERO_TILT_DEG } from "@/lib/motion/tilt";
 import { breadcrumbJsonLd, JsonLd } from "@/lib/seo/jsonld";
 import { eventDateLabel, ordinal } from "@/lib/tournaments/format";
 import { loadTopFinishes, TOP_FINISHES_SHOWN } from "@/lib/tournaments/queries";
@@ -168,10 +170,12 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
           and its visible credit; the hero card overlaps its lower edge. */}
       <SurfaceHeader art={art} className="mt-4" />
       <div className="flex flex-col gap-6 md:flex-row md:gap-8">
-        <div className="relative -mt-24 shrink-0 md:-mt-28">
+        <TiltSurface maxDeg={HERO_TILT_DEG} className="relative -mt-24 shrink-0 md:-mt-28">
           {/* The tile on /commanders morphs into this card and back
               (VIEW-TRANSITIONS, 2026-11-02): one boundary per page, named
-              like the grid's, so the names never collide. */}
+              like the grid's, so the names never collide. The card turns
+              toward a fine pointer (CARD-TILT) and squares up on a press,
+              so a click's morph starts from a square card. */}
           <ViewTransition name={`hub-card-${slug}`} share="morph" default="none">
             <CardImage
               src={printing ? embeddablePrintingImageUrl(printing, "normal") : null}
@@ -183,7 +187,7 @@ export default async function CommanderHubPage({ params }: PageProps<"/c/[slug]"
               fallback="No image"
             />
           </ViewTransition>
-        </div>
+        </TiltSurface>
 
         <div className="min-w-0 flex-1 md:pt-4">
           <div className="flex flex-wrap items-baseline gap-3">

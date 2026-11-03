@@ -6,7 +6,7 @@
  * and Life (C13 / C15).
  */
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { EditorCard } from "@/lib/decks/editor-state";
 import { COMMANDER } from "@/lib/games/mtg/formats";
@@ -331,7 +331,8 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4; U4a at every tier, WAVE
     // U5 (LATER row 230), naming `translate`, the property the lift writes.
     expect(img.className).toContain("motion-safe:hover:-translate-y-0.5");
     expect(img.className).toContain("translate_120ms_var(--ease-settle-120)");
-    expect(img.className).not.toContain("transform_");
+    // CARD-TILT: `transform` beside it, for the pointer tilt, on the same 120 ms.
+    expect(img.className).toContain("transform_120ms_var(--ease-settle-120)");
     expect(img.className).not.toContain("150ms");
     // The facts: the type line and the caption as the adapter gives them (data,
     // em dash kept), shown at every tier; the mono caption is the share page's alone.
@@ -418,5 +419,69 @@ describe("LeaderZone — the raised card (U3b, WAVE5 D4; U4a at every tier, WAVE
     expect(screen.getByText("Giada, Font of Hope").className).toBe(
       "min-w-0 truncate flex-1 text-xs",
     );
+  });
+
+  describe("CARD-TILT: the raised card turns toward a fine pointer over its button", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+    const finePointer = () =>
+      vi.stubGlobal("matchMedia", (query: string) =>
+        Object.assign(new EventTarget(), { matches: query === "(pointer: fine)" }),
+      );
+
+    it("the editor's card tilts up to 4°, read on the button, and squares up on a press", () => {
+      finePointer();
+      render(
+        <LeaderZone
+          zone={commanderZone}
+          items={[giadaItem]}
+          severity={new Map()}
+          onRemove={() => {}}
+          onPreview={() => {}}
+          adapter={getAdapter("mtg")}
+          priority
+          raised
+        />,
+      );
+      const button = screen.getByRole("button", { name: "Show Giada, Font of Hope" });
+      const img = screen.getByRole("img", { name: "Giada, Font of Hope" });
+      expect(img.hasAttribute("data-tilt")).toBe(true);
+      vi.spyOn(button, "getBoundingClientRect").mockReturnValue(
+        DOMRect.fromRect({ x: 0, y: 0, width: 180, height: 251 }),
+      );
+      fireEvent.pointerMove(button, { clientX: 180, clientY: 125.5 });
+      expect(img.style.getPropertyValue("--tilt-y")).toBe("4deg");
+      fireEvent.pointerDown(button);
+      expect(img.style.getPropertyValue("--tilt-y")).toBe("");
+    });
+
+    it("the unraised shape gets no tilt, and nothing attaches without a fine pointer", () => {
+      finePointer();
+      const { unmount } = render(
+        <LeaderZone
+          zone={commanderZone}
+          items={[giadaItem]}
+          severity={new Map()}
+          onPreview={() => {}}
+          adapter={getAdapter("mtg")}
+        />,
+      );
+      expect(screen.getByRole("img").hasAttribute("data-tilt")).toBe(false);
+      unmount();
+      vi.stubGlobal("matchMedia", () => Object.assign(new EventTarget(), { matches: false }));
+      render(
+        <LeaderZone
+          zone={commanderZone}
+          items={[giadaItem]}
+          severity={new Map()}
+          onRemove={() => {}}
+          onPreview={() => {}}
+          adapter={getAdapter("mtg")}
+          raised
+        />,
+      );
+      expect(screen.getByRole("img").hasAttribute("data-tilt")).toBe(false);
+    });
   });
 });

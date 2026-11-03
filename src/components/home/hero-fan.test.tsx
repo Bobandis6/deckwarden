@@ -17,9 +17,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { CARD_ENTRANCE_ATTRIBUTE } from "@/lib/home/card-entrance";
 import type { FanCard } from "@/lib/home/shelves";
 import { HeroFan } from "./hero-fan";
 
@@ -117,5 +118,56 @@ describe("HeroFan", () => {
     // holds by construction.
     const block = rules.slice(0, rules.indexOf("/* The home intro"));
     expect(block).not.toMatch(/rotate:|--fan-drop|--fan-step/);
+  });
+});
+
+describe("HeroFan's tilt (CARD-TILT)", () => {
+  const root = document.documentElement;
+  afterEach(() => {
+    root.removeAttribute(CARD_ENTRANCE_ATTRIBUTE);
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+  const finePointer = () =>
+    vi.stubGlobal("matchMedia", (query: string) =>
+      Object.assign(new EventTarget(), { matches: query === "(pointer: fine)" }),
+    );
+
+  it("waits for the entrance to let go, then each card turns on its own over the shared stage", async () => {
+    finePointer();
+    root.setAttribute(CARD_ENTRANCE_ATTRIBUTE, "playing");
+    const { container } = render(<HeroFan cards={FAN} />);
+    const fan = container.querySelector("[data-slot=hero-fan]") as HTMLElement;
+    const cards = Array.from(fan.children) as HTMLElement[];
+    expect(cards.some((el) => el.hasAttribute("data-tilt"))).toBe(false);
+    await act(async () => {
+      root.removeAttribute(CARD_ENTRANCE_ATTRIBUTE);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(cards.every((el) => el.hasAttribute("data-tilt"))).toBe(true);
+    // jsdom has no layout: give the stage a box and the cards their offsets.
+    vi.spyOn(fan, "getBoundingClientRect").mockReturnValue(
+      DOMRect.fromRect({ x: 0, y: 0, width: 720, height: 360 }),
+    );
+    cards.forEach((el, i) =>
+      Object.defineProperties(el, {
+        offsetParent: { get: () => fan },
+        offsetLeft: { get: () => i * 250 },
+        offsetTop: { get: () => 16 },
+        offsetWidth: { get: () => 230 },
+        offsetHeight: { get: () => 320 },
+      }),
+    );
+    fireEvent.pointerMove(fan, { clientX: 250 + 230, clientY: 16 + 160 });
+    expect(cards.map((el) => el.style.getPropertyValue("--tilt-y"))).toEqual(["", "6deg", ""]);
+    fireEvent.pointerMove(fan, { clientX: 240, clientY: 100 }); // the gap between two cards
+    expect(cards.map((el) => el.style.length)).toEqual([0, 0, 0]);
+  });
+
+  it("a touch screen attaches nothing", () => {
+    vi.stubGlobal("matchMedia", () => Object.assign(new EventTarget(), { matches: false }));
+    const { container } = render(<HeroFan cards={FAN} />);
+    const fan = container.querySelector("[data-slot=hero-fan]") as HTMLElement;
+    expect(Array.from(fan.children).some((el) => el.hasAttribute("data-tilt"))).toBe(false);
   });
 });

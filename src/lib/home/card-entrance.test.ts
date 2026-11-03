@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  afterCardEntrance,
   CARD_ENTRANCE_ATTRIBUTE as ATTRIBUTE,
   CARD_READY_MS,
   CARD_SESSION_KEY as KEY,
@@ -322,5 +323,52 @@ describe("serialized pre-paint card gate", () => {
     run();
     expect(state()).toBeNull();
     expect(store.get(KEY)).toBe("1");
+  });
+});
+
+describe("afterCardEntrance (CARD-TILT): the tilt waits for the entrance to let go of the cards", () => {
+  const root = document.documentElement;
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  afterEach(() => {
+    root.removeAttribute(ATTRIBUTE);
+  });
+
+  it("starts at once when no entrance runs, and the stop stops what it started", () => {
+    const stopped = vi.fn();
+    const start = vi.fn(() => stopped);
+    const stop = afterCardEntrance(start);
+    expect(start).toHaveBeenCalledTimes(1);
+    stop();
+    expect(stopped).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits through pending and playing, and starts once when the gate's attribute leaves <html>", async () => {
+    root.setAttribute(ATTRIBUTE, "pending");
+    const stopped = vi.fn();
+    const start = vi.fn(() => stopped);
+    const stop = afterCardEntrance(start);
+    root.setAttribute(ATTRIBUTE, "playing");
+    await flush();
+    expect(start).not.toHaveBeenCalled();
+    root.removeAttribute(ATTRIBUTE);
+    await flush();
+    expect(start).toHaveBeenCalledTimes(1);
+    // A later entrance on the same document (none happens, but) never restarts it.
+    root.setAttribute(ATTRIBUTE, "pending");
+    root.removeAttribute(ATTRIBUTE);
+    await flush();
+    expect(start).toHaveBeenCalledTimes(1);
+    stop();
+    expect(stopped).toHaveBeenCalledTimes(1);
+  });
+
+  it("a stop during the wait means it never starts", async () => {
+    root.setAttribute(ATTRIBUTE, "pending");
+    const start = vi.fn(() => () => {});
+    afterCardEntrance(start)();
+    root.removeAttribute(ATTRIBUTE);
+    await flush();
+    expect(start).not.toHaveBeenCalled();
   });
 });

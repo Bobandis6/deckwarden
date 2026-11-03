@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * The hero trio (U5, WAVE5 D6 section 1; upright since FRESH-UI-HOME,
  * 2026-10-30, the owner's chosen reference): three Magic commanders as full
@@ -25,17 +27,39 @@
  * Full cards only, never cropped. Not links: the hero's job is "Build a deck",
  * and the gallery below links the hubs. A card with no image paints
  * CardImage's named box in the same place.
+ *
+ * CARD-TILT (2026-11-03): once the entrance has let go of the cards
+ * (`afterCardEntrance`), each turns up to 6° toward a fine pointer over the
+ * stage, after its resting turn (src/lib/motion/tilt.ts, the `[data-tilt]`
+ * rules in globals.css). The stage is the surface the pointer is read on, so
+ * a card tipping away never moves its own hit area. A client component for
+ * that effect alone: the markup is the server's, unchanged.
  */
+import { useEffect, useRef } from "react";
+
 import { CardImage } from "@/components/cards/card-image";
+import { afterCardEntrance } from "@/lib/home/card-entrance";
 import type { FanCard } from "@/lib/home/shelves";
+import { attachTilt, HERO_TILT_DEG } from "@/lib/motion/tilt";
 
 /** Scryfall's `normal` box: about 230 px wide at 1440 (690 device px on a 3x phone at 390). */
 const NORMAL = { width: 488, height: 680 } as const;
 
 export function HeroFan({ cards }: { cards: FanCard[] }) {
+  const fan = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const stage = fan.current;
+    if (!stage) return;
+    return afterCardEntrance(() => {
+      const detach = Array.from(stage.children, (card) =>
+        attachTilt(card as HTMLElement, { maxDeg: HERO_TILT_DEG, surface: stage }),
+      );
+      return () => detach.forEach((stop) => stop());
+    });
+  }, []);
   if (cards.length === 0) return null;
   return (
-    <div data-slot="hero-fan" className="home-fan">
+    <div ref={fan} data-slot="hero-fan" className="home-fan">
       {cards.map((card) => (
         <CardImage
           key={card.id}

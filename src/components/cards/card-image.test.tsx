@@ -48,13 +48,14 @@ describe("CardImage", () => {
     expect(screen.getByRole("img").className).not.toContain("hover:ring-2");
   });
 
-  it("transitions the lift's `translate` (not `transform`) and the ring on settle-120, the fade on settle-250 (U5)", () => {
+  it("transitions the lift's `translate`, the tilt's `transform` and the ring on settle-120, the fade on settle-250 (U5, CARD-TILT)", () => {
     render(<CardImage src={SRC} alt="Sol Ring" width={488} height={680} frame />);
     const classes = screen.getByRole("img").className.split(" ");
     // LATER row 230: Tailwind v4's -translate-y-0.5 writes `translate`; a list
-    // naming `transform` left the 2 px lift a jump on every framed card.
+    // naming `transform` alone left the 2 px lift a jump on every framed card.
+    // `transform` rides beside it for the pointer tilt (src/lib/motion/tilt.ts).
     expect(classes).toContain(
-      "motion-safe:[transition:opacity_250ms_var(--ease-settle-250),translate_120ms_var(--ease-settle-120),box-shadow_120ms_var(--ease-settle-120)]",
+      "motion-safe:[transition:opacity_250ms_var(--ease-settle-250),translate_120ms_var(--ease-settle-120),transform_120ms_var(--ease-settle-120),box-shadow_120ms_var(--ease-settle-120)]",
     );
     expect(classes).toContain("motion-safe:hover:-translate-y-0.5");
   });

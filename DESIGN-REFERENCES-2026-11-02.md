@@ -1,6 +1,6 @@
 # Design references for Deckwarden (2026-11-02)
 
-**Status:** ideas 1 (phase 1, the grid tile into the hub hero and back) and 2 (the theme reveal) shipped on 2026-11-02 as VIEW-TRANSITIONS, the owner's pick; the record is the REDESIGN.md addendum of that name and LATER rows 210, 222 and 394 to 396. Ideas 3 to 5 and idea 1's hub-to-editor half are still recommendations. Six reference sites were requested; all six were reachable and read on 2026-11-02 (notes on how at the end).
+**Status:** ideas 1 (phase 1, the grid tile into the hub hero and back) and 2 (the theme reveal) shipped on 2026-11-02 as VIEW-TRANSITIONS, the owner's pick; the record is the REDESIGN.md addendum of that name and LATER rows 210, 222 and 394 to 396. Idea 3 (the tilt) shipped on 2026-11-03 as CARD-TILT, build 1 of `DESIGN-REFERENCES-session-prompt.md`; its record is the REDESIGN.md addendum of that name and LATER rows 398 to 400. Ideas 4 and 5 and idea 1's hub-to-editor half are still recommendations, briefed as that prompt's builds 2 to 4. Six reference sites were requested; all six were reachable and read on 2026-11-02 (notes on how at the end).
 
 ## 1. The read of Deckwarden these picks were filtered through
 
