@@ -28,9 +28,17 @@
  * 44 px on touch without growing the line, since their margins give back
  * what reaches past it. The editor's form since U3a and the share page's
  * since U6 (WAVE5 D7), so it is the only form: the `slot` switch is gone.
+ *
+ * ROLLING-NUMBERS: when the read's level changes, its number rolls (every
+ * number in the line that changed, the words untouched, `tabular-nums` so
+ * the line keeps its width). Only a read's own line rolls: a draft's
+ * counts, a blocked list's and core's "Checking combos…" never do, and an
+ * edit's level rolls from the last read shown before that interlude. The
+ * share page's line never changes, so it never rolls.
  */
 import { GaugeIcon } from "lucide-react";
 
+import { RollingNumbers } from "@/components/ui/rolling-numbers";
 import { BRACKET_COPY } from "@/lib/brackets/copy";
 import type { BracketFactsState } from "@/lib/brackets/facts";
 import { bracketLineLead, bracketLineView } from "@/lib/brackets/line-view";
@@ -38,7 +46,7 @@ import type { BracketLineContext, BracketRead, GameAdapter } from "@/lib/games/t
 import { cn } from "@/lib/utils";
 
 const LINE_CLASS =
-  "type-meta-multiline text-muted-foreground focus-visible:ring-ring/50 mt-1.5 flex items-baseline gap-1.5 rounded-sm outline-none focus-visible:ring-2";
+  "type-meta-multiline text-muted-foreground focus-visible:ring-ring/50 mt-1.5 flex items-baseline gap-1.5 rounded-sm tabular-nums outline-none focus-visible:ring-2";
 /** On the first line's baseline; the Warden shield's size, so both lines' text starts at the same x. */
 const ICON_CLASS = "size-4 shrink-0 translate-y-[3px]";
 /**
@@ -85,6 +93,7 @@ export function BracketLine({
   }
   const view = bracketLineView(brackets, read, ctx, facts);
   const lead = bracketLineLead(view);
+  const level = lead !== null && read.status !== "draft" && read.status !== "blocked";
   return (
     <p
       data-slot="bracket-line"
@@ -95,14 +104,8 @@ export function BracketLine({
     >
       <GaugeIcon aria-hidden className={ICON_CLASS} />
       <span>
-        {lead ? (
-          <>
-            <span className="text-foreground font-medium">{lead}</span>
-            {view.text.slice(lead.length)}
-          </>
-        ) : (
-          view.text
-        )}
+        <RollingNumbers text={lead ?? ""} hold={!level} className="text-foreground font-medium" />
+        <RollingNumbers text={lead ? view.text.slice(lead.length) : view.text} hold={!level} />
         {view.action && (
           <>
             {" "}

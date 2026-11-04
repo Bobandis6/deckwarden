@@ -3,10 +3,10 @@
  * directly after the ValidationPanel — the Warden's line when approved, the
  * progress and problem lines otherwise — and before the leader zone; with
  * no `bracket` the pane renders as before. U4a: the phone Deck tab (one
- * count, the "Group · Sort" popover).
+ * count, the "Group · Sort" popover). ROLLING-NUMBERS: the total's digits.
  */
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toEditorCard, type EditorEntry } from "@/lib/decks/editor-state";
 import { COMMANDER } from "@/lib/games/mtg/formats";
@@ -581,5 +581,95 @@ describe("DeckListPane — one primary door in the empty state (FRESH-UI-EDITOR)
     empty({ entries, cards });
     expect(screen.getByRole("button", { name: "Add cards" }).className).toContain(PRIMARY);
     expect(screen.getByRole("button", { name: "Paste a list" }).className).toContain(GHOST);
+  });
+});
+
+describe("DeckListPane — the deck total rolls (ROLLING-NUMBERS)", () => {
+  const sol = toEditorCard({
+    ...card({ name: "Sol Ring", primaryType: "Artifact" }),
+    id: "sol",
+    image: null,
+  });
+  const solCards = new Map([...cards, ["sol", sol]]);
+  const props = (qty: number): React.ComponentProps<typeof DeckListPane> => ({
+    adapter: mtg,
+    format: COMMANDER,
+    entries: [...entries, { cardId: "sol", zone: "main", qty, tags: [] }],
+    cards: solCards,
+    issues: [],
+    analytics: [],
+    onSetQty: () => undefined,
+    onRemove: () => {},
+    onPreview: () => {},
+    extras: false,
+  });
+  /** Each rolling number's columns, as `char<from` (moving) or `char` (standing), and its way. */
+  const rolls = (root: ParentNode) =>
+    Array.from(root.querySelectorAll("[data-slot=rolling-number]"), (n) => ({
+      columns: Array.from(n.querySelectorAll<HTMLElement>("[data-c]"), (c) =>
+        c.dataset.from === undefined ? c.dataset.c : `${c.dataset.c}<${c.dataset.from}`,
+      ),
+      dir: n.querySelector("[data-roll]")?.getAttribute("data-roll"),
+    }));
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("an import rolls the count up and its words down, together; the label reads the same throughout", () => {
+    const { rerender } = render(<DeckListPane {...props(1)} />);
+    const size = document.querySelector<HTMLElement>("[data-slot=deck-size]")!;
+    expect(size.innerHTML).toBe(
+      '<span class="max-md:text-foreground max-md:font-medium">2 / 100</span> · 98 to go',
+    );
+    rerender(<DeckListPane {...props(39)} />);
+    expect(size.textContent).toBe("40 / 100 · 60 to go");
+    expect(rolls(size)).toEqual([
+      { columns: ["4<", "0<2"], dir: "up" },
+      { columns: ["6<9", "0<8"], dir: "down" },
+    ]);
+    // The count stays the foreground span the phone reads (U4a).
+    expect(size.firstElementChild!.textContent).toBe("40 / 100");
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(size.innerHTML).toBe(
+      '<span class="max-md:text-foreground max-md:font-medium">40 / 100</span> · 60 to go',
+    );
+  });
+
+  it("a URL seed's list lands still (a count never animates on page load); the next import rolls", () => {
+    const { rerender } = render(<DeckListPane {...props(0)} entries={[]} seeding />);
+    const size = document.querySelector<HTMLElement>("[data-slot=deck-size]")!;
+    expect(size.textContent).toBe("0 / 100 · 100 to go");
+    rerender(<DeckListPane {...props(98)} seeding={false} />);
+    expect(rolls(size)).toEqual([]);
+    expect(size.textContent).toBe("99 / 100 · 1 to go");
+    rerender(<DeckListPane {...props(80)} />);
+    expect(rolls(size)).toEqual([
+      { columns: ["8<9", "1<9"], dir: "down" },
+      { columns: ["1<", "9<1"], dir: "up" },
+    ]);
+  });
+
+  it("a ±1 edit, and anything within five, lands at once (R3 F10's rule)", () => {
+    const { rerender } = render(<DeckListPane {...props(39)} />);
+    const size = document.querySelector<HTMLElement>("[data-slot=deck-size]")!;
+    rerender(<DeckListPane {...props(40)} />);
+    expect(rolls(size)).toEqual([]);
+    expect(size.textContent).toBe("41 / 100 · 59 to go");
+    rerender(<DeckListPane {...props(45)} />);
+    expect(rolls(size)).toEqual([]);
+    expect(size.textContent).toBe("46 / 100 · 54 to go");
   });
 });

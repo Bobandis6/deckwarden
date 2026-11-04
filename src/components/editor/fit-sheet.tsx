@@ -26,7 +26,8 @@
  *   priciest cards that reach the total (each card's cheapest option, said
  *   aloud, when the best-ranked can't), and the player's checks win. The
  *   running estimate reads in the footer — "est. $148 of your $150", or
- *   "Gets you to $172 of your $150" when the swaps can't reach it.
+ *   "Gets you to $172 of your $150" when the swaps can't reach it — and its
+ *   digits roll as the checks move it (ROLLING-NUMBERS).
  * - **The apply** is ONE `applyListSwap` (D9): every checked card out and
  *   its pick in, in place, one toast and one Undo for the batch.
  *
@@ -62,6 +63,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { RollingNumbers } from "@/components/ui/rolling-numbers";
 import type { BracketFactsState } from "@/lib/brackets/facts";
 import { formatUsd } from "@/lib/collection/ownership";
 import type { CardWire, EditorCard, EditorEntry } from "@/lib/decks/editor-state";
@@ -512,7 +514,7 @@ export function FitSheet({
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
             <p data-slot="fit-after" className="text-sm font-medium tabular-nums">
-              {afterPhrase(plan.afterUsd, committed!, plan.fits)}
+              <RollingNumbers text={afterPhrase(plan.afterUsd, committed!, plan.fits)} />
             </p>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={onClose}>

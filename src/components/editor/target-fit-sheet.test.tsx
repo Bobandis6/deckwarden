@@ -343,6 +343,32 @@ describe("TargetFitSheet — the review", () => {
     );
   });
 
+  it("the price rolls as a choice moves it (ROLLING-NUMBERS): the cents that changed, then plain text", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    const { sheet } = renderSheet({ specials: [conscripts, rhystic, rift] });
+    await settled();
+    const cost = sheet.querySelector<HTMLElement>("[data-slot=target-fit-cost]")!;
+    expect(cost.className).toContain("tabular-nums");
+    await waitFor(() => expect(cost.innerHTML).toBe("The cards coming in cost $3.50."));
+    const group = within(sheet).getByRole("radiogroup", { name: "Instead of Rhystic Study" });
+    fireEvent.click(within(group).getAllByRole("radio")[1]);
+    // $3.50 → $2.75: every digit rolls down; the sign and the point stand.
+    const [rolling] = cost.querySelectorAll("[data-slot=rolling-number]");
+    expect(
+      Array.from(rolling.querySelectorAll<HTMLElement>("[data-c]"), (c) =>
+        c.dataset.from === undefined ? c.dataset.c : `${c.dataset.c}<${c.dataset.from}`,
+      ),
+    ).toEqual(["$", "2<3", ".", "7<5", "5<0"]);
+    expect(rolling.querySelectorAll("[data-roll=down]")).toHaveLength(3);
+    expect(cost.textContent).toBe("The cards coming in cost $2.75.");
+    await waitFor(() => expect(cost.innerHTML).toBe("The cards coming in cost $2.75."));
+  });
+
   it("keep: the card stays, the fix names it, and checking it again swaps it back", async () => {
     const { sheet } = renderSheet({ specials: [conscripts, rhystic, rift] });
     await settled();

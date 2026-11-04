@@ -11,17 +11,7 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { GAME_ID } from "@/db/seed-data";
-import {
-  borderControl,
-  dark,
-  light,
-  og,
-  ogAccent,
-  radius,
-  rgba,
-  sampleLinear,
-  settle400,
-} from "./tokens";
+import { borderControl, dark, light, og, ogAccent, radius, rgba } from "./tokens";
 
 const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
@@ -192,14 +182,6 @@ describe("theme tokens ↔ globals.css", () => {
     expect(theme).toContain("--default-transition-timing-function: var(--ease-settle-120);");
     // No other curve is written anywhere in the stylesheet.
     expect(code).not.toMatch(/cubic-bezier|\bease-out\b|\bease-in-out\b/);
-  });
-
-  it("the count-up's settle-400 points are the stylesheet's, and sample as straight lines (U2)", () => {
-    expect(`linear(${settle400.join(", ")})`).toBe(CURVES["settle-400"]);
-    expect(sampleLinear(settle400, 0)).toBe(0);
-    expect(sampleLinear(settle400, 1)).toBe(1);
-    expect(sampleLinear(settle400, 0.05)).toBeCloseTo(0.041); // the 2nd of 21 points
-    expect(sampleLinear(settle400, 0.075)).toBeCloseTo((0.041 + 0.133) / 2);
   });
 
   it("dw-in / dw-out animate opacity and transform only, on the cross-fade slot by default (U2)", () => {

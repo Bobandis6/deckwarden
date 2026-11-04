@@ -322,7 +322,7 @@ export function replaceLeader(
 /**
  * The one (zone, card) whose quantity GREW between two lists — the row whose
  * quantity badge pops after an add (R3, F3). Null when nothing grew or when
- * more than one entry did (an import: the count-up on the total is that
+ * more than one entry did (an import: the total's rolling digits are that
  * moment's feedback, not a hundred pops). Decreases (Undo, steppers down)
  * never pop.
  */

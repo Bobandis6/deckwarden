@@ -69,6 +69,7 @@ import { costOf, FitShell, type TargetFitApply } from "@/components/editor/targe
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Modal } from "@/components/ui/modal";
+import { RollingNumbers } from "@/components/ui/rolling-numbers";
 import { BRACKET_COPY, levelLabel, levelNumberLabel } from "@/lib/brackets/copy";
 import { factsIds, type BracketFactsState } from "@/lib/brackets/facts";
 import {
@@ -527,9 +528,10 @@ export function TargetUpSheet({
             read={afterRead}
             onRetry={facts.retry}
           />
+          {/* ROLLING-NUMBERS: the price rolls as the checks move it. */}
           {costLine && (
-            <p data-slot="target-up-cost" className="text-muted-foreground text-xs">
-              {costLine}
+            <p data-slot="target-up-cost" className="text-muted-foreground text-xs tabular-nums">
+              <RollingNumbers text={costLine} />
             </p>
           )}
         </div>

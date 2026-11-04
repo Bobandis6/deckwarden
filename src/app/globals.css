@@ -111,9 +111,9 @@
    as linear() (settle = damping 1.0; flick = damping 0.8, a 1.5 % overshoot),
    verbatim from the design lab. settle-120 = controls (the press, the tab
    indicator, the Segmented thumb, chevrons, hover lifts); settle-250 =
-   cross-fades (menus and popovers, dialogs, the save slot, the qty pop);
-   settle-400 = one-off moments (the Warden shield, the ring glow, the
-   count-up, the dealt hand, the bars, a drawer or toast opening); flick-400 =
+   cross-fades (menus and popovers, dialogs, the save slot, the qty pop, the
+   rolling digits); settle-400 = one-off moments (the Warden shield, the ring
+   glow, the dealt hand, the bars, a drawer or toast opening); flick-400 =
    only what was thrown (U4b's drawer release after a swipe). The reset drops
    Tailwind's ease-in / ease-out / ease-in-out so no other curve can be
    written, and the default transition (transition-colors and friends with

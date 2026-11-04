@@ -4,10 +4,13 @@
  * text ("Why?", "Retry", or nothing), 44 px on coarse pointers, and One
  * Piece's nothing at all. U3a: the status slot — present and empty before
  * a read, the bracket number forward, the quiet Why? — the only form since
- * U6 gave the share page the editor's line.
+ * U6 gave the share page the editor's line. ROLLING-NUMBERS: a level that
+ * changed rolls its number, across "Checking combos…" too; a draft's count
+ * never rolls.
  */
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BracketFactsState } from "@/lib/brackets/facts";
 import { addMorePhrase, deckProgress } from "@/lib/decks/progress";
@@ -64,8 +67,8 @@ function spec(specials: MtgCard[], size = 100) {
   return { deck, cards: cardMap([commander, ...specials, ...fill]) };
 }
 
-/** Render the line as the editor does: the read from the adapter, core's progress phrase. */
-function renderLine(
+/** The line as the editor renders it: the read from the adapter, core's progress phrase. */
+function lineFor(
   list: ReturnType<typeof spec>,
   {
     combos = [],
@@ -103,7 +106,7 @@ function renderLine(
     progress: addMorePhrase(deckProgress(entries, COMMANDER).toGo),
     targetLevel,
   };
-  return render(
+  return (
     <BracketLine
       adapter={adapter}
       read={read}
@@ -111,9 +114,11 @@ function renderLine(
       facts={facts}
       onWhy={onWhy}
       onRetry={onRetry}
-    />,
+    />
   );
 }
+
+const renderLine = (...args: Parameters<typeof lineFor>) => render(lineFor(...args));
 
 const lineText = () =>
   document.querySelector<HTMLElement>("[data-slot=bracket-line]")?.textContent ?? null;
@@ -380,5 +385,85 @@ describe("the status slot (U3a, WAVE5 D4; the share page's too since U6)", () =>
     expect(why.className).toContain("pointer-coarse:-my-[13px]");
     fireEvent.click(why);
     expect(onWhy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the level rolls (ROLLING-NUMBERS)", () => {
+  const line = () => document.querySelector<HTMLElement>("[data-slot=bracket-line]")!;
+  /** Each rolling number in the line: its columns (`char<from` moving, `char` standing) and its way. */
+  const rolls = () =>
+    Array.from(line().querySelectorAll("[data-slot=rolling-number]"), (n) => ({
+      columns: Array.from(n.querySelectorAll<HTMLElement>("[data-c]"), (c) =>
+        c.dataset.from === undefined ? c.dataset.c : `${c.dataset.c}<${c.dataset.from}`,
+      ),
+      dir: n.querySelector("[data-roll]")?.getAttribute("data-roll"),
+    }));
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("an edit's new level rolls from the last read shown, across Checking combos…; the words stay the adapter's", () => {
+    const four = spec([rhystic, ...gcs]);
+    const { rerender } = renderLine(spec([rhystic]));
+    expect(rolls()).toEqual([]);
+    expect(line().querySelector("span > span")!.innerHTML).toBe("At least Bracket 3 (Upgraded)");
+    rerender(lineFor(four, { facts: "checking" }));
+    expect(lineText()).toBe("Checking combos…");
+    expect(rolls()).toEqual([]);
+    rerender(lineFor(four));
+    expect(rolls()).toEqual([{ columns: ["4<3"], dir: "up" }]);
+    const lead = line().querySelector("span > span")!;
+    expect(lead.className).toContain("font-medium");
+    expect(lead.textContent).toBe("At least Bracket 4 (Optimized)");
+    expect(lineText()).toBe("At least Bracket 4 (Optimized) Why?");
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(lead.innerHTML).toBe("At least Bracket 4 (Optimized)");
+  });
+
+  it("a target's change rolls the target; the read beside it stands", () => {
+    const list = spec([rhystic]);
+    const { rerender } = renderLine(list, { targetLevel: 2 });
+    expect(lineText()).toBe("Your target: Bracket 2 · the cards say at least 3 Why?");
+    rerender(lineFor(list, { targetLevel: 3 }));
+    expect(rolls()).toEqual([{ columns: ["3<2"], dir: "up" }]);
+    expect(lineText()).toBe("Your target: Bracket 3 · the cards say at least 3 Why?");
+  });
+
+  it("a draft's count never rolls, and a level back after a draft rolls from the read before it", () => {
+    const { rerender } = renderLine(spec([rhystic, ...gcs]));
+    rerender(lineFor(spec([rhystic], 66)));
+    expect(lineText()).toMatch(/^Bracket: add 34 more cards/);
+    rerender(lineFor(spec([rhystic], 67)));
+    expect(lineText()).toMatch(/^Bracket: add 33 more cards/);
+    expect(rolls()).toEqual([]);
+    rerender(lineFor(spec([rhystic])));
+    expect(rolls()).toEqual([{ columns: ["3<4"], dir: "down" }]);
+  });
+
+  it("the server's line is the plain sentence (the share page's HTML): nothing rolls on a first render", () => {
+    const html = renderToStaticMarkup(lineFor(spec([rhystic]), { targetLevel: 2 }));
+    expect(html).toContain(
+      '<span class="text-foreground font-medium">Your target: Bracket 2</span> · the cards say at least 3',
+    );
+    expect(html).not.toContain("rolling-number");
+    expect(html).not.toContain("data-c=");
+  });
+
+  it("the line takes tabular figures, so a rolling number keeps the line's width", () => {
+    renderLine(spec([rhystic]));
+    expect(line().className).toContain("tabular-nums");
   });
 });

@@ -67,6 +67,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Modal } from "@/components/ui/modal";
+import { RollingNumbers } from "@/components/ui/rolling-numbers";
 import { BRACKET_COPY, levelNumberLabel } from "@/lib/brackets/copy";
 import { factsIds } from "@/lib/brackets/facts";
 import {
@@ -547,9 +548,10 @@ export function TargetFitSheet({
             level={level}
             onRetry={facts.retry}
           />
+          {/* ROLLING-NUMBERS: the price rolls as the checks move it. */}
           {costLine && (
-            <p data-slot="target-fit-cost" className="text-muted-foreground text-xs">
-              {costLine}
+            <p data-slot="target-fit-cost" className="text-muted-foreground text-xs tabular-nums">
+              <RollingNumbers text={costLine} />
             </p>
           )}
         </div>

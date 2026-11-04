@@ -405,6 +405,35 @@ describe("FitSheet — the review", () => {
     expect(within(a).getAllByRole("radio")[0]).toHaveProperty("checked", true);
   });
 
+  it("the estimate rolls as a check moves it (ROLLING-NUMBERS): the digits that changed, said once, then plain text", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    const { sheet } = renderSheet();
+    preset(sheet, "$250");
+    await settled();
+    const footer = document.querySelector<HTMLElement>("[data-slot=fit-after]")!;
+    // The answers' own picks rolled it from $300; it rests as plain text.
+    await waitFor(() => expect(footer.innerHTML).toBe("est. $232 of your $250"));
+    fireEvent.click(within(sheet).getByRole("checkbox", { name: /Swap Pricey A/ }));
+    // $232 → $247: the hundreds and the total stand, the tens and the ones roll up.
+    const rolling = footer.querySelectorAll("[data-slot=rolling-number]");
+    expect(rolling).toHaveLength(1);
+    expect(
+      Array.from(rolling[0].querySelectorAll<HTMLElement>("[data-c]"), (c) =>
+        c.dataset.from === undefined ? c.dataset.c : `${c.dataset.c}<${c.dataset.from}`,
+      ),
+    ).toEqual(["$", "2", "4<3", "7<2"]);
+    expect(rolling[0].querySelectorAll("[data-roll=up]")).toHaveLength(2);
+    expect(after()).toBe("est. $247 of your $250");
+    expect(rolling[0].querySelector(".sr-only")?.textContent).toBe("$247");
+    expect(rolling[0].querySelector("[aria-hidden=true]")?.textContent).toBe("");
+    await waitFor(() => expect(footer.innerHTML).toBe("est. $247 of your $250"));
+  });
+
   it("a choice picks another alternative and the total follows; one picked for another card is disabled and says for which", async () => {
     const shared = row("2.00");
     ROWS.set(PRICEY[1].id, [shared, ...ROWS.get(PRICEY[1].id)!]);

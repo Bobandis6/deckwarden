@@ -9,7 +9,8 @@
  * comes from adapter.display.defaultGroupBy — nothing game-specific here.
  *
  * R3 (REDESIGN.md §2 "Deck pane"): the order is summary (count with the
- * import count-up F10, the completion ring F2, ownership, the over-limit
+ * import count-up F10, rolling digits since ROLLING-NUMBERS, the completion
+ * ring F2, ownership, the over-limit
  * action) · validation (the Warden line F1) · leader zone (with "Choose
  * commander / leader") · view controls · card groups (sticky headers, the
  * badge pop F3) · analytics and the sample hand as labelled collapsibles.
@@ -105,10 +106,10 @@ import { useTokenFill } from "@/components/deck/use-token-fill";
 import { GROUP_OPTIONS, Segmented, SORT_OPTIONS, VIEW_OPTIONS } from "@/components/deck/segmented";
 import { ValidationPanel } from "@/components/deck/validation-panel";
 import { PreconLine } from "@/components/editor/precon-line";
-import { useCountUp } from "@/components/editor/use-count-up";
 import { EmptyState } from "@/components/empty-state";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RollingNumbers } from "@/components/ui/rolling-numbers";
 import { Spinner } from "@/components/ui/spinner";
 import { ownershipLine, ownershipMethod, type OwnershipSummary } from "@/lib/collection/ownership";
 import {
@@ -130,6 +131,9 @@ import {
 import { loadViewPrefs, saveViewPrefs, type DeckViewMode } from "@/lib/decks/view-prefs";
 import type { AnalyticsBlock, FormatDef, GameAdapter, ValidationIssue } from "@/lib/games/types";
 import { cn } from "@/lib/utils";
+
+/** The deck total jumps on a change of this many cards or fewer and rolls above it (R3 F10's rule). */
+const COUNT_JUMP = 5;
 
 interface DeckListPaneProps {
   adapter: GameAdapter;
@@ -250,7 +254,7 @@ export function DeckListPane({
 
   // The badge pop (F3): the one row whose quantity grew since the previous
   // entries — "storing information from previous renders" (react.dev), so
-  // an import (many rows) pops nothing and the count-up carries that moment.
+  // an import (many rows) pops nothing and the total's roll carries that moment.
   const [prevEntries, setPrevEntries] = useState(entries);
   const [pop, setPop] = useState<{ key: string; nonce: number } | null>(null);
   if (prevEntries !== entries) {
@@ -269,14 +273,12 @@ export function DeckListPane({
   };
 
   const total = deckSizeCount(entries, format);
-  const shownTotal = useCountUp(total);
   const max = format.deckSize.max;
-  // "· N to go" follows the counted-up number so the two never disagree
-  // mid-animation; at or over the minimum the label keeps saying "cards".
-  const toGo = toGoPhrase(format.deckSize.min - shownTotal);
+  // At or over the minimum the label keeps saying "cards".
+  const toGo = toGoPhrase(format.deckSize.min - total);
   // U4a: the count and its words in two spans (the phone sets the count in
   // the foreground); the label's text is unchanged.
-  const sizeCount = max !== null ? `${shownTotal} / ${max}` : `${shownTotal}`;
+  const sizeCount = max !== null ? `${total} / ${max}` : `${total}`;
   const sizeWords = toGo ? ` · ${toGo}` : " cards";
   const progress = progressLine(deckProgress(entries, format), adapter.display.leaderNoun);
 
@@ -405,8 +407,15 @@ export function DeckListPane({
             className="text-muted-foreground shrink-0 text-sm whitespace-nowrap tabular-nums"
             data-slot="deck-size"
           >
-            <span className="max-md:text-foreground max-md:font-medium">{sizeCount}</span>
-            {sizeWords}
+            {/* ROLLING-NUMBERS: an import's count rolls its digits, and "· N to
+                go" rolls with it, so the two never disagree mid-roll; a ±1
+                edit (anything within COUNT_JUMP) jumps, as the count-up did.
+                A URL seed's list lands still: it arrives with the page, and
+                a count never animates on page load. */}
+            <span className="max-md:text-foreground max-md:font-medium">
+              <RollingNumbers text={sizeCount} threshold={COUNT_JUMP} hold={seeding} />
+            </span>
+            <RollingNumbers text={sizeWords} threshold={COUNT_JUMP} hold={seeding} />
           </span>
           <CompletionRing value={total} max={max} className="max-md:order-first" />
         </div>
