@@ -497,6 +497,48 @@ describe("FitSheet — the review", () => {
     );
   });
 
+  it("the estimate lands still while the sheet asks (ROLLING-NUMBERS, LATER row 411): its own answers never roll, a check afterwards does", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    const held: (() => void)[] = [];
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((resolve) => {
+          const { cardId } = JSON.parse(init.body as string);
+          held.push(() => resolve(ok(answer(cardId, ROWS.get(cardId) ?? []))));
+        }),
+    );
+    const { sheet } = renderSheet();
+    preset(sheet, "$250");
+    await waitFor(() => expect(held).toHaveLength(3));
+    const footer = document.querySelector<HTMLElement>("[data-slot=fit-after]")!;
+    const rolling = () => footer.querySelectorAll("[data-slot=rolling-number]");
+    // Before any answer: the plain estimate, nothing checked yet.
+    expect(footer.innerHTML).toBe("Gets you to $300 of your $250");
+    // Each answer's own pick moves the line at once (held): no columns.
+    await act(async () => held[0]());
+    expect(fitState()).toBe("asking");
+    expect(footer.innerHTML).toBe("Gets you to $261 of your $250");
+    expect(rolling()).toHaveLength(0);
+    await act(async () => {
+      held[1]();
+      held[2]();
+    });
+    await settled();
+    // The answers are in: the settled line is plain, and nothing rolled.
+    expect(footer.innerHTML).toBe("est. $232 of your $250");
+    // The reader's check rolls, from the settled line.
+    fireEvent.click(within(sheet).getByRole("checkbox", { name: /Swap Pricey A/ }));
+    expect(rolling()).toHaveLength(1);
+    expect(rolling()[0].querySelector(".sr-only")?.textContent).toBe("$247");
+    expect(after()).toBe("est. $247 of your $250");
+    await waitFor(() => expect(footer.innerHTML).toBe("est. $247 of your $250"));
+  });
+
   it("on a phone: the bottom Drawer, the field focused when no total is saved", async () => {
     renderSheet({ phone: true });
     expect(document.querySelector("[data-slot=drawer-popup]")).toBeTruthy();

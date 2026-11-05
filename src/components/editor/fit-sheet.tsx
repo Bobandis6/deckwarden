@@ -514,7 +514,13 @@ export function FitSheet({
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
             <p data-slot="fit-after" className="text-sm font-medium tabular-nums">
-              <RollingNumbers text={afterPhrase(plan.afterUsd, committed!, plan.fits)} />
+              {/* ROLLING-NUMBERS: held while the sheet asks, so its own answers
+                  land still and only the reader's checks and choices roll
+                  (LATER row 411, the owner's call of 2026-11-05). */}
+              <RollingNumbers
+                text={afterPhrase(plan.afterUsd, committed!, plan.fits)}
+                hold={pending.length > 0}
+              />
             </p>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={onClose}>

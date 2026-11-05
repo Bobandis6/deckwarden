@@ -67,6 +67,10 @@ describe("RollingNumbers", () => {
     expect(columns(number)).toEqual(["$", "1", "4<7", "8<2"]);
     expect(number.querySelectorAll("[data-roll=down]")).toHaveLength(2);
     expect(number.querySelector("[data-roll=up]")).toBeNull();
+    // A standing cell is one em tall like a moving one, so the slot's baseline is the line's.
+    for (const cell of number.querySelectorAll("[data-c]")) {
+      expect(cell.className).toContain("leading-none");
+    }
     // Said once: the line reads exactly, and the columns hold no text.
     expect(p.textContent).toBe("est. $148 of your $150");
     expect(spoken(p)).toBe("est. $148 of your $150");
@@ -81,7 +85,7 @@ describe("RollingNumbers", () => {
     expect(p.innerHTML).toBe("est. $148 of your $150");
   });
 
-  it("the columns: U2's dw-in, one line up or down, no fade, motion-safe only, clipped to the line", () => {
+  it("the columns: U2's dw-in, one em up or down, no fade, motion-safe only, clipped to a one-em slot", () => {
     const { container, rerender } = render(<RollingNumbers text="62 / 100" threshold={5} />);
     rerender(<RollingNumbers text="99 / 100" threshold={5} />);
     const moving = container.querySelectorAll<HTMLElement>("[data-roll]");
@@ -95,9 +99,16 @@ describe("RollingNumbers", () => {
       expect(cell.className).toContain("after:content-[attr(data-from)]");
       expect(cell.className).not.toMatch(/(^|\s)animate-/);
     }
+    // The slot is the digit's height, not the line's (2026-11-05): the window
+    // and every cell are one em tall, so --dw-y's 100% is one em and the old
+    // digit's line sits one em above or below.
     const window = container.querySelector("[aria-hidden=true]")!;
     expect(window.className).toContain("[clip-path:inset(0_-0.25em)]");
     expect(window.className).toContain("whitespace-nowrap");
+    expect(window.className).toContain("leading-none");
+    const cells = container.querySelectorAll<HTMLElement>("[data-c]");
+    expect(cells).toHaveLength(2);
+    for (const cell of cells) expect(cell.className).toContain("leading-none");
   });
 
   it("the jump path: a change at or under the threshold lands at once", () => {

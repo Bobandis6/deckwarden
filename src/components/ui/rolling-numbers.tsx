@@ -17,7 +17,12 @@
  * whether a line announces stays that line's own decision (the bracket line
  * deliberately doesn't). The digits take the line's figures, so every home
  * sets `tabular-nums` on the line; a window's width is then the plain
- * number's, and nothing beside it moves when a roll starts or ends.
+ * number's, and nothing beside it moves when a roll starts or ends. The
+ * window and its cells are one em tall (`leading-none`): the digit's height,
+ * not the line's, so the digits pass each other inside the slot the way an
+ * odometer's do and an outgoing digit never shows whole above or below the
+ * line (with the line's height, twice a digit's, it did). The slot sits on
+ * the line's baseline inside the line box, which keeps its height.
  *
  * Nothing rolls on mount (no count on page load), under reduced motion
  * (read when the line changes, as useCountUp read it), or within
@@ -32,16 +37,16 @@ import { Fragment, useEffect, useState } from "react";
 import { planRoll, ROLL_MS, type RollingRun, type RollPart } from "@/lib/motion/rolling";
 import { prefersReducedMotion } from "@/lib/theme/motion";
 
-/** A character drawn from its `data-c` (generated content holds no text). */
-const CELL = "inline-block before:content-[attr(data-c)]";
+/** A character drawn from its `data-c` (generated content holds no text), one em tall. */
+const CELL = "inline-block leading-none before:content-[attr(data-c)]";
 /**
- * A digit that changed: the new one in place, the old one (`data-from`) a
- * line above it (rolling up) or below it (rolling down), the pair moving one
- * line on dw-in from the old digit's place to rest.
+ * A digit that changed: the new one in place, the old one (`data-from`) one
+ * em above it (rolling up) or below it (rolling down), the pair moving one
+ * em on dw-in from the old digit's place to rest.
  */
 const ROLLING_CELL = `relative ${CELL} after:absolute after:inset-x-0 after:content-[attr(data-from)] data-[roll=up]:after:bottom-full data-[roll=down]:after:top-full motion-safe:animate-dw-in [--dw-opacity:1] data-[roll=up]:[--dw-y:100%] data-[roll=down]:[--dw-y:-100%]`;
-/** The window: the line's height, a little wider than the digits so no glyph's edge is cut. */
-const WINDOW = "inline-block whitespace-nowrap [clip-path:inset(0_-0.25em)]";
+/** The window: one em tall (the digit's height), a little wider than the digits so no glyph's edge is cut. */
+const WINDOW = "inline-block leading-none whitespace-nowrap [clip-path:inset(0_-0.25em)]";
 
 export function RollingNumbers({
   text,
