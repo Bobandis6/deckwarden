@@ -68,8 +68,10 @@ jobs:
       # https://img.deckwarden.gg (P4.9, the public bucket's custom domain);
       # the ingest appends /optcg/images/<KEY>.png itself. The skip check
       # compares the image base too, so changing it re-stages every printing.
+      # Needs nothing from the Magic steps above, so their failure doesn't skip it.
       - name: Ingest punk-records One Piece corpus (pins upstream sha; re-ingests on change)
         timeout-minutes: 10
+        if: ${{ !cancelled() }}
         run: pnpm ingest:punk-records
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -82,9 +84,11 @@ jobs:
       # request) and nothing merges until every event is fetched: the window
       # grows after failed nights, and catching up from its 180-day limit takes
       # about 52 minutes (241 s is the slowest night so far). A cap under that
-      # would fail every night and never catch up.
+      # would fail every night and never catch up. Leaders resolve against the
+      # stored corpus, so it runs whatever the steps above answered.
       - name: Ingest Limitless One Piece tournaments (after punk-records — leaders resolve via external_key)
         timeout-minutes: 90
+        if: ${{ !cancelled() }}
         run: pnpm ingest:limitless
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

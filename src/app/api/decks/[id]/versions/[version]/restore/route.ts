@@ -16,6 +16,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { noStoreJson } from "@/lib/api/json";
 import { deckFormat, requireOwnedDeckWrite } from "@/lib/decks/route-helpers";
 import { MAX_VERSIONS_PER_DECK, parseVersionParam, restoreVersion } from "@/lib/decks/versions";
+import { revalidateCommandZoneChange } from "@/lib/hub/paths";
 import { RATE_LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -58,5 +59,7 @@ export async function POST(
         );
     }
   }
+  // The cards save's refresh: a restored commander can move a public deck's hub.
+  await revalidateCommandZoneChange(access.deck, result.leaderIds);
   return noStoreJson(result);
 }

@@ -81,6 +81,7 @@ import {
   taggerRoleStats,
   type TaggerStats,
 } from "../../src/lib/games/mtg/tagger";
+import { verifyImageSample } from "../../src/lib/ingest/image-sample";
 
 const USER_AGENT = "Deckwarden/1.0 (https://deckwarden.gg)";
 const HEADERS = { "User-Agent": USER_AGENT, Accept: "application/json" };
@@ -199,6 +200,8 @@ interface Stats {
     leader_slugs_assigned: number;
     images_checked: number;
     image_overrides: number;
+    /** Sampled checks whose read failed (logged as WARNINGs, the run unaffected). */
+    images_failed: number;
   };
   /** Y3a: the ruleset watch compares md5 with src/lib/games/mtg/bracket-ruleset.ts. */
   game_changers: { count: number; md5: string } | null;
@@ -292,6 +295,7 @@ async function main() {
         leader_slugs_assigned: 0,
         images_checked: 0,
         image_overrides: 0,
+        images_failed: 0,
       },
       game_changers: null,
       tokens: null,
@@ -603,23 +607,20 @@ async function main() {
       SELECT id::text FROM card_printings
       WHERE game_id = ${GAME_ID.mtg} AND NOT is_removed AND image_override IS NULL
       ORDER BY random() LIMIT 20`;
-    for (const { id } of sample) {
-      const derived = `https://cards.scryfall.io/normal/front/${id[0]}/${id[1]}/${id}.jpg`;
-      const head = await fetch(derived, { method: "HEAD", headers: HEADERS });
-      stats.post_pass.images_checked++;
-      if (!head.ok) {
-        const card = await fetchJson<ScryfallCard>(`https://api.scryfall.com/cards/${id}`);
-        const override = {
-          front: card.image_uris?.normal ?? card.card_faces?.[0]?.image_uris?.normal ?? null,
-          back: card.card_faces?.[1]?.image_uris?.normal ?? null,
-        };
-        await sql`UPDATE card_printings
-          SET image_override = ${sql.json(override)} WHERE id = ${id}`;
-        stats.post_pass.image_overrides++;
-        console.warn(`image_override written for ${id}`);
-      }
-      await new Promise((r) => setTimeout(r, 100)); // Scryfall politeness
-    }
+    // Fail-soft and bounded: a failed check is counted, never fails the run.
+    const images = await verifyImageSample(
+      sample.map((r) => r.id),
+      {
+        headers: HEADERS,
+        writeOverride: async (id, override) => {
+          await sql`UPDATE card_printings
+            SET image_override = ${sql.json(override)} WHERE id = ${id}`;
+        },
+      },
+    );
+    stats.post_pass.images_checked = images.checked;
+    stats.post_pass.image_overrides = images.overrides;
+    stats.post_pass.images_failed = images.failed;
 
     const [{ size }] = await sql<{ size: string }[]>`
       SELECT pg_database_size(current_database())::text AS size`;

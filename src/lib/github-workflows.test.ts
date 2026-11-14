@@ -134,6 +134,14 @@ describe("the nightly's time budget (the 2026-10-30 audit's bulk-read record)", 
       expect(nightly.slice(at, at + 200), name).toContain("if: ${{ !cancelled() }}");
     }
   });
+
+  it("runs the One Piece feeds behind !cancelled() too: a failed Scryfall step doesn't skip them (the 2026-11 audit's run-2 record)", () => {
+    for (const name of ["Ingest punk-records", "Ingest Limitless"]) {
+      const at = nightly.indexOf(`- name: ${name}`);
+      expect(at, name).toBeGreaterThan(-1);
+      expect(nightly.slice(at, at + 200), name).toContain("if: ${{ !cancelled() }}");
+    }
+  });
 });
 
 describe("dependabot.yml", () => {

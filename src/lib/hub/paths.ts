@@ -41,7 +41,33 @@ export interface DeckListingRef {
  * and the core sitemap. Returns the paths marked, for the callers' tests.
  */
 export async function revalidateDeckListings(decks: readonly DeckListingRef[]): Promise<string[]> {
-  const paths = new Set<string>(["/sitemap.xml"]);
+  return revalidatePaths(decks, ["/sitemap.xml"]);
+}
+
+/**
+ * A public deck's command zone changed (a cards save or a version restore):
+ * refresh the hubs of its old and new commanders, so the withdrawal refresh
+ * above, which sees only the current ones, leaves no former hub listing it
+ * (the 2026-11 security audit's run-2 hub record). The sitemap holds no
+ * commander, so it is left alone. Nothing for a deck that isn't public or
+ * whose leader set (order aside) didn't change — an ordinary autosave.
+ */
+export async function revalidateCommandZoneChange(
+  deck: DeckListingRef & { visibility: string },
+  savedLeaderIds: readonly string[],
+): Promise<string[]> {
+  if (deck.visibility !== "public") return [];
+  const before = new Set(deck.leaderIds);
+  const after = new Set(savedLeaderIds);
+  if (before.size === after.size && [...after].every((id) => before.has(id))) return [];
+  return revalidatePaths([{ gameId: deck.gameId, leaderIds: [...before, ...after] }], []);
+}
+
+async function revalidatePaths(
+  decks: readonly DeckListingRef[],
+  extra: readonly string[],
+): Promise<string[]> {
+  const paths = new Set<string>(extra);
   try {
     const leaderIds = [
       ...new Set(decks.filter((d) => d.gameId === GAME_ID.mtg).flatMap((d) => d.leaderIds)),

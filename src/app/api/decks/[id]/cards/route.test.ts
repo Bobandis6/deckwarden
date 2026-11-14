@@ -95,7 +95,8 @@ const deck: Record<string, unknown> = {
   createdAt: "2026-09-01T00:00:00.000Z",
   updatedAt: "2026-10-01T12:00:00.000Z",
 };
-const deckRow = COLUMNS.map((c) => deck[c]);
+/** The gate's row, read from `deck` per statement so a test can change it. */
+const deckRow = () => COLUMNS.map((c) => deck[c]);
 
 /** The fake's one token identity (DECK-TOKENS): a Treasure. */
 const TREASURE = U(9);
@@ -151,7 +152,12 @@ function answer(sql: string, params: unknown[], tx: Tx | null, who: string): unk
   }
   if (sql.includes('from "decks" where "decks"."id" = $1 limit $2')) {
     log.push(`${who}:deck`);
-    return [deckRow];
+    return [deckRow()];
+  }
+  if (sql.startsWith('select "slug" from "card_identities"')) {
+    // The hub refresh's slug lookup (lib/hub/paths.ts).
+    log.push(`${who}:slugs`);
+    return (params as string[]).map((id) => [`slug-${id.slice(-2)}`]);
   }
   if (sql.includes('from "legalities"')) {
     log.push(`${who}:legality`);
@@ -291,8 +297,15 @@ vi.mock("@/db", async (importOriginal) => ({
   getDb: () => fakeDb,
 }));
 vi.mock("@/lib/auth", () => ({ getSessionUserId: async () => null }));
+const revalidated: string[] = [];
+vi.mock("next/cache", () => ({
+  revalidatePath: (path: string) => {
+    revalidated.push(path);
+  },
+}));
 
 const { PUT } = await import("./route");
+const { POST: RESTORE } = await import("../versions/[version]/restore/route");
 const { deckFormat } = await import("@/lib/decks/route-helpers");
 const { restoreVersion } = await import("@/lib/decks/versions");
 
@@ -328,6 +341,9 @@ beforeEach(() => {
   txSerial = 0;
   lock.held = false;
   lock.queue = [];
+  deck.visibility = "public";
+  deck.leaderIds = [U(1)];
+  revalidated.length = 0;
 });
 
 describe("the limiter around the gate (M1)", () => {
@@ -476,5 +492,61 @@ describe("the deck row lock (L7)", () => {
     expect(log.indexOf("tx2:delete")).toBeGreaterThan(log.indexOf("tx1:commit"));
     expect(committed()).toEqual(["commander|" + U(1), "main|" + U(2), "main|" + U(4)]);
     expect(committed()).not.toContain("main|" + U(3));
+  });
+});
+
+describe("the former commander's hub (the 2026-11 audit's run-2 hub record)", () => {
+  const SWAP = [
+    { cardId: U(5), zone: "commander", qty: 1 },
+    { cardId: U(2), zone: "main", qty: 2 },
+  ];
+  function restore(version: number): Promise<Response> {
+    return RESTORE(
+      new NextRequest(`http://localhost:3000/api/decks/${DECK}/versions/${version}/restore`, {
+        method: "POST",
+        headers: { "x-forwarded-for": OWNER_IP, "x-deck-token": TOKEN },
+      }),
+      { params: Promise.resolve({ id: DECK, version: String(version) }) },
+    );
+  }
+
+  it("a public deck's save swapping commander A for B marks both hubs, after the commit, and not the sitemap", async () => {
+    const res = await put({ ip: OWNER_IP, token: TOKEN, body: { cards: SWAP } });
+    expect(res.status).toBe(200);
+    expect(revalidated.sort()).toEqual(["/c/slug-01", "/c/slug-05"]);
+    expect(log.indexOf("route:slugs")).toBeGreaterThan(log.indexOf("tx1:commit"));
+  });
+
+  it("a save that keeps the commander marks nothing and reads no slug", async () => {
+    expect((await put({ ip: OWNER_IP, token: TOKEN })).status).toBe(200);
+    expect(revalidated).toEqual([]);
+    expect(log).not.toContain("route:slugs");
+  });
+
+  it("an unlisted or private deck's swap marks nothing", async () => {
+    for (const visibility of ["unlisted", "private"]) {
+      deck.visibility = visibility;
+      const res = await put({ ip: OWNER_IP, token: TOKEN, body: { cards: SWAP } });
+      expect(res.status).toBe(200);
+    }
+    expect(revalidated).toEqual([]);
+    expect(log).not.toContain("route:slugs");
+  });
+
+  it("a restore that brings back another commander marks the old and the restored hub", async () => {
+    deck.leaderIds = [U(6)];
+    const res = await restore(2);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, leaderIds: [U(1)] });
+    expect(revalidated.sort()).toEqual(["/c/slug-01", "/c/slug-06"]);
+  });
+
+  it("a restore with the same commander, or of an unlisted deck, marks nothing", async () => {
+    expect((await restore(2)).status).toBe(200);
+    deck.visibility = "unlisted";
+    deck.leaderIds = [U(6)];
+    expect((await restore(2)).status).toBe(200);
+    expect(revalidated).toEqual([]);
+    expect(log).not.toContain("route:slugs");
   });
 });

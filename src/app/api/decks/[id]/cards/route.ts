@@ -42,6 +42,7 @@ import { writeDeckCards } from "@/lib/decks/save-cards";
 import { toDeckSnapshot, toWireIssues } from "@/lib/decks/validation";
 import { lockDeck } from "@/lib/decks/versions";
 import { getAdapter } from "@/lib/games/registry";
+import { revalidateCommandZoneChange } from "@/lib/hub/paths";
 import { RATE_LIMITS } from "@/lib/rate-limit";
 import type { CardData } from "@/lib/games/types";
 
@@ -193,6 +194,8 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/decks/[i
     await lockDeck(tx, deck.id);
     return writeDeckCards(tx, deck.id, entries, formatDef, ciMaskByCard);
   });
+  // A public deck's new commander: its former hub drops the tile (never throws).
+  await revalidateCommandZoneChange(deck, leaderIds);
 
   return noStoreJson({ count: entries.length, leaderIds, ciMask, updatedAt, validation });
 }
